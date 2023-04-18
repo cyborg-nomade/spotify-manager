@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 88
+exclude = .venv,.mypy_cache,.pytest_cache,docs
+ignore = PT013,PT018, W503, E203

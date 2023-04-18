@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "spotify_manager"
+version = "0.1.0"
+description = ""
+authors = ["Uriel Fiori <u.fiori@iib-institut.de>"]
+packages = [{include = "spotify_manager"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+spotipy = "^2.23.0"
+black = "^23.3.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
