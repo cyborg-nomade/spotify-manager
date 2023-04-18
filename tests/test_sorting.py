@@ -29,10 +29,21 @@ def test_get_ordering_string() -> None:
     results = sp.current_user_saved_albums(limit=50, offset=random_offset)
     albums = results["items"]
 
-    for album in albums:
-        name = album["album"]["name"]
-        ordering_string = get_ordering_string(name)
-        print(f"{name} - {ordering_string}")
+    simplified_albums = [
+        {
+            "name": album["album"]["name"],
+            "ordering_name": get_ordering_string(album["album"]["name"]),
+            "artist": album["album"]["artists"][0]["name"],
+        }
+        for album in albums
+    ]
+
+    sorted_albums = sorted(simplified_albums, key=lambda x: (x["ordering_name"]))
+
+    for album in sorted_albums:
+        name = album["name"]
+        ordering_name = album["ordering_name"]
+        print(f"{name} - {ordering_name}")
 
 
 if __name__ == "__main__":
