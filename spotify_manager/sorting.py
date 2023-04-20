@@ -1,9 +1,10 @@
 """Utils for sorting lists alphabetically."""
 import re
 import unicodedata
+
 from unidecode import unidecode
 
-latin_letters = {}
+latin_letters: dict = {}
 
 
 def is_latin(unicode_char: str) -> bool:
@@ -25,7 +26,7 @@ def is_all_latin(string: str) -> bool:
 
 def get_ordering_string(album_name: str) -> str:
     """Return the ordering string from the album name."""
-    pattern = re.compile(r"(^(the|a|an)\b)?\W*", re.UNICODE | re.IGNORECASE)
+    pattern = re.compile(r"(^(the|a|an)\b)?(?!\$)\W|_", re.UNICODE | re.IGNORECASE)
 
     tentative_ordering_str = re.sub(pattern, "", album_name)
 

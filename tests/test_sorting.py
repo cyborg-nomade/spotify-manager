@@ -1,9 +1,11 @@
 """Test sorting functions."""
 
-from spotify_manager.sorting import get_ordering_string
+import random
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import random
+
+from spotify_manager.sorting import get_ordering_string
 
 
 def test_get_ordering_string() -> None:

@@ -1,5 +1,8 @@
+import json
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+
 from spotify_manager.sorting import get_ordering_string
 
 SPOTIPY_CLIENT_ID = "fc70707ebf5d4ca3af5bdcd88bdd9b17"
@@ -48,12 +51,13 @@ simplified_albums = [
 
 sorted_albums = sorted(simplified_albums, key=lambda x: (x["ordering_name"]))
 
-with open("albums_total.txt", "w") as main_file:
-    for album in sorted_albums:
-        album_name = album["name"]
-        ordering_name = album["ordering_name"]
+with open("albums_total.json", "w") as main_file:
+    # for album in sorted_albums:
+    #     album_name = album["name"]
+    #     ordering_name = album["ordering_name"]
 
-        # album_artist_name = album["artist"]
+    #     # album_artist_name = album["artist"]
 
-        # print(f"{album_name} - {ordering_name}: ")
-        main_file.write(f"{album_name} - {ordering_name}: \n")
+    #     # print(f"{album_name} - {ordering_name}: ")
+    #     main_file.write(f"{album_name} - {ordering_name}: \n")
+    json.dump(sorted_albums, main_file)
