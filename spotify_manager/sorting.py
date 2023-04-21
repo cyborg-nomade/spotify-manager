@@ -2,7 +2,6 @@
 import re
 import unicodedata
 
-
 from pyuca import Collator
 
 latin_letters: dict = {}
