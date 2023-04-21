@@ -2,7 +2,8 @@
 import re
 import unicodedata
 
-from unidecode import unidecode
+
+from pyuca import Collator
 
 latin_letters: dict = {}
 
@@ -31,8 +32,13 @@ def get_ordering_string(album_name: str) -> str:
     tentative_ordering_str = re.sub(pattern, "", album_name)
 
     if tentative_ordering_str:
-        if is_all_latin(tentative_ordering_str):
-            tentative_ordering_str = unidecode(tentative_ordering_str)
         return tentative_ordering_str.upper()
     else:
         return album_name.upper()
+
+
+c = Collator()
+
+
+def sort_key(item):
+    return c.sort_key(str(item["ordering_name"]))
