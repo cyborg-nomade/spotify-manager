@@ -44,19 +44,28 @@ while results["next"]:
 for index, album in enumerate(albums):
     if not album:
         print(index)
+    if not album["album"]:
+        print(index)
 
 simplified_albums = [
     {
-        "id": album.get("album", {}).get("id", ""),
+        "id": album["album"]["id"],
         "name": album["album"]["name"],
         "ordering_name": get_ordering_string(album["album"]["name"]),
         "artist": album["album"]["artists"][0]["name"],
     }
     for album in albums
-    if album
+    if album and album["album"]
 ]
 
 sorted_albums = sorted(simplified_albums, key=sort_key)
 
 with open("albums_total.json", "w") as main_file:
     json.dump(sorted_albums, main_file, ensure_ascii=False)
+
+with open("albums_total.txt", "w") as second_file:
+    for album in sorted_albums:
+        album_name = album["name"]
+        album_artist = album["artist"]
+
+        second_file.write(f"{album_name} - {album_artist}: \n")
