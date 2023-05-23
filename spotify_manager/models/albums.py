@@ -1,6 +1,7 @@
 """Simplified album models."""
 
 from pydantic import BaseModel
+
 from spotify_manager.models.artists import SimplifiedArtist
 
 

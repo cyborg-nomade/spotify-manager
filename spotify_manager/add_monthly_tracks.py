@@ -1,9 +1,10 @@
 """Add monthly albums into playlist."""
 
 import json
+from operator import itemgetter
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from operator import itemgetter
 
 
 def load_all_albums() -> list[dict]:
