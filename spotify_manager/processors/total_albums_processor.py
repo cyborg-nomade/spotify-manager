@@ -15,6 +15,7 @@ ALBUMS_TO_ADD = 250
 
 def update_total_album_list() -> list[ControlFileItem]:
     """Get, update, save and return all saved albums."""
+    print("Updating total albums...")
     sp = get_spotipy_client()
     results = sp.current_user_saved_albums(limit=50)
     total_albums = results["total"]
@@ -64,6 +65,7 @@ def update_total_album_list() -> list[ControlFileItem]:
     ]
 
     save_total_albums_file(control_file_items)
+    print("Albums updated!")
 
     return control_file_items
 
@@ -77,9 +79,11 @@ def get_months_items(
 
 def create_playlist() -> str:
     """Creates a playlist and return id."""
+    print("Creating playlist...")
     sp = get_spotipy_client()
     playlist_name = f"{str(datetime.now().year)}.{str(datetime.now().month)}"
     result = sp.user_playlist_create("12161013970", name=playlist_name)
+    print("Done!")
     return result["id"]
 
 
@@ -112,10 +116,12 @@ def get_ordered_tracks(album: SimplifiedAlbum) -> list[SimplifiedTrack]:
 
 def append_to_playlist(ordered_tracks: list[SimplifiedTrack], playlist_id: str) -> None:
     """Append given list of tracks to playlist."""
+    print("Appending tracks to playlist...")
     track_uris = [track.uri for track in ordered_tracks]
 
     sp = get_spotipy_client()
     sp.playlist_add_items(playlist_id, track_uris)
+    print("Done!")
 
 
 def add_monthly_albums(
@@ -127,6 +133,7 @@ def add_monthly_albums(
 
     Receives initial index of the first album to be added.
     Returns bool whether the process worked accordingly."""
+    print("Adding monthly albums to playlist and control file...")
     try:
         this_month_items = get_months_items(total_album_list, starting_index)
         for item in this_month_items:
@@ -134,6 +141,7 @@ def add_monthly_albums(
             playlist_id = create_playlist()
             append_to_playlist(ordered_tracks, playlist_id)
             control_file.append(item)
+            print(f"Added album {item.album.name} to control file")
         return True
     except Exception as e:
         print(e)

@@ -14,10 +14,13 @@ from spotify_manager.processors.total_albums_processor import (
 
 def run_monthly_routines() -> None:
     """Run all monthly routines."""
+    print("Running monthly routines...")
     control_file = load_control_file()
     total_album_list = update_total_album_list()
 
     check_album_results(control_file)
     update_stats(control_file, total_album_list)
     starting_index = get_starting_index(control_file, total_album_list)
+    print(f"Starting index: {starting_index}")
     add_monthly_albums(control_file, total_album_list, starting_index)
+    print("Monthly routine complete.")

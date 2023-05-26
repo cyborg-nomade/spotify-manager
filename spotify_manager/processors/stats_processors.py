@@ -8,6 +8,7 @@ from spotify_manager.loaders_savers import save_stats_file
 def calculate_stats(
     control_file: list[ControlFileItem], total_album_list: list[ControlFileItem]
 ) -> StatsFileItem:
+    print("Calculating stats...")
     total_saved_albums = len(total_album_list)
     total_listened_albums = len(control_file)
     total_removed_albums = len(
@@ -31,6 +32,9 @@ def update_stats(
     control_file: list[ControlFileItem], total_album_list: list[ControlFileItem]
 ) -> bool:
     """Update stats file."""
+    print("Updating stats...")
     stats = calculate_stats(control_file, total_album_list)
+    print(f"These are your current stats: \n{stats.dict()}")
     save_stats_file(stats)
+    print("Stats updated!")
     return True
