@@ -5,7 +5,7 @@ import random
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
-from spotify_manager.sorting import get_ordering_string
+from spotify_manager.utils.sorting import get_ordering_string
 
 
 def test_get_ordering_string() -> None:

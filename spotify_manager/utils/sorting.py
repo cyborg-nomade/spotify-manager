@@ -4,6 +4,8 @@ import unicodedata
 
 from pyuca import Collator
 
+from spotify_manager.models.file_items import ControlFileItem
+
 latin_letters: dict = {}
 
 
@@ -39,5 +41,5 @@ def get_ordering_string(album_name: str) -> str:
 c = Collator()
 
 
-def sort_key(item):
-    return c.sort_key(str(item["ordering_name"]))
+def sort_key(item: ControlFileItem):
+    return c.sort_key(str(item.album.ordering_string))
