@@ -1,10 +1,14 @@
 """Utils for sorting lists alphabetically."""
+# Standard Library
 import re
 import unicodedata
 
 from pyuca import Collator
 
+# UFI
+
 from spotify_manager.models.file_items import ControlFileItem
+
 
 latin_letters: dict = {}
 
@@ -42,4 +46,5 @@ c = Collator()
 
 
 def sort_key(item: ControlFileItem):
+    """Sort key function."""
     return c.sort_key(str(item.album.ordering_string))

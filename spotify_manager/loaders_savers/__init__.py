@@ -1,10 +1,14 @@
 """Functions to load data from files."""
 
+# Standard Library
 import json
+
+from pydantic import BaseModel
+
+# UFI
 
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
-from pydantic import BaseModel
 
 
 def serialize_model_list(model_list: list[BaseModel]) -> list[dict]:

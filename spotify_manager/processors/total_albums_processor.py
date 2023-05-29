@@ -1,14 +1,19 @@
 """Data processors for total albums list."""
+# Standard Library
+from datetime import datetime
 from operator import itemgetter
 
+# UFI
+
 from spotify_manager.client import get_spotipy_client
+from spotify_manager.loaders_savers import save_total_albums_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.tracks import SimplifiedTrack
-from spotify_manager.utils.sorting import get_ordering_string, sort_key
-from spotify_manager.loaders_savers import save_total_albums_file
-from datetime import datetime
+from spotify_manager.utils.sorting import get_ordering_string
+from spotify_manager.utils.sorting import sort_key
+
 
 ALBUMS_TO_ADD = 250
 
@@ -78,7 +83,7 @@ def get_months_items(
 
 
 def create_playlist() -> str:
-    """Creates a playlist and return id."""
+    """Create a playlist and return id."""
     print("Creating playlist...")
     sp = get_spotipy_client()
     playlist_name = f"{str(datetime.now().year)}.{str(datetime.now().month)}"
@@ -129,10 +134,12 @@ def add_monthly_albums(
     total_album_list: list[ControlFileItem],
     starting_index: int,
 ):
-    """Add monthly albums tracks to playlist.
+    """
+    Add monthly albums tracks to playlist.
 
     Receives initial index of the first album to be added.
-    Returns bool whether the process worked accordingly."""
+    Returns bool whether the process worked accordingly.
+    """
     print("Adding monthly albums to playlist and control file...")
     try:
         this_month_items = get_months_items(total_album_list, starting_index)

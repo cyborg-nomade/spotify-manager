@@ -1,8 +1,10 @@
 """Data processors for control file items."""
 
-from spotify_manager.models.file_items import ControlFileItem
+
+# UFI
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.loaders_savers import save_control_file
+from spotify_manager.models.file_items import ControlFileItem
 
 
 def get_index_for_first_unevaluated_album(control_file: list[ControlFileItem]) -> int:

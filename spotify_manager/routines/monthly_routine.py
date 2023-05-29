@@ -1,15 +1,13 @@
 """Execute all monthly routines."""
 
+
+# UFI
 from spotify_manager.loaders_savers import load_control_file
-from spotify_manager.processors.control_file_processors import (
-    check_album_results,
-    get_starting_index,
-)
+from spotify_manager.processors.control_file_processors import check_album_results
+from spotify_manager.processors.control_file_processors import get_starting_index
 from spotify_manager.processors.stats_processors import update_stats
-from spotify_manager.processors.total_albums_processor import (
-    add_monthly_albums,
-    update_total_album_list,
-)
+from spotify_manager.processors.total_albums_processor import add_monthly_albums
+from spotify_manager.processors.total_albums_processor import update_total_album_list
 
 
 def run_monthly_routines() -> None:

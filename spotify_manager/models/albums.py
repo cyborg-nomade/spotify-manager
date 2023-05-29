@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel
 
+# UFI
+
 from spotify_manager.models.artists import SimplifiedArtist
 
 

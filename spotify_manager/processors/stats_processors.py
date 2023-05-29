@@ -1,13 +1,16 @@
 """Data processors for stats."""
 
+
+# UFI
+from spotify_manager.loaders_savers import save_stats_file
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
-from spotify_manager.loaders_savers import save_stats_file
 
 
 def calculate_stats(
     control_file: list[ControlFileItem], total_album_list: list[ControlFileItem]
 ) -> StatsFileItem:
+    """Calculate stats."""
     print("Calculating stats...")
     total_saved_albums = len(total_album_list)
     total_listened_albums = len(control_file)
