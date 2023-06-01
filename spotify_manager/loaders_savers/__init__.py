@@ -66,5 +66,5 @@ def save_stats_file(stats_file_items: StatsFileItem):
     with open(
         "/home/ufiori/dev/spotify-manager/spotify_manager/files/stats_file.json", "w"
     ) as main_file:
-        json.dump(serialize_model_list(stats_file_items), main_file, ensure_ascii=False)
+        json.dump(stats_file_items.dict(), main_file, ensure_ascii=False)
         print("OK!")
