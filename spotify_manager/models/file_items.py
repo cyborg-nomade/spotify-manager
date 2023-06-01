@@ -3,7 +3,6 @@
 from pydantic import BaseModel
 
 # UFI
-
 from spotify_manager.models.albums import SimplifiedAlbum
 
 
