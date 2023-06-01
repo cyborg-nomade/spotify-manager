@@ -89,7 +89,13 @@ def create_playlist() -> str:
     """Create a playlist and return id."""
     print("Creating playlist...")
     sp = get_spotipy_client()
-    playlist_name = f"{str(datetime.now().year)}.{str(datetime.now().month)}"
+    year = str(datetime.now().year)
+    month = (
+        str(datetime.now().month)
+        if datetime.now().month >= 10
+        else f"0{str(datetime.now().month)}"
+    )
+    playlist_name = f"{year}.{month}"
     print(f"Playlist name: {playlist_name}")
     result = sp.user_playlist_create("12161013970", name=playlist_name)
     print("Done!")
@@ -129,7 +135,11 @@ def append_to_playlist(ordered_tracks: list[SimplifiedTrack], playlist_id: str) 
     track_uris = [track.uri for track in ordered_tracks]
 
     sp = get_spotipy_client()
-    sp.playlist_add_items(playlist_id, track_uris)
+    if len(ordered_tracks) <= 100:
+        sp.playlist_add_items(playlist_id, track_uris)
+    else:
+        for i in range(0, len(ordered_tracks), 100):
+            sp.playlist_add_items(playlist_id, track_uris[i : i + 100])
     print("Done!")
 
 
@@ -147,9 +157,9 @@ def add_monthly_albums(
     print("Adding monthly albums to playlist and control file...")
     try:
         this_month_items = get_months_items(total_album_list, starting_index)
+        playlist_id = create_playlist()
         for item in this_month_items:
             ordered_tracks = get_ordered_tracks(item)
-            playlist_id = create_playlist()
             append_to_playlist(ordered_tracks, playlist_id)
             control_file.append(ControlFileItem(album=item, result=""))
             print(f"Added album {item.name} to control file")
