@@ -4,6 +4,7 @@
 # UFI
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.loaders_savers import save_control_file
+from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 
 
@@ -40,43 +41,30 @@ def get_album_results_from_library(
     return unevaluated_albums
 
 
-def update_control_file(
-    control_file: list[ControlFileItem], album_results: list[ControlFileItem]
-) -> list[ControlFileItem]:
-    """Update and save control file with updated results."""
-    print("Updating control file...")
-    index_for_first_unevaluated_album = get_index_for_first_unevaluated_album(
-        control_file
-    )
-    new_control_file_items = control_file[:index_for_first_unevaluated_album].extend(
-        album_results
-    )
-    save_control_file(new_control_file_items)
-    print("ControL file updated!")
-    return new_control_file_items
-
-
 def check_album_results(control_file: list[ControlFileItem]) -> bool:
     """Check if non evaluated albums in control file are saved in library."""
     print("Checking album results...")
     unevaluated_albums = get_unevaluated_albums(control_file)
-    album_results = get_album_results_from_library(unevaluated_albums)
-    update_control_file(control_file, album_results)
+    get_album_results_from_library(unevaluated_albums)
+    save_control_file(control_file)
     print("Results checked!")
     return True
 
 
 def get_starting_index(
-    control_file: list[ControlFileItem], total_album_list: list[ControlFileItem]
+    control_file: list[ControlFileItem], total_album_list: list[SimplifiedAlbum]
 ) -> int:
     """Get starting index in total album list from last listened in control file."""
     print("Getting starting index...")
     last_album_id = control_file[-1].album.spotify_id
-    return next(
-        (
-            i
-            for i, item in enumerate(total_album_list)
-            if item.album.spotify_id == last_album_id
-        ),
-        0,
+    return (
+        next(
+            (
+                i
+                for i, item in enumerate(total_album_list)
+                if item.spotify_id == last_album_id
+            ),
+            0,
+        )
+        + 1
     )
