@@ -6,7 +6,7 @@ import json
 from pydantic import BaseModel
 
 # UFI
-
+from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
 
@@ -33,10 +33,10 @@ def load_total_albums_file():
         "/home/ufiori/dev/spotify-manager/spotify_manager/files/albums_total.json", "r"
     ) as main_file:
         result_dict = json.load(main_file)
-        return [ControlFileItem.parse_obj(s) for s in result_dict]
+        return [SimplifiedAlbum.parse_obj(s) for s in result_dict]
 
 
-def save_total_albums_file(total_albums_file_items: list[ControlFileItem]):
+def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]):
     """Save total albums file."""
     print("Saving total albums file...")
     with open(
@@ -48,7 +48,7 @@ def save_total_albums_file(total_albums_file_items: list[ControlFileItem]):
         print("OK!")
 
 
-def save_control_file(control_file_items: list[ControlFileItem]):
+def save_control_file(control_file_items: list[ControlFileItem]) -> None:
     """Save total albums file."""
     print("Saving control file...")
     with open(
