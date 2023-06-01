@@ -3,12 +3,13 @@
 
 # UFI
 from spotify_manager.loaders_savers import save_stats_file
+from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
 
 
 def calculate_stats(
-    control_file: list[ControlFileItem], total_album_list: list[ControlFileItem]
+    control_file: list[ControlFileItem], total_album_list: list[SimplifiedAlbum]
 ) -> StatsFileItem:
     """Calculate stats."""
     print("Calculating stats...")
@@ -32,7 +33,7 @@ def calculate_stats(
 
 
 def update_stats(
-    control_file: list[ControlFileItem], total_album_list: list[ControlFileItem]
+    control_file: list[ControlFileItem], total_album_list: list[SimplifiedAlbum]
 ) -> bool:
     """Update stats file."""
     print("Updating stats...")

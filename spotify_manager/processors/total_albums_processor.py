@@ -4,31 +4,34 @@ from datetime import datetime
 from operator import itemgetter
 
 # UFI
-
 from spotify_manager.client import get_spotipy_client
+from spotify_manager.loaders_savers import load_total_albums_file
 from spotify_manager.loaders_savers import save_total_albums_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.tracks import SimplifiedTrack
+from spotify_manager.settings import Settings
 from spotify_manager.utils.sorting import get_ordering_string
 from spotify_manager.utils.sorting import sort_key
 
 
-ALBUMS_TO_ADD = 250
+settings = Settings()
 
 
-def update_total_album_list() -> list[ControlFileItem]:
+def update_total_album_list() -> list[SimplifiedAlbum]:
     """Get, update, save and return all saved albums."""
     print("Updating total albums...")
     sp = get_spotipy_client()
-    results = sp.current_user_saved_albums(limit=50)
+    already_stored_albums = load_total_albums_file()
+    previous_offset = len(already_stored_albums)
+    results = sp.current_user_saved_albums(limit=settings.limit, offset=previous_offset)
     total_albums = results["total"]
     albums = results["items"]
     offset = results["offset"]
 
     i = 0
-    total_pages = round(total_albums / 50)
+    total_pages = round((total_albums - previous_offset) / settings.limit)
     while results["next"]:
         try:
             print(f"{i}/{total_pages}")
@@ -41,7 +44,7 @@ def update_total_album_list() -> list[ControlFileItem]:
             print(e)
             print(last_next)
             i -= 1
-            results = sp.current_user_saved_albums(limit=50, offset=offset)
+            results = sp.current_user_saved_albums(limit=settings.limit, offset=offset)
 
     for index, album in enumerate(albums):
         if not album:
@@ -63,23 +66,23 @@ def update_total_album_list() -> list[ControlFileItem]:
         if album and album["album"]
     ]
 
-    sorted_albums = sorted(simplified_albums, key=sort_key)
+    already_stored_albums.extend(simplified_albums)
 
-    control_file_items = [
-        ControlFileItem(album=album, result="") for album in sorted_albums
-    ]
+    sorted_albums = sorted(already_stored_albums, key=sort_key)
 
-    save_total_albums_file(control_file_items)
+    parsed_albums = [SimplifiedAlbum.parse_obj(album) for album in sorted_albums]
+
+    save_total_albums_file(parsed_albums)
     print("Albums updated!")
 
-    return control_file_items
+    return parsed_albums
 
 
 def get_months_items(
-    all_albums: list[ControlFileItem], initial_index: int
-) -> list[ControlFileItem]:
+    all_albums: list[SimplifiedAlbum], initial_index: int
+) -> list[SimplifiedAlbum]:
     """Get this months albums from all albums, starting from initial index."""
-    return all_albums[initial_index : initial_index + ALBUMS_TO_ADD]
+    return all_albums[initial_index : initial_index + settings.albums_to_add]
 
 
 def create_playlist() -> str:
@@ -87,6 +90,7 @@ def create_playlist() -> str:
     print("Creating playlist...")
     sp = get_spotipy_client()
     playlist_name = f"{str(datetime.now().year)}.{str(datetime.now().month)}"
+    print(f"Playlist name: {playlist_name}")
     result = sp.user_playlist_create("12161013970", name=playlist_name)
     print("Done!")
     return result["id"]
@@ -131,7 +135,7 @@ def append_to_playlist(ordered_tracks: list[SimplifiedTrack], playlist_id: str) 
 
 def add_monthly_albums(
     control_file: list[ControlFileItem],
-    total_album_list: list[ControlFileItem],
+    total_album_list: list[SimplifiedAlbum],
     starting_index: int,
 ):
     """
@@ -144,11 +148,11 @@ def add_monthly_albums(
     try:
         this_month_items = get_months_items(total_album_list, starting_index)
         for item in this_month_items:
-            ordered_tracks = get_ordered_tracks(item.album)
+            ordered_tracks = get_ordered_tracks(item)
             playlist_id = create_playlist()
             append_to_playlist(ordered_tracks, playlist_id)
-            control_file.append(item)
-            print(f"Added album {item.album.name} to control file")
+            control_file.append(ControlFileItem(album=item, result=""))
+            print(f"Added album {item.name} to control file")
         return True
     except Exception as e:
         print(e)
