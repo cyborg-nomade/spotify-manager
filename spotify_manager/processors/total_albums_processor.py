@@ -6,6 +6,7 @@ from operator import itemgetter
 # UFI
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.loaders_savers import load_total_albums_file
+from spotify_manager.loaders_savers import save_control_file
 from spotify_manager.loaders_savers import save_total_albums_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
@@ -163,6 +164,7 @@ def add_monthly_albums(
             append_to_playlist(ordered_tracks, playlist_id)
             control_file.append(ControlFileItem(album=item, result=""))
             print(f"Added album {item.name} to control file")
+        save_control_file(control_file)
         return True
     except Exception as e:
         print(e)

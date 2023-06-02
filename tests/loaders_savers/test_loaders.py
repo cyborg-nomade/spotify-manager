@@ -3,8 +3,8 @@
 # UFI
 from spotify_manager.loaders_savers import load_control_file
 from spotify_manager.loaders_savers import load_total_albums_file
-from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.albums import SimplifiedAlbum
+from spotify_manager.models.file_items import ControlFileItem
 
 
 def test_load_control_file() -> None:
