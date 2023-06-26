@@ -20,19 +20,23 @@ from spotify_manager.utils.sorting import sort_key
 settings = Settings()
 
 
-def update_total_album_list() -> list[SimplifiedAlbum]:
+def update_total_album_list(just_update: bool) -> list[SimplifiedAlbum]:
     """Get, update, save and return all saved albums."""
     print("Updating total albums...")
     sp = get_spotipy_client()
-    already_stored_albums = load_total_albums_file()
-    previous_offset = len(already_stored_albums)
-    results = sp.current_user_saved_albums(limit=settings.limit, offset=previous_offset)
+    offset = 0
+
+    if just_update:
+        already_stored_albums = load_total_albums_file()
+        offset = len(already_stored_albums)
+
+    results = sp.current_user_saved_albums(limit=settings.limit, offset=offset)
     total_albums = results["total"]
     albums = results["items"]
     offset = results["offset"]
 
     i = 0
-    total_pages = round((total_albums - previous_offset) / settings.limit)
+    total_pages = round((total_albums - offset) / settings.limit)
     while results["next"]:
         try:
             print(f"{i}/{total_pages}")

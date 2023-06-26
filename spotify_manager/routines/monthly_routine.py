@@ -14,7 +14,7 @@ def run_monthly_routines() -> None:
     """Run all monthly routines."""
     print("Running monthly routines...")
     control_file = load_control_file()
-    total_album_list = update_total_album_list()
+    total_album_list = update_total_album_list(just_update=True)
 
     check_album_results(control_file)
     update_stats(control_file, total_album_list)

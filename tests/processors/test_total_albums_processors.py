@@ -19,7 +19,7 @@ settings = Settings()
 
 def test_update_total_album_list(mock_save_total_albums_file: Mock) -> None:
     """Test get, update, save and return all saved albums."""
-    result = update_total_album_list()
+    result = update_total_album_list(just_update=True)
     print(result)
     mock_save_total_albums_file.assert_called_once()
     assert isinstance(result, list)
