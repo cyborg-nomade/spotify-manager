@@ -29,58 +29,64 @@ def update_total_album_list(just_update: bool) -> list[SimplifiedAlbum]:
     if just_update:
         already_stored_albums = load_total_albums_file()
         offset = len(already_stored_albums)
+    try:
+        results = sp.current_user_saved_albums(limit=settings.limit, offset=offset)
+        total_albums = results["total"]
+        albums = results["items"]
+        offset = results["offset"]
 
-    results = sp.current_user_saved_albums(limit=settings.limit, offset=offset)
-    total_albums = results["total"]
-    albums = results["items"]
-    offset = results["offset"]
+        i = 0
+        total_pages = round((total_albums - offset) / settings.limit)
+        while results["next"]:
+            try:
+                print(f"{i}/{total_pages}")
+                i += 1
+                last_next = results["next"]
+                offset = results["offset"]
+                results = sp.next(results)
+                albums.extend(results["items"])
+            except Exception as e:
+                print(e)
+                print(last_next)
+                i -= 1
+                results = sp.current_user_saved_albums(
+                    limit=settings.limit, offset=offset
+                )
 
-    i = 0
-    total_pages = round((total_albums - offset) / settings.limit)
-    while results["next"]:
-        try:
-            print(f"{i}/{total_pages}")
-            i += 1
-            last_next = results["next"]
-            offset = results["offset"]
-            results = sp.next(results)
-            albums.extend(results["items"])
-        except Exception as e:
-            print(e)
-            print(last_next)
-            i -= 1
-            results = sp.current_user_saved_albums(limit=settings.limit, offset=offset)
+        for index, album in enumerate(albums):
+            if not album:
+                print(index)
+            if not album["album"]:
+                print(index)
 
-    for index, album in enumerate(albums):
-        if not album:
-            print(index)
-        if not album["album"]:
-            print(index)
+        simplified_albums = [
+            SimplifiedAlbum(
+                spotify_id=album["album"]["id"],
+                name=album["album"]["name"],
+                artist=SimplifiedArtist(
+                    spotify_id=album["album"]["artists"][0]["id"],
+                    name=album["album"]["artists"][0]["name"],
+                ),
+                ordering_string=get_ordering_string(album["album"]["name"]),
+            )
+            for album in albums
+            if album and album["album"]
+        ]
 
-    simplified_albums = [
-        SimplifiedAlbum(
-            spotify_id=album["album"]["id"],
-            name=album["album"]["name"],
-            artist=SimplifiedArtist(
-                spotify_id=album["album"]["artists"][0]["id"],
-                name=album["album"]["artists"][0]["name"],
-            ),
-            ordering_string=get_ordering_string(album["album"]["name"]),
-        )
-        for album in albums
-        if album and album["album"]
-    ]
+        if just_update:
+            already_stored_albums.extend(simplified_albums)
+            sorted_albums = sorted(already_stored_albums, key=sort_key)
+        else:
+            sorted_albums = sorted(simplified_albums, key=sort_key)
 
-    already_stored_albums.extend(simplified_albums)
+        parsed_albums = [SimplifiedAlbum.parse_obj(album) for album in sorted_albums]
 
-    sorted_albums = sorted(already_stored_albums, key=sort_key)
+        save_total_albums_file(parsed_albums)
+        print("Albums updated!")
 
-    parsed_albums = [SimplifiedAlbum.parse_obj(album) for album in sorted_albums]
-
-    save_total_albums_file(parsed_albums)
-    print("Albums updated!")
-
-    return parsed_albums
+        return parsed_albums
+    except Exception as e:
+        print(e)
 
 
 def get_months_items(
