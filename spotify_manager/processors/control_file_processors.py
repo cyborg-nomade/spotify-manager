@@ -51,12 +51,25 @@ def check_album_results(control_file: list[ControlFileItem]) -> bool:
     return True
 
 
+def get_last_kept_album_item_index(control_file: list[ControlFileItem]) -> int:
+    """Get index last album item in control file whose result was "keep"."""
+    return next(
+        (
+            i
+            for i, item in reversed(list(enumerate(control_file)))
+            if item.result == "keep"
+        ),
+        0,
+    )
+
+
 def get_starting_index(
     control_file: list[ControlFileItem], total_album_list: list[SimplifiedAlbum]
 ) -> int:
     """Get starting index in total album list from last listened in control file."""
     print("Getting starting index...")
-    last_album_id = control_file[-1].album.spotify_id
+    last_kept_album_item_index = get_last_kept_album_item_index(control_file)
+    last_album_id = control_file[last_kept_album_item_index].album.spotify_id
     return (
         next(
             (
