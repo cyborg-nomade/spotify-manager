@@ -69,6 +69,7 @@ def get_starting_index(
     """Get starting index in total album list from last listened in control file."""
     print("Getting starting index...")
     last_kept_album_item_index = get_last_kept_album_item_index(control_file)
+    print("last_kept_album_item_index: ", last_kept_album_item_index)
     last_album_id = control_file[last_kept_album_item_index].album.spotify_id
     return (
         next(
