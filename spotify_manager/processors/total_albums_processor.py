@@ -4,7 +4,6 @@ from datetime import datetime
 from operator import itemgetter
 
 # UFI
-from spotify_manager.client import get_spotipy_client
 from spotify_manager.loaders_savers import load_total_albums_file
 from spotify_manager.loaders_savers import save_control_file
 from spotify_manager.loaders_savers import save_total_albums_file
@@ -16,14 +15,14 @@ from spotify_manager.settings import Settings
 from spotify_manager.utils.sorting import get_ordering_string
 from spotify_manager.utils.sorting import sort_key
 
+from spotipy.client import Spotify
 
 settings = Settings()
 
 
-def update_total_album_list(just_update: bool) -> list[SimplifiedAlbum]:
+def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAlbum]:
     """Get, update, save and return all saved albums."""
     print("Updating total albums...")
-    sp = get_spotipy_client()
     offset = 0
 
     if just_update:
@@ -96,10 +95,9 @@ def get_months_items(
     return all_albums[initial_index : initial_index + settings.albums_to_add]
 
 
-def create_playlist() -> str:
+def create_playlist(sp: Spotify) -> str:
     """Create a playlist and return id."""
     print("Creating playlist...")
-    sp = get_spotipy_client()
     year = str(datetime.now().year)
     month = (
         str(datetime.now().month)
@@ -113,10 +111,8 @@ def create_playlist() -> str:
     return result["id"]
 
 
-def get_ordered_tracks(album: SimplifiedAlbum) -> list[SimplifiedTrack]:
+def get_ordered_tracks(sp: Spotify, album: SimplifiedAlbum) -> list[SimplifiedTrack]:
     """Return the list of ordered tracks for the given album."""
-    sp = get_spotipy_client()
-
     results = sp.album_tracks(album.spotify_id)
     tracks = results["items"]
 
@@ -140,12 +136,13 @@ def get_ordered_tracks(album: SimplifiedAlbum) -> list[SimplifiedTrack]:
     return [SimplifiedTrack.parse_obj(s) for s in sorted_tracks]
 
 
-def append_to_playlist(ordered_tracks: list[SimplifiedTrack], playlist_id: str) -> None:
+def append_to_playlist(
+    sp: Spotify, ordered_tracks: list[SimplifiedTrack], playlist_id: str
+) -> None:
     """Append given list of tracks to playlist."""
     print("Appending tracks to playlist...")
     track_uris = [track.uri for track in ordered_tracks]
 
-    sp = get_spotipy_client()
     if len(ordered_tracks) <= 100:
         sp.playlist_add_items(playlist_id, track_uris)
     else:
@@ -155,6 +152,7 @@ def append_to_playlist(ordered_tracks: list[SimplifiedTrack], playlist_id: str) 
 
 
 def add_monthly_albums(
+    sp: Spotify,
     control_file: list[ControlFileItem],
     total_album_list: list[SimplifiedAlbum],
     starting_index: int,
@@ -168,10 +166,10 @@ def add_monthly_albums(
     print("Adding monthly albums to playlist and control file...")
     try:
         this_month_items = get_months_items(total_album_list, starting_index)
-        playlist_id = create_playlist()
+        playlist_id = create_playlist(sp)
         for item in this_month_items:
-            ordered_tracks = get_ordered_tracks(item)
-            append_to_playlist(ordered_tracks, playlist_id)
+            ordered_tracks = get_ordered_tracks(sp, item)
+            append_to_playlist(sp, ordered_tracks, playlist_id)
             control_file.append(ControlFileItem(album=item, result=""))
             print(f"Added album {item.name} to control file")
         save_control_file(control_file)

@@ -2,7 +2,7 @@
 
 
 # UFI
-from spotify_manager.client import get_spotipy_client
+from spotipy.client import Spotify
 from spotify_manager.loaders_savers import save_control_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
@@ -26,11 +26,11 @@ def get_unevaluated_albums(
 
 
 def get_album_results_from_library(
+    sp: Spotify,
     unevaluated_albums: list[ControlFileItem],
 ) -> list[ControlFileItem]:
     """Check against spotify library if albums have been removed or kept."""
     print("Checking against library...")
-    sp = get_spotipy_client()
     for item in unevaluated_albums:
         is_saved = sp.current_user_saved_albums_contains([item.album.spotify_id])
         if is_saved[0]:
@@ -41,11 +41,11 @@ def get_album_results_from_library(
     return unevaluated_albums
 
 
-def check_album_results(control_file: list[ControlFileItem]) -> bool:
+def check_album_results(sp: Spotify, control_file: list[ControlFileItem]) -> bool:
     """Check if non evaluated albums in control file are saved in library."""
     print("Checking album results...")
     unevaluated_albums = get_unevaluated_albums(control_file)
-    get_album_results_from_library(unevaluated_albums)
+    get_album_results_from_library(sp, unevaluated_albums)
     save_control_file(control_file)
     print("Results checked!")
     return True
