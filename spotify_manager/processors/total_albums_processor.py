@@ -86,6 +86,9 @@ def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAl
         return parsed_albums
     except Exception as e:
         print(e)
+        if just_update:
+            return already_stored_albums
+        return []
 
 
 def get_months_items(
