@@ -8,10 +8,10 @@ from spotify_manager.loaders_savers import save_control_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
-from spotify_manager.utils.sorting import get_ordering_string
 from spotify_manager.processors.total_albums_processor import (
     updated_total_albums_with_results,
 )
+from spotify_manager.utils.sorting import get_ordering_string
 
 
 def get_index_for_first_unevaluated_album(control_file: list[ControlFileItem]) -> int:

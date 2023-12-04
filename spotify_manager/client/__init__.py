@@ -31,6 +31,6 @@ def get_spotipy_client() -> spotipy.Spotify:
             client_secret=spotipy_client_secret,
             redirect_uri=spotipy_redirect_uri,
         ),
-        requests_timeout=120,
-        retries=100,
+        requests_timeout=5,
+        retries=5,
     )
