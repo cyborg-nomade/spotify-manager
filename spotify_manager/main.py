@@ -3,9 +3,16 @@
 import typer
 
 # UFI
-from spotify_manager.routines.monthly_routine import run_monthly_routines
-from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.client import get_spotipy_client
+from spotify_manager.processors.total_albums_processor import update_total_album_list
+from spotify_manager.routines.convert_library_file import analyse_comparison
+from spotify_manager.routines.convert_library_file import (
+    compare_your_library_and_all_albums,
+)
+from spotify_manager.routines.convert_library_file import convert_your_library_file
+from spotify_manager.routines.convert_library_file import restore_your_library_from_file
+from spotify_manager.routines.monthly_routine import run_monthly_routines
+
 
 app = typer.Typer()
 sp = get_spotipy_client()
@@ -21,6 +28,30 @@ def monthly_routines():
 def update_total_albums(just_update: bool = False):
     """Update total album list, optional flag to just add the remaining pages."""
     update_total_album_list(sp, just_update)
+
+
+@app.command()
+def restore_your_library():
+    """."""
+    restore_your_library_from_file(sp)
+
+
+@app.command()
+def compare_lib_files():
+    """."""
+    compare_your_library_and_all_albums()
+
+
+@app.command()
+def analyse_comp():
+    """."""
+    analyse_comparison(sp)
+
+
+@app.command()
+def convert_lib():
+    """."""
+    convert_your_library_file(sp)
 
 
 if __name__ == "__main__":

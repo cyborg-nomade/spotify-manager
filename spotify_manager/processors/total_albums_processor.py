@@ -3,6 +3,8 @@
 from datetime import datetime
 from operator import itemgetter
 
+from spotipy.client import Spotify
+
 # UFI
 from spotify_manager.loaders_savers import load_total_albums_file
 from spotify_manager.loaders_savers import save_control_file
@@ -15,7 +17,6 @@ from spotify_manager.settings import Settings
 from spotify_manager.utils.sorting import get_ordering_string
 from spotify_manager.utils.sorting import sort_key
 
-from spotipy.client import Spotify
 
 settings = Settings()
 
@@ -180,3 +181,32 @@ def add_monthly_albums(
     except Exception as e:
         print(e)
         return False
+
+
+def get_album_index_in_total_albums(
+    spotify_id: str, total_albums_file: list[SimplifiedAlbum]
+) -> int:
+    """."""
+    return next(
+        (
+            i
+            for i, item in enumerate(total_albums_file)
+            if item.spotify_id == spotify_id
+        ),
+        0,
+    )
+
+
+def updated_total_albums_with_results(
+    total_albums_file: list[SimplifiedAlbum],
+    unevaluated_albums: list[ControlFileItem],
+) -> None:
+    """."""
+    for item in unevaluated_albums:
+        if item.result == "remove":
+            album_index = get_album_index_in_total_albums(
+                item.album.spotify_id, total_albums_file
+            )
+            total_albums_file.pop(album_index)
+    sorted_albums = sorted(total_albums_file, key=sort_key)
+    save_total_albums_file(sorted_albums)

@@ -1,11 +1,17 @@
 """Data processors for control file items."""
 
 
-# UFI
 from spotipy.client import Spotify
+
+# UFI
 from spotify_manager.loaders_savers import save_control_file
 from spotify_manager.models.albums import SimplifiedAlbum
+from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
+from spotify_manager.utils.sorting import get_ordering_string
+from spotify_manager.processors.total_albums_processor import (
+    updated_total_albums_with_results,
+)
 
 
 def get_index_for_first_unevaluated_album(control_file: list[ControlFileItem]) -> int:
@@ -41,11 +47,16 @@ def get_album_results_from_library(
     return unevaluated_albums
 
 
-def check_album_results(sp: Spotify, control_file: list[ControlFileItem]) -> bool:
+def check_album_results(
+    sp: Spotify,
+    control_file: list[ControlFileItem],
+    total_albums_file: list[SimplifiedAlbum],
+) -> bool:
     """Check if non evaluated albums in control file are saved in library."""
     print("Checking album results...")
     unevaluated_albums = get_unevaluated_albums(control_file)
     get_album_results_from_library(sp, unevaluated_albums)
+    updated_total_albums_with_results(total_albums_file, unevaluated_albums)
     save_control_file(control_file)
     print("Results checked!")
     return True
@@ -82,3 +93,18 @@ def get_starting_index(
         )
         + 1
     )
+
+
+def enrich_album(spotify_id: str, sp: Spotify) -> SimplifiedAlbum:
+    """."""
+    album = sp.album(spotify_id)
+    simplified_album = SimplifiedAlbum(
+        spotify_id=album["id"],
+        name=album["name"],
+        artist=SimplifiedArtist(
+            spotify_id=album["artists"][0]["id"],
+            name=album["artists"][0]["name"],
+        ),
+        ordering_string=get_ordering_string(album["name"]),
+    )
+    return simplified_album

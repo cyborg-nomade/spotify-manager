@@ -16,7 +16,13 @@ def get_spotipy_client() -> spotipy.Spotify:
     spotipy_client_secret = settings.spotipy_client_secret
     spotipy_redirect_uri = settings.spotipy_redirect_uri
 
-    scope = ["playlist-modify-public", "playlist-modify-private", "user-library-read"]
+    scope = [
+        "playlist-modify-public",
+        "playlist-modify-private",
+        "user-library-read",
+        "user-follow-read",
+        "user-follow-modify",
+    ]
 
     return spotipy.Spotify(
         auth_manager=SpotifyOAuth(
