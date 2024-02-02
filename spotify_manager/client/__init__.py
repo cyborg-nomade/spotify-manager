@@ -16,6 +16,10 @@ def get_spotipy_client() -> spotipy.Spotify:
     spotipy_client_secret = settings.spotipy_client_secret
     spotipy_redirect_uri = settings.spotipy_redirect_uri
 
+    print(spotipy_client_id)
+    print(spotipy_client_secret)
+    print(spotipy_redirect_uri)
+
     scope = [
         "playlist-modify-public",
         "playlist-modify-private",
@@ -31,6 +35,6 @@ def get_spotipy_client() -> spotipy.Spotify:
             client_secret=spotipy_client_secret,
             redirect_uri=spotipy_redirect_uri,
         ),
-        requests_timeout=5,
+        requests_timeout=10,
         retries=5,
     )

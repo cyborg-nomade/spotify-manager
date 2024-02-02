@@ -45,7 +45,9 @@ def compare_and_get_dict(
     ids_present_in_total_albums_but_not_in_your_library = [
         i for i in total_albums_id_list if i not in your_library_id_list
     ]
+    print("ids_present_in_your_library_but_not_in_total_albums")
     print(ids_present_in_your_library_but_not_in_total_albums)
+    print("ids_present_in_total_albums_but_not_in_your_library")
     print(ids_present_in_total_albums_but_not_in_your_library)
     comparison_dict = {
         "add": [

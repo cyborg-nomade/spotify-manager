@@ -33,7 +33,9 @@ def load_total_albums_file() -> list[SimplifiedAlbum]:
     with open(
         "/home/ufiori/dev/spotify-manager/spotify_manager/files/albums_total.json", "r"
     ) as main_file:
+        print("Loading Total Albums file")
         result_dict = json.load(main_file)
+        print("Done.")
         return [SimplifiedAlbum.parse_obj(s) for s in result_dict]
 
 
@@ -42,7 +44,9 @@ def load_your_library_file() -> YourLibraryFile:
     with open(
         "/home/ufiori/dev/spotify-manager/spotify_manager/files/YourLibrary.json", "r"
     ) as main_file:
+        print("Loading Your Library file..")
         result_dict = json.load(main_file)
+        print("Done.")
         return YourLibraryFile.parse_obj(result_dict)
 
 
