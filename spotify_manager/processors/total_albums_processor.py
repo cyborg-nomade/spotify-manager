@@ -1,4 +1,5 @@
 """Data processors for total albums list."""
+
 # Standard Library
 from datetime import datetime
 from operator import itemgetter
@@ -117,6 +118,7 @@ def create_playlist(sp: Spotify) -> str:
 
 def get_ordered_tracks(sp: Spotify, album: SimplifiedAlbum) -> list[SimplifiedTrack]:
     """Return the list of ordered tracks for the given album."""
+    print(f"Getting ordered tracks for album {album.name} - {album.spotify_id}")
     results = sp.album_tracks(album.spotify_id)
     tracks = results["items"]
 
@@ -133,10 +135,12 @@ def get_ordered_tracks(sp: Spotify, album: SimplifiedAlbum) -> list[SimplifiedTr
         for track in tracks
         if track
     ]
+    print("We have all tracks")
 
     sorted_tracks = sorted(
         simplified_tracks, key=itemgetter("disc_number", "track_number")
     )
+    print("Tracks ordered!")
     return [SimplifiedTrack.parse_obj(s) for s in sorted_tracks]
 
 
