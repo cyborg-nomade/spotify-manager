@@ -22,11 +22,10 @@ def get_album_id_list_from_total_albums_file(
 
 def enrich_id_to_album_dict(album_id: str) -> dict:
     """."""
-    print("hi")
     print(album_id)
     sp = get_spotipy_client()
     album = sp.album(album_id)
-    print(album)
+    print(album["name"])
     return {
         "name": album["name"],
         "artist": album["artists"][0]["name"],
@@ -45,10 +44,6 @@ def compare_and_get_dict(
     ids_present_in_total_albums_but_not_in_your_library = [
         i for i in total_albums_id_list if i not in your_library_id_list
     ]
-    print("ids_present_in_your_library_but_not_in_total_albums")
-    print(ids_present_in_your_library_but_not_in_total_albums)
-    print("ids_present_in_total_albums_but_not_in_your_library")
-    print(ids_present_in_total_albums_but_not_in_your_library)
     comparison_dict = {
         "add": [
             enrich_id_to_album_dict(i)

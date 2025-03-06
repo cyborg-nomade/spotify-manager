@@ -53,27 +53,31 @@ def convert_your_library_file(sp: Spotify) -> None:
     comparison_dict = load_comparison_file()
     removed_albums = 0
     added_albums = 0
+    print("------------------------------------")
+    print("albums to remove: ", len(comparison_dict["remove"]))
     for album in comparison_dict["remove"]:
         print(album)
         if not sp.current_user_saved_albums_contains([album["id"]])[0]:
             album_index = get_album_index_in_total_albums(
                 album["id"], total_albums_file
             )
-            print(album_index)
-            print(total_albums_file[album_index])
+            print(
+                f"{total_albums_file[album_index].name} - "
+                f"{total_albums_file[album_index].artist}"
+            )
             removed_albums += 1
             total_albums_file.pop(album_index)
-    print(removed_albums)
-    print(len(comparison_dict["remove"]))
+    print("removed albums: ", removed_albums)
+    print("------------------------------------")
+    print("albums to add: ", len(comparison_dict["add"]))
     for album in comparison_dict["add"]:
         print(album)
         if sp.current_user_saved_albums_contains([album["id"]])[0]:
             simplified_album = enrich_album(album["id"], sp)
-            print(simplified_album)
+            print(f"{simplified_album.name} - {simplified_album.artist}")
             total_albums_file.append(simplified_album)
             added_albums += 1
-    print(added_albums)
-    print(len(comparison_dict["add"]))
+    print("added_albums", added_albums)
     sorted_albums = sorted(total_albums_file, key=sort_key)
     save_total_albums_file(sorted_albums)
 
