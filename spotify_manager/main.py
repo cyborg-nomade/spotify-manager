@@ -11,6 +11,7 @@ from spotify_manager.routines.convert_library_file import (
 )
 from spotify_manager.routines.convert_library_file import convert_your_library_file
 from spotify_manager.routines.convert_library_file import restore_your_library_from_file
+from spotify_manager.routines.count_items import count_artists_in_library
 from spotify_manager.routines.monthly_routine import run_monthly_routines
 
 
@@ -52,6 +53,12 @@ def analyse_comp():
 def convert_lib():
     """."""
     convert_your_library_file(sp)
+
+
+@app.command()
+def count_artists():
+    """."""
+    count_artists_in_library()
 
 
 if __name__ == "__main__":
