@@ -1,11 +1,11 @@
 {
-	"total_saved_albums": 115105,
-	"total_listened_albums": 11072,
-	"pct_listened_albums": 0.09619043482038139,
-	"total_removed_albums": 8849,
-	"pct_removed_albums": 0.7992232658959537,
-	"total_kept_albums": 2223,
-	"pct_kept_albums": 0.20077673410404626,
-	"last_listened_to_index": 11071,
+	"total_saved_albums": 115400,
+	"total_listened_albums": 11322,
+	"pct_listened_albums": 0.09811091854419411,
+	"total_removed_albums": 9053,
+	"pct_removed_albums": 0.7995937113584173,
+	"total_kept_albums": 2269,
+	"pct_kept_albums": 0.20040628864158275,
+	"last_listened_to_index": 11321,
 	"monthly_history": {}
 }
