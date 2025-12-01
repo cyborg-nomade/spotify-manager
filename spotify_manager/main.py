@@ -22,6 +22,8 @@ sp = get_spotipy_client()
 @app.command()
 def monthly_routines():
     """Run monthly routines."""
+    compare_your_library_and_all_albums()
+    convert_your_library_file(sp)
     run_monthly_routines(sp)
 
 

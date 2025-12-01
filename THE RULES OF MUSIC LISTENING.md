@@ -157,12 +157,14 @@ Track lists have evolved from the need to allow single tracks to be listened wit
         2. "the queue" contains tracks by artists waiting to be discovered. These artists can come into the playlist in some ways:
 
             1. From the main list, after 6 likes
-            2. When visiting an artist's page, for any reason, if they have at least 6 liked tracks and/or is not being followed yet (except when visiting from the “found art” list).
+            2. When visiting an artist's page, for any reason, if they have at least 6 liked tracks (except when visiting from the “found art” list).
             3. From "found art", if the artist is really good.
             4. From album lists, if the album is really good.
             5. From the Friday Routines (see below)
+            6. From extra lists, if the artist is really good.
 
             The playing rules for this playlist mimic those of "new kids on the block", as it serves as a backup for the tracks that couldn't go there yet because of the track cap. While this playlist can be played (unlike "wine cellar"), it mostly won't and will lay dormant until its tracks are pulled by "new kids on the block".
+            Very important: **never add artists whose discography you already listened to, or that have more than 50 liked songs**
 
         3. "new kids on the block" contains tracks stemming from "the queue".
             1. Each track is listened to once and the next track from the artist is added at the end of the playlist.
@@ -200,52 +202,55 @@ For every 4-week month, this is the plan per week:
 
 ## **WEEKS 1 AND 2**
 
-1. Monthly set \-\> 20 albums (\~3.5h)
-2. Discographies \-\> 2 albums (\~1h)
-3. Album lists:
-    1. Rotation list \-\> 1 album (\~0.5h)
-    2. Seasonal lists \-\> 1 album (\~0.5h)
-        1. **OBS**: In spring/summer: "memory lane" in week 1, and "it looks like a playlist but it's a reminder" in week 2\. In fall/winter: "it looks like a playlist but it's a reminder" in both weeks. In January: top 20 albums of previous year.
-    3. Devotional list \-\> 2x 1 album (\~1h)
-        1. **OBS**: Albums here are played twice on the first two days of the week (Friday and Monday), then once on Tuesday and then start repeating tracks by themselves. The amount of tracks depends on the length of the album, but together with repeats, they should match the length of the album.
-4. Track lists:
-    1. "slow listening" \-\> 5x 1 track (\~0.5h)
-    2. "daily mind radio" (\~0.5h)
+1. Track lists:
+    1. "daily mind radio" (\~0.5h)
+    2. "new kids on the block" (\~0.5h)
     3. "new wine from old bottles" (\~0.5h)
-    4. "new kids on the block" (\~0.5h)
+    4. "slow listening" \-\> 5x 1 track (\~0.5h)
+2. Album lists:
+    1. Devotional list \-\> 2x 1 album (\~1h)
+        1. **OBS**: Albums here are played twice on the first two days of the week (Friday and Monday), then once on Tuesday and then start repeating tracks by themselves. The amount of tracks depends on the length of the album, but together with repeats, they should match the length of the album.
+    2. Discovery list \-\> 1 run (\~1h)
+    3. Seasonal lists \-\> 1 album (\~0.5h)
+        1. **OBS**: In spring/summer: "memory lane" in week 1, and "it looks like a playlist but it's a reminder" in week 2\. In fall/winter: "it looks like a playlist but it's a reminder" in both weeks. In January: top 20 albums of previous year.
+    4. Rotation list \-\> 1 album (\~0.5h)
+3. Discographies \-\> 2 albums (\~1h)
+4. Monthly set \-\> 20 albums (\~3.5h)
 
 **TOTAL PLANNED: 8.5h**
 
 ## **WEEK 3**
 
-1. Monthly set \-\> 10 albums (\~1.75h)
-2. Discographies \-\> 2 albums (\~1h)
-3. Album lists:
-    1. Rotation list \-\> 2 albums (\~1h)
-    2. Seasonal lists \-\> 2 albums (\~1h)
-        1. **OBS**: In spring/summer, both "memory lane" and "it looks like a playlist but it's a reminder". In fall/winter, only "it looks like a playlist but it's a reminder". In January, only top 20 albums of previous year.
-    3. Devotional list \-\> 2x 1 album (\~1h)
-        1. **OBS**: Albums here are played twice on the first two days of the week (Friday and Monday), then once on Tuesday and then start repeating tracks by themselves. The amount of tracks depends on the length of the album, but together with repeats, they should match the length of the album.
-4. 4\. Track lists:
-    1. "slow listening" \-\> 5x 2 tracks (\~1h)
-    2. "daily mind radio" (\~0.5h)
+1. Track lists:
+    1. "daily mind radio" (\~0.5h)
+    2. "new kids on the block" (\~0.5h)
     3. "new wine from old bottles" (\~0.5h)
-    4. "new kids on the block" (\~0.5h)
+    4. "slow listening" \-\> 5x 2 tracks (\~1h)
+2. Album lists:
+    1. Devotional list \-\> 2x 1 album (\~1h)
+        1. **OBS**: Albums here are played twice on the first two days of the week (Friday and Monday), then once on Tuesday and then start repeating tracks by themselves. The amount of tracks depends on the length of the album, but together with repeats, they should match the length of the album.
+    2. Discovery list \-\> 1 run (\~1h)
+    3. Seasonal lists \-\> 2 albums (\~1h)
+        1. **OBS**: In spring/summer, both "memory lane" and "it looks like a playlist but it's a reminder". In fall/winter, only "it looks like a playlist but it's a reminder". In January, only top 20 albums of previous year.
+    4. Rotation list \-\> 2 albums (\~1h)
+3. Discographies \-\> 2 albums (\~1h)
+4. Monthly set \-\> 10 albums (\~1.75h)
 
 **TOTAL PLANNED: 8.25h**
 
 ## **WEEK 4**
 
-1. Discographies \-\> 2 albums (\~1h)
+1. Track lists:
+    1. "daily mind radio" (\~0.5h)
+    2. "new wine from old bottles" (\~0.5h)
+    3. "new kids on the block" (\~0.5h)
+    4. "slow listening" \-\> 5x 4 tracks (\~2h)
 2. Album lists:
-    1. Rotation list \-\> 4 albums (\~2h)
-    2. Devotional list \-\> 2x 1 album (\~1h)
+    1. Devotional list \-\> 2x 1 album (\~1h)
         1. **OBS**: Albums here are played twice on the first two days of the week (Friday and Monday), then once on Tuesday and then start repeating tracks by themselves. The amount of tracks depends on the length of the album, but together with repeats, they should match the length of the album.
-3. Track lists:
-    1. "slow listening" \-\> 5x 4 tracks (\~2h)
-    2. "daily mind radio" (\~0.5h)
-    3. "new wine from old bottles" (\~0.5h)
-    4. "new kids on the block" (\~0.5h)
+    2. Discovery list \-\> 1 run (\~1h)
+    3. Rotation list \-\> 4 albums (\~2h)
+3. Discographies \-\> 2 albums (\~1h)
 4. Extra lists (up to \~1h/day)
 
 **TOTAL PLANNED: 8.5h**
