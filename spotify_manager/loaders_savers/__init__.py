@@ -21,7 +21,8 @@ def load_control_file() -> list[ControlFileItem]:
     """Load control file."""
     print("Loading control file...")
     with open(
-        "/home/ufiori/dev/spotify-manager/spotify_manager/files/control_file.json", "r"
+        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/control_file.json",
+        "r",
     ) as control_file:
         result_dict = json.load(control_file)
         print("OK!")
@@ -31,7 +32,8 @@ def load_control_file() -> list[ControlFileItem]:
 def load_total_albums_file() -> list[SimplifiedAlbum]:
     """Load total albums file."""
     with open(
-        "/home/ufiori/dev/spotify-manager/spotify_manager/files/albums_total.json", "r"
+        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/albums_total.json",
+        "r",
     ) as main_file:
         print("Loading Total Albums file")
         result_dict = json.load(main_file)
@@ -42,7 +44,8 @@ def load_total_albums_file() -> list[SimplifiedAlbum]:
 def load_your_library_file() -> YourLibraryFile:
     """Load your library file."""
     with open(
-        "/home/ufiori/dev/spotify-manager/spotify_manager/files/YourLibrary.json", "r"
+        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/YourLibrary.json",
+        "r",
     ) as main_file:
         print("Loading Your Library file..")
         result_dict = json.load(main_file)
@@ -53,17 +56,19 @@ def load_your_library_file() -> YourLibraryFile:
 def load_comparison_file() -> None:
     """."""
     with open(
-        "/home/ufiori/dev/spotify-manager/spotify_manager/files/comparison.json", "r"
+        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/comparison.json",
+        "r",
     ) as main_file:
         result_dict = json.load(main_file)
         return result_dict
 
 
-def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]):
+def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]) -> None:
     """Save total albums file."""
     print("Saving total albums file...")
     with open(
-        "/home/ufiori/dev/spotify-manager/spotify_manager/files/albums_total.json", "w"
+        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/albums_total.json",
+        "w",
     ) as main_file:
         json.dump(
             serialize_model_list(total_albums_file_items), main_file, ensure_ascii=False
@@ -75,7 +80,8 @@ def save_control_file(control_file_items: list[ControlFileItem]) -> None:
     """Save total albums file."""
     print("Saving control file...")
     with open(
-        "/home/ufiori/dev/spotify-manager/spotify_manager/files/control_file.json", "w"
+        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/control_file.json",
+        "w",
     ) as main_file:
         json.dump(
             serialize_model_list(control_file_items), main_file, ensure_ascii=False
@@ -83,11 +89,12 @@ def save_control_file(control_file_items: list[ControlFileItem]) -> None:
         print("OK!")
 
 
-def save_stats_file(stats_file_items: StatsFileItem):
+def save_stats_file(stats_file_items: StatsFileItem) -> None:
     """Save total albums file."""
     print("Saving stats file...")
     with open(
-        "/home/ufiori/dev/spotify-manager/spotify_manager/files/stats_file.json", "w"
+        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/stats_file.json",
+        "w",
     ) as main_file:
         json.dump(stats_file_items.dict(), main_file, ensure_ascii=False)
         print("OK!")
@@ -97,7 +104,8 @@ def save_comparison_file(comparison_dict: dict) -> None:
     """."""
     print("Saving comparison file...")
     with open(
-        "/home/ufiori/dev/spotify-manager/spotify_manager/files/comparison.json", "w"
+        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/comparison.json",
+        "w",
     ) as main_file:
         json.dump(comparison_dict, main_file, ensure_ascii=False)
         print("OK!")
