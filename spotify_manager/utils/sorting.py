@@ -1,4 +1,5 @@
 """Utils for sorting lists alphabetically."""
+
 # Standard Library
 import re
 import unicodedata
@@ -7,6 +8,8 @@ from pyuca import Collator
 
 # UFI
 from spotify_manager.models.albums import SimplifiedAlbum
+from spotify_manager.models.your_library import YourLibraryAlbum, YourLibraryArtist
+from spotify_manager.models.your_library import YourLibraryTrack
 
 
 latin_letters: dict = {}
@@ -47,3 +50,18 @@ c = Collator()
 def sort_key(item: SimplifiedAlbum):
     """Sort key function."""
     return c.sort_key(str(item.ordering_string))
+
+
+def album_sort_key(item: YourLibraryAlbum):
+    """Sort key function."""
+    return c.sort_key(str(item.album))
+
+
+def artist_sort_key(item: YourLibraryArtist):
+    """Sort key function."""
+    return c.sort_key(str(item.name))
+
+
+def track_sort_key(item: YourLibraryTrack):
+    """Sort key function."""
+    return c.sort_key(str(item.track))

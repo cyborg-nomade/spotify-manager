@@ -5,6 +5,7 @@ import typer
 # UFI
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.processors.total_albums_processor import update_total_album_list
+from spotify_manager.routines.analyse_library import analyse_library_routine
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -61,6 +62,12 @@ def convert_lib():
 def count_artists():
     """."""
     count_artists_in_library()
+
+
+@app.command()
+def analyse_library():
+    """."""
+    analyse_library_routine()
 
 
 if __name__ == "__main__":
