@@ -20,5 +20,27 @@
         },
         "avg_albums_per_artists": 3,
         "avg_liked_tracks_per_artists": 1
+    },
+    "2026.03": {
+        "albums_stats": {
+            "total_saved_albums": 99174,
+            "removed_albums": 18026,
+            "added_albums": 253,
+            "growth": -15.197482620332286
+        },
+        "artists_stats": {
+            "total_followed_artists": 35911,
+            "removed_artists": 105,
+            "added_artists": 783,
+            "growth": 1.924332302103142
+        },
+        "tracks_stats": {
+            "total_liked_tracks": 38449,
+            "removed_tracks": 1584,
+            "added_tracks": 1269,
+            "growth": -0.8126096378082757
+        },
+        "avg_albums_per_artists": 2,
+        "avg_liked_tracks_per_artists": 1
     }
 }
