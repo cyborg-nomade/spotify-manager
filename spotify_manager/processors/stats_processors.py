@@ -62,7 +62,8 @@ def process_stats(
         if datetime.now().month >= 10
         else f"0{str(datetime.now().month)}"
     )
-    key = f"{year}.{month}"
+    day = str(datetime.now().day)
+    key = f"{year}.{month}.{day}"
 
     report = StatsReport(
         albums_stats=albums_stats,
