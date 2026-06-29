@@ -34,3 +34,4 @@ class AlbumEvaluation(BaseModel):
     decision: str  # "keep" | "remove"
     tracks: list[AlbumTrackLikedStatus]
     source: str
+    from_cache: bool = False

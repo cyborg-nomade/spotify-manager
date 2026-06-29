@@ -137,3 +137,55 @@ def test_evaluate_album_ambiguous_resolved_by_artist() -> None:
 def test_evaluate_album_name_not_found() -> None:
     with pytest.raises(AlbumNotFoundError):
         evaluate_album(FakeSpotify({}), name="Nonexistent", library=_library())
+
+
+_ALB1 = {
+    "alb1": [
+        {"id": "t1", "name": "Airbag", "uri": "spotify:track:t1"},
+        {"id": "t2", "name": "Karma Police", "uri": "spotify:track:t2"},
+        {"id": "t3", "name": "Let Down", "uri": "spotify:track:t3"},
+    ]
+}
+
+
+def test_cache_hit_skips_api(album_cache_store: dict) -> None:
+    sp = FakeSpotify(_ALB1)
+    first = evaluate_album(sp, name="ok computer", library=_library())
+    assert first.from_cache is False
+    assert first.source == "files+api"
+    assert sp.requested == ["alb1"]
+    assert "alb1" in album_cache_store  # persisted
+
+    second = evaluate_album(sp, name="ok computer", library=_library())
+    assert second.from_cache is True
+    assert second.source == "files"
+    assert sp.requested == ["alb1"]  # no second API call
+    assert second.decision == first.decision == "keep"
+
+
+def test_refresh_cache_refetches(album_cache_store: dict) -> None:
+    sp = FakeSpotify(_ALB1)
+    evaluate_album(sp, name="ok computer", library=_library())
+    evaluate_album(sp, name="ok computer", library=_library(), refresh_cache=True)
+    assert sp.requested == ["alb1", "alb1"]  # forced re-fetch
+
+
+def test_no_cache_does_not_persist(album_cache_store: dict) -> None:
+    sp = FakeSpotify(_ALB1)
+    result = evaluate_album(sp, name="ok computer", library=_library(), use_cache=False)
+    assert result.from_cache is False
+    assert album_cache_store == {}  # nothing written
+
+
+def test_client_factory_called_only_on_miss(album_cache_store: dict) -> None:
+    sp = FakeSpotify(_ALB1)
+    calls: list[int] = []
+
+    def factory():
+        calls.append(1)
+        return sp
+
+    evaluate_album(client_factory=factory, name="ok computer", library=_library())
+    assert calls == [1]  # built the client on the miss
+    evaluate_album(client_factory=factory, name="ok computer", library=_library())
+    assert calls == [1]  # cache hit -> factory never called again

@@ -13,18 +13,29 @@ Matching against the export is exact (whitespace-stripped, case-insensitive) -
 never a fuzzy search - so results are deterministic.
 """
 
+from collections.abc import Callable
+
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.loaders_savers import load_album_tracks_cache
 from spotify_manager.loaders_savers import load_your_library_file
+from spotify_manager.loaders_savers import save_album_tracks_cache
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import AlbumTrackLikedStatus
 from spotify_manager.models.lookups import ArtistLibraryStats
 from spotify_manager.models.your_library import YourLibraryFile
 
 
+ClientFactory = Callable[[], Spotify]
+
+
 class ArtistNotFoundError(LookupError):
     """Raised when an artist id/name cannot be resolved in the library."""
+
+
+class TracklistUnavailableError(LookupError):
+    """Raised when an album's tracks aren't cached and no client is available."""
 
 
 class AlbumNotFoundError(LookupError):
@@ -160,19 +171,59 @@ def resolve_album(
     return album.spotify_id, album.album, album.artist
 
 
+def _fetch_album_tracks(sp: Spotify, album_id: str) -> list[dict]:
+    """Fetch and minimise an album's track list from the Spotify API."""
+    raw = _all_items(sp, sp.album_tracks(album_id, limit=50))
+    return [{"id": t.get("id"), "name": t["name"], "uri": t["uri"]} for t in raw if t]
+
+
+def get_album_tracklist(
+    album_id: str,
+    sp: Spotify | None = None,
+    client_factory: ClientFactory | None = None,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
+) -> tuple[list[dict], bool]:
+    """Return ``(tracks, from_cache)`` for an album, caching API results.
+
+    On a cache hit no Spotify client is needed. On a miss the client is taken
+    from ``sp`` or built lazily from ``client_factory``; the fetched track list
+    is then written to the local cache (unless ``use_cache`` is False).
+    """
+    cache = load_album_tracks_cache() if use_cache else {}
+    if use_cache and not refresh_cache and album_id in cache:
+        return cache[album_id], True
+
+    client = sp if sp is not None else (client_factory() if client_factory else None)
+    if client is None:
+        raise TracklistUnavailableError(
+            f"Album {album_id!r} is not cached and no Spotify client is available."
+        )
+
+    tracks = _fetch_album_tracks(client, album_id)
+    if use_cache:
+        cache[album_id] = tracks
+        save_album_tracks_cache(cache)
+    return tracks, False
+
+
 def evaluate_album(
-    sp: Spotify,
+    sp: Spotify | None = None,
     name: str | None = None,
     album_id: str | None = None,
     artist: str | None = None,
     library: YourLibraryFile | None = None,
     threshold: float = 0.5,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
+    client_factory: ClientFactory | None = None,
 ) -> AlbumEvaluation:
     """Decide whether an album should be kept based on liked tracks.
 
     Kept when at least ``threshold`` (default 50%) of the album's tracks are
-    liked, otherwise removed. The album is resolved to an id locally; only its
-    track list is fetched from the Spotify API.
+    liked, otherwise removed. The album is resolved to an id locally. Its track
+    list comes from the local cache when available, otherwise from one Spotify
+    API call (then cached). With a warm cache the whole call is offline.
     """
     lib = _load_library(library)
     resolved_id, resolved_name, resolved_artist = resolve_album(
@@ -181,8 +232,13 @@ def evaluate_album(
 
     liked_ids = {track.spotify_id for track in lib.tracks}
 
-    raw_tracks = _all_items(sp, sp.album_tracks(resolved_id, limit=50))
-    tracks = [t for t in raw_tracks if t]
+    tracks, from_cache = get_album_tracklist(
+        resolved_id,
+        sp=sp,
+        client_factory=client_factory,
+        use_cache=use_cache,
+        refresh_cache=refresh_cache,
+    )
 
     statuses: list[AlbumTrackLikedStatus] = []
     liked_count = 0
@@ -207,5 +263,6 @@ def evaluate_album(
         threshold=threshold,
         decision=decision,
         tracks=statuses,
-        source="files+api",
+        source="files" if from_cache else "files+api",
+        from_cache=from_cache,
     )

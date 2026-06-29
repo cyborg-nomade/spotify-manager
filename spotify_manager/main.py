@@ -107,17 +107,25 @@ def album_decision(
     album_id: str = typer.Option(None, "--album-id", help="Spotify album id."),
     artist: str = typer.Option(None, "--artist", help="Disambiguate by artist."),
     threshold: float = 0.5,
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Ignore the local tracklist cache for this run."
+    ),
+    refresh_cache: bool = typer.Option(
+        False, "--refresh-cache", help="Re-fetch the tracklist and update the cache."
+    ),
 ) -> None:
     """Decide whether an album should be kept (>= threshold liked) or removed."""
     if not name and not album_id:
         raise typer.BadParameter("provide an album NAME or --album-id")
     try:
         evaluation = evaluate_album(
-            client(),
+            client_factory=client,
             name=name,
             album_id=album_id,
             artist=artist,
             threshold=threshold,
+            use_cache=not no_cache,
+            refresh_cache=refresh_cache,
         )
     except AmbiguousAlbumError as exc:
         typer.echo(str(exc), err=True)

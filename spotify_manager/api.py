@@ -134,6 +134,8 @@ def album_evaluation(
     album_id: Annotated[str | None, Query()] = None,
     artist: Annotated[str | None, Query()] = None,
     threshold: float = 0.5,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
 ) -> AlbumEvaluation:
     """Keep/remove decision for an album (album id resolved locally)."""
     if not name and not album_id:
@@ -145,6 +147,8 @@ def album_evaluation(
         artist=artist,
         library=library,
         threshold=threshold,
+        use_cache=use_cache,
+        refresh_cache=refresh_cache,
     )
 
 

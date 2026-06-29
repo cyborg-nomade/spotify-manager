@@ -128,6 +128,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Local album-tracklist cache (derived data, rebuilt on demand)
+spotify_manager/files/album_tracks_cache.json
+
 # Spyder project settings
 .spyderproject
 .spyproject
