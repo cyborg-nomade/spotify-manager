@@ -3,15 +3,11 @@
 from spotipy import Spotify
 
 # UFI
-from spotify_manager.loaders_savers import (
-    load_liked_tracks_file,
-    load_total_albums_new_file,
-    save_total_albums_new_file,
-)
-from spotify_manager.loaders_savers import load_total_albums_file
+from spotify_manager.loaders_savers import load_liked_tracks_file
+from spotify_manager.loaders_savers import load_total_albums_new_file
 from spotify_manager.loaders_savers import load_total_artists_file
 from spotify_manager.loaders_savers import save_liked_tracks_file
-from spotify_manager.loaders_savers import save_total_albums_file
+from spotify_manager.loaders_savers import save_total_albums_new_file
 from spotify_manager.loaders_savers import save_total_artists_file
 from spotify_manager.models.stats import AlbumsStats
 from spotify_manager.models.stats import ArtistsStats
@@ -22,10 +18,9 @@ from spotify_manager.models.your_library import YourLibraryTrack
 from spotify_manager.utils.comparison import compare_albums
 from spotify_manager.utils.comparison import compare_artists
 from spotify_manager.utils.comparison import compare_tracks
-from spotify_manager.utils.convertion import convert_albums
 from spotify_manager.utils.growth import calculate_growth
-from spotify_manager.utils.sorting import album_sort_key, artist_sort_key
-from spotify_manager.utils.sorting import sort_key
+from spotify_manager.utils.sorting import album_sort_key
+from spotify_manager.utils.sorting import artist_sort_key
 from spotify_manager.utils.sorting import track_sort_key
 
 

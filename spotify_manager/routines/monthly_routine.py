@@ -1,6 +1,5 @@
 """Execute all monthly routines."""
 
-
 from spotipy.client import Spotify
 
 # UFI

@@ -1,7 +1,7 @@
 """Test configuration."""
+
 # pytest
 import pytest
-
 from pytest_mock import MockerFixture
 
 

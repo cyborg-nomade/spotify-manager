@@ -21,7 +21,7 @@ sp = get_spotipy_client()
 
 
 @app.command()
-def monthly_routines():
+def monthly_routines() -> None:
     """Run monthly routines."""
     compare_your_library_and_all_albums()
     convert_your_library_file(sp)
@@ -29,43 +29,43 @@ def monthly_routines():
 
 
 @app.command()
-def update_total_albums(just_update: bool = False):
+def update_total_albums(just_update: bool = False) -> None:
     """Update total album list, optional flag to just add the remaining pages."""
     update_total_album_list(sp, just_update)
 
 
 @app.command()
-def restore_your_library():
+def restore_your_library() -> None:
     """."""
     restore_your_library_from_file(sp)
 
 
 @app.command()
-def compare_lib_files():
+def compare_lib_files() -> None:
     """."""
     compare_your_library_and_all_albums()
 
 
 @app.command()
-def analyse_comp():
+def analyse_comp() -> None:
     """."""
     analyse_comparison(sp)
 
 
 @app.command()
-def convert_lib():
+def convert_lib() -> None:
     """."""
     convert_your_library_file(sp)
 
 
 @app.command()
-def count_artists():
+def count_artists() -> None:
     """."""
     count_artists_in_library()
 
 
 @app.command()
-def analyse_library():
+def analyse_library() -> None:
     """."""
     analyse_library_routine()
 

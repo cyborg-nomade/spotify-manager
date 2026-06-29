@@ -80,7 +80,9 @@ def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAl
         else:
             sorted_albums = sorted(simplified_albums, key=sort_key)
 
-        parsed_albums = [SimplifiedAlbum.parse_obj(album) for album in sorted_albums]
+        parsed_albums = [
+            SimplifiedAlbum.model_validate(album) for album in sorted_albums
+        ]
 
         save_total_albums_file(parsed_albums)
         print("Albums updated!")
@@ -141,7 +143,7 @@ def get_ordered_tracks(sp: Spotify, album: SimplifiedAlbum) -> list[SimplifiedTr
         simplified_tracks, key=itemgetter("disc_number", "track_number")
     )
     print("Tracks ordered!")
-    return [SimplifiedTrack.parse_obj(s) for s in sorted_tracks]
+    return [SimplifiedTrack.model_validate(s) for s in sorted_tracks]
 
 
 def append_to_playlist(
@@ -164,7 +166,7 @@ def add_monthly_albums(
     control_file: list[ControlFileItem],
     total_album_list: list[SimplifiedAlbum],
     starting_index: int,
-):
+) -> bool:
     """
     Add monthly albums tracks to playlist.
 
