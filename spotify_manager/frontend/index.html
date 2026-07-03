@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#121212" />
+<title>Spotify Manager</title>
+<style>
+  :root {
+    --bg: #121212;
+    --surface: #1e1e1e;
+    --surface-2: #282828;
+    --border: #333;
+    --text: #f2f2f2;
+    --muted: #a7a7a7;
+    --green: #1db954;
+    --green-press: #169c46;
+    --red: #e0245e;
+    --amber: #e0a800;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.45;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 24px) env(safe-area-inset-left);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px; }
+  header { display: flex; align-items: center; gap: 10px; padding: 8px 4px 16px; }
+  header .dot { width: 26px; height: 26px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
+  header h1 { font-size: 1.15rem; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  header .status { margin-left: auto; font-size: .72rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  header .status .pill { width: 8px; height: 8px; border-radius: 50%; background: #666; }
+  header .status.ok .pill { background: var(--green); }
+  header .status.err .pill { background: var(--red); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: .82rem; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 auto; }
+
+  label { display: block; font-size: .78rem; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=password], input[type=number] {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 13px 12px; font-size: 16px; outline: none;
+  }
+  input:focus { border-color: var(--green); }
+  .inline { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: .85rem; color: var(--muted); }
+  .inline input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--green); }
+
+  button {
+    appearance: none; border: none; border-radius: 999px; padding: 13px 16px;
+    font-size: .95rem; font-weight: 600; cursor: pointer; color: #fff; background: var(--surface-2);
+    transition: transform .05s ease, background .15s ease; width: 100%;
+  }
+  button:active { transform: scale(.98); }
+  button.primary { background: var(--green); color: #04160b; }
+  button.primary:active { background: var(--green-press); }
+  button.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+  button.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+  button[disabled] { opacity: .5; cursor: not-allowed; }
+  .btns { display: grid; gap: 10px; margin-top: 12px; }
+
+  .result { margin-top: 14px; display: none; }
+  .result.show { display: block; }
+  .badge { display: inline-block; padding: 5px 12px; border-radius: 999px; font-weight: 700; font-size: .8rem; }
+  .badge.keep { background: rgba(29,185,84,.16); color: var(--green); }
+  .badge.remove { background: rgba(224,36,94,.16); color: var(--red); }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+  .stat { background: var(--surface-2); border-radius: 10px; padding: 12px; text-align: center; }
+  .stat .n { font-size: 1.5rem; font-weight: 800; }
+  .stat .l { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .kv { font-size: .9rem; margin: 4px 0; }
+  .kv b { color: var(--muted); font-weight: 500; }
+
+  .meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 12px 0 6px; }
+  .meter > span { display: block; height: 100%; background: var(--green); }
+
+  .tracks { margin-top: 12px; max-height: 260px; overflow-y: auto; border-top: 1px solid var(--border); }
+  .track { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--border); font-size: .88rem; }
+  .track .tick { width: 18px; flex: 0 0 auto; text-align: center; }
+  .track.liked .tick { color: var(--green); }
+  .track.unliked { color: var(--muted); }
+
+  details.commands summary { cursor: pointer; list-style: none; font-size: .82rem; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); font-weight: 600; padding: 2px 0; }
+  details.commands summary::-webkit-details-marker { display: none; }
+  details.commands summary::after { content: " ▾"; }
+  details.commands[open] summary::after { content: " ▴"; }
+  .cmd-note { font-size: .74rem; color: var(--muted); margin: 8px 0 4px; }
+
+  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%);
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 12px 18px; border-radius: 12px;
+    font-size: .88rem; max-width: 90%; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 50; }
+  .toast.show { opacity: 1; }
+  .toast.err { border-color: var(--red); }
+  .toast.ok { border-color: var(--green); }
+
+  .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Login overlay */
+  #gate { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 100; }
+  #gate .box { width: 100%; max-width: 340px; text-align: center; }
+  #gate .dot { width: 44px; height: 44px; border-radius: 50%; background: var(--green); margin: 0 auto 18px; }
+  #gate h1 { font-size: 1.2rem; margin: 0 0 6px; }
+  #gate p { color: var(--muted); font-size: .85rem; margin: 0 0 20px; }
+  .hidden { display: none !important; }
+  .foot { text-align: center; color: var(--muted); font-size: .72rem; padding: 8px 0 4px; }
+  .foot a { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- Password gate -->
+<div id="gate">
+  <div class="box">
+    <div class="dot"></div>
+    <h1>Spotify Manager</h1>
+    <p>Enter your access password to continue.</p>
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password" enterkeyhint="go" />
+    <div style="height:12px"></div>
+    <button class="primary" id="pwBtn">Unlock</button>
+    <div style="height:10px"></div>
+    <label class="inline" style="justify-content:center;">
+      <input type="checkbox" id="remember" checked /> Keep me signed in on this device
+    </label>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" class="hidden">
+  <div class="wrap">
+    <header>
+      <div class="dot"></div>
+      <h1>Spotify Manager</h1>
+      <div class="status" id="health"><span class="pill"></span><span id="healthTxt">checking…</span></div>
+    </header>
+
+    <!-- Artist stats -->
+    <section class="card">
+      <h2>Artist stats</h2>
+      <label for="artistName">Artist name</label>
+      <input id="artistName" type="text" placeholder="e.g. Radiohead" enterkeyhint="search" />
+      <label for="artistId">…or Spotify artist ID (optional)</label>
+      <input id="artistId" type="text" placeholder="e.g. 4Z8W4fKeB5YxbusRsdQVPb" />
+      <div class="btns">
+        <button class="primary" data-action="artistStats">Get stats</button>
+      </div>
+      <div class="result" id="artistResult"></div>
+    </section>
+
+    <!-- Album evaluation -->
+    <section class="card">
+      <h2>Album evaluation (keep / remove)</h2>
+      <label for="albumName">Album name</label>
+      <input id="albumName" type="text" placeholder="e.g. In Rainbows" enterkeyhint="search" />
+      <label for="albumArtist">Artist (to disambiguate, optional)</label>
+      <input id="albumArtist" type="text" placeholder="e.g. Radiohead" />
+      <label for="albumId">…or Spotify album ID (optional)</label>
+      <input id="albumId" type="text" placeholder="album id" />
+      <label for="threshold">Keep threshold (liked ratio)</label>
+      <input id="threshold" type="number" min="0" max="1" step="0.05" value="0.5" />
+      <div class="inline"><input type="checkbox" id="refreshCache" /> <label for="refreshCache" style="margin:0">Refresh track-list cache (live API call)</label></div>
+      <div class="btns">
+        <button class="primary" data-action="albumEval">Evaluate album</button>
+      </div>
+      <div class="result" id="albumResult"></div>
+    </section>
+
+    <!-- Quick utilities -->
+    <section class="card">
+      <h2>Library</h2>
+      <div class="btns">
+        <button class="ghost" data-action="countArtists">Count artists in library</button>
+        <button class="ghost" data-action="refreshLibrary">Refresh library cache</button>
+      </div>
+      <div class="result" id="utilResult"></div>
+    </section>
+
+    <!-- Commands -->
+    <section class="card">
+      <details class="commands">
+        <summary>Commands</summary>
+        <p class="cmd-note">These run the same routines as the CLI. The ones marked ⚠ modify your Spotify library and/or the data files on the server. You'll be asked to confirm.</p>
+        <div class="btns">
+          <button class="ghost" data-action="cmd" data-cmd="count-artists" data-method="GET">Count artists</button>
+          <button class="ghost" data-action="cmd" data-cmd="analyse-library" data-method="POST">Analyse library (save stats)</button>
+          <button class="ghost" data-action="cmd" data-cmd="compare-lib-files" data-method="POST">Compare library files</button>
+          <button class="danger" data-action="cmd" data-cmd="convert-lib" data-method="POST" data-confirm="1">⚠ Convert library file</button>
+          <button class="danger" data-action="cmd" data-cmd="analyse-comp" data-method="POST" data-confirm="1">⚠ Analyse comparison (live)</button>
+          <button class="danger" data-action="cmd" data-cmd="update-total-albums" data-method="POST" data-confirm="1">⚠ Update total albums (live)</button>
+          <button class="danger" data-action="cmd" data-cmd="restore-your-library" data-method="POST" data-confirm="1">⚠ Restore library to Spotify</button>
+          <button class="danger" data-action="cmd" data-cmd="monthly-routines" data-method="POST" data-confirm="1">⚠ Run monthly routines</button>
+        </div>
+        <div class="result" id="cmdResult"></div>
+      </details>
+    </section>
+
+    <div class="foot">
+      <button class="ghost" id="logout" style="max-width:160px;margin:0 auto;">Sign out</button>
+      <div style="height:10px"></div>
+      Spotify Manager · runs your own API
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  var API = ""; // same origin
+  var STORAGE_KEY = "sm_pw";
+  var pw = null;
+
+  var gate = document.getElementById("gate");
+  var app = document.getElementById("app");
+  var toast = document.getElementById("toast");
+  var toastTimer = null;
+
+  function showToast(msg, kind) {
+    toast.textContent = msg;
+    toast.className = "toast show" + (kind ? " " + kind : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.className = "toast"; }, 3200);
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function headers() {
+    return { "X-App-Password": pw || "" };
+  }
+
+  // Core fetch wrapper. Returns parsed JSON or throws {status, detail, data}.
+  async function api(path, opts) {
+    opts = opts || {};
+    var res;
+    try {
+      res = await fetch(API + path, {
+        method: opts.method || "GET",
+        headers: headers(),
+      });
+    } catch (e) {
+      throw { status: 0, detail: "Network error — is the server awake?" };
+    }
+    var data = null;
+    try { data = await res.json(); } catch (e) { /* no body */ }
+    if (res.status === 401) {
+      throw { status: 401, detail: "Wrong or missing password." };
+    }
+    if (!res.ok) {
+      var d = (data && (data.detail || data.message)) || ("HTTP " + res.status);
+      throw { status: res.status, detail: d, data: data };
+    }
+    return data;
+  }
+
+  function setBusy(btn, busy, label) {
+    if (!btn) return;
+    if (busy) {
+      btn.dataset.label = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner"></span> ' + (label || "Working…");
+      btn.disabled = true;
+    } else {
+      btn.innerHTML = btn.dataset.label || btn.innerHTML;
+      btn.disabled = false;
+    }
+  }
+
+  function renderResult(el, html) {
+    el.innerHTML = html;
+    el.classList.add("show");
+  }
+  function renderError(el, err) {
+    renderResult(el, '<div class="kv" style="color:var(--red)">✕ ' + esc(err.detail || "Error") + "</div>");
+  }
+
+  // ---- Actions -----------------------------------------------------------
+  var actions = {
+    async artistStats(btn) {
+      var name = document.getElementById("artistName").value.trim();
+      var id = document.getElementById("artistId").value.trim();
+      var out = document.getElementById("artistResult");
+      if (!name && !id) { showToast("Enter an artist name or ID", "err"); return; }
+      var q = new URLSearchParams();
+      if (name) q.set("name", name);
+      if (id) q.set("artist_id", id);
+      setBusy(btn, true);
+      try {
+        var d = await api("/artists/stats?" + q.toString());
+        renderResult(out,
+          '<div class="kv"><b>Artist</b> ' + esc(d.artist_name) + "</div>" +
+          (d.artist_id ? '<div class="kv"><b>ID</b> ' + esc(d.artist_id) + "</div>" : "") +
+          '<div class="stat-grid">' +
+            '<div class="stat"><div class="n">' + d.liked_tracks + '</div><div class="l">Liked tracks</div></div>' +
+            '<div class="stat"><div class="n">' + d.saved_releases + '</div><div class="l">Saved releases</div></div>' +
+          "</div>");
+      } catch (e) { renderError(out, e); }
+      setBusy(btn, false);
+    },
+
+    async albumEval(btn) {
+      var name = document.getElementById("albumName").value.trim();
+      var artist = document.getElementById("albumArtist").value.trim();
+      var id = document.getElementById("albumId").value.trim();
+      var threshold = document.getElementById("threshold").value;
+      var refresh = document.getElementById("refreshCache").checked;
+      var out = document.getElementById("albumResult");
+      if (!name && !id) { showToast("Enter an album name or ID", "err"); return; }
+      var q = new URLSearchParams();
+      if (name) q.set("name", name);
+      if (id) q.set("album_id", id);
+      if (artist) q.set("artist", artist);
+      if (threshold) q.set("threshold", threshold);
+      if (refresh) q.set("refresh_cache", "true");
+      setBusy(btn, true, "Evaluating…");
+      try {
+        var d = await api("/albums/evaluation?" + q.toString());
+        var pct = Math.round((d.liked_ratio || 0) * 100);
+        var tracks = (d.tracks || []).map(function (t) {
+          return '<div class="track ' + (t.liked ? "liked" : "unliked") + '">' +
+            '<span class="tick">' + (t.liked ? "♥" : "○") + "</span>" +
+            "<span>" + esc(t.name) + "</span></div>";
+        }).join("");
+        renderResult(out,
+          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">' +
+            '<span class="badge ' + esc(d.decision) + '">' + esc((d.decision || "").toUpperCase()) + "</span>" +
+            '<span class="kv" style="margin:0"><b>' + esc(d.album_name) + "</b></span></div>" +
+          (d.artist_name ? '<div class="kv"><b>Artist</b> ' + esc(d.artist_name) + "</div>" : "") +
+          '<div class="kv"><b>Liked</b> ' + d.liked_tracks + " / " + d.total_tracks +
+            "  (" + pct + "%, threshold " + Math.round(d.threshold * 100) + "%)</div>" +
+          '<div class="meter"><span style="width:' + pct + '%"></span></div>' +
+          '<div class="kv" style="font-size:.75rem;color:var(--muted)">source: ' + esc(d.source) +
+            (d.from_cache ? " · cached" : "") + "</div>" +
+          (tracks ? '<div class="tracks">' + tracks + "</div>" : ""));
+      } catch (e) {
+        if (e.status === 409 && e.data && e.data.candidates) {
+          var cands = e.data.candidates.map(function (c) {
+            return '<div class="kv">• ' + esc(c.artist) + " — " + esc(c.album) + " <span style=\"color:var(--muted)\">(" + esc(c.id) + ")</span></div>";
+          }).join("");
+          renderResult(out, '<div class="kv" style="color:var(--amber)">Multiple albums match. Add the artist or use the album ID:</div>' + cands);
+        } else {
+          renderError(out, e);
+        }
+      }
+      setBusy(btn, false);
+    },
+
+    async countArtists(btn) {
+      var out = document.getElementById("utilResult");
+      setBusy(btn, true);
+      try {
+        var d = await api("/commands/count-artists");
+        renderResult(out, '<div class="stat-grid"><div class="stat"><div class="n">' + d.count + '</div><div class="l">Artists in library</div></div></div>');
+      } catch (e) { renderError(out, e); }
+      setBusy(btn, false);
+    },
+
+    async refreshLibrary(btn) {
+      var out = document.getElementById("utilResult");
+      setBusy(btn, true, "Refreshing…");
+      try {
+        await api("/library/refresh", { method: "POST" });
+        renderResult(out, '<div class="kv" style="color:var(--green)">✓ Library cache cleared — next lookup re-reads YourLibrary.json.</div>');
+        showToast("Library cache refreshed", "ok");
+      } catch (e) { renderError(out, e); }
+      setBusy(btn, false);
+    },
+
+    async cmd(btn) {
+      var cmd = btn.dataset.cmd;
+      var method = btn.dataset.method || "POST";
+      var out = document.getElementById("cmdResult");
+      if (btn.dataset.confirm === "1") {
+        if (!confirm("Run “" + btn.textContent.replace(/^⚠\s*/, "") + "”?\n\nThis can modify your Spotify library and/or server data files.")) return;
+      }
+      setBusy(btn, true, "Running…");
+      try {
+        var d = await api("/commands/" + cmd, { method: method });
+        var msg = d && (d.detail || d.command || d.status) ? (d.detail || (d.command + " · " + (d.status || "done"))) : "Done";
+        if (typeof d.count === "number") msg = d.count + " artists";
+        renderResult(out, '<div class="kv" style="color:var(--green)">✓ ' + esc(msg) + "</div>");
+        showToast("Command finished", "ok");
+      } catch (e) {
+        renderError(out, e);
+        showToast("Command failed", "err");
+      }
+      setBusy(btn, false);
+    },
+  };
+
+  document.getElementById("app").addEventListener("click", function (ev) {
+    var btn = ev.target.closest("[data-action]");
+    if (!btn) return;
+    var fn = actions[btn.dataset.action];
+    if (fn) fn(btn);
+  });
+
+  // Enter-to-submit on the two main inputs
+  document.getElementById("artistName").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") actions.artistStats(document.querySelector('[data-action="artistStats"]'));
+  });
+  document.getElementById("albumName").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") actions.albumEval(document.querySelector('[data-action="albumEval"]'));
+  });
+
+  // ---- Health ------------------------------------------------------------
+  async function checkHealth() {
+    var h = document.getElementById("health");
+    var t = document.getElementById("healthTxt");
+    try {
+      var res = await fetch(API + "/health");
+      if (res.ok) { h.className = "status ok"; t.textContent = "online"; }
+      else { h.className = "status err"; t.textContent = "error"; }
+    } catch (e) { h.className = "status err"; t.textContent = "offline"; }
+  }
+
+  // ---- Gate --------------------------------------------------------------
+  async function tryUnlock(candidate, remember) {
+    pw = candidate;
+    // Validate against a protected, side-effect-free endpoint.
+    try {
+      await api("/commands/count-artists");
+    } catch (e) {
+      pw = null;
+      if (e.status === 401) { showToast("Wrong password", "err"); return false; }
+      // Non-auth error (e.g. data file missing) still means the password worked.
+      if (e.status && e.status !== 0) { /* authorised */ }
+      else { showToast(e.detail || "Could not reach server", "err"); return false; }
+    }
+    if (remember) { try { /* in-memory only fallback */ window.name = STORAGE_KEY + ":" + candidate; } catch (e) {} }
+    gate.classList.add("hidden");
+    app.classList.remove("hidden");
+    checkHealth();
+    return true;
+  }
+
+  document.getElementById("pwBtn").addEventListener("click", function () {
+    var v = document.getElementById("pw").value;
+    if (!v) { showToast("Enter your password", "err"); return; }
+    var remember = document.getElementById("remember").checked;
+    this.disabled = true;
+    var self = this;
+    tryUnlock(v, remember).finally(function () { self.disabled = false; });
+  });
+  document.getElementById("pw").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("pwBtn").click();
+  });
+
+  document.getElementById("logout").addEventListener("click", function () {
+    pw = null;
+    try { window.name = ""; } catch (e) {}
+    app.classList.add("hidden");
+    gate.classList.remove("hidden");
+    document.getElementById("pw").value = "";
+  });
+
+  // Restore session from window.name (survives reloads within the tab, no storage APIs).
+  (function restore() {
+    try {
+      if (window.name && window.name.indexOf(STORAGE_KEY + ":") === 0) {
+        var saved = window.name.slice((STORAGE_KEY + ":").length);
+        if (saved) { tryUnlock(saved, true); }
+      }
+    } catch (e) {}
+  })();
+})();
+</script>
+</body>
+</html>

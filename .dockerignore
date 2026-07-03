@@ -1,0 +1,28 @@
+# Keep the build context (and image) small. The data files the app needs live
+# in spotify_manager/files/*.json and are intentionally NOT excluded.
+
+.git
+.gitignore
+.venv
+.vscode
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.cache
+
+# Secrets — provided at runtime via Space secrets, never baked into the image.
+.env
+
+# Large local artifacts not read by the app at runtime.
+albums_total.txt
+control_file_safety_copy.json
+spotify_manager/files/album_tracks_cache.json
+
+# Tests aren't needed in the runtime image.
+tests/
+
+# Deploy docs (not needed inside the image).
+DEPLOY.md
