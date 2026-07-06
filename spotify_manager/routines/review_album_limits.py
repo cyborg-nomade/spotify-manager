@@ -126,6 +126,42 @@ def append_removed_album_log(
         log_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def ensure_artist_followed(
+    sp: Spotify,
+    album: SimplifiedAlbum,
+    checked_artist_ids: set[str],
+    echo: Echo,
+) -> bool:
+    """Follow an album's artist when not already followed.
+
+    Returns ``True`` when a follow action was performed. Artist ids already
+    checked in this run are skipped to avoid repeated API calls for artists with
+    many albums.
+    """
+    artist = album.artist
+    if artist.spotify_id in checked_artist_ids:
+        return False
+
+    try:
+        followed_response = sp.current_user_following_artists([artist.spotify_id])
+    except SpotifyException as exc:
+        handle_spotify_exception(exc)
+
+    already_following = bool(followed_response[0]) if followed_response else False
+    if already_following:
+        checked_artist_ids.add(artist.spotify_id)
+        return False
+
+    try:
+        sp.user_follow_artists([artist.spotify_id])
+    except SpotifyException as exc:
+        handle_spotify_exception(exc)
+
+    checked_artist_ids.add(artist.spotify_id)
+    echo(f"Followed artist: {artist.name}")
+    return True
+
+
 def read_action(
     album: SimplifiedAlbum,
     evaluation: AlbumEvaluation,
@@ -167,8 +203,13 @@ def review_album_limits(
     removed_count = 0
     skipped_count = 0
     kept_count = 0
+    followed_artist_count = 0
+    checked_artist_ids: set[str] = set()
 
     for position, album in enumerate(total_albums, start=1):
+        if ensure_artist_followed(sp, album, checked_artist_ids, echo):
+            followed_artist_count += 1
+
         try:
             evaluation = evaluate_album(
                 sp=sp,
@@ -219,5 +260,6 @@ def review_album_limits(
     echo("")
     echo(
         "Review complete. "
-        f"Kept: {kept_count}. Skipped: {skipped_count}. Removed: {removed_count}."
+        f"Kept: {kept_count}. Skipped: {skipped_count}. "
+        f"Removed: {removed_count}. Followed artists: {followed_artist_count}."
     )
