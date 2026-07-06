@@ -39,6 +39,7 @@ def get_spotipy_client() -> spotipy.Spotify:
         "playlist-modify-public",
         "playlist-modify-private",
         "user-library-read",
+        "user-library-modify",
         "user-follow-read",
         "user-follow-modify",
     ]

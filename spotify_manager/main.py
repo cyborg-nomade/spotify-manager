@@ -11,6 +11,7 @@ from spotify_manager.processors.library_lookups import ArtistNotFoundError
 from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
+from spotify_manager.routines import review_album_limits
 from spotify_manager.routines.analyse_library import analyse_library_routine
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
@@ -139,6 +140,45 @@ def album_decision(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(evaluation.model_dump_json(indent=2))
+
+
+@app.command(name="review-album-limits")
+def review_album_limits_command(
+    threshold: float = 0.5,
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Ignore the local tracklist cache for this run."
+    ),
+    refresh_cache: bool = typer.Option(
+        False, "--refresh-cache", help="Re-fetch tracklists and update the cache."
+    ),
+) -> None:
+    """Interactively remove saved albums below the liked-track threshold."""
+    if threshold < 0 or threshold > 1:
+        raise typer.BadParameter("threshold must be between 0 and 1")
+
+    def read_action(*_args: object) -> str:
+        return typer.prompt(
+            "Action [r]emove / [k]eep anyway / [s]kip / [d]etails / [q]uit",
+            default="s",
+        )
+
+    try:
+        review_album_limits.review_album_limits(
+            client(),
+            action_reader=read_action,
+            threshold=threshold,
+            use_cache=not no_cache,
+            refresh_cache=refresh_cache,
+            echo=typer.echo,
+        )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        typer.echo(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            err=True,
+        )
+        typer.echo("Progress was saved up to the last successful removal.", err=True)
+        raise typer.Exit(code=0) from exc
 
 
 if __name__ == "__main__":
