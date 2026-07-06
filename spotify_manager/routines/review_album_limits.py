@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from math import ceil
@@ -11,11 +12,12 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
-from spotify_manager.loaders_savers import load_total_albums_file
+from spotify_manager.loaders_savers import load_total_albums_new_file
 from spotify_manager.loaders_savers import load_your_library_file
-from spotify_manager.loaders_savers import save_total_albums_file
-from spotify_manager.models.albums import SimplifiedAlbum
+from spotify_manager.loaders_savers import save_total_albums_new_file
 from spotify_manager.models.lookups import AlbumEvaluation
+from spotify_manager.models.your_library import YourLibraryAlbum
+from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.processors.library_lookups import evaluate_album
 
 
@@ -24,7 +26,15 @@ REMOVED_ALBUMS_LOG_PATH = (
 )
 
 Echo = Callable[[str], None]
-ActionReader = Callable[[SimplifiedAlbum, AlbumEvaluation], str]
+ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]
+
+
+@dataclass(frozen=True)
+class AlbumArtist:
+    """Spotify artist identity for a saved album."""
+
+    spotify_id: str
+    name: str
 
 
 class SpotifyRateLimitError(RuntimeError):
@@ -69,9 +79,58 @@ def handle_spotify_exception(exc: SpotifyException) -> None:
     raise exc
 
 
-def format_album_label(album: SimplifiedAlbum) -> str:
+def normalise_name(value: str) -> str:
+    """Normalise a name for case-insensitive artist lookups."""
+    return value.strip().casefold()
+
+
+def known_artist_ids_by_name(library: YourLibraryFile) -> dict[str, str]:
+    """Return followed artist ids from the exported library, keyed by name."""
+    return {
+        normalise_name(artist.name): artist.spotify_id for artist in library.artists
+    }
+
+
+def resolve_album_artist(
+    sp: Spotify,
+    album: YourLibraryAlbum,
+    known_artist_ids: dict[str, str],
+) -> AlbumArtist | None:
+    """Resolve the Spotify artist id for an album from local data or Spotify."""
+    known_artist_id = known_artist_ids.get(normalise_name(album.artist))
+    if known_artist_id:
+        return AlbumArtist(spotify_id=known_artist_id, name=album.artist)
+
+    try:
+        spotify_album = sp.album(album.spotify_id)
+    except SpotifyException as exc:
+        handle_spotify_exception(exc)
+
+    spotify_artists = spotify_album.get("artists", [])
+    if not spotify_artists:
+        return None
+
+    artist = next(
+        (
+            candidate
+            for candidate in spotify_artists
+            if normalise_name(candidate.get("name", "")) == normalise_name(album.artist)
+        ),
+        spotify_artists[0],
+    )
+    artist_id = artist.get("id")
+    if not artist_id:
+        return None
+
+    artist_name = artist.get("name") or album.artist
+    known_artist_ids[normalise_name(album.artist)] = artist_id
+    known_artist_ids[normalise_name(artist_name)] = artist_id
+    return AlbumArtist(spotify_id=artist_id, name=artist_name)
+
+
+def format_album_label(album: YourLibraryAlbum) -> str:
     """Return a compact label for an album."""
-    return f"{album.artist.name} - {album.name}"
+    return f"{album.artist} - {album.album}"
 
 
 def format_evaluation_summary(evaluation: AlbumEvaluation) -> str:
@@ -92,8 +151,8 @@ def echo_track_details(evaluation: AlbumEvaluation, echo: Echo) -> None:
 
 
 def remove_first_matching_album(
-    albums: list[SimplifiedAlbum], album_id: str
-) -> list[SimplifiedAlbum]:
+    albums: list[YourLibraryAlbum], album_id: str
+) -> list[YourLibraryAlbum]:
     """Return ``albums`` with the first matching Spotify album id removed."""
     remaining = list(albums)
     for index, album in enumerate(remaining):
@@ -104,7 +163,7 @@ def remove_first_matching_album(
 
 
 def append_removed_album_log(
-    album: SimplifiedAlbum,
+    album: YourLibraryAlbum,
     evaluation: AlbumEvaluation,
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
 ) -> None:
@@ -113,8 +172,8 @@ def append_removed_album_log(
     entry = {
         "removed_at": datetime.now(UTC).isoformat(),
         "spotify_id": album.spotify_id,
-        "album": album.name,
-        "artist": album.artist.name,
+        "album": album.album,
+        "artist": album.artist,
         "liked_tracks": evaluation.liked_tracks,
         "total_tracks": evaluation.total_tracks,
         "liked_ratio": evaluation.liked_ratio,
@@ -128,7 +187,8 @@ def append_removed_album_log(
 
 def ensure_artist_followed(
     sp: Spotify,
-    album: SimplifiedAlbum,
+    album: YourLibraryAlbum,
+    known_artist_ids: dict[str, str],
     checked_artist_ids: set[str],
     echo: Echo,
 ) -> bool:
@@ -138,7 +198,11 @@ def ensure_artist_followed(
     checked in this run are skipped to avoid repeated API calls for artists with
     many albums.
     """
-    artist = album.artist
+    artist = resolve_album_artist(sp, album, known_artist_ids)
+    if artist is None:
+        echo(f"Could not resolve artist id for: {album.artist}")
+        return False
+
     if artist.spotify_id in checked_artist_ids:
         return False
 
@@ -163,7 +227,7 @@ def ensure_artist_followed(
 
 
 def read_action(
-    album: SimplifiedAlbum,
+    album: YourLibraryAlbum,
     evaluation: AlbumEvaluation,
     action_reader: ActionReader,
     echo: Echo,
@@ -195,7 +259,7 @@ def review_album_limits(
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
 ) -> None:
     """Review saved albums and remove user-approved albums below the threshold."""
-    total_albums = load_total_albums_file()
+    total_albums = load_total_albums_new_file()
     library = load_your_library_file()
     remaining_albums = list(total_albums)
     total_count = len(total_albums)
@@ -204,10 +268,14 @@ def review_album_limits(
     skipped_count = 0
     kept_count = 0
     followed_artist_count = 0
+    known_artist_ids = known_artist_ids_by_name(library)
     checked_artist_ids: set[str] = set()
 
     for position, album in enumerate(total_albums, start=1):
-        if ensure_artist_followed(sp, album, checked_artist_ids, echo):
+        followed_artist = ensure_artist_followed(
+            sp, album, known_artist_ids, checked_artist_ids, echo
+        )
+        if followed_artist:
             followed_artist_count += 1
 
         try:
@@ -252,7 +320,7 @@ def review_album_limits(
         remaining_albums = remove_first_matching_album(
             remaining_albums, album.spotify_id
         )
-        save_total_albums_file(remaining_albums)
+        save_total_albums_new_file(remaining_albums)
         append_removed_album_log(album, evaluation, log_path=log_path)
         removed_count += 1
         echo(f"Removed: {label}")
