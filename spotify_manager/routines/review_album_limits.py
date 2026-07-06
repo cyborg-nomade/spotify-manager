@@ -263,7 +263,8 @@ def format_evaluation_summary(evaluation: AlbumEvaluation) -> str:
     threshold_pct = evaluation.threshold * 100
     return (
         f"Liked: {evaluation.liked_tracks} / {evaluation.total_tracks} "
-        f"({liked_pct:.1f}%, threshold {threshold_pct:.1f}%)"
+        f"({liked_pct:.1f}%, threshold {threshold_pct:.1f}%, "
+        f"required {evaluation.required_liked_tracks})"
     )
 
 

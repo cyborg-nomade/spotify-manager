@@ -11,6 +11,7 @@ from spotify_manager.processors.library_lookups import AmbiguousAlbumError
 from spotify_manager.processors.library_lookups import ArtistNotFoundError
 from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import get_artist_library_stats
+from spotify_manager.processors.library_lookups import required_liked_tracks
 
 
 def _library() -> YourLibraryFile:
@@ -91,8 +92,38 @@ def test_evaluate_album_resolves_exact_id_not_search() -> None:
     assert result.album_id == "alb1"
     assert result.total_tracks == 3
     assert result.liked_tracks == 2  # t1, t2 liked; t3 not
-    assert result.decision == "keep"  # 2/3 >= 0.5
+    assert result.required_liked_tracks == 1
+    assert result.decision == "keep"
     assert result.source == "files+api"
+
+
+def test_evaluate_album_rounds_down_required_likes_for_odd_track_counts() -> None:
+    sp = FakeSpotify(
+        {
+            "alb1": [
+                {"id": "t1", "name": "Airbag", "uri": "spotify:track:t1"},
+                {"id": "t2", "name": "Karma Police", "uri": "spotify:track:t2"},
+                {"id": "t3", "name": "Let Down", "uri": "spotify:track:t3"},
+                {"id": "t4", "name": "Exit Music", "uri": "spotify:track:t4"},
+                {"id": "t5", "name": "Electioneering", "uri": "spotify:track:t5"},
+            ]
+        }
+    )
+
+    result = evaluate_album(sp, name="ok computer", library=_library())
+
+    assert result.total_tracks == 5
+    assert result.liked_tracks == 2
+    assert result.liked_ratio == 0.4
+    assert result.required_liked_tracks == 2
+    assert result.decision == "keep"
+
+
+def test_required_liked_tracks_keeps_non_empty_positive_threshold_meaningful() -> None:
+    assert required_liked_tracks(5, 0.5) == 2
+    assert required_liked_tracks(3, 0.5) == 1
+    assert required_liked_tracks(1, 0.5) == 1
+    assert required_liked_tracks(1, 0) == 0
 
 
 def test_evaluate_album_by_id() -> None:
@@ -100,6 +131,7 @@ def test_evaluate_album_by_id() -> None:
     result = evaluate_album(sp, album_id="alb2", library=_library())
     assert result.album_id == "alb2"
     assert result.liked_tracks == 0
+    assert result.required_liked_tracks == 1
     assert result.decision == "remove"
 
 

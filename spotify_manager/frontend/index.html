@@ -325,6 +325,7 @@
       try {
         var d = await api("/albums/evaluation?" + q.toString());
         var pct = Math.round((d.liked_ratio || 0) * 100);
+        var required = d.required_liked_tracks == null ? "?" : d.required_liked_tracks;
         var tracks = (d.tracks || []).map(function (t) {
           return '<div class="track ' + (t.liked ? "liked" : "unliked") + '">' +
             '<span class="tick">' + (t.liked ? "♥" : "○") + "</span>" +
@@ -336,7 +337,8 @@
             '<span class="kv" style="margin:0"><b>' + esc(d.album_name) + "</b></span></div>" +
           (d.artist_name ? '<div class="kv"><b>Artist</b> ' + esc(d.artist_name) + "</div>" : "") +
           '<div class="kv"><b>Liked</b> ' + d.liked_tracks + " / " + d.total_tracks +
-            "  (" + pct + "%, threshold " + Math.round(d.threshold * 100) + "%)</div>" +
+            "  (" + pct + "%, threshold " + Math.round(d.threshold * 100) +
+            "%, required " + required + ")</div>" +
           '<div class="meter"><span style="width:' + pct + '%"></span></div>' +
           '<div class="kv" style="font-size:.75rem;color:var(--muted)">source: ' + esc(d.source) +
             (d.from_cache ? " · cached" : "") + "</div>" +

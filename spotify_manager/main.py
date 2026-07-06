@@ -35,6 +35,18 @@ from spotify_manager.routines.monthly_routine import run_monthly_routines
 app = typer.Typer()
 
 _client: Spotify | None = None
+REVIEW_ACTION_CHOICES = [
+    "r",
+    "remove",
+    "k",
+    "keep",
+    "s",
+    "skip",
+    "d",
+    "details",
+    "q",
+    "quit",
+]
 
 
 def client() -> Spotify:
@@ -47,6 +59,30 @@ def client() -> Spotify:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
     return _client
+
+
+def ask_review_action(
+    console: Console,
+    evaluation: object,
+    progress: Progress | None = None,
+) -> str:
+    """Ask for a review action while yielding Rich progress rendering."""
+    default = "r"
+    if getattr(evaluation, "decision", None) != "remove":
+        default = "s"
+
+    if progress is not None:
+        progress.stop()
+    try:
+        return Prompt.ask(
+            "Action [r]emove / [k]eep anyway / [s]kip / [d]etails / [q]uit",
+            choices=REVIEW_ACTION_CHOICES,
+            default=default,
+            console=console,
+        )
+    finally:
+        if progress is not None:
+            progress.start()
 
 
 @app.command()
@@ -170,6 +206,7 @@ def review_album_limits_command(
         raise typer.BadParameter("threshold must be between 0 and 1")
 
     console = Console()
+    progress_ref: Progress | None = None
 
     def echo(line: str = "") -> None:
         style = None
@@ -194,27 +231,7 @@ def review_album_limits_command(
         _album: object,
         evaluation: object,
     ) -> str:
-        default = "r"
-        if getattr(evaluation, "decision", None) != "remove":
-            default = "s"
-
-        return Prompt.ask(
-            "Action [r]emove / [k]eep anyway / [s]kip / [d]etails / [q]uit",
-            choices=[
-                "r",
-                "remove",
-                "k",
-                "keep",
-                "s",
-                "skip",
-                "d",
-                "details",
-                "q",
-                "quit",
-            ],
-            default=default,
-            console=console,
-        )
+        return ask_review_action(console, evaluation, progress_ref)
 
     try:
         with Progress(
@@ -224,7 +241,9 @@ def review_album_limits_command(
             MofNCompleteColumn(),
             TimeElapsedColumn(),
             console=console,
+            transient=True,
         ) as progress:
+            progress_ref = progress
             task_id = progress.add_task("Reviewing albums", total=None)
 
             def update_progress(position: int, total: int) -> None:

@@ -14,6 +14,7 @@ never a fuzzy search - so results are deterministic.
 """
 
 from collections.abc import Callable
+from math import floor
 
 from spotipy import Spotify
 
@@ -207,6 +208,15 @@ def get_album_tracklist(
     return tracks, False
 
 
+def required_liked_tracks(total_tracks: int, threshold: float) -> int:
+    """Return the whole-track keep threshold for an album."""
+    if total_tracks <= 0:
+        return 1
+    if threshold <= 0:
+        return 0
+    return max(1, floor(total_tracks * threshold))
+
+
 def evaluate_album(
     sp: Spotify | None = None,
     name: str | None = None,
@@ -220,10 +230,11 @@ def evaluate_album(
 ) -> AlbumEvaluation:
     """Decide whether an album should be kept based on liked tracks.
 
-    Kept when at least ``threshold`` (default 50%) of the album's tracks are
-    liked, otherwise removed. The album is resolved to an id locally. Its track
-    list comes from the local cache when available, otherwise from one Spotify
-    API call (then cached). With a warm cache the whole call is offline.
+    Kept when the liked-track count reaches the whole-track threshold. For the
+    default 50%, odd-sized albums require half of ``n - 1`` tracks. The album is
+    resolved to an id locally. Its track list comes from the local cache when
+    available, otherwise from one Spotify API call (then cached). With a warm
+    cache the whole call is offline.
     """
     lib = _load_library(library)
     resolved_id, resolved_name, resolved_artist = resolve_album(
@@ -251,7 +262,8 @@ def evaluate_album(
 
     total = len(statuses)
     ratio = (liked_count / total) if total else 0.0
-    decision = "keep" if ratio >= threshold else "remove"
+    required_liked_count = required_liked_tracks(total, threshold)
+    decision = "keep" if liked_count >= required_liked_count else "remove"
 
     return AlbumEvaluation(
         album_name=resolved_name or resolved_id,
@@ -259,6 +271,7 @@ def evaluate_album(
         artist_name=resolved_artist,
         total_tracks=total,
         liked_tracks=liked_count,
+        required_liked_tracks=required_liked_count,
         liked_ratio=ratio,
         threshold=threshold,
         decision=decision,

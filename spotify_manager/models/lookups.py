@@ -29,6 +29,7 @@ class AlbumEvaluation(BaseModel):
     artist_name: str | None
     total_tracks: int
     liked_tracks: int
+    required_liked_tracks: int
     liked_ratio: float
     threshold: float
     decision: str  # "keep" | "remove"
