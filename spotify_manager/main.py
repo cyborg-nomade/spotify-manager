@@ -4,6 +4,7 @@ import typer
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.client import SpotifyRedirectURIError
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
@@ -32,7 +33,11 @@ def client() -> Spotify:
     """Build the Spotify client lazily, so files-only commands never touch it."""
     global _client
     if _client is None:
-        _client = get_spotipy_client()
+        try:
+            _client = get_spotipy_client()
+        except SpotifyRedirectURIError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
     return _client
 
 
