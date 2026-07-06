@@ -5,6 +5,10 @@ import json
 import pytest
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.models.stats import AlbumsStats
+from spotify_manager.models.stats import ArtistsStats
+from spotify_manager.models.stats import StatsReport
+from spotify_manager.models.stats import TracksStats
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
@@ -52,6 +56,75 @@ def _library(
         if include_artist
         else [],
     )
+
+
+def _stats_report(
+    total_followed_artists: int = 10,
+    added_artists: int = 0,
+    removed_artists: int = 0,
+) -> StatsReport:
+    return StatsReport(
+        albums_stats=AlbumsStats(
+            total_saved_albums=100,
+            removed_albums=0,
+            added_albums=0,
+            growth=0,
+        ),
+        artists_stats=ArtistsStats(
+            total_followed_artists=total_followed_artists,
+            removed_artists=removed_artists,
+            added_artists=added_artists,
+            growth=0,
+        ),
+        tracks_stats=TracksStats(
+            total_liked_tracks=50,
+            removed_tracks=0,
+            added_tracks=0,
+            growth=0,
+        ),
+        avg_albums_per_artists=100 // total_followed_artists,
+        avg_liked_tracks_per_artists=50 // total_followed_artists,
+    )
+
+
+@pytest.fixture(autouse=True)
+def artist_persistence_store(monkeypatch) -> dict:
+    artists: list[YourLibraryArtist] = []
+    stats_key = review_album_limits.current_stats_history_key()
+    stats_history = {stats_key: _stats_report()}
+    saved_artists: list[list[YourLibraryArtist]] = []
+    saved_stats_history: list[dict[str, StatsReport]] = []
+
+    def load_artists() -> list[YourLibraryArtist]:
+        return list(artists)
+
+    def save_artists(items: list[YourLibraryArtist]) -> None:
+        artists.clear()
+        artists.extend(items)
+        saved_artists.append(list(items))
+
+    def load_stats_history() -> dict[str, StatsReport]:
+        return dict(stats_history)
+
+    def save_stats_history(items: dict[str, StatsReport]) -> None:
+        stats_history.clear()
+        stats_history.update(items)
+        saved_stats_history.append(dict(items))
+
+    monkeypatch.setattr(review_album_limits, "load_total_artists_file", load_artists)
+    monkeypatch.setattr(review_album_limits, "save_total_artists_file", save_artists)
+    monkeypatch.setattr(
+        review_album_limits, "load_stats_history_file", load_stats_history
+    )
+    monkeypatch.setattr(review_album_limits, "save_stats_history", save_stats_history)
+
+    return {
+        "artists": artists,
+        "stats_history": stats_history,
+        "saved_artists": saved_artists,
+        "saved_stats_history": saved_stats_history,
+        "stats_key": stats_key,
+    }
 
 
 class FakeSpotify:
@@ -155,6 +228,94 @@ def test_review_removes_album_from_spotify_and_total_file(
     assert log_entry["liked_tracks"] == 0
     assert log_entry["total_tracks"] == 2
     assert any(line == "Removed: Radiohead - OK Computer" for line in output)
+
+
+def test_review_records_followed_artist_and_updates_stats_history(
+    monkeypatch, tmp_path, artist_persistence_store
+) -> None:
+    albums = [_album()]
+    sp = FakeSpotify()
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(
+        review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+
+    review_album_limits.review_album_limits(
+        sp,
+        action_reader=lambda _album, _evaluation: "s",
+        echo=lambda _line: None,
+        log_path=tmp_path / "removed_albums_log.jsonl",
+    )
+
+    saved_artists = artist_persistence_store["saved_artists"]
+    saved_stats_history = artist_persistence_store["saved_stats_history"]
+    stats_key = artist_persistence_store["stats_key"]
+
+    assert [[artist.spotify_id for artist in items] for items in saved_artists] == [
+        ["art1"]
+    ]
+    report = saved_stats_history[-1][stats_key]
+    assert report.artists_stats.total_followed_artists == 11
+    assert report.artists_stats.added_artists == 1
+    assert report.artists_stats.growth == 10
+    assert report.avg_albums_per_artists == 9
+    assert report.avg_liked_tracks_per_artists == 4
+
+
+def test_enter_defaults_to_remove_for_remove_candidate(monkeypatch, tmp_path) -> None:
+    albums = [_album()]
+    saved_albums: list[list[YourLibraryAlbum]] = []
+    sp = FakeSpotify()
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        review_album_limits,
+        "save_total_albums_new_file",
+        lambda items: saved_albums.append(list(items)),
+    )
+
+    review_album_limits.review_album_limits(
+        sp,
+        action_reader=lambda _album, _evaluation: "",
+        echo=lambda _line: None,
+        log_path=tmp_path / "removed_albums_log.jsonl",
+    )
+
+    assert sp.deleted == [["alb1"]]
+    assert saved_albums == [[]]
+
+
+def test_review_reports_progress_after_each_completed_album(
+    monkeypatch, tmp_path
+) -> None:
+    albums = [_album()]
+    progress_updates: list[tuple[int, int]] = []
+    sp = FakeSpotify()
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(
+        review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+
+    review_album_limits.review_album_limits(
+        sp,
+        action_reader=lambda _album, _evaluation: "s",
+        echo=lambda _line: None,
+        log_path=tmp_path / "removed_albums_log.jsonl",
+        progress_callback=lambda position, total: progress_updates.append(
+            (position, total)
+        ),
+    )
+
+    assert progress_updates == [(1, 1)]
 
 
 def test_review_skip_is_only_for_current_run(monkeypatch, tmp_path) -> None:

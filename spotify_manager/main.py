@@ -1,6 +1,14 @@
 """Interface file."""
 
 import typer
+from rich.console import Console
+from rich.progress import BarColumn
+from rich.progress import MofNCompleteColumn
+from rich.progress import Progress
+from rich.progress import SpinnerColumn
+from rich.progress import TextColumn
+from rich.progress import TimeElapsedColumn
+from rich.prompt import Prompt
 from spotipy import Spotify
 
 # UFI
@@ -161,28 +169,86 @@ def review_album_limits_command(
     if threshold < 0 or threshold > 1:
         raise typer.BadParameter("threshold must be between 0 and 1")
 
-    def read_action(*_args: object) -> str:
-        return typer.prompt(
+    console = Console()
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith("Followed artist") or line.startswith("Recorded artist"):
+            style = "cyan"
+        elif line.startswith("Updated stats_history"):
+            style = "cyan dim"
+        elif " keep: " in line:
+            style = "green"
+        elif "remove candidate" in line:
+            style = "yellow"
+        elif line.startswith("Removed:"):
+            style = "bold red"
+        elif line.startswith("Skipped:"):
+            style = "dim yellow"
+        elif line.startswith("Review complete"):
+            style = "bold"
+
+        console.print(line, style=style, markup=False)
+
+    def read_action(
+        _album: object,
+        evaluation: object,
+    ) -> str:
+        default = "r"
+        if getattr(evaluation, "decision", None) != "remove":
+            default = "s"
+
+        return Prompt.ask(
             "Action [r]emove / [k]eep anyway / [s]kip / [d]etails / [q]uit",
-            default="s",
+            choices=[
+                "r",
+                "remove",
+                "k",
+                "keep",
+                "s",
+                "skip",
+                "d",
+                "details",
+                "q",
+                "quit",
+            ],
+            default=default,
+            console=console,
         )
 
     try:
-        review_album_limits.review_album_limits(
-            client(),
-            action_reader=read_action,
-            threshold=threshold,
-            use_cache=not no_cache,
-            refresh_cache=refresh_cache,
-            echo=typer.echo,
-        )
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            task_id = progress.add_task("Reviewing albums", total=None)
+
+            def update_progress(position: int, total: int) -> None:
+                progress.update(task_id, completed=position, total=total)
+
+            review_album_limits.review_album_limits(
+                client(),
+                action_reader=read_action,
+                threshold=threshold,
+                use_cache=not no_cache,
+                refresh_cache=refresh_cache,
+                echo=echo,
+                progress_callback=update_progress,
+            )
     except review_album_limits.SpotifyRateLimitError as exc:
-        typer.echo(
+        console.print(
             "Spotify rate limit reached. "
             f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
-            err=True,
+            style="bold yellow",
         )
-        typer.echo("Progress was saved up to the last successful removal.", err=True)
+        console.print(
+            "Progress was saved up to the last successful removal.",
+            style="yellow",
+        )
         raise typer.Exit(code=0) from exc
 
 

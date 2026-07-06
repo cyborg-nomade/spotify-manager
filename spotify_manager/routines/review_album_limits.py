@@ -12,13 +12,21 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
+from spotify_manager.loaders_savers import load_stats_history_file
 from spotify_manager.loaders_savers import load_total_albums_new_file
+from spotify_manager.loaders_savers import load_total_artists_file
 from spotify_manager.loaders_savers import load_your_library_file
+from spotify_manager.loaders_savers import save_stats_history
 from spotify_manager.loaders_savers import save_total_albums_new_file
+from spotify_manager.loaders_savers import save_total_artists_file
 from spotify_manager.models.lookups import AlbumEvaluation
+from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.your_library import YourLibraryAlbum
+from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.processors.library_lookups import evaluate_album
+from spotify_manager.utils.growth import calculate_growth
+from spotify_manager.utils.sorting import artist_sort_key
 
 
 REMOVED_ALBUMS_LOG_PATH = (
@@ -27,6 +35,7 @@ REMOVED_ALBUMS_LOG_PATH = (
 
 Echo = Callable[[str], None]
 ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]
+ProgressCallback = Callable[[int, int], None]
 
 
 @dataclass(frozen=True)
@@ -35,6 +44,14 @@ class AlbumArtist:
 
     spotify_id: str
     name: str
+
+
+@dataclass(frozen=True)
+class ArtistPersistenceResult:
+    """Local file update result after following an artist."""
+
+    total_artists_updated: bool
+    stats_history_updated: bool
 
 
 class SpotifyRateLimitError(RuntimeError):
@@ -69,6 +86,17 @@ def format_retry_after(retry_after_seconds: int | None) -> str:
     minutes = max(1, ceil(retry_after_seconds / 60))
     unit = "minute" if minutes == 1 else "minutes"
     return f"try again in {minutes} {unit}"
+
+
+def current_stats_history_key(now: datetime | None = None) -> str:
+    """Return the date key used by stats_history.json."""
+    current_time = now or datetime.now()
+    month = (
+        str(current_time.month)
+        if current_time.month >= 10
+        else f"0{current_time.month}"
+    )
+    return f"{current_time.year}.{month}.{current_time.day}"
 
 
 def handle_spotify_exception(exc: SpotifyException) -> None:
@@ -126,6 +154,102 @@ def resolve_album_artist(
     known_artist_ids[normalise_name(album.artist)] = artist_id
     known_artist_ids[normalise_name(artist_name)] = artist_id
     return AlbumArtist(spotify_id=artist_id, name=artist_name)
+
+
+def to_library_artist(artist: AlbumArtist) -> YourLibraryArtist:
+    """Convert a followed album artist to the local artist file model."""
+    return YourLibraryArtist(
+        name=artist.name,
+        uri=f"spotify:artist:{artist.spotify_id}",
+    )
+
+
+def add_followed_artist_to_total_file(artist: AlbumArtist) -> bool:
+    """Add a newly followed artist to artists_total.json when absent."""
+    total_artists = load_total_artists_file()
+    if any(
+        stored_artist.spotify_id == artist.spotify_id for stored_artist in total_artists
+    ):
+        return False
+
+    updated_artists = [*total_artists, to_library_artist(artist)]
+    save_total_artists_file(sorted(updated_artists, key=artist_sort_key))
+    return True
+
+
+def report_with_followed_artist(
+    report: StatsReport,
+    existing_period: bool,
+) -> StatsReport:
+    """Return ``report`` with one newly followed artist counted."""
+    current_artist_stats = report.artists_stats
+    total_followed_artists = current_artist_stats.total_followed_artists + 1
+    removed_artists = current_artist_stats.removed_artists if existing_period else 0
+    added_artists = current_artist_stats.added_artists + 1 if existing_period else 1
+    previous_total_followed_artists = (
+        current_artist_stats.total_followed_artists
+        - current_artist_stats.added_artists
+        + current_artist_stats.removed_artists
+        if existing_period
+        else current_artist_stats.total_followed_artists
+    )
+
+    updated_artists_stats = current_artist_stats.model_copy(
+        update={
+            "total_followed_artists": total_followed_artists,
+            "removed_artists": removed_artists,
+            "added_artists": added_artists,
+            "growth": calculate_growth(
+                total_followed_artists,
+                previous_total_followed_artists,
+            ),
+        }
+    )
+
+    return report.model_copy(
+        update={
+            "artists_stats": updated_artists_stats,
+            "avg_albums_per_artists": (
+                report.albums_stats.total_saved_albums // total_followed_artists
+            ),
+            "avg_liked_tracks_per_artists": (
+                report.tracks_stats.total_liked_tracks // total_followed_artists
+            ),
+        }
+    )
+
+
+def update_stats_history_for_followed_artist() -> bool:
+    """Record one newly followed artist in stats_history.json."""
+    stats_history = load_stats_history_file()
+    if not stats_history:
+        return False
+
+    key = current_stats_history_key()
+    existing_period = key in stats_history
+    source_report = (
+        stats_history[key]
+        if existing_period
+        else next(reversed(stats_history.values()))
+    )
+    stats_history[key] = report_with_followed_artist(source_report, existing_period)
+    save_stats_history(stats_history)
+    return True
+
+
+def record_followed_artist(artist: AlbumArtist) -> ArtistPersistenceResult:
+    """Persist a newly followed artist to local files."""
+    total_artists_updated = add_followed_artist_to_total_file(artist)
+    if not total_artists_updated:
+        return ArtistPersistenceResult(
+            total_artists_updated=False,
+            stats_history_updated=False,
+        )
+
+    return ArtistPersistenceResult(
+        total_artists_updated=True,
+        stats_history_updated=update_stats_history_for_followed_artist(),
+    )
 
 
 def format_album_label(album: YourLibraryAlbum) -> str:
@@ -221,8 +345,13 @@ def ensure_artist_followed(
     except SpotifyException as exc:
         handle_spotify_exception(exc)
 
+    persistence_result = record_followed_artist(artist)
     checked_artist_ids.add(artist.spotify_id)
     echo(f"Followed artist: {artist.name}")
+    if persistence_result.total_artists_updated:
+        echo(f"Recorded artist in artists_total.json: {artist.name}")
+    if persistence_result.stats_history_updated:
+        echo("Updated stats_history.json.")
     return True
 
 
@@ -235,7 +364,9 @@ def read_action(
     """Read an action from the user, showing details when requested."""
     while True:
         action = action_reader(album, evaluation).strip().casefold()
-        if action in {"r", "remove"}:
+        if action in {"r", "remove"} or (
+            not action and evaluation.decision == "remove"
+        ):
             return "remove"
         if action in {"k", "keep"}:
             return "keep"
@@ -257,6 +388,7 @@ def review_album_limits(
     refresh_cache: bool = False,
     echo: Echo = print,
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    progress_callback: ProgressCallback | None = None,
 ) -> None:
     """Review saved albums and remove user-approved albums below the threshold."""
     total_albums = load_total_albums_new_file()
@@ -296,6 +428,8 @@ def review_album_limits(
         if evaluation.decision == "keep":
             kept_count += 1
             echo(f"[{position}/{total_count}] keep: {label} - {summary}")
+            if progress_callback is not None:
+                progress_callback(position, total_count)
             continue
 
         echo("")
@@ -310,6 +444,8 @@ def review_album_limits(
         if action in {"keep", "skip"}:
             skipped_count += 1
             echo(f"Skipped: {label}")
+            if progress_callback is not None:
+                progress_callback(position, total_count)
             continue
 
         try:
@@ -324,6 +460,8 @@ def review_album_limits(
         append_removed_album_log(album, evaluation, log_path=log_path)
         removed_count += 1
         echo(f"Removed: {label}")
+        if progress_callback is not None:
+            progress_callback(position, total_count)
 
     echo("")
     echo(
