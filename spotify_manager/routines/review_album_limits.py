@@ -32,7 +32,7 @@ from spotify_manager.utils.sorting import artist_sort_key
 REMOVED_ALBUMS_LOG_PATH = (
     Path(__file__).resolve().parent.parent / "files" / "removed_albums_log.jsonl"
 )
-TRACK_CONTAINS_BATCH_SIZE = 50
+TRACK_CONTAINS_BATCH_SIZE = 20
 
 Echo = Callable[[str], None]
 ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]

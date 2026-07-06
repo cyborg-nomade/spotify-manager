@@ -138,6 +138,7 @@ class FakeSpotify:
         rate_limit_on_saved_track_check: bool = False,
         followed_artists: set[str] | None = None,
         saved_tracks: set[str] | None = None,
+        album_tracks: list[dict] | None = None,
     ) -> None:
         self.deleted: list[list[str]] = []
         self.follow_checks: list[list[str]] = []
@@ -150,13 +151,14 @@ class FakeSpotify:
         self.rate_limit_on_saved_track_check = rate_limit_on_saved_track_check
         self.followed_artists = set(followed_artists or set())
         self.saved_tracks = set(saved_tracks or set())
+        self._album_tracks = album_tracks or [
+            {"id": "t1", "name": "Airbag", "uri": "spotify:track:t1"},
+            {"id": "t2", "name": "Karma Police", "uri": "spotify:track:t2"},
+        ]
 
     def album_tracks(self, album_id, limit=50, offset=0):
         return {
-            "items": [
-                {"id": "t1", "name": "Airbag", "uri": "spotify:track:t1"},
-                {"id": "t2", "name": "Karma Police", "uri": "spotify:track:t2"},
-            ],
+            "items": self._album_tracks,
             "next": None,
         }
 
@@ -320,6 +322,39 @@ def test_review_prompts_when_live_liked_tracks_exist(monkeypatch, tmp_path) -> N
     assert not log_path.exists()
     assert any(line == "Live liked tracks: 1" for line in output)
     assert any(line == "Skipped: Radiohead - OK Computer" for line in output)
+
+
+def test_live_liked_track_checks_are_batched_for_large_albums(
+    monkeypatch, tmp_path
+) -> None:
+    albums = [_album()]
+    output: list[str] = []
+    album_tracks = [
+        {
+            "id": f"t{index}",
+            "name": f"Track {index}",
+            "uri": f"spotify:track:t{index}",
+        }
+        for index in range(45)
+    ]
+    sp = FakeSpotify(album_tracks=album_tracks, saved_tracks={"t44"})
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+
+    review_album_limits.review_album_limits(
+        sp,
+        action_reader=lambda _album, _evaluation: "s",
+        echo=output.append,
+        log_path=tmp_path / "removed_albums_log.jsonl",
+    )
+
+    assert [len(batch) for batch in sp.saved_track_checks] == [20, 20, 5]
+    assert sp.saved_track_checks[-1] == ["t40", "t41", "t42", "t43", "t44"]
+    assert sp.deleted == []
+    assert any(line == "Live liked tracks: 1" for line in output)
 
 
 def test_review_records_followed_artist_and_updates_stats_history(
