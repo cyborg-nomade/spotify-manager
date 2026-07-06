@@ -4,7 +4,7 @@
 from spotify_manager.loaders_savers import load_your_library_file
 
 
-def count_artists_in_library() -> None:
+def count_artists_in_library() -> int:
     """Return the number of artists in YourLibrary file."""
     your_library_file = load_your_library_file()
-    print(len(your_library_file.artists))
+    return len(your_library_file.artists)
