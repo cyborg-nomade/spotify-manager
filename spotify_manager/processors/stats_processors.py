@@ -45,7 +45,7 @@ def update_stats(
     """Update stats file."""
     print("Updating stats...")
     stats = calculate_stats(control_file, total_album_list)
-    print(f"These are your current stats: \n{stats.dict()}")
+    print(f"These are your current stats: \n{stats.model_dump()}")
     save_stats_file(stats)
     print("Stats updated!")
     return True

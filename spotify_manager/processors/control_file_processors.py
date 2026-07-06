@@ -1,6 +1,5 @@
 """Data processors for control file items."""
 
-
 from spotipy.client import Spotify
 
 # UFI
