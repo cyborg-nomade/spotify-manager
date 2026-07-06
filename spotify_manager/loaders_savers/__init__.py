@@ -3,6 +3,7 @@
 # Standard Library
 import json
 from collections.abc import Sequence
+from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -17,9 +18,35 @@ from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
 
 
+# Album track lists fetched from the API are cached here so repeated album
+# evaluations don't re-hit Spotify. Resolved relative to this package so it
+# works regardless of the current working directory.
+ALBUM_TRACKS_CACHE_PATH = (
+    Path(__file__).resolve().parent.parent / "files" / "album_tracks_cache.json"
+)
+
+
 def serialize_model_list(model_list: Sequence[BaseModel]) -> list[dict]:
     """Serialize a model list into."""
     return [item.model_dump() for item in model_list]
+
+
+def load_album_tracks_cache() -> dict[str, list[dict]]:
+    """Load the album-tracklist cache (album id -> list of track dicts)."""
+    try:
+        with open(ALBUM_TRACKS_CACHE_PATH) as cache_file:
+            return json.load(cache_file)
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_album_tracks_cache(cache: dict[str, list[dict]]) -> None:
+    """Persist the album-tracklist cache, creating the files dir if needed."""
+    ALBUM_TRACKS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(ALBUM_TRACKS_CACHE_PATH, "w") as cache_file:
+        json.dump(cache, cache_file, ensure_ascii=False)
 
 
 def load_control_file() -> list[ControlFileItem]:
