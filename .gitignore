@@ -131,6 +131,9 @@ venv.bak/
 # Local album-tracklist cache (derived data, rebuilt on demand)
 spotify_manager/files/album_tracks_cache.json
 
+# Local/deployment OAuth token cache. Seed from SPOTIPY_CACHE_JSON instead.
+spotify_manager/auth/spotipy_token_cache.json
+
 # Spyder project settings
 .spyderproject
 .spyproject

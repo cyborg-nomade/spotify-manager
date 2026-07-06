@@ -6,7 +6,7 @@ colorTo: gray
 sdk: docker
 app_port: 7860
 pinned: false
-short_description: Personal Spotify library manager — mobile web UI over a FastAPI backend.
+short_description: Personal Spotify library manager web UI
 ---
 
 # Spotify Manager

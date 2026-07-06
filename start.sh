@@ -10,8 +10,11 @@ set -euo pipefail
 # fresh container there is none, so recreate it from the SPOTIPY_CACHE_JSON
 # secret. The refresh token inside stays valid across restarts; spotipy uses it
 # to mint new access tokens automatically.
+SPOTIPY_CACHE_PATH="${SPOTIPY_CACHE_PATH:-spotify_manager/auth/spotipy_token_cache.json}"
+
 if [ -n "${SPOTIPY_CACHE_JSON:-}" ]; then
-  printf '%s' "${SPOTIPY_CACHE_JSON}" > "${PWD}/.cache"
+  mkdir -p "$(dirname "${SPOTIPY_CACHE_PATH}")"
+  printf '%s' "${SPOTIPY_CACHE_JSON}" > "${SPOTIPY_CACHE_PATH}"
   echo "start.sh: seeded Spotify token cache from SPOTIPY_CACHE_JSON"
 else
   echo "start.sh: SPOTIPY_CACHE_JSON not set — live Spotify calls will fail until it is."
