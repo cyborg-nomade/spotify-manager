@@ -19,6 +19,7 @@ class AlbumTrackLikedStatus(BaseModel):
     name: str
     uri: str
     liked: bool
+    spotify_id: str | None = None
 
 
 class AlbumEvaluation(BaseModel):

@@ -95,6 +95,7 @@ def test_evaluate_album_resolves_exact_id_not_search() -> None:
     assert result.required_liked_tracks == 1
     assert result.decision == "keep"
     assert result.source == "files+api"
+    assert [track.spotify_id for track in result.tracks] == ["t1", "t2", "t3"]
 
 
 def test_evaluate_album_rounds_down_required_likes_for_odd_track_counts() -> None:

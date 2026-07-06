@@ -218,8 +218,10 @@ def review_album_limits_command(
             style = "green"
         elif "remove candidate" in line:
             style = "yellow"
-        elif line.startswith("Removed:"):
+        elif line.startswith("Removed:") or line.startswith("Auto-removed"):
             style = "bold red"
+        elif line.startswith("Live liked tracks"):
+            style = "cyan"
         elif line.startswith("Skipped:"):
             style = "dim yellow"
         elif line.startswith("Review complete"):

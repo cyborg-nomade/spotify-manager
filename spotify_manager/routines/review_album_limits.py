@@ -32,6 +32,7 @@ from spotify_manager.utils.sorting import artist_sort_key
 REMOVED_ALBUMS_LOG_PATH = (
     Path(__file__).resolve().parent.parent / "files" / "removed_albums_log.jsonl"
 )
+TRACK_CONTAINS_BATCH_SIZE = 50
 
 Echo = Callable[[str], None]
 ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]
@@ -291,11 +292,14 @@ def append_removed_album_log(
     album: YourLibraryAlbum,
     evaluation: AlbumEvaluation,
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    action: str = "manual",
+    live_liked_tracks: int | None = None,
 ) -> None:
     """Append one removed-album event as JSON Lines."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     entry = {
         "removed_at": datetime.now(UTC).isoformat(),
+        "action": action,
         "spotify_id": album.spotify_id,
         "album": album.album,
         "artist": album.artist,
@@ -306,8 +310,55 @@ def append_removed_album_log(
         "from_cache": evaluation.from_cache,
         "source": evaluation.source,
     }
+    if live_liked_tracks is not None:
+        entry["live_liked_tracks"] = live_liked_tracks
     with open(log_path, "a") as log_file:
         log_file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def track_ids_from_evaluation(evaluation: AlbumEvaluation) -> list[str]:
+    """Return Spotify track ids known for an album evaluation."""
+    return [track.spotify_id for track in evaluation.tracks if track.spotify_id]
+
+
+def get_live_liked_track_count(sp: Spotify, track_ids: list[str]) -> int:
+    """Count album tracks currently saved by the user in Spotify."""
+    liked_count = 0
+    for start in range(0, len(track_ids), TRACK_CONTAINS_BATCH_SIZE):
+        batch = track_ids[start : start + TRACK_CONTAINS_BATCH_SIZE]
+        try:
+            saved_statuses = sp.current_user_saved_tracks_contains(batch)
+        except SpotifyException as exc:
+            handle_spotify_exception(exc)
+        liked_count += sum(1 for is_saved in saved_statuses if is_saved)
+    return liked_count
+
+
+def remove_album_from_library(
+    sp: Spotify,
+    album: YourLibraryAlbum,
+    evaluation: AlbumEvaluation,
+    remaining_albums: list[YourLibraryAlbum],
+    log_path: Path,
+    action: str = "manual",
+    live_liked_tracks: int | None = None,
+) -> list[YourLibraryAlbum]:
+    """Remove an album from Spotify and persist the local removal immediately."""
+    try:
+        sp.current_user_saved_albums_delete([album.spotify_id])
+    except SpotifyException as exc:
+        handle_spotify_exception(exc)
+
+    updated_albums = remove_first_matching_album(remaining_albums, album.spotify_id)
+    save_total_albums_new_file(updated_albums)
+    append_removed_album_log(
+        album,
+        evaluation,
+        log_path=log_path,
+        action=action,
+        live_liked_tracks=live_liked_tracks,
+    )
+    return updated_albums
 
 
 def ensure_artist_followed(
@@ -438,6 +489,29 @@ def review_album_limits(
         echo(summary)
         echo(f"Source: {evaluation.source}")
 
+        live_liked_tracks = None
+        track_ids = track_ids_from_evaluation(evaluation)
+        if track_ids:
+            live_liked_tracks = get_live_liked_track_count(sp, track_ids)
+            if live_liked_tracks == 0:
+                remaining_albums = remove_album_from_library(
+                    sp,
+                    album,
+                    evaluation,
+                    remaining_albums,
+                    log_path,
+                    action="auto_zero_live_likes",
+                    live_liked_tracks=live_liked_tracks,
+                )
+                removed_count += 1
+                echo(f"Auto-removed (0 live liked tracks): {label}")
+                if progress_callback is not None:
+                    progress_callback(position, total_count)
+                continue
+            echo(f"Live liked tracks: {live_liked_tracks}")
+        else:
+            echo("Live liked tracks: unavailable; asking for confirmation.")
+
         action = read_action(album, evaluation, action_reader, echo)
         if action == "quit":
             echo("Stopping review.")
@@ -449,16 +523,14 @@ def review_album_limits(
                 progress_callback(position, total_count)
             continue
 
-        try:
-            sp.current_user_saved_albums_delete([album.spotify_id])
-        except SpotifyException as exc:
-            handle_spotify_exception(exc)
-
-        remaining_albums = remove_first_matching_album(
-            remaining_albums, album.spotify_id
+        remaining_albums = remove_album_from_library(
+            sp,
+            album,
+            evaluation,
+            remaining_albums,
+            log_path,
+            live_liked_tracks=live_liked_tracks,
         )
-        save_total_albums_new_file(remaining_albums)
-        append_removed_album_log(album, evaluation, log_path=log_path)
         removed_count += 1
         echo(f"Removed: {label}")
         if progress_callback is not None:

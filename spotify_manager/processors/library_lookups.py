@@ -257,7 +257,12 @@ def evaluate_album(
         is_liked = track.get("id") in liked_ids
         liked_count += int(is_liked)
         statuses.append(
-            AlbumTrackLikedStatus(name=track["name"], uri=track["uri"], liked=is_liked)
+            AlbumTrackLikedStatus(
+                name=track["name"],
+                uri=track["uri"],
+                liked=is_liked,
+                spotify_id=track.get("id"),
+            )
         )
 
     total = len(statuses)

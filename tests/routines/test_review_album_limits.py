@@ -135,16 +135,21 @@ class FakeSpotify:
         rate_limit_on_delete: bool = False,
         rate_limit_on_follow_check: bool = False,
         rate_limit_on_album_metadata: bool = False,
+        rate_limit_on_saved_track_check: bool = False,
         followed_artists: set[str] | None = None,
+        saved_tracks: set[str] | None = None,
     ) -> None:
         self.deleted: list[list[str]] = []
         self.follow_checks: list[list[str]] = []
         self.followed: list[list[str]] = []
         self.album_metadata_calls: list[str] = []
+        self.saved_track_checks: list[list[str]] = []
         self.rate_limit_on_delete = rate_limit_on_delete
         self.rate_limit_on_follow_check = rate_limit_on_follow_check
         self.rate_limit_on_album_metadata = rate_limit_on_album_metadata
+        self.rate_limit_on_saved_track_check = rate_limit_on_saved_track_check
         self.followed_artists = set(followed_artists or set())
+        self.saved_tracks = set(saved_tracks or set())
 
     def album_tracks(self, album_id, limit=50, offset=0):
         return {
@@ -181,6 +186,17 @@ class FakeSpotify:
         self.followed.append(list(artists))
         self.followed_artists.update(artists)
 
+    def current_user_saved_tracks_contains(self, tracks):
+        if self.rate_limit_on_saved_track_check:
+            raise SpotifyException(
+                429,
+                -1,
+                "rate limited",
+                headers={"Retry-After": "90"},
+            )
+        self.saved_track_checks.append(list(tracks))
+        return [track in self.saved_tracks for track in tracks]
+
     def current_user_saved_albums_delete(self, albums):
         if self.rate_limit_on_delete:
             raise SpotifyException(
@@ -199,7 +215,7 @@ def test_review_removes_album_from_spotify_and_total_file(
     saved_albums: list[list[YourLibraryAlbum]] = []
     output: list[str] = []
     log_path = tmp_path / "removed_albums_log.jsonl"
-    sp = FakeSpotify()
+    sp = FakeSpotify(saved_tracks={"t1"})
 
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
@@ -222,12 +238,88 @@ def test_review_removes_album_from_spotify_and_total_file(
     assert sp.follow_checks == [["art1"]]
     assert sp.followed == [["art1"]]
     assert sp.album_metadata_calls == []
+    assert sp.saved_track_checks == [["t1", "t2"]]
     assert saved_albums == [[]]
     log_entry = json.loads(log_path.read_text().strip())
+    assert log_entry["action"] == "manual"
     assert log_entry["spotify_id"] == "alb1"
     assert log_entry["liked_tracks"] == 0
+    assert log_entry["live_liked_tracks"] == 1
     assert log_entry["total_tracks"] == 2
     assert any(line == "Removed: Radiohead - OK Computer" for line in output)
+
+
+def test_review_auto_removes_album_with_zero_live_liked_tracks(
+    monkeypatch, tmp_path
+) -> None:
+    albums = [_album()]
+    saved_albums: list[list[YourLibraryAlbum]] = []
+    output: list[str] = []
+    log_path = tmp_path / "removed_albums_log.jsonl"
+    sp = FakeSpotify(saved_tracks=set())
+
+    def fail_action_reader(_album, _evaluation):
+        raise AssertionError("zero-live-like albums should not prompt")
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        review_album_limits,
+        "save_total_albums_new_file",
+        lambda items: saved_albums.append(list(items)),
+    )
+
+    review_album_limits.review_album_limits(
+        sp,
+        action_reader=fail_action_reader,
+        echo=output.append,
+        log_path=log_path,
+    )
+
+    assert sp.saved_track_checks == [["t1", "t2"]]
+    assert sp.deleted == [["alb1"]]
+    assert saved_albums == [[]]
+    log_entry = json.loads(log_path.read_text().strip())
+    assert log_entry["action"] == "auto_zero_live_likes"
+    assert log_entry["live_liked_tracks"] == 0
+    assert any(
+        line == "Auto-removed (0 live liked tracks): Radiohead - OK Computer"
+        for line in output
+    )
+
+
+def test_review_prompts_when_live_liked_tracks_exist(monkeypatch, tmp_path) -> None:
+    albums = [_album()]
+    saved_albums: list[list[YourLibraryAlbum]] = []
+    output: list[str] = []
+    log_path = tmp_path / "removed_albums_log.jsonl"
+    sp = FakeSpotify(saved_tracks={"t2"})
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        review_album_limits,
+        "save_total_albums_new_file",
+        lambda items: saved_albums.append(list(items)),
+    )
+
+    review_album_limits.review_album_limits(
+        sp,
+        action_reader=lambda _album, _evaluation: "s",
+        echo=output.append,
+        log_path=log_path,
+    )
+
+    assert sp.saved_track_checks == [["t1", "t2"]]
+    assert sp.deleted == []
+    assert saved_albums == []
+    assert not log_path.exists()
+    assert any(line == "Live liked tracks: 1" for line in output)
+    assert any(line == "Skipped: Radiohead - OK Computer" for line in output)
 
 
 def test_review_records_followed_artist_and_updates_stats_history(
@@ -268,7 +360,7 @@ def test_review_records_followed_artist_and_updates_stats_history(
 def test_enter_defaults_to_remove_for_remove_candidate(monkeypatch, tmp_path) -> None:
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
-    sp = FakeSpotify()
+    sp = FakeSpotify(saved_tracks={"t1"})
 
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
@@ -323,7 +415,7 @@ def test_review_skip_is_only_for_current_run(monkeypatch, tmp_path) -> None:
     saved_albums: list[list[YourLibraryAlbum]] = []
     output: list[str] = []
     log_path = tmp_path / "removed_albums_log.jsonl"
-    sp = FakeSpotify()
+    sp = FakeSpotify(saved_tracks={"t1"})
 
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
@@ -492,6 +584,38 @@ def test_review_exits_cleanly_on_rate_limit_without_saving(
         )
 
     assert exc.value.retry_after_seconds == 120
+    assert saved_albums == []
+    assert not log_path.exists()
+
+
+def test_review_exits_cleanly_on_live_liked_track_rate_limit(
+    monkeypatch, tmp_path
+) -> None:
+    albums = [_album()]
+    saved_albums: list[list[YourLibraryAlbum]] = []
+    log_path = tmp_path / "removed_albums_log.jsonl"
+    sp = FakeSpotify(rate_limit_on_saved_track_check=True)
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        review_album_limits,
+        "save_total_albums_new_file",
+        lambda items: saved_albums.append(list(items)),
+    )
+
+    with pytest.raises(SpotifyRateLimitError) as exc:
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=lambda _album, _evaluation: "r",
+            echo=lambda _line: None,
+            log_path=log_path,
+        )
+
+    assert exc.value.retry_after_seconds == 90
+    assert sp.deleted == []
     assert saved_albums == []
     assert not log_path.exists()
 
