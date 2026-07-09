@@ -26,6 +26,28 @@ def test_get_spotipy_client(monkeypatch: pytest.MonkeyPatch) -> None:
 
     client = client_module.get_spotipy_client()
     assert isinstance(client, spotipy.Spotify)
+    assert client.retries == 5
+    assert client.status_retries == 5
+
+
+def test_get_spotipy_client_accepts_retry_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get spotipy client with custom retry settings."""
+    monkeypatch.setattr(
+        client_module,
+        "settings",
+        SimpleNamespace(
+            spotipy_client_id="client-id",
+            spotipy_client_secret="client-secret",
+            spotipy_redirect_uri="http://127.0.0.1:8080/callback",
+        ),
+    )
+
+    client = client_module.get_spotipy_client(retries=0, status_retries=0)
+
+    assert client.retries == 0
+    assert client.status_retries == 0
 
 
 def test_validate_spotify_redirect_uri_rejects_localhost() -> None:

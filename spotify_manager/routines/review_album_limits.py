@@ -28,14 +28,21 @@ from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.utils.growth import calculate_growth
 from spotify_manager.utils.sorting import artist_sort_key
 
+
 REMOVED_ALBUMS_LOG_PATH = (
     Path(__file__).resolve().parent.parent / "files" / "removed_albums_log.jsonl"
+)
+REVIEW_DECISIONS_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "files"
+    / "review_album_limits_decisions.json"
 )
 TRACK_CONTAINS_BATCH_SIZE = 20
 
 Echo = Callable[[str], None]
 ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]
 ProgressCallback = Callable[[int, int], None]
+ReviewDecisions = dict[str, dict[str, object]]
 
 
 @dataclass(frozen=True)
@@ -287,6 +294,75 @@ def remove_first_matching_album(
     return remaining
 
 
+def load_review_decisions(
+    decisions_path: Path = REVIEW_DECISIONS_PATH,
+) -> ReviewDecisions:
+    """Load persisted review decisions keyed by Spotify album id."""
+    if not decisions_path.exists():
+        return {}
+
+    with open(decisions_path) as decisions_file:
+        data = json.load(decisions_file)
+
+    if not isinstance(data, dict):
+        return {}
+
+    return {
+        str(album_id): entry
+        for album_id, entry in data.items()
+        if isinstance(entry, dict)
+    }
+
+
+def save_review_decisions(
+    decisions: ReviewDecisions,
+    decisions_path: Path = REVIEW_DECISIONS_PATH,
+) -> None:
+    """Persist review decisions atomically enough for CLI interruptions."""
+    decisions_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = decisions_path.with_suffix(f"{decisions_path.suffix}.tmp")
+    with open(temporary_path, "w") as decisions_file:
+        json.dump(decisions, decisions_file, ensure_ascii=False, indent=2)
+        decisions_file.write("\n")
+    temporary_path.replace(decisions_path)
+
+
+def record_review_decision(
+    decisions: ReviewDecisions,
+    album: YourLibraryAlbum,
+    evaluation: AlbumEvaluation,
+    decision: str,
+    decisions_path: Path = REVIEW_DECISIONS_PATH,
+    live_liked_tracks: int | None = None,
+) -> None:
+    """Persist a user review decision for restart-safe reviews."""
+    entry = {
+        "decided_at": datetime.now(UTC).isoformat(),
+        "decision": decision,
+        "spotify_id": album.spotify_id,
+        "album": album.album,
+        "artist": album.artist,
+        "liked_tracks": evaluation.liked_tracks,
+        "total_tracks": evaluation.total_tracks,
+        "liked_ratio": evaluation.liked_ratio,
+        "threshold": evaluation.threshold,
+        "from_cache": evaluation.from_cache,
+        "source": evaluation.source,
+    }
+    if live_liked_tracks is not None:
+        entry["live_liked_tracks"] = live_liked_tracks
+    decisions[album.spotify_id] = entry
+    save_review_decisions(decisions, decisions_path)
+
+
+def has_persisted_keep_decision(
+    album: YourLibraryAlbum,
+    decisions: ReviewDecisions,
+) -> bool:
+    """Return whether this album was explicitly kept in a previous run."""
+    return decisions.get(album.spotify_id, {}).get("decision") == "keep"
+
+
 def append_removed_album_log(
     album: YourLibraryAlbum,
     evaluation: AlbumEvaluation,
@@ -439,12 +515,15 @@ def review_album_limits(
     refresh_cache: bool = False,
     echo: Echo = print,
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    decisions_path: Path | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> None:
     """Review saved albums and remove user-approved albums below the threshold."""
+    decisions_path = decisions_path or REVIEW_DECISIONS_PATH
     total_albums = load_total_albums_new_file()
     library = load_your_library_file()
     remaining_albums = list(total_albums)
+    review_decisions = load_review_decisions(decisions_path)
     total_count = len(total_albums)
 
     removed_count = 0
@@ -455,6 +534,14 @@ def review_album_limits(
     checked_artist_ids: set[str] = set()
 
     for position, album in enumerate(total_albums, start=1):
+        label = format_album_label(album)
+        if has_persisted_keep_decision(album, review_decisions):
+            kept_count += 1
+            echo(f"[{position}/{total_count}] previously kept: {label}")
+            if progress_callback is not None:
+                progress_callback(position, total_count)
+            continue
+
         followed_artist = ensure_artist_followed(
             sp, album, known_artist_ids, checked_artist_ids, echo
         )
@@ -473,7 +560,6 @@ def review_album_limits(
         except SpotifyException as exc:
             handle_spotify_exception(exc)
 
-        label = format_album_label(album)
         summary = format_evaluation_summary(evaluation)
 
         if evaluation.decision == "keep":
@@ -515,7 +601,21 @@ def review_album_limits(
         if action == "quit":
             echo("Stopping review.")
             break
-        if action in {"keep", "skip"}:
+        if action == "keep":
+            record_review_decision(
+                review_decisions,
+                album,
+                evaluation,
+                "keep",
+                decisions_path,
+                live_liked_tracks=live_liked_tracks,
+            )
+            kept_count += 1
+            echo(f"Kept anyway: {label}")
+            if progress_callback is not None:
+                progress_callback(position, total_count)
+            continue
+        if action == "skip":
             skipped_count += 1
             echo(f"Skipped: {label}")
             if progress_callback is not None:

@@ -88,7 +88,7 @@ def _stats_report(
 
 
 @pytest.fixture(autouse=True)
-def artist_persistence_store(monkeypatch) -> dict:
+def artist_persistence_store(monkeypatch, tmp_path) -> dict:
     artists: list[YourLibraryArtist] = []
     stats_key = review_album_limits.current_stats_history_key()
     stats_history = {stats_key: _stats_report()}
@@ -117,6 +117,11 @@ def artist_persistence_store(monkeypatch) -> dict:
         review_album_limits, "load_stats_history_file", load_stats_history
     )
     monkeypatch.setattr(review_album_limits, "save_stats_history", save_stats_history)
+    monkeypatch.setattr(
+        review_album_limits,
+        "REVIEW_DECISIONS_PATH",
+        tmp_path / "review_album_limits_decisions.json",
+    )
 
     return {
         "artists": artists,
@@ -248,7 +253,7 @@ def test_review_removes_album_from_spotify_and_total_file(
     assert log_entry["liked_tracks"] == 0
     assert log_entry["live_liked_tracks"] == 1
     assert log_entry["total_tracks"] == 2
-    assert any(line == "Removed: Radiohead - OK Computer" for line in output)
+    assert any(line == "Removed: OK Computer - Radiohead" for line in output)
 
 
 def test_review_auto_removes_album_with_zero_live_liked_tracks(
@@ -287,7 +292,7 @@ def test_review_auto_removes_album_with_zero_live_liked_tracks(
     assert log_entry["action"] == "auto_zero_live_likes"
     assert log_entry["live_liked_tracks"] == 0
     assert any(
-        line == "Auto-removed (0 live liked tracks): Radiohead - OK Computer"
+        line == "Auto-removed (0 live liked tracks): OK Computer - Radiohead"
         for line in output
     )
 
@@ -321,7 +326,7 @@ def test_review_prompts_when_live_liked_tracks_exist(monkeypatch, tmp_path) -> N
     assert saved_albums == []
     assert not log_path.exists()
     assert any(line == "Live liked tracks: 1" for line in output)
-    assert any(line == "Skipped: Radiohead - OK Computer" for line in output)
+    assert any(line == "Skipped: OK Computer - Radiohead" for line in output)
 
 
 def test_live_liked_track_checks_are_batched_for_large_albums(
@@ -355,6 +360,51 @@ def test_live_liked_track_checks_are_batched_for_large_albums(
     assert sp.saved_track_checks[-1] == ["t40", "t41", "t42", "t43", "t44"]
     assert sp.deleted == []
     assert any(line == "Live liked tracks: 1" for line in output)
+
+
+def test_keep_decision_persists_between_review_runs(monkeypatch, tmp_path) -> None:
+    albums = [_album()]
+    decisions_path = tmp_path / "review_decisions.json"
+    first_output: list[str] = []
+    second_output: list[str] = []
+    first_sp = FakeSpotify(saved_tracks={"t1"})
+    second_sp = FakeSpotify(saved_tracks={"t1"})
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+
+    review_album_limits.review_album_limits(
+        first_sp,
+        action_reader=lambda _album, _evaluation: "k",
+        echo=first_output.append,
+        log_path=tmp_path / "removed_albums_log.jsonl",
+        decisions_path=decisions_path,
+    )
+
+    def fail_action_reader(_album, _evaluation):
+        raise AssertionError("persisted keep decisions should not prompt again")
+
+    review_album_limits.review_album_limits(
+        second_sp,
+        action_reader=fail_action_reader,
+        echo=second_output.append,
+        log_path=tmp_path / "removed_albums_log.jsonl",
+        decisions_path=decisions_path,
+    )
+
+    decisions = json.loads(decisions_path.read_text())
+    assert decisions["alb1"]["decision"] == "keep"
+    assert first_sp.saved_track_checks == [["t1", "t2"]]
+    assert first_sp.deleted == []
+    assert any(line == "Kept anyway: OK Computer - Radiohead" for line in first_output)
+    assert second_sp.follow_checks == []
+    assert second_sp.saved_track_checks == []
+    assert any(
+        line == "[1/1] previously kept: OK Computer - Radiohead"
+        for line in second_output
+    )
 
 
 def test_review_records_followed_artist_and_updates_stats_history(
@@ -473,7 +523,7 @@ def test_review_skip_is_only_for_current_run(monkeypatch, tmp_path) -> None:
     assert sp.followed == [["art1"]]
     assert saved_albums == []
     assert not log_path.exists()
-    assert any(line == "Skipped: Radiohead - OK Computer" for line in output)
+    assert any(line == "Skipped: OK Computer - Radiohead" for line in output)
 
 
 def test_review_follows_artist_for_kept_album_without_prompt(
@@ -502,7 +552,7 @@ def test_review_follows_artist_for_kept_album_without_prompt(
 
     assert sp.deleted == []
     assert sp.followed == [["art1"]]
-    assert any("keep: Radiohead - OK Computer" in line for line in output)
+    assert any("keep: OK Computer - Radiohead" in line for line in output)
 
 
 def test_review_does_not_refollow_artist_already_followed(

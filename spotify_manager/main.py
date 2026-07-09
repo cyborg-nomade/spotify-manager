@@ -35,6 +35,7 @@ from spotify_manager.routines.monthly_routine import run_monthly_routines
 app = typer.Typer()
 
 _client: Spotify | None = None
+_review_client: Spotify | None = None
 REVIEW_ACTION_CHOICES = [
     "r",
     "remove",
@@ -59,6 +60,18 @@ def client() -> Spotify:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
     return _client
+
+
+def review_client() -> Spotify:
+    """Build a no-retry client for interactive review operations."""
+    global _review_client
+    if _review_client is None:
+        try:
+            _review_client = get_spotipy_client(retries=0, status_retries=0)
+        except SpotifyRedirectURIError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
+    return _review_client
 
 
 def ask_review_action(
@@ -214,8 +227,10 @@ def review_album_limits_command(
             style = "cyan"
         elif line.startswith("Updated stats_history"):
             style = "cyan dim"
-        elif " keep: " in line:
+        elif " keep: " in line or "previously kept" in line:
             style = "green"
+        elif line.startswith("Kept anyway:"):
+            style = "bold green"
         elif "remove candidate" in line:
             style = "yellow"
         elif line.startswith("Removed:") or line.startswith("Auto-removed"):
@@ -252,7 +267,7 @@ def review_album_limits_command(
                 progress.update(task_id, completed=position, total=total)
 
             review_album_limits.review_album_limits(
-                client(),
+                review_client(),
                 action_reader=read_action,
                 threshold=threshold,
                 use_cache=not no_cache,

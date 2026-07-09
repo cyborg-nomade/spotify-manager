@@ -59,7 +59,10 @@ def should_open_browser_for_redirect(redirect_uri: str) -> bool:
     )
 
 
-def get_spotipy_client() -> spotipy.Spotify:
+def get_spotipy_client(
+    retries: int = 5,
+    status_retries: int | None = None,
+) -> spotipy.Spotify:
     """Get spotipy client."""
     spotipy_client_id = settings.spotipy_client_id
     spotipy_client_secret = settings.spotipy_client_secret
@@ -99,5 +102,6 @@ def get_spotipy_client() -> spotipy.Spotify:
     return spotipy.Spotify(
         auth_manager=auth_manager,
         requests_timeout=10,
-        retries=5,
+        retries=retries,
+        status_retries=retries if status_retries is None else status_retries,
     )

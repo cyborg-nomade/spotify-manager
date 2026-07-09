@@ -73,3 +73,19 @@ def test_ask_review_action_defaults_to_skip_for_non_remove(monkeypatch) -> None:
 
     assert result == "s"
     assert prompt_call["default"] == "s"
+
+
+def test_review_client_disables_spotipy_retries(monkeypatch) -> None:
+    calls: list[dict[str, int]] = []
+    fake_client = object()
+    monkeypatch.setattr(main, "_review_client", None)
+
+    def fake_get_spotipy_client(**kwargs):
+        calls.append(kwargs)
+        return fake_client
+
+    monkeypatch.setattr(main, "get_spotipy_client", fake_get_spotipy_client)
+
+    assert main.review_client() is fake_client
+    assert main.review_client() is fake_client
+    assert calls == [{"retries": 0, "status_retries": 0}]
