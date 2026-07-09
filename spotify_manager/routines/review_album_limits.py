@@ -28,7 +28,6 @@ from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.utils.growth import calculate_growth
 from spotify_manager.utils.sorting import artist_sort_key
 
-
 REMOVED_ALBUMS_LOG_PATH = (
     Path(__file__).resolve().parent.parent / "files" / "removed_albums_log.jsonl"
 )
@@ -255,7 +254,7 @@ def record_followed_artist(artist: AlbumArtist) -> ArtistPersistenceResult:
 
 def format_album_label(album: YourLibraryAlbum) -> str:
     """Return a compact label for an album."""
-    return f"{album.artist} - {album.album}"
+    return f"{album.album} - {album.artist}"
 
 
 def format_evaluation_summary(evaluation: AlbumEvaluation) -> str:
