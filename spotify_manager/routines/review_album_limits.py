@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
+from functools import partial
 from math import ceil
 from pathlib import Path
+from time import sleep as default_sleep
 
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
@@ -40,6 +42,9 @@ REVIEW_DECISIONS_PATH = (
     / "review_album_limits_decisions.json"
 )
 TRACK_CONTAINS_BATCH_SIZE = 20
+TRANSIENT_SPOTIFY_STATUSES = {500, 502, 503, 504}
+TRANSIENT_RETRY_DELAY_SECONDS = 5 * 60
+TRANSIENT_MAX_ATTEMPTS = 3
 RETRY_AFTER_SECONDS_PATTERN = re.compile(
     r"Retry will occur after:\s*(?P<seconds>\d+(?:\.\d+)?)\s*s",
     re.IGNORECASE,
@@ -48,6 +53,7 @@ RETRY_AFTER_SECONDS_PATTERN = re.compile(
 Echo = Callable[[str], None]
 ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]
 ProgressCallback = Callable[[int, int], None]
+Sleep = Callable[[float], None]
 ReviewDecisions = dict[str, dict[str, object]]
 
 
@@ -76,6 +82,17 @@ class SpotifyRateLimitError(RuntimeError):
         self.retry_after_seconds = retry_after_seconds
 
 
+class SpotifyTransientServerError(RuntimeError):
+    """Raised when Spotify keeps returning temporary server errors."""
+
+    def __init__(self, http_status: int, operation: str, attempts: int) -> None:
+        """Store the failed status and operation for user-facing output."""
+        super().__init__("Spotify API temporarily unavailable")
+        self.http_status = http_status
+        self.operation = operation
+        self.attempts = attempts
+
+
 def parse_retry_after_seconds(value: object) -> int | None:
     """Parse a retry-after delay from a header or Spotipy retry message."""
     if value is None:
@@ -92,6 +109,11 @@ def parse_retry_after_seconds(value: object) -> int | None:
         return None
 
     return max(0, int(float(match.group("seconds"))))
+
+
+def is_transient_spotify_error(exc: SpotifyException) -> bool:
+    """Return whether ``exc`` should be retried by the review routine."""
+    return exc.http_status in TRANSIENT_SPOTIFY_STATUSES
 
 
 def get_retry_after_seconds(exc: SpotifyException) -> int | None:
@@ -113,21 +135,62 @@ def get_retry_after_seconds(exc: SpotifyException) -> int | None:
     return None
 
 
-def format_retry_after(
+def format_retry_delay(
     retry_after_seconds: int | None,
     now: datetime | None = None,
 ) -> str:
-    """Format a retry-after value for CLI output."""
+    """Format a retry delay with a local timestamp."""
     if retry_after_seconds is None:
-        return "try again later"
+        return "later"
 
     current_time = now or datetime.now().astimezone()
     retry_at = current_time + timedelta(seconds=retry_after_seconds)
     minutes = max(1, ceil(retry_after_seconds / 60))
     unit = "minute" if minutes == 1 else "minutes"
-    return (
-        f"try again in {minutes} {unit} (at {retry_at.isoformat(timespec='seconds')})"
-    )
+    return f"in {minutes} {unit} (at {retry_at.isoformat(timespec='seconds')})"
+
+
+def format_retry_after(
+    retry_after_seconds: int | None,
+    now: datetime | None = None,
+) -> str:
+    """Format a retry-after value for CLI output."""
+    return f"try again {format_retry_delay(retry_after_seconds, now=now)}"
+
+
+def retry_spotify_server_errors[T](
+    operation: Callable[[], T],
+    description: str,
+    echo: Echo,
+    sleep: Sleep,
+    retry_delay_seconds: int,
+    max_attempts: int,
+) -> T:
+    """Retry temporary Spotify server errors before giving up cleanly."""
+    attempts = 0
+    max_attempts = max(1, max_attempts)
+
+    while True:
+        attempts += 1
+        try:
+            return operation()
+        except SpotifyException as exc:
+            if not is_transient_spotify_error(exc):
+                handle_spotify_exception(exc)
+
+            if attempts >= max_attempts:
+                raise SpotifyTransientServerError(
+                    exc.http_status,
+                    description,
+                    attempts,
+                ) from exc
+
+            echo(
+                "Spotify API temporarily unavailable "
+                f"({exc.http_status}) while {description}. "
+                f"Retrying {format_retry_delay(retry_delay_seconds)}."
+            )
+            sleep(retry_delay_seconds)
 
 
 def current_stats_history_key(now: datetime | None = None) -> str:
@@ -552,6 +615,9 @@ def review_album_limits(
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
     decisions_path: Path | None = None,
     progress_callback: ProgressCallback | None = None,
+    sleep: Sleep = default_sleep,
+    transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
+    transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
 ) -> None:
     """Review saved albums and remove user-approved albums below the threshold."""
     decisions_path = decisions_path or REVIEW_DECISIONS_PATH
@@ -568,6 +634,16 @@ def review_album_limits(
     known_artist_ids = known_artist_ids_by_name(library)
     checked_artist_ids: set[str] = set()
 
+    def retry_spotify_call[T](operation: Callable[[], T], description: str) -> T:
+        return retry_spotify_server_errors(
+            operation,
+            description,
+            echo,
+            sleep,
+            transient_retry_delay_seconds,
+            transient_max_attempts,
+        )
+
     for position, album in enumerate(total_albums, start=1):
         label = format_album_label(album)
         if has_persisted_keep_decision(album, review_decisions):
@@ -577,23 +653,32 @@ def review_album_limits(
                 progress_callback(position, total_count)
             continue
 
-        followed_artist = ensure_artist_followed(
-            sp, album, known_artist_ids, checked_artist_ids, echo
+        followed_artist = retry_spotify_call(
+            partial(
+                ensure_artist_followed,
+                sp,
+                album,
+                known_artist_ids,
+                checked_artist_ids,
+                echo,
+            ),
+            f"checking/following artist for {label}",
         )
         if followed_artist:
             followed_artist_count += 1
 
-        try:
-            evaluation = evaluate_album(
+        evaluation = retry_spotify_call(
+            partial(
+                evaluate_album,
                 sp=sp,
                 album_id=album.spotify_id,
                 library=library,
                 threshold=threshold,
                 use_cache=use_cache,
                 refresh_cache=refresh_cache,
-            )
-        except SpotifyException as exc:
-            handle_spotify_exception(exc)
+            ),
+            f"evaluating {label}",
+        )
 
         summary = format_evaluation_summary(evaluation)
 
@@ -612,16 +697,23 @@ def review_album_limits(
         live_liked_tracks = None
         track_ids = track_ids_from_evaluation(evaluation)
         if track_ids:
-            live_liked_tracks = get_live_liked_track_count(sp, track_ids)
+            live_liked_tracks = retry_spotify_call(
+                partial(get_live_liked_track_count, sp, track_ids),
+                f"checking live liked tracks for {label}",
+            )
             if live_liked_tracks == 0:
-                remaining_albums = remove_album_from_library(
-                    sp,
-                    album,
-                    evaluation,
-                    remaining_albums,
-                    log_path,
-                    action="auto_zero_live_likes",
-                    live_liked_tracks=live_liked_tracks,
+                remaining_albums = retry_spotify_call(
+                    partial(
+                        remove_album_from_library,
+                        sp,
+                        album,
+                        evaluation,
+                        remaining_albums,
+                        log_path,
+                        action="auto_zero_live_likes",
+                        live_liked_tracks=live_liked_tracks,
+                    ),
+                    f"removing {label}",
                 )
                 removed_count += 1
                 echo(f"Auto-removed (0 live liked tracks): {label}")
@@ -657,13 +749,17 @@ def review_album_limits(
                 progress_callback(position, total_count)
             continue
 
-        remaining_albums = remove_album_from_library(
-            sp,
-            album,
-            evaluation,
-            remaining_albums,
-            log_path,
-            live_liked_tracks=live_liked_tracks,
+        remaining_albums = retry_spotify_call(
+            partial(
+                remove_album_from_library,
+                sp,
+                album,
+                evaluation,
+                remaining_albums,
+                log_path,
+                live_liked_tracks=live_liked_tracks,
+            ),
+            f"removing {label}",
         )
         removed_count += 1
         echo(f"Removed: {label}")

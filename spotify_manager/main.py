@@ -291,6 +291,18 @@ def review_album_limits_command(
             style="yellow",
         )
         raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Progress was saved up to the last successful removal.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+import pytest
 from rich.console import Console
 
 from spotify_manager import main
@@ -95,3 +96,27 @@ def test_review_client_disables_spotipy_retries(monkeypatch) -> None:
             "status_forcelist": main.DISABLED_SPOTIFY_STATUS_FORCELIST,
         }
     ]
+
+
+def test_review_album_limits_command_handles_transient_server_error(
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.setattr(main, "review_client", lambda: object())
+
+    def fail_review(*_args, **_kwargs):
+        raise main.review_album_limits.SpotifyTransientServerError(
+            503,
+            "checking/following artist for OK Computer - Radiohead",
+            3,
+        )
+
+    monkeypatch.setattr(main.review_album_limits, "review_album_limits", fail_review)
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.review_album_limits_command()
+
+    assert exc.value.exit_code == 0
+    output = capsys.readouterr().out
+    assert "Spotify API temporarily unavailable (503) after 3 attempts" in output
+    assert "Progress was saved up to the last successful removal." in output

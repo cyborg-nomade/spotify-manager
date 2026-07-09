@@ -144,12 +144,14 @@ class FakeSpotify:
         rate_limit_on_follow_check: bool = False,
         rate_limit_on_album_metadata: bool = False,
         rate_limit_on_saved_track_check: bool = False,
+        transient_failures_on_follow_check: int = 0,
         followed_artists: set[str] | None = None,
         saved_tracks: set[str] | None = None,
         album_tracks: list[dict] | None = None,
     ) -> None:
         self.deleted: list[list[str]] = []
         self.follow_checks: list[list[str]] = []
+        self.follow_check_attempts: list[list[str]] = []
         self.followed: list[list[str]] = []
         self.album_metadata_calls: list[str] = []
         self.saved_track_checks: list[list[str]] = []
@@ -157,6 +159,7 @@ class FakeSpotify:
         self.rate_limit_on_follow_check = rate_limit_on_follow_check
         self.rate_limit_on_album_metadata = rate_limit_on_album_metadata
         self.rate_limit_on_saved_track_check = rate_limit_on_saved_track_check
+        self.transient_failures_on_follow_check = transient_failures_on_follow_check
         self.followed_artists = set(followed_artists or set())
         self.saved_tracks = set(saved_tracks or set())
         self._album_tracks = album_tracks or [
@@ -182,6 +185,14 @@ class FakeSpotify:
         return {"artists": [{"id": "art1", "name": "Radiohead"}]}
 
     def current_user_following_artists(self, artists):
+        self.follow_check_attempts.append(list(artists))
+        if self.transient_failures_on_follow_check > 0:
+            self.transient_failures_on_follow_check -= 1
+            raise SpotifyException(
+                503,
+                -1,
+                "upstream connect error or disconnect/reset before headers",
+            )
         if self.rate_limit_on_follow_check:
             raise SpotifyException(
                 429,
@@ -408,6 +419,77 @@ def test_keep_decision_persists_between_review_runs(monkeypatch, tmp_path) -> No
         line == "[1/1] previously kept: OK Computer - Radiohead"
         for line in second_output
     )
+
+
+def test_review_retries_transient_spotify_server_errors(monkeypatch, tmp_path) -> None:
+    albums = [_album()]
+    output: list[str] = []
+    sleeps: list[float] = []
+    sp = FakeSpotify(
+        transient_failures_on_follow_check=1,
+        followed_artists={"art1"},
+    )
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(
+        review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+
+    review_album_limits.review_album_limits(
+        sp,
+        action_reader=lambda _album, _evaluation: "s",
+        echo=output.append,
+        log_path=tmp_path / "removed_albums_log.jsonl",
+        sleep=sleeps.append,
+        transient_retry_delay_seconds=123,
+    )
+
+    assert sleeps == [123]
+    assert sp.follow_check_attempts == [["art1"], ["art1"]]
+    assert any(
+        line.startswith(
+            "Spotify API temporarily unavailable (503) while "
+            "checking/following artist for OK Computer - Radiohead. "
+            "Retrying in 3 minutes"
+        )
+        for line in output
+    )
+    assert any("keep: OK Computer - Radiohead" in line for line in output)
+
+
+def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
+    monkeypatch, tmp_path
+) -> None:
+    albums = [_album()]
+    sleeps: list[float] = []
+    sp = FakeSpotify(transient_failures_on_follow_check=2)
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", lambda: albums
+    )
+    monkeypatch.setattr(
+        review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+
+    with pytest.raises(review_album_limits.SpotifyTransientServerError) as exc:
+        review_album_limits.review_album_limits(
+            sp,
+            action_reader=lambda _album, _evaluation: "s",
+            echo=lambda _line: None,
+            log_path=tmp_path / "removed_albums_log.jsonl",
+            sleep=sleeps.append,
+            transient_retry_delay_seconds=7,
+            transient_max_attempts=2,
+        )
+
+    assert exc.value.http_status == 503
+    assert (
+        exc.value.operation == "checking/following artist for OK Computer - Radiohead"
+    )
+    assert exc.value.attempts == 2
+    assert sleeps == [7]
 
 
 def test_review_records_followed_artist_and_updates_stats_history(
