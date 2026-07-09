@@ -1,10 +1,12 @@
 """Interactive routine for removing albums below the liked-track threshold."""
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
+from datetime import timedelta
 from math import ceil
 from pathlib import Path
 
@@ -38,6 +40,10 @@ REVIEW_DECISIONS_PATH = (
     / "review_album_limits_decisions.json"
 )
 TRACK_CONTAINS_BATCH_SIZE = 20
+RETRY_AFTER_SECONDS_PATTERN = re.compile(
+    r"Retry will occur after:\s*(?P<seconds>\d+(?:\.\d+)?)\s*s",
+    re.IGNORECASE,
+)
 
 Echo = Callable[[str], None]
 ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]
@@ -70,29 +76,58 @@ class SpotifyRateLimitError(RuntimeError):
         self.retry_after_seconds = retry_after_seconds
 
 
+def parse_retry_after_seconds(value: object) -> int | None:
+    """Parse a retry-after delay from a header or Spotipy retry message."""
+    if value is None:
+        return None
+
+    text = str(value)
+    try:
+        return max(0, int(float(text)))
+    except ValueError:
+        pass
+
+    match = RETRY_AFTER_SECONDS_PATTERN.search(text)
+    if match is None:
+        return None
+
+    return max(0, int(float(match.group("seconds"))))
+
+
 def get_retry_after_seconds(exc: SpotifyException) -> int | None:
     """Return Spotify's retry-after delay when ``exc`` is a rate limit."""
     if exc.http_status != 429:
         return None
 
-    retry_after = exc.headers.get("Retry-After") or exc.headers.get("retry-after")
-    if retry_after is None:
-        return None
+    retry_after = parse_retry_after_seconds(
+        exc.headers.get("Retry-After") or exc.headers.get("retry-after")
+    )
+    if retry_after is not None:
+        return retry_after
 
-    try:
-        return max(0, int(float(retry_after)))
-    except ValueError:
-        return None
+    for value in (exc.reason, exc.msg, str(exc)):
+        retry_after = parse_retry_after_seconds(value)
+        if retry_after is not None:
+            return retry_after
+
+    return None
 
 
-def format_retry_after(retry_after_seconds: int | None) -> str:
+def format_retry_after(
+    retry_after_seconds: int | None,
+    now: datetime | None = None,
+) -> str:
     """Format a retry-after value for CLI output."""
     if retry_after_seconds is None:
         return "try again later"
 
+    current_time = now or datetime.now().astimezone()
+    retry_at = current_time + timedelta(seconds=retry_after_seconds)
     minutes = max(1, ceil(retry_after_seconds / 60))
     unit = "minute" if minutes == 1 else "minutes"
-    return f"try again in {minutes} {unit}"
+    return (
+        f"try again in {minutes} {unit} (at {retry_at.isoformat(timespec='seconds')})"
+    )
 
 
 def current_stats_history_key(now: datetime | None = None) -> str:

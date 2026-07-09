@@ -1,6 +1,9 @@
 """Tests for the interactive album-limit review routine."""
 
 import json
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 import pytest
 from spotipy.exceptions import SpotifyException
@@ -736,4 +739,23 @@ def test_review_exits_cleanly_on_follow_rate_limit(monkeypatch, tmp_path) -> Non
 
 
 def test_format_retry_after_rounds_up_to_minutes() -> None:
-    assert review_album_limits.format_retry_after(61) == "try again in 2 minutes"
+    now = datetime(2026, 7, 9, 10, 30, tzinfo=timezone(timedelta(hours=2)))
+
+    assert (
+        review_album_limits.format_retry_after(61, now=now)
+        == "try again in 2 minutes (at 2026-07-09T10:31:01+02:00)"
+    )
+
+
+def test_retry_after_seconds_parses_spotipy_retry_reason() -> None:
+    exc = SpotifyException(
+        429,
+        -1,
+        "/v1/me/library/albums:\n Max Retries",
+        reason=(
+            "Your application has reached a rate/request limit. "
+            "Retry will occur after: 20484 s"
+        ),
+    )
+
+    assert review_album_limits.get_retry_after_seconds(exc) == 20484

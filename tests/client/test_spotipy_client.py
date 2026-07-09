@@ -44,10 +44,15 @@ def test_get_spotipy_client_accepts_retry_settings(
         ),
     )
 
-    client = client_module.get_spotipy_client(retries=0, status_retries=0)
+    client = client_module.get_spotipy_client(
+        retries=0,
+        status_retries=0,
+        status_forcelist=(999,),
+    )
 
     assert client.retries == 0
     assert client.status_retries == 0
+    assert client.status_forcelist == (999,)
 
 
 def test_validate_spotify_redirect_uri_rejects_localhost() -> None:

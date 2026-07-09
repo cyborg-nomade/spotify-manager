@@ -36,6 +36,7 @@ app = typer.Typer()
 
 _client: Spotify | None = None
 _review_client: Spotify | None = None
+DISABLED_SPOTIFY_STATUS_FORCELIST = (999,)
 REVIEW_ACTION_CHOICES = [
     "r",
     "remove",
@@ -67,7 +68,11 @@ def review_client() -> Spotify:
     global _review_client
     if _review_client is None:
         try:
-            _review_client = get_spotipy_client(retries=0, status_retries=0)
+            _review_client = get_spotipy_client(
+                retries=0,
+                status_retries=0,
+                status_forcelist=DISABLED_SPOTIFY_STATUS_FORCELIST,
+            )
         except SpotifyRedirectURIError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc

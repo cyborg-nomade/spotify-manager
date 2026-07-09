@@ -88,4 +88,10 @@ def test_review_client_disables_spotipy_retries(monkeypatch) -> None:
 
     assert main.review_client() is fake_client
     assert main.review_client() is fake_client
-    assert calls == [{"retries": 0, "status_retries": 0}]
+    assert calls == [
+        {
+            "retries": 0,
+            "status_retries": 0,
+            "status_forcelist": main.DISABLED_SPOTIFY_STATUS_FORCELIST,
+        }
+    ]
