@@ -1,9 +1,18 @@
 """Interface file."""
 
 import typer
+from rich.console import Console
+from rich.progress import BarColumn
+from rich.progress import MofNCompleteColumn
+from rich.progress import Progress
+from rich.progress import SpinnerColumn
+from rich.progress import TextColumn
+from rich.progress import TimeElapsedColumn
+from rich.prompt import Prompt
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.client import SpotifyRedirectURIError
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
@@ -11,6 +20,8 @@ from spotify_manager.processors.library_lookups import ArtistNotFoundError
 from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
+from spotify_manager.routines import recover_removed_albums
+from spotify_manager.routines import review_album_limits
 from spotify_manager.routines.analyse_library import analyse_library_routine
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
@@ -25,14 +36,72 @@ from spotify_manager.routines.monthly_routine import run_monthly_routines
 app = typer.Typer()
 
 _client: Spotify | None = None
+_review_client: Spotify | None = None
+DISABLED_SPOTIFY_STATUS_FORCELIST = (999,)
+REVIEW_ACTION_CHOICES = [
+    "r",
+    "remove",
+    "k",
+    "keep",
+    "s",
+    "skip",
+    "d",
+    "details",
+    "q",
+    "quit",
+]
 
 
 def client() -> Spotify:
     """Build the Spotify client lazily, so files-only commands never touch it."""
     global _client
     if _client is None:
-        _client = get_spotipy_client()
+        try:
+            _client = get_spotipy_client()
+        except SpotifyRedirectURIError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
     return _client
+
+
+def review_client() -> Spotify:
+    """Build a no-retry client for interactive review operations."""
+    global _review_client
+    if _review_client is None:
+        try:
+            _review_client = get_spotipy_client(
+                retries=0,
+                status_retries=0,
+                status_forcelist=DISABLED_SPOTIFY_STATUS_FORCELIST,
+            )
+        except SpotifyRedirectURIError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
+    return _review_client
+
+
+def ask_review_action(
+    console: Console,
+    evaluation: object,
+    progress: Progress | None = None,
+) -> str:
+    """Ask for a review action while yielding Rich progress rendering."""
+    default = "r"
+    if getattr(evaluation, "decision", None) != "remove":
+        default = "s"
+
+    if progress is not None:
+        progress.stop()
+    try:
+        return Prompt.ask(
+            "Action [r]emove / [k]eep anyway / [s]kip / [d]etails / [q]uit",
+            choices=REVIEW_ACTION_CHOICES,
+            default=default,
+            console=console,
+        )
+    finally:
+        if progress is not None:
+            progress.start()
 
 
 @app.command()
@@ -139,6 +208,189 @@ def album_decision(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(evaluation.model_dump_json(indent=2))
+
+
+@app.command(name="review-album-limits")
+def review_album_limits_command(
+    threshold: float = 0.5,
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Ignore the local tracklist cache for this run."
+    ),
+    refresh_cache: bool = typer.Option(
+        False, "--refresh-cache", help="Re-fetch tracklists and update the cache."
+    ),
+) -> None:
+    """Interactively remove saved albums below the liked-track threshold."""
+    if threshold < 0 or threshold > 1:
+        raise typer.BadParameter("threshold must be between 0 and 1")
+
+    console = Console()
+    progress_ref: Progress | None = None
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith("Followed artist") or line.startswith("Recorded artist"):
+            style = "cyan"
+        elif line.startswith("Updated stats_history"):
+            style = "cyan dim"
+        elif " keep: " in line or "previously kept" in line:
+            style = "green"
+        elif line.startswith("Kept anyway:"):
+            style = "bold green"
+        elif "remove candidate" in line:
+            style = "yellow"
+        elif line.startswith("Removed:") or line.startswith("Auto-removed"):
+            style = "bold red"
+        elif line.startswith("Live liked tracks"):
+            style = "cyan"
+        elif line.startswith("Skipped:"):
+            style = "dim yellow"
+        elif line.startswith("Review complete"):
+            style = "bold"
+
+        console.print(line, style=style, markup=False)
+
+    def read_action(
+        _album: object,
+        evaluation: object,
+    ) -> str:
+        return ask_review_action(console, evaluation, progress_ref)
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            task_id = progress.add_task("Reviewing albums", total=None)
+
+            def update_progress(position: int, total: int) -> None:
+                progress.update(task_id, completed=position, total=total)
+
+            review_album_limits.review_album_limits(
+                review_client(),
+                action_reader=read_action,
+                threshold=threshold,
+                use_cache=not no_cache,
+                refresh_cache=refresh_cache,
+                echo=echo,
+                progress_callback=update_progress,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Progress was saved up to the last successful removal.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Progress was saved up to the last successful removal.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+
+
+@app.command(name="recover-removed-albums")
+def recover_removed_albums_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Report changes without following artists or restoring albums.",
+    ),
+    limit: int | None = typer.Option(
+        None,
+        "--limit",
+        min=1,
+        help="Process at most this many pending albums.",
+    ),
+) -> None:
+    """Audit removed albums, follow credited artists, and restore future releases."""
+    console = Console()
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith("Followed credited artist"):
+            style = "cyan"
+        elif line.startswith("Would follow") or line.startswith("Would restore"):
+            style = "yellow"
+        elif line.startswith("Multiple credited artists"):
+            style = "magenta"
+        elif line.startswith("Restored future release"):
+            style = "bold green"
+        elif line.startswith("Future release already saved"):
+            style = "green"
+        elif line.startswith("Album unavailable"):
+            style = "yellow"
+        elif line.startswith("Recovery complete") or line.startswith(
+            "Dry run complete"
+        ):
+            style = "bold"
+        console.print(line, style=style, markup=False)
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            description = "Auditing removed albums"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(position: int, total: int) -> None:
+                progress.update(task_id, completed=position, total=total)
+
+            recover_removed_albums.recover_removed_albums(
+                review_client(),
+                echo=echo,
+                progress_callback=update_progress,
+                dry_run=dry_run,
+                limit=limit,
+            )
+    except recover_removed_albums.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Recovery progress was saved up to the last completed album.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except recover_removed_albums.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Recovery progress was saved up to the last completed album.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
 
 
 if __name__ == "__main__":

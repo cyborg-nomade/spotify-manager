@@ -28,8 +28,8 @@ cache, and security notes.
 | `APP_PASSWORD` | Shared password for the web UI / API. |
 | `SPOTIPY_CLIENT_ID` | Spotify app client id. |
 | `SPOTIPY_CLIENT_SECRET` | Spotify app client secret. |
-| `SPOTIPY_REDIRECT_URI` | Spotify app redirect URI (must match your Spotify dashboard). |
-| `SPOTIPY_CACHE_JSON` | Contents of your local `.cache` token file (enables headless auth). |
+| `SPOTIPY_REDIRECT_URI` | Spotify app redirect URI. Use an explicit loopback IP for local auth, e.g. `http://127.0.0.1:8080/callback`; it must match your Spotify dashboard. |
+| `SPOTIPY_CACHE_JSON` | Contents of your local `spotify_manager/auth/spotipy_token_cache.json` token file (enables headless auth). |
 | `ALBUMS_TO_ADD` | App setting (integer). |
 | `LIMIT` | App setting (integer). |
 

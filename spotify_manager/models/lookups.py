@@ -19,6 +19,7 @@ class AlbumTrackLikedStatus(BaseModel):
     name: str
     uri: str
     liked: bool
+    spotify_id: str | None = None
 
 
 class AlbumEvaluation(BaseModel):
@@ -29,6 +30,7 @@ class AlbumEvaluation(BaseModel):
     artist_name: str | None
     total_tracks: int
     liked_tracks: int
+    required_liked_tracks: int
     liked_ratio: float
     threshold: float
     decision: str  # "keep" | "remove"

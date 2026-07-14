@@ -55,7 +55,7 @@ def sort_key(item: SimplifiedAlbum) -> tuple[int, ...]:
 
 def album_sort_key(item: YourLibraryAlbum) -> tuple[int, ...]:
     """Sort key function."""
-    return c.sort_key(str(item.album))
+    return c.sort_key(get_ordering_string(item.album))
 
 
 def artist_sort_key(item: YourLibraryArtist) -> tuple[int, ...]:

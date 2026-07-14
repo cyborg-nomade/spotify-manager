@@ -6,10 +6,10 @@
 # gated web app on the port Spaces expects (7860).
 set -euo pipefail
 
-# Spotipy caches its OAuth token in ".cache" in the working directory. On a
-# fresh container there is none, so recreate it from the SPOTIPY_CACHE_JSON
-# secret. The refresh token inside stays valid across restarts; spotipy uses it
-# to mint new access tokens automatically.
+# Spotipy caches its OAuth token in SPOTIPY_CACHE_PATH. On a fresh container
+# there is none, so recreate it from the SPOTIPY_CACHE_JSON secret. The refresh
+# token inside stays valid across restarts; spotipy uses it to mint new access
+# tokens automatically.
 SPOTIPY_CACHE_PATH="${SPOTIPY_CACHE_PATH:-spotify_manager/auth/spotipy_token_cache.json}"
 
 if [ -n "${SPOTIPY_CACHE_JSON:-}" ]; then
