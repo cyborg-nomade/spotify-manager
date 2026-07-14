@@ -20,6 +20,7 @@ from spotify_manager.processors.library_lookups import ArtistNotFoundError
 from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
+from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines.analyse_library import analyse_library_routine
 from spotify_manager.routines.convert_library_file import analyse_comparison
@@ -300,6 +301,93 @@ def review_album_limits_command(
         )
         console.print(
             "Progress was saved up to the last successful removal.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+
+
+@app.command(name="recover-removed-albums")
+def recover_removed_albums_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Report changes without following artists or restoring albums.",
+    ),
+    limit: int | None = typer.Option(
+        None,
+        "--limit",
+        min=1,
+        help="Process at most this many pending albums.",
+    ),
+) -> None:
+    """Audit removed albums, follow credited artists, and restore future releases."""
+    console = Console()
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith("Followed credited artist"):
+            style = "cyan"
+        elif line.startswith("Would follow") or line.startswith("Would restore"):
+            style = "yellow"
+        elif line.startswith("Multiple credited artists"):
+            style = "magenta"
+        elif line.startswith("Restored future release"):
+            style = "bold green"
+        elif line.startswith("Future release already saved"):
+            style = "green"
+        elif line.startswith("Album unavailable"):
+            style = "yellow"
+        elif line.startswith("Recovery complete") or line.startswith(
+            "Dry run complete"
+        ):
+            style = "bold"
+        console.print(line, style=style, markup=False)
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            description = "Auditing removed albums"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(position: int, total: int) -> None:
+                progress.update(task_id, completed=position, total=total)
+
+            recover_removed_albums.recover_removed_albums(
+                review_client(),
+                echo=echo,
+                progress_callback=update_progress,
+                dry_run=dry_run,
+                limit=limit,
+            )
+    except recover_removed_albums.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Recovery progress was saved up to the last completed album.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except recover_removed_albums.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Recovery progress was saved up to the last completed album.",
             style="yellow",
         )
         raise typer.Exit(code=0) from exc
