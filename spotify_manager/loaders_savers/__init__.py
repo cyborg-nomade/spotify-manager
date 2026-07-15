@@ -24,6 +24,9 @@ from spotify_manager.models.your_library import YourLibraryTrack
 ALBUM_TRACKS_CACHE_PATH = (
     Path(__file__).resolve().parent.parent / "files" / "album_tracks_cache.json"
 )
+FILES_PATH = Path(__file__).resolve().parent.parent / "files"
+LIKED_TRACKS_TOTAL_PATH = FILES_PATH / "liked_tracks_total.json"
+LIKED_TRACKS_LEGACY_PATH = FILES_PATH / "liked_tracks.json"
 
 
 def serialize_model_list(model_list: Sequence[BaseModel]) -> list[dict]:
@@ -114,10 +117,13 @@ def load_total_artists_file() -> list[YourLibraryArtist]:
 
 
 def load_liked_tracks_file() -> list[YourLibraryTrack]:
-    """Load liked tracks file."""
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/liked_tracks.json",
-    ) as main_file:
+    """Load the live mirror, falling back to the legacy/export-derived file."""
+    source_path = (
+        LIKED_TRACKS_TOTAL_PATH
+        if LIKED_TRACKS_TOTAL_PATH.exists()
+        else LIKED_TRACKS_LEGACY_PATH
+    )
+    with open(source_path) as main_file:
         print("Loading liked tracks file..")
         result_dict = json.load(main_file)
         print("Done.")
@@ -178,12 +184,9 @@ def save_total_artists_file(total_artists_file_items: list[YourLibraryArtist]) -
 
 
 def save_liked_tracks_file(liked_tracks_file_items: list[YourLibraryTrack]) -> None:
-    """Save liked tracks file."""
+    """Save the canonical liked-tracks mirror."""
     print("Saving liked tracks file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/liked_tracks.json",
-        "w",
-    ) as main_file:
+    with open(LIKED_TRACKS_TOTAL_PATH, "w") as main_file:
         json.dump(
             serialize_model_list(liked_tracks_file_items),
             main_file,

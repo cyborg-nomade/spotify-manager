@@ -103,3 +103,28 @@ def test_count_artists_endpoint(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(api, "count_artists_in_library", lambda: 42)
     resp = client.get("/commands/count-artists")
     assert resp.json() == {"count": 42}
+
+
+def test_analyse_library_endpoint_uses_injected_client(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    calls = []
+    monkeypatch.setattr(
+        api,
+        "analyse_library_routine",
+        lambda spotify: calls.append(spotify),
+    )
+
+    response = client.post("/commands/analyse-library")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "command": "analyse_library",
+        "status": "completed",
+        "detail": None,
+    }
+    assert len(calls) == 1
+    assert isinstance(calls[0], FakeSpotify)

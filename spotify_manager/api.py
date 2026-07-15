@@ -210,9 +210,9 @@ def cmd_count_artists() -> CountResult:
 
 
 @app.post("/commands/analyse-library", response_model=CommandResult)
-def cmd_analyse_library() -> CommandResult:
+def cmd_analyse_library(client: ClientDep) -> CommandResult:
     """Analyse the library and save stats."""
-    analyse_library_routine()
+    analyse_library_routine(client)
     return CommandResult(command="analyse_library")
 
 
