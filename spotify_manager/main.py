@@ -9,6 +9,7 @@ from rich.progress import SpinnerColumn
 from rich.progress import TextColumn
 from rich.progress import TimeElapsedColumn
 from rich.prompt import Prompt
+from rich.table import Table
 from spotipy import Spotify
 
 # UFI
@@ -20,9 +21,9 @@ from spotify_manager.processors.library_lookups import ArtistNotFoundError
 from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
+from spotify_manager.routines import analyse_library as library_sync
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
-from spotify_manager.routines.analyse_library import analyse_library_routine
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -150,8 +151,130 @@ def count_artists() -> None:
 
 @app.command()
 def analyse_library() -> None:
-    """."""
-    analyse_library_routine()
+    """Synchronize local library mirrors from live Spotify data."""
+    console = Console()
+    labels = {
+        "albums": "Saved albums",
+        "tracks": "Liked tracks",
+        "artists": "Followed artists",
+    }
+    source_labels = {
+        "live_api": "Live API",
+        "export_fallback": "Export fallback",
+        "verified_fallback": "Merged + live verified",
+        "seeded_live_verified": "Seeded + live verified",
+        "seeded_live_verified_no_discovery": "Seeded + verified (no discovery)",
+        "merged_track_fallback": "Merged fallback",
+    }
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            tasks = {
+                resource: progress.add_task(label, total=None)
+                for resource, label in labels.items()
+            }
+
+            def update_progress(
+                resource: str,
+                completed: int,
+                total: int | None,
+                status: str,
+            ) -> None:
+                progress.update(
+                    tasks[resource],
+                    completed=completed,
+                    total=total,
+                    description=f"{labels[resource]}: {status}",
+                )
+
+            summary = library_sync.analyse_library_routine(
+                review_client(),
+                echo=lambda line: console.print(line, style="yellow", markup=False),
+                progress_callback=update_progress,
+            )
+    except library_sync.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Library sync progress was saved; rerun the same command to resume.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except library_sync.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Library sync progress was saved; rerun the same command to resume.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except library_sync.LibrarySyncError as exc:
+        console.print(str(exc), style="bold red")
+        console.print(
+            "No partial staging data was published. Rerun to resume after fixing "
+            "the underlying issue.",
+            style="yellow",
+        )
+        raise typer.Exit(code=1) from exc
+
+    table = Table(title="Library mirror updated")
+    table.add_column("Resource")
+    table.add_column("Source")
+    table.add_column("Previous", justify="right")
+    table.add_column("Current", justify="right")
+    table.add_column("Added", justify="right", style="green")
+    table.add_column("Removed", justify="right", style="red")
+    table.add_column("Skipped", justify="right", style="yellow")
+    for resource in summary.resources:
+        table.add_row(
+            labels[resource.resource],
+            source_labels.get(resource.source, resource.source),
+            str(resource.previous),
+            str(resource.current),
+            str(resource.added),
+            str(resource.removed),
+            str(resource.skipped),
+        )
+    console.print(table)
+    console.print(f"Run: {summary.run_id}", style="bold")
+    console.print(f"Undo backup: {summary.backup_dir}", style="dim")
+    console.print(
+        f"Audit manifest: {summary.backup_dir}/manifest.json",
+        style="dim",
+    )
+
+
+@app.command(name="restore-library-sync")
+def restore_library_sync_command(
+    run_id: str = typer.Argument(help="Completed library-sync run id."),
+    yes: bool = typer.Option(False, "--yes", help="Restore without prompting."),
+) -> None:
+    """Restore generated library files from a sync backup."""
+    if not yes and not typer.confirm(
+        f"Restore generated library files from sync {run_id}?"
+    ):
+        raise typer.Abort()
+    try:
+        restored = library_sync.restore_library_sync(run_id)
+    except library_sync.LibrarySyncRestoreError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Restored: {', '.join(restored)}")
 
 
 @app.command()
