@@ -11,6 +11,7 @@ from rich.progress import TimeElapsedColumn
 from rich.prompt import Prompt
 from rich.table import Table
 from spotipy import Spotify
+from spotipy.exceptions import SpotifyException
 
 # UFI
 from spotify_manager.client import SpotifyRedirectURIError
@@ -24,6 +25,7 @@ from spotify_manager.processors.total_albums_processor import update_total_album
 from spotify_manager.routines import analyse_library as library_sync
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
+from spotify_manager.routines import review_artists as artist_review
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -32,6 +34,7 @@ from spotify_manager.routines.convert_library_file import convert_your_library_f
 from spotify_manager.routines.convert_library_file import restore_your_library_from_file
 from spotify_manager.routines.count_items import count_artists_in_library
 from spotify_manager.routines.monthly_routine import run_monthly_routines
+from spotify_manager.settings import Settings
 
 
 app = typer.Typer()
@@ -100,6 +103,114 @@ def ask_review_action(
             default=default,
             console=console,
         )
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def ask_artist_track_choice(
+    console: Console,
+    artist: object,
+    candidates: tuple[artist_review.TrackCandidate, ...],
+    progress: Progress | None = None,
+) -> str:
+    """Prompt for one ambiguous ranked track."""
+    if progress is not None:
+        progress.stop()
+    try:
+        table = Table(title=f"Choose a track for {getattr(artist, 'name', '')}")
+        table.add_column("#", justify="right")
+        table.add_column("Track")
+        table.add_column("Release")
+        table.add_column("Primary artist")
+        table.add_column("Rank", justify="right")
+        for index, candidate in enumerate(candidates, start=1):
+            table.add_row(
+                str(index),
+                candidate.name,
+                candidate.album,
+                candidate.primary_artist_name,
+                str(candidate.rank),
+            )
+        console.print(table)
+        choices = [str(index) for index in range(1, len(candidates) + 1)]
+        response = Prompt.ask(
+            "Track number / [s]kip this run / [q]uit",
+            choices=[*choices, "s", "q"],
+            console=console,
+        )
+        if response == "s":
+            return artist_review.CHOICE_SKIP
+        if response == "q":
+            return artist_review.CHOICE_QUIT
+        return candidates[int(response) - 1].spotify_id
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def ask_artist_release_choice(
+    console: Console,
+    artist: object,
+    candidates: tuple[artist_review.ReleaseCandidate, ...],
+    allow_decline: bool,
+    progress: Progress | None = None,
+) -> str:
+    """Prompt for one eligible release, with an optional permanent decline."""
+    if progress is not None:
+        progress.stop()
+    try:
+        artist_name = getattr(artist, "name", "")
+        if allow_decline:
+            action = Prompt.ask(
+                f"Add {artist_name} to queue 3?",
+                choices=["y", "n", "s", "q"],
+                default="n",
+                console=console,
+            )
+            if action == "n":
+                return artist_review.CHOICE_DECLINE
+            if action == "s":
+                return artist_review.CHOICE_SKIP
+            if action == "q":
+                return artist_review.CHOICE_QUIT
+
+        table = Table(title=f"Choose a release for {artist_name}")
+        table.add_column("#", justify="right")
+        table.add_column("Release")
+        table.add_column("Type")
+        table.add_column("Date")
+        table.add_column("First track")
+        table.add_column("First artist")
+        table.add_column("Eligible")
+        eligible_indexes: list[int] = []
+        artist_id = getattr(artist, "spotify_id", "")
+        for index, candidate in enumerate(candidates, start=1):
+            eligible = candidate.is_eligible_for(artist_id)
+            if eligible:
+                eligible_indexes.append(index)
+            table.add_row(
+                str(index),
+                candidate.name,
+                candidate.release_type,
+                candidate.release_date,
+                candidate.first_track_name or "No track",
+                candidate.first_track_primary_artist_name or "Unknown",
+                "yes" if eligible else "no",
+                style=None if eligible else "dim",
+            )
+        console.print(table)
+        choices = [str(index) for index in eligible_indexes]
+        response = Prompt.ask(
+            "Eligible release number / [s]kip this run / [q]uit",
+            choices=[*choices, "s", "q"],
+            console=console,
+        )
+        if response == "s":
+            return artist_review.CHOICE_SKIP
+        if response == "q":
+            return artist_review.CHOICE_QUIT
+        return candidates[int(response) - 1].spotify_id
     finally:
         if progress is not None:
             progress.start()
@@ -514,6 +625,153 @@ def recover_removed_albums_command(
             style="yellow",
         )
         raise typer.Exit(code=0) from exc
+
+
+@app.command(name="review-artists")
+def review_artists_command(
+    refresh_cache: bool = typer.Option(
+        False,
+        "--refresh-cache",
+        help="Discard cached catalog candidates before reviewing.",
+    ),
+    limit: int | None = typer.Option(
+        None,
+        "--limit",
+        min=1,
+        help="Process at most this many pending artists.",
+    ),
+) -> None:
+    """Review followed artists and place one track in the matching queue."""
+    console = Console()
+    progress_ref: Progress | None = None
+    configuration = Settings()
+    try:
+        playlists = artist_review.QueuePlaylists.from_references(
+            configuration.the_queue_playlist,
+            configuration.the_queue_2_playlist,
+            configuration.the_queue_3_playlist,
+        )
+    except artist_review.ArtistReviewConfigError as exc:
+        console.print(str(exc), style="bold red")
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith("Auto-unfollowed"):
+            style = "bold red"
+        elif line.startswith("Planned automatic unfollow"):
+            style = "yellow"
+        elif line.startswith("Queued"):
+            style = "bold green"
+        elif line.startswith("Moved"):
+            style = "bold cyan"
+        elif line.startswith("Already queued") or line.startswith("Kept"):
+            style = "green"
+        elif line.startswith("Declined") or line.startswith("No eligible"):
+            style = "dim yellow"
+        elif line.startswith("No unliked"):
+            style = "dim yellow"
+        console.print(line, style=style, markup=False)
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            task_id = progress.add_task("Reviewing artists", total=None)
+
+            def update_progress(position: int, total: int, artist_name: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=position,
+                    total=total,
+                    description=f"Reviewing artists: {artist_name}",
+                )
+
+            summary = artist_review.review_artists(
+                review_client(),
+                playlists,
+                track_choice_reader=lambda artist, candidates: ask_artist_track_choice(
+                    console,
+                    artist,
+                    candidates,
+                    progress_ref,
+                ),
+                release_choice_reader=lambda artist, candidates, allow_decline: (
+                    ask_artist_release_choice(
+                        console,
+                        artist,
+                        candidates,
+                        allow_decline,
+                        progress_ref,
+                    )
+                ),
+                echo=echo,
+                progress_callback=update_progress,
+                refresh_cache=refresh_cache,
+                limit=limit,
+            )
+    except artist_review.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Artist review progress and pending automatic decisions were saved.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except artist_review.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        console.print(
+            "Artist review progress and pending automatic decisions were saved.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except artist_review.ArtistReviewError as exc:
+        console.print(str(exc), style="bold red")
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+        )
+        raise typer.Exit(code=1) from exc
+
+    table = Table(
+        title="Artist review paused" if summary.paused else "Artist review complete"
+    )
+    table.add_column("Reviewed", justify="right")
+    table.add_column("Unfollowed", justify="right", style="red")
+    table.add_column("Queued", justify="right", style="green")
+    table.add_column("Moved", justify="right", style="cyan")
+    table.add_column("Already queued", justify="right")
+    table.add_column("Declined", justify="right")
+    table.add_column("No action", justify="right")
+    table.add_column("Skipped", justify="right", style="yellow")
+    table.add_row(
+        str(summary.reviewed),
+        str(summary.unfollowed),
+        str(summary.queued),
+        str(summary.moved),
+        str(summary.already_queued),
+        str(summary.declined),
+        str(summary.no_action),
+        str(summary.skipped),
+    )
+    console.print(table)
 
 
 if __name__ == "__main__":
