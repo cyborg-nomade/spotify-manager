@@ -21,6 +21,36 @@ Spotify with a pre-seeded OAuth token.
 See **DEPLOY.md** for full setup: required secrets, how to generate the token
 cache, and security notes.
 
+## Library analysis
+
+The library mirror is built through two deliberately separate commands:
+
+```console
+uv run spotify-manager analyse-library-async
+uv run spotify-manager analyse-library-sync
+```
+
+`analyse-library-async` reads only `spotify_manager/files/YourLibrary.json` and
+writes `albums_total_new_async.json`, `liked_tracks_total_async.json`,
+`artists_total_async.json`, and `stats_history_async.json`.
+
+`analyse-library-sync` reads only the live Spotify API and writes the matching
+`*_sync.json` files. It checkpoints every page, reconciles additions made while
+the scan is running, and retries Spotify 5xx responses with capped exponential
+backoff. Press `q` during a CLI retry wait to stop cleanly; rerunning the command
+resumes from its checkpoint. Both modes keep JSON-lines audit logs and an undo
+manifest under `spotify_manager/files/`.
+
+The same commands are available in the web UI. Their API endpoints return a
+background job that can be polled or cancelled:
+
+```text
+POST /commands/analyse-library-async
+POST /commands/analyse-library-sync
+GET  /commands/library-analysis-jobs/{job_id}
+POST /commands/library-analysis-jobs/{job_id}/cancel
+```
+
 ## Required Space secrets
 
 | Secret | Purpose |

@@ -1,7 +1,17 @@
 """Interface file."""
 
+import select
+import sys
+import termios
+import tty
+from datetime import datetime
+from datetime import timedelta
+from time import monotonic
+from time import sleep
+
 import typer
 from rich.console import Console
+from rich.live import Live
 from rich.progress import BarColumn
 from rich.progress import MofNCompleteColumn
 from rich.progress import Progress
@@ -10,6 +20,7 @@ from rich.progress import TextColumn
 from rich.progress import TimeElapsedColumn
 from rich.prompt import Prompt
 from rich.table import Table
+from rich.text import Text
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
@@ -260,23 +271,108 @@ def count_artists() -> None:
     print(count_artists_in_library())
 
 
-@app.command()
-def analyse_library() -> None:
-    """Synchronize local library mirrors from live Spotify data."""
+def wait_for_library_retry(
+    console: Console,
+    notice: library_sync.RetryNotice,
+    progress: Progress | None = None,
+) -> bool:
+    """Wait for a Spotify retry while accepting ``q`` without Enter."""
+    if progress is not None:
+        progress.stop()
+    retry_at = datetime.now().astimezone() + timedelta(seconds=notice.delay_seconds)
+    console.print(
+        f"Spotify HTTP {notice.http_status} while {notice.operation}.",
+        style="bold yellow",
+    )
+    console.print(
+        f"Retry {notice.attempt} at {retry_at.isoformat(timespec='seconds')}. "
+        "Press q to save and quit.",
+        style="yellow",
+    )
+    try:
+        if not sys.stdin.isatty():
+            sleep(notice.delay_seconds)
+            return True
+
+        descriptor = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(descriptor)
+        deadline = monotonic() + notice.delay_seconds
+        try:
+            tty.setcbreak(descriptor)
+            with Live(console=console, refresh_per_second=2, transient=True) as live:
+                while True:
+                    remaining = max(0, int(deadline - monotonic() + 0.999))
+                    if remaining == 0:
+                        return True
+                    live.update(
+                        Text(
+                            f"Retrying in {remaining} seconds. Press q to quit.",
+                            style="yellow",
+                        )
+                    )
+                    readable, _, _ = select.select(
+                        [sys.stdin],
+                        [],
+                        [],
+                        min(1.0, remaining),
+                    )
+                    if readable and sys.stdin.read(1).lower() == "q":
+                        return False
+        finally:
+            termios.tcsetattr(descriptor, termios.TCSADRAIN, old_settings)
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def print_library_analysis_summary(
+    console: Console,
+    summary: library_sync.LibrarySyncSummary,
+) -> None:
+    """Render the common completion table for either analysis mode."""
+    labels = {
+        "albums": "Saved albums",
+        "tracks": "Liked tracks",
+        "artists": "Followed artists",
+    }
+    title = (
+        "Export library mirror updated"
+        if summary.mode == "async"
+        else "Live library mirror updated"
+    )
+    table = Table(title=title)
+    table.add_column("Resource")
+    table.add_column("Source")
+    table.add_column("Previous", justify="right")
+    table.add_column("Current", justify="right")
+    table.add_column("Added", justify="right", style="green")
+    table.add_column("Removed", justify="right", style="red")
+    table.add_column("Skipped", justify="right", style="yellow")
+    for resource in summary.resources:
+        table.add_row(
+            labels[resource.resource],
+            resource.source,
+            str(resource.previous),
+            str(resource.current),
+            str(resource.added),
+            str(resource.removed),
+            str(resource.skipped),
+        )
+    console.print(table)
+    console.print(f"Run: {summary.run_id}", style="bold")
+    console.print(f"Undo backup: {summary.backup_dir}", style="dim")
+    console.print(f"Audit manifest: {summary.backup_dir}/manifest.json", style="dim")
+
+
+def run_library_analysis(mode: library_sync.AnalysisMode) -> None:
+    """Run one analysis mode with shared Rich progress and error handling."""
     console = Console()
     labels = {
         "albums": "Saved albums",
         "tracks": "Liked tracks",
         "artists": "Followed artists",
     }
-    source_labels = {
-        "live_api": "Live API",
-        "export_fallback": "Export fallback",
-        "verified_fallback": "Merged + live verified",
-        "seeded_live_verified": "Seeded + live verified",
-        "seeded_live_verified_no_discovery": "Seeded + verified (no discovery)",
-        "merged_track_fallback": "Merged fallback",
-    }
+    progress_ref: Progress | None = None
 
     try:
         with Progress(
@@ -288,6 +384,7 @@ def analyse_library() -> None:
             console=console,
             transient=True,
         ) as progress:
+            progress_ref = progress
             tasks = {
                 resource: progress.add_task(label, total=None)
                 for resource, label in labels.items()
@@ -299,18 +396,45 @@ def analyse_library() -> None:
                 total: int | None,
                 status: str,
             ) -> None:
+                display_total = max(completed, total) if total is not None else None
                 progress.update(
                     tasks[resource],
                     completed=completed,
-                    total=total,
+                    total=display_total,
                     description=f"{labels[resource]}: {status}",
                 )
 
-            summary = library_sync.analyse_library_routine(
-                review_client(),
-                echo=lambda line: console.print(line, style="yellow", markup=False),
-                progress_callback=update_progress,
-            )
+            if mode == "async":
+                summary = library_sync.analyse_library_async_routine(
+                    echo=lambda line: console.print(
+                        line,
+                        style="yellow",
+                        markup=False,
+                    ),
+                    progress_callback=update_progress,
+                )
+            else:
+                summary = library_sync.analyse_library_sync_routine(
+                    review_client(),
+                    echo=lambda line: console.print(
+                        line,
+                        style="yellow",
+                        markup=False,
+                    ),
+                    progress_callback=update_progress,
+                    retry_wait=lambda notice: wait_for_library_retry(
+                        console,
+                        notice,
+                        progress_ref,
+                    ),
+                )
+    except library_sync.LibraryAnalysisCancelledError as exc:
+        console.print(str(exc), style="bold yellow")
+        console.print(
+            "Progress was saved; rerun the same command to resume.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
     except library_sync.SpotifyRateLimitError as exc:
         console.print(
             "Spotify rate limit reached. "
@@ -322,17 +446,8 @@ def analyse_library() -> None:
             style="yellow",
         )
         raise typer.Exit(code=0) from exc
-    except library_sync.SpotifyTransientServerError as exc:
-        console.print(
-            "Spotify API temporarily unavailable "
-            f"({exc.http_status}) after {exc.attempts} attempts "
-            f"while {exc.operation}.",
-            style="bold yellow",
-        )
-        console.print(
-            "Library sync progress was saved; rerun the same command to resume.",
-            style="yellow",
-        )
+    except KeyboardInterrupt as exc:
+        console.print("Analysis paused. Progress was saved.", style="bold yellow")
         raise typer.Exit(code=0) from exc
     except library_sync.LibrarySyncError as exc:
         console.print(str(exc), style="bold red")
@@ -343,41 +458,29 @@ def analyse_library() -> None:
         )
         raise typer.Exit(code=1) from exc
 
-    table = Table(title="Library mirror updated")
-    table.add_column("Resource")
-    table.add_column("Source")
-    table.add_column("Previous", justify="right")
-    table.add_column("Current", justify="right")
-    table.add_column("Added", justify="right", style="green")
-    table.add_column("Removed", justify="right", style="red")
-    table.add_column("Skipped", justify="right", style="yellow")
-    for resource in summary.resources:
-        table.add_row(
-            labels[resource.resource],
-            source_labels.get(resource.source, resource.source),
-            str(resource.previous),
-            str(resource.current),
-            str(resource.added),
-            str(resource.removed),
-            str(resource.skipped),
-        )
-    console.print(table)
-    console.print(f"Run: {summary.run_id}", style="bold")
-    console.print(f"Undo backup: {summary.backup_dir}", style="dim")
-    console.print(
-        f"Audit manifest: {summary.backup_dir}/manifest.json",
-        style="dim",
-    )
+    print_library_analysis_summary(console, summary)
+
+
+@app.command(name="analyse-library-async")
+def analyse_library_async() -> None:
+    """Build suffixed mirrors exclusively from YourLibrary.json."""
+    run_library_analysis("async")
+
+
+@app.command(name="analyse-library-sync")
+def analyse_library_sync() -> None:
+    """Build suffixed mirrors exclusively from the live Spotify API."""
+    run_library_analysis("sync")
 
 
 @app.command(name="restore-library-sync")
 def restore_library_sync_command(
-    run_id: str = typer.Argument(help="Completed library-sync run id."),
+    run_id: str = typer.Argument(help="Completed library-analysis run id."),
     yes: bool = typer.Option(False, "--yes", help="Restore without prompting."),
 ) -> None:
-    """Restore generated library files from a sync backup."""
+    """Restore generated library files from an async or sync backup."""
     if not yes and not typer.confirm(
-        f"Restore generated library files from sync {run_id}?"
+        f"Restore generated library files from analysis {run_id}?"
     ):
         raise typer.Abort()
     try:
