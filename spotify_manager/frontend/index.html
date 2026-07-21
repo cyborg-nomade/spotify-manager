@@ -17,7 +17,7 @@
     --green-press: #169c46;
     --red: #e0245e;
     --amber: #e0a800;
-    --radius: 14px;
+    --radius: 8px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; padding: 0; }
@@ -63,6 +63,7 @@
   button.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
   button.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
   button[disabled] { opacity: .5; cursor: not-allowed; }
+  [hidden] { display: none !important; }
   .btns { display: grid; gap: 10px; margin-top: 12px; }
 
   .result { margin-top: 14px; display: none; }
@@ -91,6 +92,24 @@
   details.commands summary::after { content: " ▾"; }
   details.commands[open] summary::after { content: " ▴"; }
   .cmd-note { font-size: .74rem; color: var(--muted); margin: 8px 0 4px; }
+
+  .analysis-row { padding: 12px 0; border-top: 1px solid var(--border); }
+  .analysis-row:first-of-type { border-top: 0; padding-top: 0; }
+  .analysis-title { font-size: .9rem; font-weight: 700; margin-bottom: 8px; }
+  .analysis-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .analysis-actions .cancel { width: 48px; padding: 10px; }
+  .analysis-progress { display: none; margin-top: 10px; }
+  .analysis-progress.show { display: block; }
+  .analysis-state { color: var(--muted); font-size: .78rem; margin-bottom: 8px; min-height: 1.2em; }
+  .resource-progress { display: grid; grid-template-columns: 104px 1fr 64px; gap: 8px; align-items: center; margin: 7px 0; }
+  .resource-progress .name, .resource-progress .count { font-size: .72rem; color: var(--muted); }
+  .resource-progress .count { text-align: right; font-variant-numeric: tabular-nums; }
+  .resource-progress .meter { margin: 0; }
+  .meter > span.indeterminate { width: 32%; animation: scan 1.2s ease-in-out infinite alternate; }
+  @keyframes scan { from { transform: translateX(-20%); } to { transform: translateX(230%); } }
+  @media (max-width: 380px) {
+    .resource-progress { grid-template-columns: 88px 1fr 52px; }
+  }
 
   .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%);
     background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 12px 18px; border-radius: 12px;
@@ -183,12 +202,31 @@
 
     <!-- Commands -->
     <section class="card">
+      <h2>Library analyses</h2>
+      <div class="analysis-row" data-analysis="async">
+        <div class="analysis-title">YourLibrary.json → *_async</div>
+        <div class="analysis-actions">
+          <button class="primary" data-action="analysis" data-mode="async">Build async files</button>
+          <button class="danger cancel" data-action="cancelAnalysis" data-mode="async" hidden title="Cancel analysis">×</button>
+        </div>
+        <div class="analysis-progress" id="analysis-async"></div>
+      </div>
+      <div class="analysis-row" data-analysis="sync">
+        <div class="analysis-title">Spotify API → *_sync</div>
+        <div class="analysis-actions">
+          <button class="primary" data-action="analysis" data-mode="sync">Build sync files</button>
+          <button class="danger cancel" data-action="cancelAnalysis" data-mode="sync" hidden title="Cancel analysis">×</button>
+        </div>
+        <div class="analysis-progress" id="analysis-sync"></div>
+      </div>
+    </section>
+
+    <section class="card">
       <details class="commands">
         <summary>Commands</summary>
         <p class="cmd-note">These run the same routines as the CLI. The ones marked ⚠ modify your Spotify library and/or the data files on the server. You'll be asked to confirm.</p>
         <div class="btns">
           <button class="ghost" data-action="cmd" data-cmd="count-artists" data-method="GET">Count artists</button>
-          <button class="ghost" data-action="cmd" data-cmd="analyse-library" data-method="POST">Analyse library (save stats)</button>
           <button class="ghost" data-action="cmd" data-cmd="compare-lib-files" data-method="POST">Compare library files</button>
           <button class="danger" data-action="cmd" data-cmd="convert-lib" data-method="POST" data-confirm="1">⚠ Convert library file</button>
           <button class="danger" data-action="cmd" data-cmd="analyse-comp" data-method="POST" data-confirm="1">⚠ Analyse comparison (live)</button>
@@ -221,6 +259,7 @@
   var app = document.getElementById("app");
   var toast = document.getElementById("toast");
   var toastTimer = null;
+  var analysisJobs = {};
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -258,6 +297,7 @@
     }
     if (!res.ok) {
       var d = (data && (data.detail || data.message)) || ("HTTP " + res.status);
+      if (d && typeof d === "object") d = d.message || JSON.stringify(d);
       throw { status: res.status, detail: d, data: data };
     }
     return data;
@@ -281,6 +321,65 @@
   }
   function renderError(el, err) {
     renderResult(el, '<div class="kv" style="color:var(--red)">✕ ' + esc(err.detail || "Error") + "</div>");
+  }
+
+  function isAnalysisActive(status) {
+    return ["queued", "running", "waiting", "cancelling"].indexOf(status) !== -1;
+  }
+
+  function renderAnalysisJob(mode, job) {
+    var out = document.getElementById("analysis-" + mode);
+    var start = document.querySelector('[data-action="analysis"][data-mode="' + mode + '"]');
+    var cancel = document.querySelector('[data-action="cancelAnalysis"][data-mode="' + mode + '"]');
+    var labels = { albums: "Albums", tracks: "Tracks", artists: "Artists" };
+    var rows = ["albums", "tracks", "artists"].map(function (name) {
+      var item = (job.resources && job.resources[name]) || { completed: 0, total: null, status: "Queued" };
+      var reportedTotal = typeof item.total === "number" ? item.total : null;
+      var total = reportedTotal == null ? null : Math.max(reportedTotal, item.completed);
+      var complete = item.status === "Complete" || job.status === "completed";
+      var pct = total == null ? null : (total === 0 ? (complete ? 100 : 0) : Math.min(100, Math.round(item.completed * 100 / total)));
+      var count = total == null ? String(item.completed) : (item.completed + " / " + total);
+      var fill = pct == null
+        ? '<span class="indeterminate"></span>'
+        : '<span style="width:' + pct + '%"></span>';
+      return '<div class="resource-progress" title="' + esc(item.status) + '">' +
+        '<div class="name">' + labels[name] + '</div>' +
+        '<div class="meter">' + fill + '</div>' +
+        '<div class="count">' + esc(count) + '</div></div>';
+    }).join("");
+    var state = job.detail || job.status;
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
+    }
+    if (job.run_id) state += " · run " + job.run_id;
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' + rows;
+    out.classList.add("show");
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (!active) setBusy(start, false);
+  }
+
+  async function pollAnalysis(mode, jobId) {
+    try {
+      var job = await api("/commands/library-analysis-jobs/" + jobId);
+      analysisJobs[mode] = job;
+      renderAnalysisJob(mode, job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollAnalysis(mode, jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Analysis finished", "ok");
+      } else if (job.status !== "cancelled" && job.status !== "paused") {
+        showToast("Analysis " + job.status, "err");
+      }
+    } catch (e) {
+      var out = document.getElementById("analysis-" + mode);
+      var start = document.querySelector('[data-action="analysis"][data-mode="' + mode + '"]');
+      renderError(out, e);
+      setBusy(start, false);
+      showToast("Could not read analysis progress", "err");
+    }
   }
 
   // ---- Actions -----------------------------------------------------------
@@ -375,6 +474,40 @@
         showToast("Library cache refreshed", "ok");
       } catch (e) { renderError(out, e); }
       setBusy(btn, false);
+    },
+
+    async analysis(btn) {
+      var mode = btn.dataset.mode;
+      var out = document.getElementById("analysis-" + mode);
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api("/commands/analyse-library-" + mode, { method: "POST" });
+        analysisJobs[mode] = job;
+        renderAnalysisJob(mode, job);
+        pollAnalysis(mode, job.job_id);
+      } catch (e) {
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start analysis", "err");
+      }
+    },
+
+    async cancelAnalysis(btn) {
+      var mode = btn.dataset.mode;
+      var job = analysisJobs[mode];
+      if (!job || !job.job_id) return;
+      btn.disabled = true;
+      try {
+        var updated = await api(
+          "/commands/library-analysis-jobs/" + job.job_id + "/cancel",
+          { method: "POST" }
+        );
+        analysisJobs[mode] = updated;
+        renderAnalysisJob(mode, updated);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not cancel analysis", "err");
+      }
     },
 
     async cmd(btn) {
