@@ -85,6 +85,7 @@ def get_spotipy_client(
     scope = [
         "playlist-modify-public",
         "playlist-modify-private",
+        "playlist-read-private",
         "user-library-read",
         "user-library-modify",
         "user-follow-read",

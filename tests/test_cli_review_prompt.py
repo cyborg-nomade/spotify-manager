@@ -120,3 +120,85 @@ def test_review_album_limits_command_handles_transient_server_error(
     output = capsys.readouterr().out
     assert "Spotify API temporarily unavailable (503) after 3 attempts" in output
     assert "Progress was saved up to the last successful removal." in output
+
+
+def test_review_artists_command_uses_configured_queues_and_limit(
+    monkeypatch,
+    capsys,
+) -> None:
+    spotify = object()
+    received: dict[str, object] = {}
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            the_queue_playlist="queue1",
+            the_queue_2_playlist="spotify:playlist:queue2",
+            the_queue_3_playlist="https://open.spotify.com/playlist/queue3",
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", lambda: spotify)
+
+    def complete_review(client, playlists, **kwargs):
+        received.update(
+            {
+                "client": client,
+                "playlists": playlists,
+                "limit": kwargs["limit"],
+                "refresh_cache": kwargs["refresh_cache"],
+            }
+        )
+        kwargs["progress_callback"](1, 1, "Complete")
+        return main.artist_review.ArtistReviewSummary(
+            total_pending_at_start=1,
+            reviewed=1,
+            unfollowed=0,
+            queued=0,
+            moved=1,
+            already_queued=0,
+            declined=0,
+            no_action=0,
+            skipped=0,
+            paused=False,
+        )
+
+    monkeypatch.setattr(main.artist_review, "review_artists", complete_review)
+
+    main.review_artists_command(refresh_cache=True, limit=1)
+
+    assert received["client"] is spotify
+    assert received["playlists"] == main.artist_review.QueuePlaylists(
+        "queue1", "queue2", "queue3"
+    )
+    assert received["limit"] == 1
+    assert received["refresh_cache"] is True
+    output = capsys.readouterr().out
+    assert "Artist review complete" in output
+    assert "Moved" in output
+
+
+def test_review_artists_command_handles_rate_limit(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            the_queue_playlist="queue1",
+            the_queue_2_playlist="queue2",
+            the_queue_3_playlist="queue3",
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", lambda: object())
+
+    def rate_limited(*_args, **_kwargs):
+        raise main.artist_review.SpotifyRateLimitError(120)
+
+    monkeypatch.setattr(main.artist_review, "review_artists", rate_limited)
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.review_artists_command(refresh_cache=False, limit=None)
+
+    assert exc.value.exit_code == 0
+    output = capsys.readouterr().out
+    assert "Spotify rate limit reached" in output
+    assert "try again in 2 minutes (at " in output
+    assert "pending automatic decisions were saved" in output

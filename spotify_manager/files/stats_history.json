@@ -328,5 +328,137 @@
     },
     "avg_albums_per_artists": 0,
     "avg_liked_tracks_per_artists": 0
+  },
+  "2026.07.15": {
+    "albums_stats": {
+      "total_saved_albums": 3971,
+      "removed_albums": 0,
+      "added_albums": 0,
+      "growth": 0.0
+    },
+    "artists_stats": {
+      "total_followed_artists": 44515,
+      "removed_artists": 2340,
+      "added_artists": 0,
+      "growth": -4.9941308291537725
+    },
+    "tracks_stats": {
+      "total_liked_tracks": 41294,
+      "removed_tracks": 0,
+      "added_tracks": 0,
+      "growth": 0.0
+    },
+    "avg_albums_per_artists": 0,
+    "avg_liked_tracks_per_artists": 0
+  },
+  "2026.07.16": {
+    "albums_stats": {
+      "total_saved_albums": 3971,
+      "removed_albums": 0,
+      "added_albums": 0,
+      "growth": 0.0
+    },
+    "artists_stats": {
+      "total_followed_artists": 42083,
+      "removed_artists": 2432,
+      "added_artists": 0,
+      "growth": -5.463326968437605
+    },
+    "tracks_stats": {
+      "total_liked_tracks": 41294,
+      "removed_tracks": 0,
+      "added_tracks": 0,
+      "growth": 0.0
+    },
+    "avg_albums_per_artists": 0,
+    "avg_liked_tracks_per_artists": 0
+  },
+  "2026.07.17": {
+    "albums_stats": {
+      "total_saved_albums": 3971,
+      "removed_albums": 0,
+      "added_albums": 0,
+      "growth": 0.0
+    },
+    "artists_stats": {
+      "total_followed_artists": 40526,
+      "removed_artists": 1557,
+      "added_artists": 0,
+      "growth": -3.6998312857923628
+    },
+    "tracks_stats": {
+      "total_liked_tracks": 41294,
+      "removed_tracks": 0,
+      "added_tracks": 0,
+      "growth": 0.0
+    },
+    "avg_albums_per_artists": 0,
+    "avg_liked_tracks_per_artists": 1
+  },
+  "2026.07.19": {
+    "albums_stats": {
+      "total_saved_albums": 3971,
+      "removed_albums": 0,
+      "added_albums": 0,
+      "growth": 0.0
+    },
+    "artists_stats": {
+      "total_followed_artists": 39921,
+      "removed_artists": 605,
+      "added_artists": 0,
+      "growth": -1.4928687756008487
+    },
+    "tracks_stats": {
+      "total_liked_tracks": 41294,
+      "removed_tracks": 0,
+      "added_tracks": 0,
+      "growth": 0.0
+    },
+    "avg_albums_per_artists": 0,
+    "avg_liked_tracks_per_artists": 1
+  },
+  "2026.07.20": {
+    "albums_stats": {
+      "total_saved_albums": 3971,
+      "removed_albums": 0,
+      "added_albums": 0,
+      "growth": 0.0
+    },
+    "artists_stats": {
+      "total_followed_artists": 38861,
+      "removed_artists": 1060,
+      "added_artists": 0,
+      "growth": -2.655244107111545
+    },
+    "tracks_stats": {
+      "total_liked_tracks": 41294,
+      "removed_tracks": 0,
+      "added_tracks": 0,
+      "growth": 0.0
+    },
+    "avg_albums_per_artists": 0,
+    "avg_liked_tracks_per_artists": 1
+  },
+  "2026.07.21": {
+    "albums_stats": {
+      "total_saved_albums": 3971,
+      "removed_albums": 0,
+      "added_albums": 0,
+      "growth": 0.0
+    },
+    "artists_stats": {
+      "total_followed_artists": 37893,
+      "removed_artists": 968,
+      "added_artists": 0,
+      "growth": -2.490929209232907
+    },
+    "tracks_stats": {
+      "total_liked_tracks": 41294,
+      "removed_tracks": 0,
+      "added_tracks": 0,
+      "growth": 0.0
+    },
+    "avg_albums_per_artists": 0,
+    "avg_liked_tracks_per_artists": 1
   }
 }
