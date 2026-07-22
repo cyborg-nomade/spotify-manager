@@ -48,6 +48,14 @@ def _library() -> YourLibraryFile:
 class FakeSpotify:
     """Minimal spotipy stand-in: only album_tracks is exercised."""
 
+    def __init__(self) -> None:
+        self.event_callback = None
+
+    def set_event_callback(self, callback):
+        previous = self.event_callback
+        self.event_callback = callback
+        return previous
+
     def album_tracks(self, album_id, limit=50, offset=0):
         return {
             "items": [
@@ -77,6 +85,10 @@ def client() -> TestClient:
 
 def test_health(client: TestClient) -> None:
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_auth_check(client: TestClient) -> None:
+    assert client.get("/auth/check").json() == {"status": "ok"}
 
 
 def test_artist_stats_endpoint(client: TestClient) -> None:
@@ -185,6 +197,9 @@ def test_sync_analysis_endpoint_uses_injected_no_retry_client(
 
     def complete_sync(spotify, **_kwargs):
         calls.append(spotify)
+        spotify.event_callback(
+            "Switching Spotify credentials to app5 and refreshing its token."
+        )
         return analysis_summary("sync")
 
     monkeypatch.setattr(
@@ -199,6 +214,11 @@ def test_sync_analysis_endpoint_uses_injected_no_retry_client(
     wait_for_job_status(client, response.json()["job_id"], {"completed"})
     assert len(calls) == 1
     assert isinstance(calls[0], FakeSpotify)
+    result = client.get(
+        f"/commands/library-analysis-jobs/{response.json()['job_id']}"
+    ).json()
+    assert any("credentials to app5" in entry["message"] for entry in result["logs"])
+    assert result["logs"][-1]["message"].startswith("Analysis completed")
 
 
 def test_live_analysis_job_can_be_cancelled_during_retry_wait(
@@ -230,6 +250,7 @@ def test_live_analysis_job_can_be_cancelled_during_retry_wait(
     job_id = started.json()["job_id"]
     waiting = wait_for_job_status(client, job_id, {"waiting"})
     assert waiting["retry_at"] is not None
+    assert any("Waiting until" in entry["message"] for entry in waiting["logs"])
 
     cancelled = client.post(f"/commands/library-analysis-jobs/{job_id}/cancel")
 
@@ -237,6 +258,7 @@ def test_live_analysis_job_can_be_cancelled_during_retry_wait(
     assert cancelled.json()["status"] == "cancelling"
     result = wait_for_job_status(client, job_id, {"cancelled"})
     assert "Progress was saved" in result["detail"]
+    assert any("Cancellation requested" in entry["message"] for entry in result["logs"])
 
 
 def test_duplicate_active_analysis_is_rejected(
@@ -265,3 +287,37 @@ def test_duplicate_active_analysis_is_rejected(
     assert second.status_code == 409
     assert second.json()["detail"]["job_id"] == first.json()["job_id"]
     wait_for_job_status(client, first.json()["job_id"], {"completed"})
+
+
+def test_active_analysis_jobs_can_be_restored_after_reload(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    release = api.Event()
+
+    def blocked_export(**kwargs):
+        kwargs["echo"]("Still reading exported albums.")
+        release.wait(2)
+        return analysis_summary("async")
+
+    monkeypatch.setattr(
+        api.library_analysis,
+        "analyse_library_async_routine",
+        blocked_export,
+    )
+
+    started = client.post("/commands/analyse-library-async").json()
+    active = client.get("/commands/library-analysis-jobs")
+
+    assert active.status_code == 200
+    assert [job["job_id"] for job in active.json()] == [started["job_id"]]
+    assert any(
+        entry["message"] == "Still reading exported albums."
+        for entry in active.json()[0]["logs"]
+    )
+
+    release.set()
+    wait_for_job_status(client, started["job_id"], {"completed"})
+    assert client.get("/commands/library-analysis-jobs").json() == []

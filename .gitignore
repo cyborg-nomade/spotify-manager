@@ -136,8 +136,8 @@ spotify_manager/files/artist_review_cache.json
 spotify_manager/files/library_sync/
 spotify_manager/files/library_sync_backups/
 
-# Local/deployment OAuth token cache. Seed from SPOTIPY_CACHE_JSON instead.
-spotify_manager/auth/spotipy_token_cache.json
+# Local/deployment OAuth token caches. Seed from Space secrets instead.
+spotify_manager/auth/spotipy_token_cache*.json
 
 # Spyder project settings
 .spyderproject

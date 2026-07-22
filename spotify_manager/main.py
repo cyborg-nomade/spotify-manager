@@ -25,6 +25,8 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
+from spotify_manager.client import RotatingSpotify
+from spotify_manager.client import SpotifyClientConfigurationError
 from spotify_manager.client import SpotifyRedirectURIError
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
@@ -72,8 +74,8 @@ def client() -> Spotify:
     global _client
     if _client is None:
         try:
-            _client = get_spotipy_client()
-        except SpotifyRedirectURIError as exc:
+            _client = get_spotipy_client(event_callback=typer.echo)
+        except (SpotifyRedirectURIError, SpotifyClientConfigurationError) as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
     return _client
@@ -88,8 +90,9 @@ def review_client() -> Spotify:
                 retries=0,
                 status_retries=0,
                 status_forcelist=DISABLED_SPOTIFY_STATUS_FORCELIST,
+                event_callback=typer.echo,
             )
-        except SpotifyRedirectURIError as exc:
+        except (SpotifyRedirectURIError, SpotifyClientConfigurationError) as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
     return _review_client
@@ -271,12 +274,27 @@ def count_artists() -> None:
     print(count_artists_in_library())
 
 
+@app.command(name="refresh-spotify-tokens")
+def refresh_spotify_tokens() -> None:
+    """Authenticate or force-refresh every configured Spotify app token."""
+    spotify = review_client()
+    if not isinstance(spotify, RotatingSpotify):
+        raise typer.BadParameter("the configured client does not support app rotation")
+    try:
+        refreshed = spotify.refresh_all_app_tokens()
+    except Exception as exc:
+        typer.echo(f"Spotify token refresh failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Spotify tokens ready: {', '.join(refreshed)}")
+
+
 def wait_for_library_retry(
     console: Console,
     notice: library_sync.RetryNotice,
+    spotify: Spotify,
     progress: Progress | None = None,
 ) -> bool:
-    """Wait for a Spotify retry while accepting ``q`` without Enter."""
+    """Wait for a retry while accepting rotate or quit without Enter."""
     if progress is not None:
         progress.stop()
     retry_at = datetime.now().astimezone() + timedelta(seconds=notice.delay_seconds)
@@ -286,7 +304,7 @@ def wait_for_library_retry(
     )
     console.print(
         f"Retry {notice.attempt} at {retry_at.isoformat(timespec='seconds')}. "
-        "Press q to save and quit.",
+        "Press r to rotate credentials and retry now, or q to save and quit.",
         style="yellow",
     )
     try:
@@ -306,7 +324,8 @@ def wait_for_library_retry(
                         return True
                     live.update(
                         Text(
-                            f"Retrying in {remaining} seconds. Press q to quit.",
+                            f"Retrying in {remaining} seconds. "
+                            "Press r to rotate or q to quit.",
                             style="yellow",
                         )
                     )
@@ -316,8 +335,33 @@ def wait_for_library_retry(
                         [],
                         min(1.0, remaining),
                     )
-                    if readable and sys.stdin.read(1).lower() == "q":
-                        return False
+                    if readable:
+                        action = sys.stdin.read(1).lower()
+                        if action == "q":
+                            return False
+                        if action == "r":
+                            rotate = getattr(spotify, "rotate_credentials", None)
+                            if not callable(rotate):
+                                console.print(
+                                    "This Spotify client cannot rotate credentials; "
+                                    "continuing the retry wait.",
+                                    style="bold yellow",
+                                )
+                                continue
+                            try:
+                                label = rotate()
+                            except Exception as exc:
+                                console.print(
+                                    f"Could not rotate credentials: {exc} "
+                                    "Continuing the retry wait.",
+                                    style="bold yellow",
+                                )
+                                continue
+                            console.print(
+                                f"Rotated to {label}; retrying now.",
+                                style="bold green",
+                            )
+                            return True
         finally:
             termios.tcsetattr(descriptor, termios.TCSADRAIN, old_settings)
     finally:
@@ -414,8 +458,9 @@ def run_library_analysis(mode: library_sync.AnalysisMode) -> None:
                     progress_callback=update_progress,
                 )
             else:
+                spotify = review_client()
                 summary = library_sync.analyse_library_sync_routine(
-                    review_client(),
+                    spotify,
                     echo=lambda line: console.print(
                         line,
                         style="yellow",
@@ -425,6 +470,7 @@ def run_library_analysis(mode: library_sync.AnalysisMode) -> None:
                     retry_wait=lambda notice: wait_for_library_retry(
                         console,
                         notice,
+                        spotify,
                         progress_ref,
                     ),
                 )

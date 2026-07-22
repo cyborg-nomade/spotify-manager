@@ -13,6 +13,7 @@ jobs with pollable progress. The parsed library is cached; call
 ``POST /library/refresh`` after re-exporting YourLibrary.json.
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
@@ -33,6 +34,7 @@ from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from pydantic import Field
 from spotipy import Spotify
 
 # UFI
@@ -92,6 +94,14 @@ class AnalysisResourceProgress(BaseModel):
     status: str = "Queued"
 
 
+class AnalysisJobLog(BaseModel):
+    """One timestamped analysis event shown by the web interface."""
+
+    sequence: int
+    timestamp: str
+    message: str
+
+
 class AnalysisJobResult(BaseModel):
     """Pollable state for one background library analysis."""
 
@@ -105,6 +115,7 @@ class AnalysisJobResult(BaseModel):
     run_id: str | None = None
     backup_dir: str | None = None
     resources: dict[str, AnalysisResourceProgress]
+    logs: list[AnalysisJobLog] = Field(default_factory=list)
 
 
 @dataclass
@@ -113,17 +124,20 @@ class _AnalysisJob:
 
     result: AnalysisJobResult
     cancel_event: Event
+    next_log_sequence: int = 1
 
 
 _analysis_jobs: dict[str, _AnalysisJob] = {}
 _analysis_jobs_lock = Lock()
 _ACTIVE_JOB_STATUSES = {"queued", "running", "waiting", "cancelling"}
+_MAX_ANALYSIS_LOGS = 250
+_analysis_logger = logging.getLogger(__name__)
 
 
 @lru_cache
 def get_client() -> Spotify:
     """Provide a cached spotipy client (overridable in tests)."""
-    return get_spotipy_client()
+    return get_spotipy_client(allow_interactive_auth=False)
 
 
 @lru_cache
@@ -133,6 +147,7 @@ def get_analysis_client() -> Spotify:
         retries=0,
         status_retries=0,
         status_forcelist=(999,),
+        allow_interactive_auth=False,
     )
 
 
@@ -150,6 +165,22 @@ LibraryDep = Annotated[YourLibraryFile, Depends(get_library)]
 def _job_snapshot(job: _AnalysisJob) -> AnalysisJobResult:
     """Return an isolated response model for one mutable job."""
     return job.result.model_copy(deep=True)
+
+
+def _append_job_log_locked(job: _AnalysisJob, message: str) -> None:
+    """Append one bounded log entry while the caller holds the jobs lock."""
+    if not message:
+        return
+    job.result.logs.append(
+        AnalysisJobLog(
+            sequence=job.next_log_sequence,
+            timestamp=datetime.now(UTC).isoformat(),
+            message=message,
+        )
+    )
+    job.next_log_sequence += 1
+    if len(job.result.logs) > _MAX_ANALYSIS_LOGS:
+        del job.result.logs[: len(job.result.logs) - _MAX_ANALYSIS_LOGS]
 
 
 def get_analysis_job(job_id: str) -> _AnalysisJob:
@@ -172,6 +203,7 @@ def _run_analysis_job(
         job.result.status = "running"
         job.result.started_at = datetime.now(UTC).isoformat()
         job.result.detail = "Analysis started"
+        _append_job_log_locked(job, f"{mode.title()} analysis started.")
 
     def progress_callback(
         resource: library_analysis.ResourceName,
@@ -181,15 +213,25 @@ def _run_analysis_job(
     ) -> None:
         with _analysis_jobs_lock:
             progress = job.result.resources[resource]
+            status_changed = progress.status != progress_status
             progress.completed = completed
             progress.total = total
             progress.status = progress_status
             if job.result.status != "cancelling":
                 job.result.status = "running"
                 job.result.detail = f"{resource.title()}: {progress_status}"
+            if status_changed:
+                count = str(completed)
+                if total is not None:
+                    count = f"{completed} / {max(completed, total)}"
+                _append_job_log_locked(
+                    job,
+                    f"{resource.title()}: {progress_status} ({count}).",
+                )
 
     def echo(line: str) -> None:
         with _analysis_jobs_lock:
+            _append_job_log_locked(job, line)
             if job.result.status not in {"waiting", "cancelling"}:
                 job.result.detail = line
 
@@ -202,13 +244,25 @@ def _run_analysis_job(
                 f"Spotify HTTP {notice.http_status}; retry {notice.attempt} "
                 f"while {notice.operation}"
             )
+            _append_job_log_locked(
+                job,
+                f"Waiting until {retry_at.isoformat()} before retry "
+                f"{notice.attempt} after Spotify HTTP {notice.http_status} "
+                f"while {notice.operation}. Cancel to save and stop.",
+            )
         cancelled = job.cancel_event.wait(notice.delay_seconds)
         with _analysis_jobs_lock:
             job.result.retry_at = None
             if not cancelled:
                 job.result.status = "running"
                 job.result.detail = "Retrying Spotify request"
+                _append_job_log_locked(job, "Retrying Spotify request now.")
         return not cancelled
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
 
     try:
         if mode == "async":
@@ -233,6 +287,7 @@ def _run_analysis_job(
         with _analysis_jobs_lock:
             job.result.status = "cancelled"
             job.result.detail = f"{exc} Progress was saved."
+            _append_job_log_locked(job, job.result.detail)
     except library_analysis.SpotifyRateLimitError as exc:
         retry_at = None
         if exc.retry_after_seconds is not None:
@@ -241,21 +296,39 @@ def _run_analysis_job(
             job.result.status = "paused"
             job.result.retry_at = retry_at.isoformat() if retry_at else None
             job.result.detail = "Spotify rate limit reached. Progress was saved."
+            _append_job_log_locked(job, job.result.detail)
     except library_analysis.LibrarySyncError as exc:
         with _analysis_jobs_lock:
             job.result.status = "failed"
             job.result.detail = str(exc)
+            _append_job_log_locked(job, f"Analysis failed: {exc}")
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected library analysis error")
         with _analysis_jobs_lock:
             job.result.status = "failed"
             job.result.detail = f"Unexpected analysis error: {exc}"
+            _append_job_log_locked(job, job.result.detail)
     else:
         with _analysis_jobs_lock:
             job.result.status = "completed"
             job.result.detail = "Analysis completed"
             job.result.run_id = summary.run_id
             job.result.backup_dir = summary.backup_dir
+            for resource in summary.resources:
+                _append_job_log_locked(
+                    job,
+                    f"{resource.resource.title()}: {resource.previous} -> "
+                    f"{resource.current} (+{resource.added}, "
+                    f"-{resource.removed}, skipped {resource.skipped}).",
+                )
+            _append_job_log_locked(
+                job,
+                f"Analysis completed. Run {summary.run_id}; "
+                f"backup {summary.backup_dir}.",
+            )
     finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
         with _analysis_jobs_lock:
             job.result.completed_at = datetime.now(UTC).isoformat()
 
@@ -291,6 +364,7 @@ def start_analysis_job(
             ),
             cancel_event=Event(),
         )
+        _append_job_log_locked(job, f"{mode.title()} analysis queued.")
         _analysis_jobs[job_id] = job
         snapshot = _job_snapshot(job)
 
@@ -326,6 +400,12 @@ def _ambiguous_album(request: Request, exc: AmbiguousAlbumError) -> JSONResponse
 @app.get("/health")
 def health() -> dict[str, str]:
     """Liveness probe."""
+    return {"status": "ok"}
+
+
+@app.get("/auth/check")
+def auth_check() -> dict[str, str]:
+    """Side-effect-free password check protected by the deployment middleware."""
     return {"status": "ok"}
 
 
@@ -455,6 +535,20 @@ def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
 
 
 @app.get(
+    "/commands/library-analysis-jobs",
+    response_model=list[AnalysisJobResult],
+)
+def cmd_active_library_analysis_jobs() -> list[AnalysisJobResult]:
+    """Return active analyses so the web UI can reconnect after a reload."""
+    with _analysis_jobs_lock:
+        return [
+            _job_snapshot(job)
+            for job in _analysis_jobs.values()
+            if job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
     "/commands/library-analysis-jobs/{job_id}",
     response_model=AnalysisJobResult,
 )
@@ -478,6 +572,7 @@ def cmd_cancel_library_analysis_job(job_id: str) -> AnalysisJobResult:
         job.cancel_event.set()
         job.result.status = "cancelling"
         job.result.detail = "Saving progress and stopping"
+        _append_job_log_locked(job, "Cancellation requested; saving progress.")
         return _job_snapshot(job)
 
 
