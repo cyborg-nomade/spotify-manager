@@ -25,3 +25,4 @@ class Settings(BaseSettings):
     the_queue_playlist: str | None = None
     the_queue_2_playlist: str | None = None
     the_queue_3_playlist: str | None = None
+    blast_from_the_past_playlist: str | None = None

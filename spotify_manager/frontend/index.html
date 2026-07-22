@@ -66,6 +66,31 @@
   [hidden] { display: none !important; }
   .btns { display: grid; gap: 10px; margin-top: 12px; }
 
+  .mode-switch {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px;
+  }
+  .mode-switch button { padding: 9px 10px; border-radius: 5px; background: transparent; color: var(--muted); }
+  .mode-switch button.active { background: var(--green); color: #04160b; }
+  .blast-control { margin-top: 12px; }
+  .blast-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 12px;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  }
+  .blast-summary > div { padding: 10px 6px; text-align: center; border-left: 1px solid var(--border); }
+  .blast-summary > div:first-child { border-left: 0; }
+  .blast-summary strong { display: block; font-size: 1.1rem; }
+  .blast-summary span { color: var(--muted); font-size: .68rem; text-transform: uppercase; }
+  .blast-selection { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .blast-selection:last-child { border-bottom: 0; }
+  .blast-selection-title { font-size: .82rem; font-weight: 700; overflow-wrap: anywhere; }
+  .blast-selection-match { margin-top: 3px; color: var(--muted); font-size: .76rem; overflow-wrap: anywhere; }
+  .blast-selection-meta { margin-top: 4px; font-size: .68rem; color: var(--muted); }
+  .blast-action { font-weight: 700; }
+  .blast-action.added { color: var(--green); }
+  .blast-action.no-match { color: var(--red); }
+  .blast-action.already-present, .blast-action.duplicate-selection { color: var(--amber); }
+
   .result { margin-top: 14px; display: none; }
   .result.show { display: block; }
   .badge { display: inline-block; padding: 5px 12px; border-radius: 999px; font-weight: 700; font-size: .8rem; }
@@ -169,6 +194,26 @@
       <div class="status" id="health"><span class="pill"></span><span id="healthTxt">checking…</span></div>
     </header>
 
+    <section class="card" id="blastCard">
+      <h2>A blast from the past</h2>
+      <div class="mode-switch" role="group" aria-label="Playlist target mode">
+        <button class="active" data-action="blastMode" data-blast-mode="count" aria-pressed="true">Count</button>
+        <button data-action="blastMode" data-blast-mode="maximum" aria-pressed="false">Playlist cap</button>
+      </div>
+      <div class="blast-control" id="blastCountControl">
+        <label for="blastCount">Tracks to process</label>
+        <input id="blastCount" type="number" min="1" step="1" value="10" inputmode="numeric" />
+      </div>
+      <div class="blast-control" id="blastMaximumControl" hidden>
+        <label for="blastMaximum">Maximum playlist length</label>
+        <input id="blastMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
+      </div>
+      <div class="btns">
+        <button class="primary" data-action="startBlast">Add tracks</button>
+      </div>
+      <div class="analysis-progress" id="blastProgress"></div>
+    </section>
+
     <!-- Artist stats -->
     <section class="card">
       <h2>Artist stats</h2>
@@ -270,6 +315,7 @@
   var toast = document.getElementById("toast");
   var toastTimer = null;
   var analysisJobs = {};
+  var blastJob = null;
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -426,8 +472,139 @@
     }
   }
 
+  function renderBlastJob(job) {
+    var out = document.getElementById("blastProgress");
+    var start = document.querySelector('[data-action="startBlast"]');
+    var summary = "";
+    if (typeof job.added === "number") {
+      summary = '<div class="blast-summary">' +
+        '<div><strong>' + esc(job.added) + '</strong><span>Added</span></div>' +
+        '<div><strong>' + esc(job.playlist_length_before) + '</strong><span>Before</span></div>' +
+        '<div><strong>' + esc(job.playlist_length_after) + '</strong><span>After</span></div>' +
+        '</div>';
+    }
+    var selections = (job.selections || []).map(function (item) {
+      var actionClass = String(item.action || "").replace(/\s+/g, "-");
+      var trackScore = typeof item.track_similarity === "number"
+        ? Math.round(item.track_similarity * 100) + "% track"
+        : "";
+      var albumScore = typeof item.album_similarity === "number"
+        ? Math.round(item.album_similarity * 100) + "% album"
+        : "album n/a";
+      var liked = item.liked === true ? "liked" : (item.liked === false ? "unliked" : "");
+      var match = item.spotify_match || "No qualifying Spotify match";
+      return '<div class="blast-selection">' +
+        '<div class="blast-selection-title">' + esc(item.selected_date) + ' · ' + esc(item.lastfm_scrobble) + '</div>' +
+        '<div class="blast-selection-match">' + esc(match) + '</div>' +
+        '<div class="blast-selection-meta">page ' + esc(item.page) + '/' + esc(item.total_pages) +
+          ' · ' + esc(item.direction) + ' · #' + esc(item.position) +
+          (liked ? ' · ' + esc(liked) : '') +
+          (trackScore ? ' · ' + esc(trackScore) : '') + ' · ' + esc(albumScore) +
+          ' · <span class="blast-action ' + esc(actionClass) + '">' + esc(item.action) + '</span></div>' +
+        '</div>';
+    }).join("");
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity…</span></div>';
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(job.detail || job.status) + '</div>' +
+      summary + selections + '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    if (isAnalysisActive(job.status) && !start.disabled) setBusy(start, true, "Running…");
+    if (!isAnalysisActive(job.status)) setBusy(start, false);
+  }
+
+  async function pollBlast(jobId) {
+    try {
+      var job = await api("/commands/blast-from-the-past-jobs/" + jobId);
+      blastJob = job;
+      renderBlastJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollBlast(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Playlist routine finished", "ok");
+      } else {
+        showToast("Playlist routine " + job.status, "err");
+      }
+    } catch (e) {
+      var out = document.getElementById("blastProgress");
+      var start = document.querySelector('[data-action="startBlast"]');
+      renderError(out, e);
+      setBusy(start, false);
+      showToast("Could not read playlist progress", "err");
+    }
+  }
+
+  async function restoreActiveBlastJobs() {
+    try {
+      var jobs = await api("/commands/blast-from-the-past-jobs");
+      if (!jobs.length) return;
+      blastJob = jobs[jobs.length - 1];
+      renderBlastJob(blastJob);
+      pollBlast(blastJob.job_id);
+      showToast("Reconnected to playlist routine", "ok");
+    } catch (e) {
+      if (e.status !== 401) showToast("Could not restore playlist progress", "err");
+    }
+  }
+
   // ---- Actions -----------------------------------------------------------
   var actions = {
+    blastMode(btn) {
+      var mode = btn.dataset.blastMode;
+      document.querySelectorAll('[data-action="blastMode"]').forEach(function (item) {
+        var active = item === btn;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      document.getElementById("blastCountControl").hidden = mode !== "count";
+      document.getElementById("blastMaximumControl").hidden = mode !== "maximum";
+    },
+
+    async startBlast(btn) {
+      var selectedMode = document.querySelector('[data-action="blastMode"].active').dataset.blastMode;
+      var input = selectedMode === "count"
+        ? document.getElementById("blastCount")
+        : document.getElementById("blastMaximum");
+      var value = Number(input.value);
+      var out = document.getElementById("blastProgress");
+      if (!Number.isInteger(value) || value < 1) {
+        showToast("Enter a positive whole number", "err");
+        input.focus();
+        return;
+      }
+      var q = new URLSearchParams();
+      q.set(selectedMode === "count" ? "count" : "max_playlist_length", String(value));
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api("/commands/blast-from-the-past?" + q.toString(), { method: "POST" });
+        blastJob = job;
+        renderBlastJob(job);
+        pollBlast(job.job_id);
+      } catch (e) {
+        var activeJobId = e.status === 409 && e.data && e.data.detail && e.data.detail.job_id;
+        if (activeJobId) {
+          await pollBlast(activeJobId);
+          showToast("Reconnected to playlist routine", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start playlist routine", "err");
+      }
+    },
+
     async artistStats(btn) {
       var name = document.getElementById("artistName").value.trim();
       var id = document.getElementById("artistId").value.trim();
@@ -633,6 +810,7 @@
     app.classList.remove("hidden");
     checkHealth();
     restoreActiveAnalysisJobs();
+    restoreActiveBlastJobs();
     return true;
   }
 
