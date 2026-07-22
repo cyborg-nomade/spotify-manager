@@ -101,6 +101,10 @@ count-artists *args:
 blast-from-the-past *args:
     {{ cli }} blast-from-the-past "$@"
 
+# Add tracks from today's Last.fm anniversaries to Daily Mind Radio.
+daily-mind-radio *args:
+    {{ cli }} daily-mind-radio "$@"
+
 # Authenticate or force-refresh every configured Spotify app token.
 refresh-spotify-tokens *args:
     {{ cli }} refresh-spotify-tokens "$@"

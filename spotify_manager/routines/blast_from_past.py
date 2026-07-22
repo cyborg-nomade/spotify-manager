@@ -1,5 +1,8 @@
 """Select past Last.fm scrobbles using the music-listening rules."""
 
+import base64
+import binascii
+import gzip
 import json
 import re
 from collections.abc import Callable
@@ -148,6 +151,14 @@ class SpotifySelectionResult:
 
 
 @dataclass(frozen=True)
+class SpotifySelectionResolution:
+    """Resolved Spotify matches and tracks waiting to be added."""
+
+    results: tuple[SpotifySelectionResult, ...]
+    pending_matches: tuple[SpotifyTrackMatch, ...]
+
+
+@dataclass(frozen=True)
 class BlastFromPastSpotifySummary:
     """Completed Spotify playlist update for one command invocation."""
 
@@ -177,13 +188,70 @@ def load_scrobbles_by_date(
     path: Path = DEFAULT_SCROBBLES_PATH,
 ) -> dict[date, list[Scrobble]]:
     """Load every export scrobble into Berlin-local Last.fm date buckets."""
+    compressed_path = Path(f"{path}.gz")
+    compressed_parts = tuple(sorted(path.parent.glob(f"{path.name}.gz.part-*")))
+    encoded_parts = tuple(
+        sorted(path.parent.glob(f"{path.name}.gz.b64.part-*"))
+    )
+    failures: list[str] = []
+    payload: object | None = None
+
     try:
-        with path.open() as export_file:
+        with path.open(encoding="utf-8") as export_file:
             payload = json.load(export_file)
     except OSError as exc:
-        raise LastFmExportError(f"Could not read Last.fm export {path}: {exc}") from exc
+        failures.append(f"could not read {path}: {exc}")
     except json.JSONDecodeError as exc:
-        raise LastFmExportError(f"Last.fm export is not valid JSON: {path}") from exc
+        failures.append(
+            f"{path} is not valid JSON: {exc.msg} "
+            f"at line {exc.lineno}, column {exc.colno}"
+        )
+
+    if payload is None and compressed_path.exists():
+        try:
+            with gzip.open(compressed_path, mode="rt", encoding="utf-8") as export_file:
+                payload = json.load(export_file)
+        except OSError as exc:
+            failures.append(f"could not read {compressed_path}: {exc}")
+        except json.JSONDecodeError as exc:
+            failures.append(
+                f"{compressed_path} is not valid JSON: {exc.msg} "
+                f"at line {exc.lineno}, column {exc.colno}"
+            )
+
+    if payload is None and compressed_parts:
+        try:
+            compressed = b"".join(part.read_bytes() for part in compressed_parts)
+            payload = json.loads(gzip.decompress(compressed))
+        except (OSError, UnicodeError) as exc:
+            failures.append(
+                "could not read compressed Last.fm export parts "
+                f"{compressed_parts[0].parent}: {exc}"
+            )
+        except json.JSONDecodeError as exc:
+            failures.append(
+                "compressed Last.fm export parts are not valid JSON: "
+                f"{exc.msg} at line {exc.lineno}, column {exc.colno}"
+            )
+
+    if payload is None and encoded_parts:
+        try:
+            encoded = b"".join(part.read_bytes() for part in encoded_parts)
+            compressed = base64.b64decode(encoded)
+            payload = json.loads(gzip.decompress(compressed))
+        except (OSError, UnicodeError, binascii.Error) as exc:
+            failures.append(
+                "could not read encoded Last.fm export parts "
+                f"{encoded_parts[0].parent}: {exc}"
+            )
+        except json.JSONDecodeError as exc:
+            failures.append(
+                "encoded Last.fm export parts are not valid JSON: "
+                f"{exc.msg} at line {exc.lineno}, column {exc.colno}"
+            )
+
+    if payload is None:
+        raise LastFmExportError("Last.fm export failed: " + "; ".join(failures))
 
     raw_scrobbles = payload.get("scrobbles") if isinstance(payload, dict) else None
     if not isinstance(raw_scrobbles, list):
@@ -237,12 +305,13 @@ def eligible_dates(
     )
 
 
-def parse_playlist_id(reference: str | None) -> str:
+def parse_playlist_id(
+    reference: str | None,
+    setting_name: str = "BLAST_FROM_THE_PAST_PLAYLIST",
+) -> str:
     """Extract a Spotify playlist id from a URL, URI, or bare id."""
     if not reference or not reference.strip():
-        raise BlastFromPastConfigError(
-            "BLAST_FROM_THE_PAST_PLAYLIST is not configured."
-        )
+        raise BlastFromPastConfigError(f"{setting_name} is not configured.")
 
     value = reference.strip()
     patterns = (
@@ -254,9 +323,7 @@ def parse_playlist_id(reference: str | None) -> str:
         match = re.search(pattern, value)
         if match:
             return match.group("id")
-    raise BlastFromPastConfigError(
-        f"Invalid BLAST_FROM_THE_PAST_PLAYLIST reference: {reference}"
-    )
+    raise BlastFromPastConfigError(f"Invalid {setting_name} reference: {reference}")
 
 
 def normalize_name(value: str) -> str:
@@ -528,6 +595,11 @@ def fetch_random_indexes(population_size: int, count: int) -> RandomIndexSet:
     )
 
 
+def fetch_random_timestamp() -> datetime:
+    """Return the UTC timestamp from a minimal Random.org generation request."""
+    return fetch_random_indexes(population_size=2, count=1).generated_at
+
+
 def page_for_timestamp(generated_at: datetime, total_pages: int) -> int:
     """Map the Random.org timestamp to a wrapped Last.fm page number."""
     if total_pages < 1:
@@ -682,6 +754,56 @@ def add_spotify_matches(
         )
 
 
+def resolve_spotify_selections(
+    sp: Spotify,
+    selections: tuple[ScrobbleSelection, ...],
+    playlist: PlaylistState,
+    progress_callback: ProgressCallback | None = None,
+) -> SpotifySelectionResolution:
+    """Resolve selected scrobbles and identify new playlist tracks."""
+    match_groups: list[tuple[SpotifyTrackMatch, ...]] = []
+    for index, selection in enumerate(selections, start=1):
+        if progress_callback is not None:
+            progress_callback(f"Searching Spotify track {index}/{len(selections)}")
+        match_groups.append(search_spotify_matches(sp, selection.scrobble))
+
+    if progress_callback is not None:
+        progress_callback("Checking liked Spotify matches")
+    liked_ids = liked_spotify_track_ids(sp, match_groups)
+
+    pending_matches: list[SpotifyTrackMatch] = []
+    pending_ids: set[str] = set()
+    results: list[SpotifySelectionResult] = []
+    for selection, matches in zip(selections, match_groups, strict=True):
+        qualifying_matches = qualifying_spotify_matches(matches, liked_ids)
+        match = preferred_spotify_match(matches, liked_ids)
+        if match is None:
+            action: Literal[
+                "added", "already present", "duplicate selection", "no match"
+            ] = "no match"
+        elif match.spotify_id in playlist.track_ids:
+            action = "already present"
+        elif match.spotify_id in pending_ids:
+            action = "duplicate selection"
+        else:
+            action = "added"
+            pending_ids.add(match.spotify_id)
+            pending_matches.append(match)
+        results.append(
+            SpotifySelectionResult(
+                selection=selection,
+                match=match,
+                qualifying_matches=len(qualifying_matches),
+                action=action,
+            )
+        )
+
+    return SpotifySelectionResolution(
+        results=tuple(results),
+        pending_matches=tuple(pending_matches),
+    )
+
+
 def add_blast_from_past_to_spotify(
     sp: Spotify,
     playlist_id: str,
@@ -726,55 +848,25 @@ def add_blast_from_past_to_spotify(
         progress_callback=progress_callback,
     )
 
-    match_groups: list[tuple[SpotifyTrackMatch, ...]] = []
-    for index, selection in enumerate(batch.selections, start=1):
+    resolution = resolve_spotify_selections(
+        sp,
+        batch.selections,
+        playlist,
+        progress_callback,
+    )
+
+    if resolution.pending_matches:
         if progress_callback is not None:
             progress_callback(
-                f"Searching Spotify track {index}/{len(batch.selections)}"
+                f"Adding {len(resolution.pending_matches)} tracks to Spotify"
             )
-        match_groups.append(search_spotify_matches(sp, selection.scrobble))
-
-    if progress_callback is not None:
-        progress_callback("Checking liked Spotify matches")
-    liked_ids = liked_spotify_track_ids(sp, match_groups)
-
-    pending_matches: list[SpotifyTrackMatch] = []
-    pending_ids: set[str] = set()
-    provisional_results: list[SpotifySelectionResult] = []
-    for selection, matches in zip(batch.selections, match_groups, strict=True):
-        qualifying_matches = qualifying_spotify_matches(matches, liked_ids)
-        match = preferred_spotify_match(matches, liked_ids)
-        if match is None:
-            action: Literal[
-                "added", "already present", "duplicate selection", "no match"
-            ] = "no match"
-        elif match.spotify_id in playlist.track_ids:
-            action = "already present"
-        elif match.spotify_id in pending_ids:
-            action = "duplicate selection"
-        else:
-            action = "added"
-            pending_ids.add(match.spotify_id)
-            pending_matches.append(match)
-        provisional_results.append(
-            SpotifySelectionResult(
-                selection=selection,
-                match=match,
-                qualifying_matches=len(qualifying_matches),
-                action=action,
-            )
-        )
-
-    if pending_matches:
-        if progress_callback is not None:
-            progress_callback(f"Adding {len(pending_matches)} tracks to Spotify")
-        add_spotify_matches(sp, playlist_id, pending_matches)
+        add_spotify_matches(sp, playlist_id, list(resolution.pending_matches))
 
     return BlastFromPastSpotifySummary(
         playlist_id=playlist_id,
         requested_count=requested_count,
         playlist_length_before=playlist.total_items,
-        playlist_length_after=playlist.total_items + len(pending_matches),
+        playlist_length_after=playlist.total_items + len(resolution.pending_matches),
         batch=batch,
-        results=tuple(provisional_results),
+        results=resolution.results,
     )

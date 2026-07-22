@@ -1,5 +1,7 @@
 """Tests for the a-blast-from-the-past selection routine."""
 
+import base64
+import gzip
 import json
 from datetime import UTC
 from datetime import date
@@ -120,6 +122,82 @@ def test_load_scrobbles_uses_berlin_dates_and_newest_first(tmp_path: Path) -> No
     assert by_date[date(2007, 11, 27)][1].album == ""
 
 
+def test_load_scrobbles_falls_back_to_adjacent_gzip(tmp_path: Path) -> None:
+    export_path = tmp_path / "lastfm.json"
+    export_path.write_text(
+        "version https://git-lfs.github.com/spec/v1\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "scrobbles": [
+            {
+                "track": "Compressed track",
+                "artist": "Artist",
+                "album": "Album",
+                "date": 1196122253000,
+            }
+        ]
+    }
+    with gzip.open(f"{export_path}.gz", mode="wt", encoding="utf-8") as output:
+        json.dump(payload, output)
+
+    by_date = blast_from_past.load_scrobbles_by_date(export_path)
+
+    assert by_date[date(2007, 11, 27)][0].track == "Compressed track"
+
+
+def test_load_scrobbles_reassembles_compressed_parts(tmp_path: Path) -> None:
+    export_path = tmp_path / "lastfm.json"
+    export_path.write_text(
+        "version https://git-lfs.github.com/spec/v1\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "scrobbles": [
+            {
+                "track": "Split compressed track",
+                "artist": "Artist",
+                "album": "Album",
+                "date": 1196122253000,
+            }
+        ]
+    }
+    compressed = gzip.compress(json.dumps(payload).encode())
+    split_at = len(compressed) // 2
+    Path(f"{export_path}.gz.part-aa").write_bytes(compressed[:split_at])
+    Path(f"{export_path}.gz.part-ab").write_bytes(compressed[split_at:])
+
+    by_date = blast_from_past.load_scrobbles_by_date(export_path)
+
+    assert by_date[date(2007, 11, 27)][0].track == "Split compressed track"
+
+
+def test_load_scrobbles_reassembles_encoded_parts(tmp_path: Path) -> None:
+    export_path = tmp_path / "lastfm.json"
+    export_path.write_text(
+        "version https://git-lfs.github.com/spec/v1\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "scrobbles": [
+            {
+                "track": "Encoded compressed track",
+                "artist": "Artist",
+                "album": "Album",
+                "date": 1196122253000,
+            }
+        ]
+    }
+    encoded = base64.b64encode(gzip.compress(json.dumps(payload).encode()))
+    split_at = len(encoded) // 2
+    Path(f"{export_path}.gz.b64.part-aa").write_bytes(encoded[:split_at])
+    Path(f"{export_path}.gz.b64.part-ab").write_bytes(encoded[split_at:])
+
+    by_date = blast_from_past.load_scrobbles_by_date(export_path)
+
+    assert by_date[date(2007, 11, 27)][0].track == "Encoded compressed track"
+
+
 def test_fetch_random_indexes_reads_unique_set_and_server_timestamp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -181,6 +259,22 @@ def test_fetch_random_indexes_rejects_missing_timestamp(
 
     with pytest.raises(blast_from_past.RandomOrgError, match="timestamp"):
         blast_from_past.fetch_random_indexes(1, 1)
+
+
+def test_fetch_random_timestamp_uses_minimal_random_org_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generated_at = datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC)
+    calls: list[tuple[int, int]] = []
+
+    def fetch(population_size: int, count: int) -> blast_from_past.RandomIndexSet:
+        calls.append((population_size, count))
+        return blast_from_past.RandomIndexSet((1,), generated_at)
+
+    monkeypatch.setattr(blast_from_past, "fetch_random_indexes", fetch)
+
+    assert blast_from_past.fetch_random_timestamp() is generated_at
+    assert calls == [(2, 1)]
 
 
 def test_page_seven_requires_minute_zero_and_hour_after_twelve() -> None:

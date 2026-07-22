@@ -52,6 +52,7 @@ from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
+from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -139,7 +140,7 @@ class BlastSelectionResult(BaseModel):
 
 
 class BlastJobResult(BaseModel):
-    """Pollable state for one blast-from-the-past playlist job."""
+    """Pollable state for one Last.fm-based playlist job."""
 
     job_id: str
     command: str = "blast_from_the_past"
@@ -152,6 +153,8 @@ class BlastJobResult(BaseModel):
     playlist_length_after: int | None = None
     added: int | None = None
     random_org_timestamp: str | None = None
+    target_dates: list[str] = Field(default_factory=list)
+    missing_dates: list[str] = Field(default_factory=list)
     selections: list[BlastSelectionResult] = Field(default_factory=list)
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
@@ -262,11 +265,11 @@ def get_analysis_job(job_id: str) -> _AnalysisJob:
     return job
 
 
-def get_blast_job(job_id: str) -> _BlastJob:
+def get_blast_job(job_id: str, command: str | None = None) -> _BlastJob:
     """Return one playlist job or raise a conventional API 404."""
     with _blast_jobs_lock:
         job = _blast_jobs.get(job_id)
-    if job is None:
+    if job is None or (command is not None and job.result.command != command):
         raise HTTPException(status_code=404, detail="playlist job not found")
     return job
 
@@ -568,6 +571,89 @@ def _run_blast_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _run_daily_mind_radio_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+) -> None:
+    """Execute one Daily Mind Radio web job and retain its complete trace."""
+    job = get_blast_job(job_id, command="daily_mind_radio")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Playlist routine started"
+        _append_blast_log_locked(job, "Daily Mind Radio started.")
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
+            spotify,
+            playlist_id,
+            progress_callback=echo,
+        )
+    except (blast_from_past.BlastFromPastError, SpotifyException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Playlist routine failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Daily Mind Radio error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected playlist error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        selections = [_blast_selection_result(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "completed"
+            job.result.requested_count = len(summary.batch.selections)
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.added = summary.added
+            job.result.target_dates = [
+                target_date.isoformat() for target_date in summary.batch.target_dates
+            ]
+            job.result.missing_dates = [
+                missing_date.isoformat() for missing_date in summary.batch.missing_dates
+            ]
+            job.result.selections = selections
+            if summary.batch.generated_at is not None:
+                job.result.random_org_timestamp = summary.batch.generated_at.isoformat()
+            if summary.playlist_length_before is None:
+                job.result.detail = (
+                    "No anniversary dates had scrobbles; nothing was added."
+                )
+            else:
+                job.result.detail = (
+                    f"Added {summary.added} of {len(summary.batch.selections)} "
+                    f"populated dates; playlist {summary.playlist_length_before} -> "
+                    f"{summary.playlist_length_after}."
+                )
+            for selection in selections:
+                target = selection.spotify_match or "no qualifying Spotify match"
+                liked_label = " liked" if selection.liked else ""
+                _append_blast_log_locked(
+                    job,
+                    f"{selection.selected_date}: {selection.lastfm_scrobble} -> "
+                    f"{target} ({selection.action}{liked_label}).",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def start_blast_job(
     spotify: Spotify,
     playlist_id: str,
@@ -581,8 +667,9 @@ def start_blast_job(
                 raise HTTPException(
                     status_code=409,
                     detail={
-                        "message": "a blast-from-the-past job is already running",
+                        "message": "another playlist routine is already running",
                         "job_id": existing.result.job_id,
+                        "command": existing.result.command,
                     },
                 )
         job_id = uuid4().hex
@@ -595,6 +682,42 @@ def start_blast_job(
         target=_run_blast_job,
         args=(job_id, spotify, playlist_id, count, max_playlist_length),
         name=f"blast-from-the-past-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_daily_mind_radio_job(
+    spotify: Spotify,
+    playlist_id: str,
+) -> BlastJobResult:
+    """Start one Daily Mind Radio job, rejecting another playlist routine."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="daily_mind_radio",
+            )
+        )
+        _append_blast_log_locked(job, "Daily Mind Radio queued.")
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_daily_mind_radio_job,
+        args=(job_id, spotify, playlist_id),
+        name=f"daily-mind-radio-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -778,7 +901,8 @@ def cmd_active_blast_jobs() -> list[BlastJobResult]:
         return [
             _blast_job_snapshot(job)
             for job in _blast_jobs.values()
-            if job.result.status in _ACTIVE_JOB_STATUSES
+            if job.result.command == "blast_from_the_past"
+            and job.result.status in _ACTIVE_JOB_STATUSES
         ]
 
 
@@ -788,7 +912,50 @@ def cmd_active_blast_jobs() -> list[BlastJobResult]:
 )
 def cmd_blast_job(job_id: str) -> BlastJobResult:
     """Return current progress for one playlist job."""
-    job = get_blast_job(job_id)
+    job = get_blast_job(job_id, command="blast_from_the_past")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/daily-mind-radio",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_daily_mind_radio(client: ClientDep) -> BlastJobResult:
+    """Start a background Daily Mind Radio anniversary update."""
+    try:
+        playlist_id = blast_from_past.parse_playlist_id(
+            Settings().daily_mind_radio_playlist,
+            setting_name="DAILY_MIND_RADIO_PLAYLIST",
+        )
+    except blast_from_past.BlastFromPastConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_daily_mind_radio_job(client, playlist_id)
+
+
+@app.get(
+    "/commands/daily-mind-radio-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_daily_mind_radio_jobs() -> list[BlastJobResult]:
+    """Return active Daily Mind Radio jobs for web reload reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "daily_mind_radio"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/daily-mind-radio-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_daily_mind_radio_job(job_id: str) -> BlastJobResult:
+    """Return current progress for one Daily Mind Radio job."""
+    job = get_blast_job(job_id, command="daily_mind_radio")
     with _blast_jobs_lock:
         return _blast_job_snapshot(job)
 

@@ -37,6 +37,7 @@ from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_sync
 from spotify_manager.routines import blast_from_past
+from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
@@ -275,6 +276,58 @@ def count_artists() -> None:
     print(count_artists_in_library())
 
 
+def print_scrobble_selection_table(
+    console: Console,
+    title: str,
+    results: tuple[blast_from_past.SpotifySelectionResult, ...],
+) -> None:
+    """Print Last.fm selections and their Spotify outcomes."""
+    table = Table(title=title)
+    table.add_column("#", justify="right")
+    table.add_column("Date")
+    table.add_column("Rule")
+    table.add_column("Last.fm scrobble")
+    table.add_column("Spotify match")
+    table.add_column("Result")
+    action_styles = {
+        "added": "bold green",
+        "already present": "green",
+        "duplicate selection": "yellow",
+        "no match": "bold red",
+    }
+    for number, result in enumerate(results, start=1):
+        selection = result.selection
+        album = selection.scrobble.album or "(no album)"
+        scrobble_text = (
+            f"{selection.scrobble.artist} - {selection.scrobble.track} - {album}"
+        )
+        if result.match is None:
+            match_text = Text("No qualifying result", style="red")
+        else:
+            match_album = result.match.album or "(no album)"
+            liked = "liked" if result.match.liked else "unliked"
+            album_score = (
+                "n/a"
+                if result.match.album_similarity is None
+                else f"{result.match.album_similarity:.0%}"
+            )
+            match_text = Text(
+                f"{', '.join(result.match.artists)} - {result.match.track} - "
+                f"{match_album}\n{liked}; track {result.match.track_similarity:.0%}, "
+                f"album {album_score}; {result.qualifying_matches} qualified"
+            )
+        table.add_row(
+            str(number),
+            selection.selected_date.isoformat(),
+            f"page {selection.page}/{selection.total_pages}, "
+            f"{selection.direction}, #{selection.position}",
+            Text(scrobble_text),
+            match_text,
+            Text(result.action, style=action_styles[result.action]),
+        )
+    console.print(table)
+
+
 @app.command(name="blast-from-the-past")
 def blast_from_the_past_command(
     count: int | None = typer.Option(
@@ -348,54 +401,76 @@ def blast_from_the_past_command(
         style="dim",
     )
 
-    table = Table(title="A blast from the past")
-    table.add_column("#", justify="right")
-    table.add_column("Date")
-    table.add_column("Rule")
-    table.add_column("Last.fm scrobble")
-    table.add_column("Spotify match")
-    table.add_column("Result")
-    action_styles = {
-        "added": "bold green",
-        "already present": "green",
-        "duplicate selection": "yellow",
-        "no match": "bold red",
-    }
-    for number, result in enumerate(summary.results, start=1):
-        selection = result.selection
-        album = selection.scrobble.album or "(no album)"
-        scrobble_text = (
-            f"{selection.scrobble.artist} - {selection.scrobble.track} - {album}"
-        )
-        if result.match is None:
-            match_text = Text("No qualifying result", style="red")
-        else:
-            match_album = result.match.album or "(no album)"
-            liked = "liked" if result.match.liked else "unliked"
-            album_score = (
-                "n/a"
-                if result.match.album_similarity is None
-                else f"{result.match.album_similarity:.0%}"
-            )
-            match_text = Text(
-                f"{', '.join(result.match.artists)} - {result.match.track} - "
-                f"{match_album}\n{liked}; track {result.match.track_similarity:.0%}, "
-                f"album {album_score}; {result.qualifying_matches} qualified"
-            )
-        table.add_row(
-            str(number),
-            selection.selected_date.isoformat(),
-            f"page {selection.page}/{selection.total_pages}, "
-            f"{selection.direction}, #{selection.position}",
-            Text(scrobble_text),
-            match_text,
-            Text(result.action, style=action_styles[result.action]),
-        )
-    console.print(table)
+    print_scrobble_selection_table(console, "A blast from the past", summary.results)
     console.print(
         f"Playlist: {summary.playlist_length_before} -> "
         f"{summary.playlist_length_after} items; added {summary.added} of "
         f"{summary.requested_count} selections.",
+        style="bold",
+    )
+
+
+@app.command(name="daily-mind-radio")
+def daily_mind_radio_command() -> None:
+    """Add tracks from today's Last.fm anniversaries to Daily Mind Radio."""
+    console = Console()
+    configuration = Settings()
+    try:
+        playlist_id = blast_from_past.parse_playlist_id(
+            configuration.daily_mind_radio_playlist,
+            setting_name="DAILY_MIND_RADIO_PLAYLIST",
+        )
+    except blast_from_past.BlastFromPastConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    try:
+        with console.status("Preparing anniversary scrobbles") as status:
+            summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
+                client(),
+                playlist_id,
+                progress_callback=status.update,
+            )
+    except blast_from_past.BlastFromPastError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    target_dates = ", ".join(
+        target_date.isoformat() for target_date in summary.batch.target_dates
+    )
+    console.print(f"Anniversary dates: {target_dates}", style="dim")
+    if summary.batch.missing_dates:
+        missing_dates = ", ".join(
+            missing_date.isoformat() for missing_date in summary.batch.missing_dates
+        )
+        console.print(f"No scrobbles, skipped: {missing_dates}", style="yellow")
+
+    if not summary.batch.selections:
+        console.print(
+            "None of today's anniversary dates had scrobbles; nothing was added.",
+            style="bold green",
+        )
+        return
+
+    generated_at = summary.batch.generated_at
+    if generated_at is None:
+        raise RuntimeError("A populated Daily Mind Radio batch has no timestamp.")
+    console.print(
+        f"Random.org timestamp: {generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        style="bold cyan",
+    )
+    print_scrobble_selection_table(console, "Daily mind radio", summary.results)
+    console.print(
+        f"Playlist: {summary.playlist_length_before} -> "
+        f"{summary.playlist_length_after} items; added {summary.added} of "
+        f"{len(summary.batch.selections)} populated anniversary dates.",
         style="bold",
     )
 

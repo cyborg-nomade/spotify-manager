@@ -86,6 +86,8 @@
   .blast-selection-title { font-size: .82rem; font-weight: 700; overflow-wrap: anywhere; }
   .blast-selection-match { margin-top: 3px; color: var(--muted); font-size: .76rem; overflow-wrap: anywhere; }
   .blast-selection-meta { margin-top: 4px; font-size: .68rem; color: var(--muted); }
+  .playlist-dates { margin-top: 8px; font-size: .72rem; color: var(--muted); overflow-wrap: anywhere; }
+  .playlist-dates .skipped { color: var(--amber); }
   .blast-action { font-weight: 700; }
   .blast-action.added { color: var(--green); }
   .blast-action.no-match { color: var(--red); }
@@ -214,6 +216,14 @@
       <div class="analysis-progress" id="blastProgress"></div>
     </section>
 
+    <section class="card" id="dailyMindRadioCard">
+      <h2>Daily mind radio</h2>
+      <div class="btns">
+        <button class="primary" data-action="startDailyMindRadio">Add anniversary tracks</button>
+      </div>
+      <div class="analysis-progress" id="dailyMindRadioProgress"></div>
+    </section>
+
     <!-- Artist stats -->
     <section class="card">
       <h2>Artist stats</h2>
@@ -316,6 +326,7 @@
   var toastTimer = null;
   var analysisJobs = {};
   var blastJob = null;
+  var dailyMindRadioJob = null;
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -472,16 +483,53 @@
     }
   }
 
-  function renderBlastJob(job) {
-    var out = document.getElementById("blastProgress");
-    var start = document.querySelector('[data-action="startBlast"]');
+  function playlistJobConfig(kind) {
+    if (kind === "daily") {
+      return {
+        progressId: "dailyMindRadioProgress",
+        action: "startDailyMindRadio",
+        basePath: "/commands/daily-mind-radio",
+        command: "daily_mind_radio",
+        finished: "Daily Mind Radio finished",
+      };
+    }
+    return {
+      progressId: "blastProgress",
+      action: "startBlast",
+      basePath: "/commands/blast-from-the-past",
+      command: "blast_from_the_past",
+      finished: "Blast from the Past finished",
+    };
+  }
+
+  function rememberPlaylistJob(kind, job) {
+    if (kind === "daily") dailyMindRadioJob = job;
+    else blastJob = job;
+  }
+
+  function renderPlaylistJob(kind, job) {
+    var config = playlistJobConfig(kind);
+    var out = document.getElementById(config.progressId);
+    var start = document.querySelector('[data-action="' + config.action + '"]');
     var summary = "";
-    if (typeof job.added === "number") {
+    if (typeof job.added === "number" &&
+        typeof job.playlist_length_before === "number" &&
+        typeof job.playlist_length_after === "number") {
       summary = '<div class="blast-summary">' +
         '<div><strong>' + esc(job.added) + '</strong><span>Added</span></div>' +
         '<div><strong>' + esc(job.playlist_length_before) + '</strong><span>Before</span></div>' +
         '<div><strong>' + esc(job.playlist_length_after) + '</strong><span>After</span></div>' +
         '</div>';
+    }
+    var dateSummary = "";
+    if (job.target_dates && job.target_dates.length) {
+      dateSummary = '<div class="playlist-dates"><div>Anniversaries: ' +
+        esc(job.target_dates.join(", ")) + '</div>';
+      if (job.missing_dates && job.missing_dates.length) {
+        dateSummary += '<div class="skipped">No scrobbles: ' +
+          esc(job.missing_dates.join(", ")) + '</div>';
+      }
+      dateSummary += '</div>';
     }
     var selections = (job.selections || []).map(function (item) {
       var actionClass = String(item.action || "").replace(/\s+/g, "-");
@@ -517,7 +565,8 @@
         '<span class="analysis-log-message">Waiting for activity…</span></div>';
     }
     out.innerHTML = '<div class="analysis-state">' + esc(job.detail || job.status) + '</div>' +
-      summary + selections + '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+      dateSummary + summary + selections +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
     if (log) log.scrollTop = log.scrollHeight;
@@ -525,38 +574,66 @@
     if (!isAnalysisActive(job.status)) setBusy(start, false);
   }
 
-  async function pollBlast(jobId) {
+  function renderBlastJob(job) {
+    renderPlaylistJob("blast", job);
+  }
+
+  function renderDailyMindRadioJob(job) {
+    renderPlaylistJob("daily", job);
+  }
+
+  async function pollPlaylistJob(kind, jobId) {
+    var config = playlistJobConfig(kind);
     try {
-      var job = await api("/commands/blast-from-the-past-jobs/" + jobId);
-      blastJob = job;
-      renderBlastJob(job);
+      var job = await api(config.basePath + "-jobs/" + jobId);
+      rememberPlaylistJob(kind, job);
+      renderPlaylistJob(kind, job);
       if (isAnalysisActive(job.status)) {
-        setTimeout(function () { pollBlast(jobId); }, 1500);
+        setTimeout(function () { pollPlaylistJob(kind, jobId); }, 1500);
       } else if (job.status === "completed") {
-        showToast("Playlist routine finished", "ok");
+        showToast(config.finished, "ok");
       } else {
         showToast("Playlist routine " + job.status, "err");
       }
     } catch (e) {
-      var out = document.getElementById("blastProgress");
-      var start = document.querySelector('[data-action="startBlast"]');
+      var out = document.getElementById(config.progressId);
+      var start = document.querySelector('[data-action="' + config.action + '"]');
       renderError(out, e);
       setBusy(start, false);
       showToast("Could not read playlist progress", "err");
     }
   }
 
-  async function restoreActiveBlastJobs() {
+  async function restoreActivePlaylistJobs(kind) {
+    var config = playlistJobConfig(kind);
     try {
-      var jobs = await api("/commands/blast-from-the-past-jobs");
+      var jobs = await api(config.basePath + "-jobs");
       if (!jobs.length) return;
-      blastJob = jobs[jobs.length - 1];
-      renderBlastJob(blastJob);
-      pollBlast(blastJob.job_id);
+      var job = jobs[jobs.length - 1];
+      rememberPlaylistJob(kind, job);
+      renderPlaylistJob(kind, job);
+      pollPlaylistJob(kind, job.job_id);
       showToast("Reconnected to playlist routine", "ok");
     } catch (e) {
       if (e.status !== 401) showToast("Could not restore playlist progress", "err");
     }
+  }
+
+  function pollBlast(jobId) {
+    return pollPlaylistJob("blast", jobId);
+  }
+
+  function renderActiveBlastJob(job) {
+    blastJob = job;
+    renderBlastJob(job);
+  }
+
+  function restoreActiveBlastJobs() {
+    return restoreActivePlaylistJobs("blast");
+  }
+
+  function restoreActiveDailyMindRadioJobs() {
+    return restoreActivePlaylistJobs("daily");
   }
 
   // ---- Actions -----------------------------------------------------------
@@ -589,12 +666,12 @@
       setBusy(btn, true, "Starting…");
       try {
         var job = await api("/commands/blast-from-the-past?" + q.toString(), { method: "POST" });
-        blastJob = job;
-        renderBlastJob(job);
+        renderActiveBlastJob(job);
         pollBlast(job.job_id);
       } catch (e) {
         var activeJobId = e.status === 409 && e.data && e.data.detail && e.data.detail.job_id;
-        if (activeJobId) {
+        var activeCommand = e.data && e.data.detail && e.data.detail.command;
+        if (activeJobId && activeCommand === "blast_from_the_past") {
           await pollBlast(activeJobId);
           showToast("Reconnected to playlist routine", "ok");
           return;
@@ -602,6 +679,28 @@
         renderError(out, e);
         setBusy(btn, false);
         showToast("Could not start playlist routine", "err");
+      }
+    },
+
+    async startDailyMindRadio(btn) {
+      var out = document.getElementById("dailyMindRadioProgress");
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api("/commands/daily-mind-radio", { method: "POST" });
+        dailyMindRadioJob = job;
+        renderDailyMindRadioJob(job);
+        pollPlaylistJob("daily", job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "daily_mind_radio") {
+          await pollPlaylistJob("daily", activeJobId);
+          showToast("Reconnected to Daily Mind Radio", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Daily Mind Radio", "err");
       }
     },
 
@@ -811,6 +910,7 @@
     checkHealth();
     restoreActiveAnalysisJobs();
     restoreActiveBlastJobs();
+    restoreActiveDailyMindRadioJobs();
     return true;
   }
 

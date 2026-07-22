@@ -227,6 +227,8 @@ command starts and never intentionally exceeds the requested cap.
 The export timestamps are grouped into `Europe/Berlin` calendar dates, matching
 the Last.fm date view, without omitting any scrobbles. Random.org must be
 reachable; the command does not fall back to local pseudorandom selection.
+The loader uses the adjacent compressed parts when the large JSON export is not
+materialized correctly by a deployment platform's large-file storage.
 
 The web UI exposes the same count and playlist-cap modes at the top of the page.
 It runs the routine as a background job, streams its logs and match results, and
@@ -236,6 +238,39 @@ reconnects to an active run after a page reload:
 POST /commands/blast-from-the-past
 GET  /commands/blast-from-the-past-jobs
 GET  /commands/blast-from-the-past-jobs/{job_id}
+```
+
+### `daily-mind-radio`
+
+Selects one scrobble from today's date in the previous year, then from the
+same calendar date at five-year intervals back through the earliest year in
+the Last.fm export. In 2026, for example, the target years are 2025, 2020,
+2015, and 2010; in 2028 they are 2027, 2022, 2017, 2012, and 2007. Dates with
+no scrobbles are skipped.
+
+One Random.org response timestamp determines the Last.fm page, direction, and
+position for every populated anniversary date. The selected tracks use the
+same Spotify matching, liked-track preference, album exception, and duplicate
+handling as `blast-from-the-past`, and are added to the playlist configured by
+`DAILY_MIND_RADIO_PLAYLIST`.
+
+```console
+uv run spotify-manager daily-mind-radio
+just daily-mind-radio
+```
+
+On February 29, years without that date are skipped rather than substituted
+with February 28. Random.org is not contacted when none of the anniversary
+dates contains a scrobble.
+
+The web UI provides the same routine directly below Blast from the Past. It
+runs in the background, shows the anniversary dates, skips, match results, and
+logs, and reconnects after a page reload:
+
+```text
+POST /commands/daily-mind-radio
+GET  /commands/daily-mind-radio-jobs
+GET  /commands/daily-mind-radio-jobs/{job_id}
 ```
 
 ### `refresh-spotify-tokens`
@@ -355,6 +390,7 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `THE_QUEUE_2_PLAYLIST` | Spotify URL or id for the 6-17 liked-track queue. |
 | `THE_QUEUE_3_PLAYLIST` | Spotify URL or id for the 18+ liked-track queue. |
 | `BLAST_FROM_THE_PAST_PLAYLIST` | Spotify URL or id for Friday Routine recovery tracks. |
+| `DAILY_MIND_RADIO_PLAYLIST` | Spotify URL or id for anniversary recovery tracks. |
 
 > This Space should be **Private** — the repository contains your personal
 > library export files.
