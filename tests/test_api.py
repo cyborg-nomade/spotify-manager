@@ -247,6 +247,150 @@ def test_blast_from_the_past_endpoint_rejects_both_limits(
     assert "either count or max_playlist_length" in response.json()["detail"]
 
 
+def test_daily_mind_radio_endpoint_runs_background_job(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    scrobble = api.blast_from_past.Scrobble(
+        track="Track",
+        artist="Artist",
+        album="Album",
+        timestamp_ms=1,
+    )
+    selection = api.blast_from_past.ScrobbleSelection(
+        selected_date=date(2025, 7, 22),
+        date_index=0,
+        scrobbles_on_date=20,
+        page=1,
+        total_pages=1,
+        direction="top down",
+        position=3,
+        scrobble=scrobble,
+    )
+    match = api.blast_from_past.SpotifyTrackMatch(
+        spotify_id="track-id",
+        uri="spotify:track:track-id",
+        track="Track",
+        artists=("Artist",),
+        album="Album",
+        search_rank=1,
+        track_similarity=1.0,
+        album_similarity=1.0,
+        popularity=20,
+        liked=False,
+    )
+    batch = api.daily_mind_radio.DailyMindRadioBatch(
+        generated_at=datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC),
+        target_dates=(date(2025, 7, 22), date(2020, 7, 22)),
+        missing_dates=(date(2020, 7, 22),),
+        selections=(selection,),
+    )
+
+    def complete(_spotify, playlist_id, **kwargs):
+        kwargs["progress_callback"]("Searching Spotify track 1/1")
+        return api.daily_mind_radio.DailyMindRadioSpotifySummary(
+            playlist_id=playlist_id,
+            batch=batch,
+            playlist_length_before=2,
+            playlist_length_after=3,
+            results=(
+                api.blast_from_past.SpotifySelectionResult(
+                    selection=selection,
+                    match=match,
+                    qualifying_matches=1,
+                    action="added",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(daily_mind_radio_playlist="spotify:playlist:daily"),
+    )
+    monkeypatch.setattr(
+        api.daily_mind_radio,
+        "add_daily_mind_radio_to_spotify",
+        complete,
+    )
+
+    response = client.post("/commands/daily-mind-radio")
+
+    assert response.status_code == 202
+    result = wait_for_daily_mind_radio_status(
+        client,
+        response.json()["job_id"],
+        {"completed"},
+    )
+    assert result["command"] == "daily_mind_radio"
+    assert result["added"] == 1
+    assert result["playlist_length_before"] == 2
+    assert result["playlist_length_after"] == 3
+    assert result["target_dates"] == ["2025-07-22", "2020-07-22"]
+    assert result["missing_dates"] == ["2020-07-22"]
+    assert result["random_org_timestamp"] == "2026-07-22T13:00:52+00:00"
+    assert result["selections"][0]["selected_date"] == "2025-07-22"
+    assert any(
+        entry["message"] == "Searching Spotify track 1/1" for entry in result["logs"]
+    )
+
+
+def test_active_daily_mind_radio_job_can_be_restored(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    release = api.Event()
+    batch = api.daily_mind_radio.DailyMindRadioBatch(
+        generated_at=None,
+        target_dates=(date(2025, 7, 22),),
+        missing_dates=(date(2025, 7, 22),),
+        selections=(),
+    )
+
+    def blocked(_spotify, playlist_id, **kwargs):
+        kwargs["progress_callback"]("Reading anniversary dates")
+        release.wait(2)
+        return api.daily_mind_radio.DailyMindRadioSpotifySummary(
+            playlist_id=playlist_id,
+            batch=batch,
+            playlist_length_before=None,
+            playlist_length_after=None,
+            results=(),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(daily_mind_radio_playlist="daily"),
+    )
+    monkeypatch.setattr(
+        api.daily_mind_radio,
+        "add_daily_mind_radio_to_spotify",
+        blocked,
+    )
+
+    started = client.post("/commands/daily-mind-radio")
+    active = client.get("/commands/daily-mind-radio-jobs")
+    duplicate = client.post("/commands/daily-mind-radio")
+    release.set()
+
+    assert started.status_code == 202
+    assert [job["job_id"] for job in active.json()] == [started.json()["job_id"]]
+    assert client.get("/commands/blast-from-the-past-jobs").json() == []
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["command"] == "daily_mind_radio"
+    wait_for_daily_mind_radio_status(
+        client,
+        started.json()["job_id"],
+        {"completed"},
+    )
+    assert client.get("/commands/daily-mind-radio-jobs").json() == []
+
+
 def wait_for_job_status(
     client: TestClient,
     job_id: str,
@@ -281,6 +425,24 @@ def wait_for_blast_status(
             return body
         sleep(0.01)
     pytest.fail(f"playlist job {job_id} did not reach {expected}")
+
+
+def wait_for_daily_mind_radio_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+    timeout: float = 2,
+) -> dict:
+    """Poll one fast Daily Mind Radio job until it reaches an expected state."""
+    deadline = monotonic() + timeout
+    while monotonic() < deadline:
+        response = client.get(f"/commands/daily-mind-radio-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Daily Mind Radio job {job_id} did not reach {expected}")
 
 
 def analysis_summary(mode: str):
