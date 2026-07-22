@@ -1,8 +1,10 @@
 """Tests for the split library-analysis CLI commands."""
 
+from io import StringIO
 from typing import Any
 
 import pytest
+from rich.console import Console
 
 from spotify_manager import main
 
@@ -135,6 +137,47 @@ def test_sync_command_handles_clean_retry_cancellation(
 
     assert exc.value.exit_code == 0
     assert "Progress was saved" in capsys.readouterr().out
+
+
+def test_retry_wait_can_rotate_credentials_and_retry_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeTTY:
+        def isatty(self) -> bool:
+            return True
+
+        def fileno(self) -> int:
+            return 0
+
+        def read(self, _size: int) -> str:
+            return "r"
+
+    class FakeSpotify:
+        def __init__(self) -> None:
+            self.rotations = 0
+
+        def rotate_credentials(self) -> str:
+            self.rotations += 1
+            return "app5"
+
+    stdin = FakeTTY()
+    spotify = FakeSpotify()
+    output = StringIO()
+    monkeypatch.setattr(main.sys, "stdin", stdin)
+    monkeypatch.setattr(main.termios, "tcgetattr", lambda _descriptor: object())
+    monkeypatch.setattr(main.termios, "tcsetattr", lambda *_args: None)
+    monkeypatch.setattr(main.tty, "setcbreak", lambda _descriptor: None)
+    monkeypatch.setattr(main.select, "select", lambda *_args: ([stdin], [], []))
+
+    should_retry = main.wait_for_library_retry(
+        Console(file=output, force_terminal=False),
+        main.library_sync.RetryNotice(500, "reading followed artists", 1, 60),
+        spotify,  # type: ignore[arg-type]
+    )
+
+    assert should_retry is True
+    assert spotify.rotations == 1
+    assert "Rotated to app5; retrying now." in output.getvalue()
 
 
 def test_restore_library_sync_command(

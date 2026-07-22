@@ -15,6 +15,7 @@ __pycache__/
 
 # Secrets — provided at runtime via Space secrets, never baked into the image.
 .env
+spotify_manager/auth/spotipy_token_cache*.json
 
 # Large local artifacts not read by the app at runtime.
 albums_total.txt

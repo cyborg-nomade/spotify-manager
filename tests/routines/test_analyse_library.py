@@ -159,7 +159,7 @@ class FakeSpotify:
         limit: int,
         after: str | None,
     ) -> dict:
-        assert limit <= 50
+        assert limit == analyse_library.ARTIST_PAGE_LIMIT == 10
         self.artist_calls.append(after)
         if (
             self.add_artist_during_reconciliation is not None
@@ -285,15 +285,13 @@ def test_live_analysis_retries_only_server_errors_with_exponential_delays(
         spotify,
         paths=paths,
         retry_wait=record_retry,
-        retry_base_seconds=120,
-        retry_max_seconds=600,
     )
 
     assert [notice.http_status for notice in notices] == [500, 503]
-    assert [notice.delay_seconds for notice in notices] == [120, 240]
+    assert [notice.delay_seconds for notice in notices] == [10, 20]
     events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
     retries = [item for item in events if item["event"] == "server_retry_scheduled"]
-    assert [item["delay_seconds"] for item in retries] == [120, 240]
+    assert [item["delay_seconds"] for item in retries] == [10, 20]
 
 
 def test_retry_delay_stays_capped_for_many_failures() -> None:

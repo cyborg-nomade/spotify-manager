@@ -94,6 +94,7 @@ def test_review_client_disables_spotipy_retries(monkeypatch) -> None:
             "retries": 0,
             "status_retries": 0,
             "status_forcelist": main.DISABLED_SPOTIFY_STATUS_FORCELIST,
+            "event_callback": main.typer.echo,
         }
     ]
 

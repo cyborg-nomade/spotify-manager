@@ -105,10 +105,20 @@
   .resource-progress .name, .resource-progress .count { font-size: .72rem; color: var(--muted); }
   .resource-progress .count { text-align: right; font-variant-numeric: tabular-nums; }
   .resource-progress .meter { margin: 0; }
+  .analysis-log {
+    max-height: 220px; overflow-y: auto; margin-top: 12px; padding: 9px 10px;
+    border: 1px solid var(--border); border-radius: 6px; background: #101010;
+    color: #d7d7d7; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .7rem; line-height: 1.45;
+  }
+  .analysis-log-line { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 8px; padding: 2px 0; }
+  .analysis-log-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .analysis-log-message { overflow-wrap: anywhere; }
   .meter > span.indeterminate { width: 32%; animation: scan 1.2s ease-in-out infinite alternate; }
   @keyframes scan { from { transform: translateX(-20%); } to { transform: translateX(230%); } }
   @media (max-width: 380px) {
     .resource-progress { grid-template-columns: 88px 1fr 52px; }
+    .analysis-log-line { grid-template-columns: 58px minmax(0, 1fr); gap: 6px; }
   }
 
   .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%);
@@ -353,11 +363,28 @@
       if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
     }
     if (job.run_id) state += " · run " + job.run_id;
-    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' + rows;
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity…</span></div>';
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' + rows +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
     out.classList.add("show");
     var active = isAnalysisActive(job.status);
     cancel.hidden = !active;
     cancel.disabled = job.status === "cancelling";
+    if (active && !start.disabled) setBusy(start, true, "Running…");
     if (!active) setBusy(start, false);
   }
 
@@ -379,6 +406,23 @@
       renderError(out, e);
       setBusy(start, false);
       showToast("Could not read analysis progress", "err");
+    }
+  }
+
+  async function restoreActiveAnalysisJobs() {
+    try {
+      var jobs = await api("/commands/library-analysis-jobs");
+      jobs.forEach(function (job) {
+        var mode = job.command === "analyse_library_sync" ? "sync" :
+          (job.command === "analyse_library_async" ? "async" : null);
+        if (!mode) return;
+        analysisJobs[mode] = job;
+        renderAnalysisJob(mode, job);
+        pollAnalysis(mode, job.job_id);
+      });
+      if (jobs.length) showToast("Reconnected to running analysis", "ok");
+    } catch (e) {
+      if (e.status !== 401) showToast("Could not restore analysis progress", "err");
     }
   }
 
@@ -486,6 +530,12 @@
         renderAnalysisJob(mode, job);
         pollAnalysis(mode, job.job_id);
       } catch (e) {
+        var activeJobId = e.status === 409 && e.data && e.data.detail && e.data.detail.job_id;
+        if (activeJobId) {
+          await pollAnalysis(mode, activeJobId);
+          showToast("Reconnected to running analysis", "ok");
+          return;
+        }
         renderError(out, e);
         setBusy(btn, false);
         showToast("Could not start analysis", "err");
@@ -563,18 +613,26 @@
     pw = candidate;
     // Validate against a protected, side-effect-free endpoint.
     try {
-      await api("/commands/count-artists");
+      await api("/auth/check");
     } catch (e) {
-      pw = null;
-      if (e.status === 401) { showToast("Wrong password", "err"); return false; }
-      // Non-auth error (e.g. data file missing) still means the password worked.
+      if (e.status === 401) {
+        pw = null;
+        showToast("Wrong password", "err");
+        return false;
+      }
+      // A response from a protected endpoint means the password was accepted.
       if (e.status && e.status !== 0) { /* authorised */ }
-      else { showToast(e.detail || "Could not reach server", "err"); return false; }
+      else {
+        pw = null;
+        showToast(e.detail || "Could not reach server", "err");
+        return false;
+      }
     }
     if (remember) { try { /* in-memory only fallback */ window.name = STORAGE_KEY + ":" + candidate; } catch (e) {} }
     gate.classList.add("hidden");
     app.classList.remove("hidden");
     checkHealth();
+    restoreActiveAnalysisJobs();
     return true;
   }
 

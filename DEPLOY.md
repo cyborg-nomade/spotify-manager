@@ -33,7 +33,7 @@ the data files themselves out of public reach.
    **Visibility: Private**.
 3. Create.
 
-## 3. Generate your token cache (one time, on your machine)
+## 3. Generate your token caches (one time, on your machine)
 
 The server can't do Spotify's interactive login. Instead it reuses the token
 your local app already has. First, make sure your local `.env` uses an explicit
@@ -44,20 +44,34 @@ Dashboard:
 SPOTIPY_REDIRECT_URI=http://127.0.0.1:8080/callback
 ```
 
-Spotify rejects `localhost` redirect URIs. Make sure your local token cache is
-fresh:
+Spotify rejects `localhost` redirect URIs. Authenticate or refresh every
+configured Spotify app:
 
 ```bash
-# from the project root, run any command that needs the live client, e.g.
-uv run spotify-manager update-total-albums --just-update
-# (complete the browser login if prompted; this writes/refreshes
-# spotify_manager/auth/spotipy_token_cache.json)
+just refresh-spotify-tokens
 ```
 
-Then print the cache contents — you'll paste this into a secret:
+Complete the browser login once for each app that does not already have a
+cache. The command writes the primary cache plus one isolated cache for each
+configured `app5` through `app8`. Each refresh token belongs to the app that
+created it; client ids and secrets alone are not enough for headless rotation.
+
+The resulting files are:
+
+```text
+spotify_manager/auth/spotipy_token_cache.json
+spotify_manager/auth/spotipy_token_cache_app5.json
+spotify_manager/auth/spotipy_token_cache_app6.json
+spotify_manager/auth/spotipy_token_cache_app7.json
+spotify_manager/auth/spotipy_token_cache_app8.json
+```
+
+Print each configured cache — you'll paste its contents into a separate Space
+secret:
 
 ```bash
 cat spotify_manager/auth/spotipy_token_cache.json
+cat spotify_manager/auth/spotipy_token_cache_app5.json
 ```
 
 It's a small JSON blob containing `access_token`, `refresh_token`, `scope`,
@@ -75,15 +89,24 @@ In the Space → **Settings → Variables and secrets**, add these as **Secrets*
 | `SPOTIPY_CLIENT_SECRET` | From your local `.env`. |
 | `SPOTIPY_REDIRECT_URI` | From your local `.env`; use an explicit loopback IP such as `http://127.0.0.1:8080/callback`, not `localhost`, and make sure it matches your Spotify app. |
 | `SPOTIPY_CACHE_JSON` | The full contents of `spotify_manager/auth/spotipy_token_cache.json` from step 3. |
+| `APP5_CLIENT_ID` ... `APP8_CLIENT_ID` | The additional Spotify app client ids configured locally. |
+| `APP5_CLIENT_SECRET` ... `APP8_CLIENT_SECRET` | The matching additional Spotify app client secrets. |
+| `APP5_SPOTIPY_CACHE_JSON` ... `APP8_SPOTIPY_CACHE_JSON` | The full contents of each matching `spotipy_token_cache_appN.json`. |
 | `ALBUMS_TO_ADD` | From your local `.env` (an integer). |
 | `LIMIT` | From your local `.env` (an integer). |
 
 `ALBUMS_TO_ADD` and `LIMIT` can be **Variables** rather than Secrets if you
-prefer; the Spotify credentials and `SPOTIPY_CACHE_JSON` must be **Secrets**.
+prefer; every Spotify credential and token-cache value must be a **Secret**.
 
 > Why these names: `spotify_manager/settings.py` reads its fields from
 > environment variables (pydantic-settings), so `SPOTIPY_CLIENT_ID` →
 > `spotipy_client_id`, etc. No `.env` file is needed on the server.
+
+At startup, `start.sh` recreates each configured cache. On HTTP 429, every CLI
+and web command rotates from the active app to the next configured app,
+force-refreshes that app's token, and retries the same Spotify request. If all
+apps are rate-limited or unavailable, the existing clean pause behavior takes
+over.
 
 ## 5. Push the code
 
@@ -138,8 +161,9 @@ phone browser to open it — that's an extra layer on top of the password.
 ## Security notes
 
 - Keep the Space **Private**; rotate `APP_PASSWORD` if you ever shared a link.
-- The `SPOTIPY_CACHE_JSON` token carries write scopes (it can modify playlists
-  and follows). Treat it like a password; it lives only in Space secrets.
+- The `*_SPOTIPY_CACHE_JSON` tokens carry write scopes (they can modify
+  playlists and follows). Treat them like passwords; they live only in Space
+  secrets.
 - Do not configure Spotify auth with a `localhost` redirect URI. Use an
   explicit loopback IP URI such as `http://127.0.0.1:8080/callback`.
 
