@@ -36,6 +36,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pydantic import Field
 from spotipy import Spotify
+from spotipy.exceptions import SpotifyException
 
 # UFI
 from spotify_manager.client import get_spotipy_client
@@ -50,6 +51,7 @@ from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_analysis
+from spotify_manager.routines import blast_from_past
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -58,6 +60,7 @@ from spotify_manager.routines.convert_library_file import convert_your_library_f
 from spotify_manager.routines.convert_library_file import restore_your_library_from_file
 from spotify_manager.routines.count_items import count_artists_in_library
 from spotify_manager.routines.monthly_routine import run_monthly_routines
+from spotify_manager.settings import Settings
 
 
 class CommandResult(BaseModel):
@@ -118,6 +121,41 @@ class AnalysisJobResult(BaseModel):
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
 
+class BlastSelectionResult(BaseModel):
+    """One Last.fm selection and its Spotify playlist outcome."""
+
+    selected_date: str
+    page: int
+    total_pages: int
+    direction: str
+    position: int
+    lastfm_scrobble: str
+    spotify_match: str | None = None
+    liked: bool | None = None
+    track_similarity: float | None = None
+    album_similarity: float | None = None
+    qualifying_matches: int = 0
+    action: str
+
+
+class BlastJobResult(BaseModel):
+    """Pollable state for one blast-from-the-past playlist job."""
+
+    job_id: str
+    command: str = "blast_from_the_past"
+    status: JobStatus = "queued"
+    detail: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    requested_count: int | None = None
+    playlist_length_before: int | None = None
+    playlist_length_after: int | None = None
+    added: int | None = None
+    random_org_timestamp: str | None = None
+    selections: list[BlastSelectionResult] = Field(default_factory=list)
+    logs: list[AnalysisJobLog] = Field(default_factory=list)
+
+
 @dataclass
 class _AnalysisJob:
     """Mutable server-side state and cancellation signal for one job."""
@@ -127,11 +165,22 @@ class _AnalysisJob:
     next_log_sequence: int = 1
 
 
+@dataclass
+class _BlastJob:
+    """Mutable server-side state for one playlist routine job."""
+
+    result: BlastJobResult
+    next_log_sequence: int = 1
+
+
 _analysis_jobs: dict[str, _AnalysisJob] = {}
 _analysis_jobs_lock = Lock()
 _ACTIVE_JOB_STATUSES = {"queued", "running", "waiting", "cancelling"}
 _MAX_ANALYSIS_LOGS = 250
 _analysis_logger = logging.getLogger(__name__)
+_blast_jobs: dict[str, _BlastJob] = {}
+_blast_jobs_lock = Lock()
+_MAX_BLAST_LOGS = 250
 
 
 @lru_cache
@@ -183,12 +232,42 @@ def _append_job_log_locked(job: _AnalysisJob, message: str) -> None:
         del job.result.logs[: len(job.result.logs) - _MAX_ANALYSIS_LOGS]
 
 
+def _blast_job_snapshot(job: _BlastJob) -> BlastJobResult:
+    """Return an isolated response model for one mutable playlist job."""
+    return job.result.model_copy(deep=True)
+
+
+def _append_blast_log_locked(job: _BlastJob, message: str) -> None:
+    """Append one bounded playlist-job log entry while holding its lock."""
+    if not message:
+        return
+    job.result.logs.append(
+        AnalysisJobLog(
+            sequence=job.next_log_sequence,
+            timestamp=datetime.now(UTC).isoformat(),
+            message=message,
+        )
+    )
+    job.next_log_sequence += 1
+    if len(job.result.logs) > _MAX_BLAST_LOGS:
+        del job.result.logs[: len(job.result.logs) - _MAX_BLAST_LOGS]
+
+
 def get_analysis_job(job_id: str) -> _AnalysisJob:
     """Return one job or raise a conventional API 404."""
     with _analysis_jobs_lock:
         job = _analysis_jobs.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="analysis job not found")
+    return job
+
+
+def get_blast_job(job_id: str) -> _BlastJob:
+    """Return one playlist job or raise a conventional API 404."""
+    with _blast_jobs_lock:
+        job = _blast_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="playlist job not found")
     return job
 
 
@@ -377,6 +456,150 @@ def start_analysis_job(
     return snapshot
 
 
+def _blast_selection_result(
+    result: blast_from_past.SpotifySelectionResult,
+) -> BlastSelectionResult:
+    """Convert one routine result into its stable API representation."""
+    selection = result.selection
+    scrobble = selection.scrobble
+    lastfm_album = scrobble.album or "(no album)"
+    spotify_match = None
+    liked = None
+    track_similarity = None
+    album_similarity = None
+    if result.match is not None:
+        spotify_album = result.match.album or "(no album)"
+        spotify_match = (
+            f"{', '.join(result.match.artists)} - {result.match.track} - "
+            f"{spotify_album}"
+        )
+        liked = result.match.liked
+        track_similarity = result.match.track_similarity
+        album_similarity = result.match.album_similarity
+    return BlastSelectionResult(
+        selected_date=selection.selected_date.isoformat(),
+        page=selection.page,
+        total_pages=selection.total_pages,
+        direction=selection.direction,
+        position=selection.position,
+        lastfm_scrobble=f"{scrobble.artist} - {scrobble.track} - {lastfm_album}",
+        spotify_match=spotify_match,
+        liked=liked,
+        track_similarity=track_similarity,
+        album_similarity=album_similarity,
+        qualifying_matches=result.qualifying_matches,
+        action=result.action,
+    )
+
+
+def _run_blast_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+    count: int | None,
+    max_playlist_length: int | None,
+) -> None:
+    """Execute one web playlist job and retain progress, logs, and results."""
+    job = get_blast_job(job_id)
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Playlist routine started"
+        _append_blast_log_locked(job, "A blast from the past started.")
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = blast_from_past.add_blast_from_past_to_spotify(
+            spotify,
+            playlist_id,
+            count=count,
+            max_playlist_length=max_playlist_length,
+            progress_callback=echo,
+        )
+    except (blast_from_past.BlastFromPastError, SpotifyException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Playlist routine failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected blast-from-the-past error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected playlist error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        selections = [_blast_selection_result(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "completed"
+            job.result.requested_count = summary.requested_count
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.added = summary.added
+            job.result.selections = selections
+            if summary.batch is not None:
+                job.result.random_org_timestamp = summary.batch.generated_at.isoformat()
+            job.result.detail = (
+                f"Added {summary.added} of {summary.requested_count} selections; "
+                f"playlist {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}."
+            )
+            for selection in selections:
+                target = selection.spotify_match or "no qualifying Spotify match"
+                liked_label = " liked" if selection.liked else ""
+                _append_blast_log_locked(
+                    job,
+                    f"{selection.selected_date}: {selection.lastfm_scrobble} -> "
+                    f"{target} ({selection.action}{liked_label}).",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
+def start_blast_job(
+    spotify: Spotify,
+    playlist_id: str,
+    count: int | None,
+    max_playlist_length: int | None,
+) -> BlastJobResult:
+    """Start one playlist job, rejecting another active invocation."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "a blast-from-the-past job is already running",
+                        "job_id": existing.result.job_id,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(result=BlastJobResult(job_id=job_id))
+        _append_blast_log_locked(job, "A blast from the past queued.")
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_blast_job,
+        args=(job_id, spotify, playlist_id, count, max_playlist_length),
+        name=f"blast-from-the-past-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
 app = FastAPI(title="Spotify Manager", version="0.1.0")
 
 
@@ -512,6 +735,62 @@ def cmd_convert_lib(client: ClientDep) -> CommandResult:
 def cmd_count_artists() -> CountResult:
     """Count the artists in the YourLibrary file."""
     return CountResult(count=count_artists_in_library())
+
+
+@app.post(
+    "/commands/blast-from-the-past",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_blast_from_the_past(
+    client: ClientDep,
+    count: Annotated[int | None, Query(ge=1)] = None,
+    max_playlist_length: Annotated[int | None, Query(ge=1)] = None,
+) -> BlastJobResult:
+    """Start a background Friday-routine playlist update."""
+    if count is not None and max_playlist_length is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="use either count or max_playlist_length, not both",
+        )
+    effective_count = 10 if count is None and max_playlist_length is None else count
+    try:
+        playlist_id = blast_from_past.parse_playlist_id(
+            Settings().blast_from_the_past_playlist
+        )
+    except blast_from_past.BlastFromPastConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_blast_job(
+        client,
+        playlist_id,
+        effective_count,
+        max_playlist_length,
+    )
+
+
+@app.get(
+    "/commands/blast-from-the-past-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_blast_jobs() -> list[BlastJobResult]:
+    """Return active playlist jobs so the web UI can reconnect after reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/blast-from-the-past-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_blast_job(job_id: str) -> BlastJobResult:
+    """Return current progress for one playlist job."""
+    job = get_blast_job(job_id)
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
 
 
 @app.post(

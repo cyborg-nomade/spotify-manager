@@ -36,6 +36,7 @@ from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_sync
+from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
@@ -272,6 +273,131 @@ def convert_lib() -> None:
 def count_artists() -> None:
     """Print the number of artists in the YourLibrary file."""
     print(count_artists_in_library())
+
+
+@app.command(name="blast-from-the-past")
+def blast_from_the_past_command(
+    count: int | None = typer.Option(
+        None,
+        "--count",
+        min=1,
+        help="Number of unique scrobbled dates to process (default: 10).",
+    ),
+    max_playlist_length: int | None = typer.Option(
+        None,
+        "--max-playlist-length",
+        min=1,
+        help="Fill up to this playlist length instead of using --count.",
+    ),
+) -> None:
+    """Select past scrobbles and add their Spotify matches to the playlist."""
+    console = Console()
+    if count is not None and max_playlist_length is not None:
+        raise typer.BadParameter(
+            "use either --count or --max-playlist-length, not both"
+        )
+
+    configuration = Settings()
+    try:
+        playlist_id = blast_from_past.parse_playlist_id(
+            configuration.blast_from_the_past_playlist
+        )
+    except blast_from_past.BlastFromPastConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    effective_count = 10 if count is None and max_playlist_length is None else count
+    status_text = "Preparing Last.fm scrobbles"
+    try:
+        with console.status(status_text) as status:
+            summary = blast_from_past.add_blast_from_past_to_spotify(
+                client(),
+                playlist_id,
+                count=effective_count,
+                max_playlist_length=max_playlist_length,
+                progress_callback=status.update,
+            )
+    except blast_from_past.BlastFromPastError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    if summary.batch is None:
+        console.print(
+            f"Playlist already contains {summary.playlist_length_before} items; "
+            "nothing was added.",
+            style="bold green",
+        )
+        return
+
+    console.print(
+        "Random.org timestamp: "
+        f"{summary.batch.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        style="bold cyan",
+    )
+    console.print(
+        f"Eligible dates: {summary.batch.available_dates} "
+        f"({blast_from_past.FIRST_ELIGIBLE_DATE.isoformat()} through "
+        f"{summary.batch.cutoff_date.isoformat()})",
+        style="dim",
+    )
+
+    table = Table(title="A blast from the past")
+    table.add_column("#", justify="right")
+    table.add_column("Date")
+    table.add_column("Rule")
+    table.add_column("Last.fm scrobble")
+    table.add_column("Spotify match")
+    table.add_column("Result")
+    action_styles = {
+        "added": "bold green",
+        "already present": "green",
+        "duplicate selection": "yellow",
+        "no match": "bold red",
+    }
+    for number, result in enumerate(summary.results, start=1):
+        selection = result.selection
+        album = selection.scrobble.album or "(no album)"
+        scrobble_text = (
+            f"{selection.scrobble.artist} - {selection.scrobble.track} - {album}"
+        )
+        if result.match is None:
+            match_text = Text("No qualifying result", style="red")
+        else:
+            match_album = result.match.album or "(no album)"
+            liked = "liked" if result.match.liked else "unliked"
+            album_score = (
+                "n/a"
+                if result.match.album_similarity is None
+                else f"{result.match.album_similarity:.0%}"
+            )
+            match_text = Text(
+                f"{', '.join(result.match.artists)} - {result.match.track} - "
+                f"{match_album}\n{liked}; track {result.match.track_similarity:.0%}, "
+                f"album {album_score}; {result.qualifying_matches} qualified"
+            )
+        table.add_row(
+            str(number),
+            selection.selected_date.isoformat(),
+            f"page {selection.page}/{selection.total_pages}, "
+            f"{selection.direction}, #{selection.position}",
+            Text(scrobble_text),
+            match_text,
+            Text(result.action, style=action_styles[result.action]),
+        )
+    console.print(table)
+    console.print(
+        f"Playlist: {summary.playlist_length_before} -> "
+        f"{summary.playlist_length_after} items; added {summary.added} of "
+        f"{summary.requested_count} selections.",
+        style="bold",
+    )
 
 
 @app.command(name="refresh-spotify-tokens")

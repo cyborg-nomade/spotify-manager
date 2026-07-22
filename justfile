@@ -97,6 +97,10 @@ convert-lib *args:
 count-artists *args:
     {{ cli }} count-artists "$@"
 
+# Select Friday-routine tracks from past Last.fm scrobbles.
+blast-from-the-past *args:
+    {{ cli }} blast-from-the-past "$@"
+
 # Authenticate or force-refresh every configured Spotify app token.
 refresh-spotify-tokens *args:
     {{ cli }} refresh-spotify-tokens "$@"

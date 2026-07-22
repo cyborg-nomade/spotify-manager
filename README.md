@@ -190,6 +190,54 @@ uv run spotify-manager count-artists
 just count-artists
 ```
 
+### `blast-from-the-past`
+
+Selects unique dates with scrobbles from
+`spotify_manager/files/lastfmstats-man-et-arms.json`, between `2007-11-27` and
+December 31 five years before the current year. Random.org chooses indexes into
+the available-date list, and its UTC response timestamp determines the Last.fm
+page, direction, and position according to section 6 of the music-listening
+rules. Each selection is searched on Spotify and added to the playlist configured
+by `BLAST_FROM_THE_PAST_PLAYLIST`.
+
+Spotify candidates require an exact normalized artist match and at least 90%
+track name similarity. When Last.fm supplies an album, unliked candidates also
+require at least 90% album name similarity; liked tracks may override an album
+mismatch. Recognized suffixes such as remaster, live, deluxe, and acoustic do
+not reduce the score. If several results qualify, a currently liked track is
+preferred. Existing playlist tracks and duplicate selections are not added.
+
+```console
+uv run spotify-manager blast-from-the-past
+just blast-from-the-past
+
+uv run spotify-manager blast-from-the-past --count 3
+just blast-from-the-past --count 3
+
+uv run spotify-manager blast-from-the-past --max-playlist-length 50
+just blast-from-the-past --max-playlist-length 50
+```
+
+The default is `--count 10`. Use either `--count` or
+`--max-playlist-length`, never both. Count mode processes that many random
+dates; unavailable or non-matching tracks can therefore result in fewer Spotify
+additions. Maximum-length mode processes the number of open slots found when the
+command starts and never intentionally exceeds the requested cap.
+
+The export timestamps are grouped into `Europe/Berlin` calendar dates, matching
+the Last.fm date view, without omitting any scrobbles. Random.org must be
+reachable; the command does not fall back to local pseudorandom selection.
+
+The web UI exposes the same count and playlist-cap modes at the top of the page.
+It runs the routine as a background job, streams its logs and match results, and
+reconnects to an active run after a page reload:
+
+```text
+POST /commands/blast-from-the-past
+GET  /commands/blast-from-the-past-jobs
+GET  /commands/blast-from-the-past-jobs/{job_id}
+```
+
 ### `refresh-spotify-tokens`
 
 Authenticates or force-refreshes every configured Spotify application. Run
@@ -306,6 +354,7 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `THE_QUEUE_PLAYLIST` | Spotify URL or id for the 1-5 liked-track queue. |
 | `THE_QUEUE_2_PLAYLIST` | Spotify URL or id for the 6-17 liked-track queue. |
 | `THE_QUEUE_3_PLAYLIST` | Spotify URL or id for the 18+ liked-track queue. |
+| `BLAST_FROM_THE_PAST_PLAYLIST` | Spotify URL or id for Friday Routine recovery tracks. |
 
 > This Space should be **Private** — the repository contains your personal
 > library export files.

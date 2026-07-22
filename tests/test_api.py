@@ -4,8 +4,12 @@ Both the Spotify client and the library are overridden so no network,
 credentials, or YourLibrary.json file are needed.
 """
 
+from datetime import UTC
+from datetime import date
+from datetime import datetime
 from time import monotonic
 from time import sleep
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -73,6 +77,8 @@ def client() -> TestClient:
 
     with api._analysis_jobs_lock:
         api._analysis_jobs.clear()
+    with api._blast_jobs_lock:
+        api._blast_jobs.clear()
     app.dependency_overrides[get_client] = lambda: FakeSpotify()
     app.dependency_overrides[get_analysis_client] = lambda: FakeSpotify()
     app.dependency_overrides[get_library] = _library
@@ -81,6 +87,8 @@ def client() -> TestClient:
     app.dependency_overrides.clear()
     with api._analysis_jobs_lock:
         api._analysis_jobs.clear()
+    with api._blast_jobs_lock:
+        api._blast_jobs.clear()
 
 
 def test_health(client: TestClient) -> None:
@@ -128,6 +136,117 @@ def test_count_artists_endpoint(client: TestClient, monkeypatch) -> None:
     assert resp.json() == {"count": 42}
 
 
+def test_blast_from_the_past_endpoint_runs_background_job(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    received = {}
+    scrobble = api.blast_from_past.Scrobble(
+        track="Track",
+        artist="Artist",
+        album="Album",
+        timestamp_ms=1,
+    )
+    selection = api.blast_from_past.ScrobbleSelection(
+        selected_date=date(2010, 1, 2),
+        date_index=1,
+        scrobbles_on_date=60,
+        page=2,
+        total_pages=2,
+        direction="bottom up",
+        position=3,
+        scrobble=scrobble,
+    )
+    match = api.blast_from_past.SpotifyTrackMatch(
+        spotify_id="track-id",
+        uri="spotify:track:track-id",
+        track="Track - Remastered",
+        artists=("Artist",),
+        album="Different Album",
+        search_rank=2,
+        track_similarity=1.0,
+        album_similarity=0.2,
+        popularity=20,
+        liked=True,
+    )
+    batch = api.blast_from_past.BlastFromPastBatch(
+        generated_at=datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC),
+        cutoff_date=date(2021, 12, 31),
+        available_dates=3698,
+        selections=(selection,),
+    )
+
+    def complete(spotify, playlist_id, **kwargs):
+        received.update(
+            spotify=spotify,
+            playlist_id=playlist_id,
+            count=kwargs["count"],
+            max_playlist_length=kwargs["max_playlist_length"],
+        )
+        kwargs["progress_callback"]("Searching Spotify track 1/1")
+        return api.blast_from_past.BlastFromPastSpotifySummary(
+            playlist_id=playlist_id,
+            requested_count=10,
+            playlist_length_before=4,
+            playlist_length_after=5,
+            batch=batch,
+            results=(
+                api.blast_from_past.SpotifySelectionResult(
+                    selection=selection,
+                    match=match,
+                    qualifying_matches=1,
+                    action="added",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(blast_from_the_past_playlist="spotify:playlist:blast"),
+    )
+    monkeypatch.setattr(
+        api.blast_from_past,
+        "add_blast_from_past_to_spotify",
+        complete,
+    )
+
+    response = client.post("/commands/blast-from-the-past")
+
+    assert response.status_code == 202
+    result = wait_for_blast_status(
+        client,
+        response.json()["job_id"],
+        {"completed"},
+    )
+    assert received["playlist_id"] == "blast"
+    assert received["count"] == 10
+    assert received["max_playlist_length"] is None
+    assert result["added"] == 1
+    assert result["playlist_length_before"] == 4
+    assert result["playlist_length_after"] == 5
+    assert result["random_org_timestamp"] == "2026-07-22T13:00:52+00:00"
+    assert result["selections"][0]["liked"] is True
+    assert result["selections"][0]["album_similarity"] == 0.2
+    assert any(
+        entry["message"] == "Searching Spotify track 1/1" for entry in result["logs"]
+    )
+
+
+def test_blast_from_the_past_endpoint_rejects_both_limits(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/commands/blast-from-the-past",
+        params={"count": 2, "max_playlist_length": 10},
+    )
+
+    assert response.status_code == 400
+    assert "either count or max_playlist_length" in response.json()["detail"]
+
+
 def wait_for_job_status(
     client: TestClient,
     job_id: str,
@@ -144,6 +263,24 @@ def wait_for_job_status(
             return body
         sleep(0.01)
     pytest.fail(f"job {job_id} did not reach {expected}")
+
+
+def wait_for_blast_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+    timeout: float = 2,
+) -> dict:
+    """Poll one fast playlist job until it reaches an expected state."""
+    deadline = monotonic() + timeout
+    while monotonic() < deadline:
+        response = client.get(f"/commands/blast-from-the-past-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"playlist job {job_id} did not reach {expected}")
 
 
 def analysis_summary(mode: str):
