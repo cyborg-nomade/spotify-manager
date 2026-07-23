@@ -132,6 +132,12 @@ venv.bak/
 spotify_manager/files/album_tracks_cache.json
 spotify_manager/files/artist_review_cache.json
 
+# Protected Genre Reveal runtime state, browser-mirrored and backed up before writes
+spotify_manager/files/genre_reveal_state.json
+spotify_manager/files/genre_reveal_state.json.tmp
+spotify_manager/files/genre_reveal_state_backups/
+spotify_manager/files/genre_reveal_log.jsonl
+
 # Restart-safe live-library staging and local undo snapshots
 spotify_manager/files/library_sync/
 spotify_manager/files/library_sync_backups/

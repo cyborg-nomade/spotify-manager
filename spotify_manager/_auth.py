@@ -12,8 +12,17 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp
 
 
-# Paths reachable without the password (the shell page, liveness, favicon).
-OPEN_PATHS = frozenset({"/", "/index.html", "/health", "/favicon.ico"})
+# Paths reachable without the password (shell pages, liveness, favicon).
+OPEN_PATHS = frozenset(
+    {
+        "/",
+        "/index.html",
+        "/genre-reveal",
+        "/genre-reveal/",
+        "/health",
+        "/favicon.ico",
+    }
+)
 
 
 class PasswordMiddleware(BaseHTTPMiddleware):

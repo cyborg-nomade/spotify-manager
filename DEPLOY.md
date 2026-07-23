@@ -94,9 +94,23 @@ In the Space → **Settings → Variables and secrets**, add these as **Secrets*
 | `APP5_SPOTIPY_CACHE_JSON` ... `APP8_SPOTIPY_CACHE_JSON` | The full contents of each matching `spotipy_token_cache_appN.json`. |
 | `ALBUMS_TO_ADD` | From your local `.env` (an integer). |
 | `LIMIT` | From your local `.env` (an integer). |
+| `GENRE_REVEAL_PLAYLIST` | Spotify URL or id for the Genre Reveal destination playlist. |
 
 `ALBUMS_TO_ADD` and `LIMIT` can be **Variables** rather than Secrets if you
 prefer; every Spotify credential and token-cache value must be a **Secret**.
+
+### Protect Genre Reveal progress
+
+Before every Space deployment, download or otherwise snapshot the current
+`/genre-reveal/state` response and retain the existing
+`spotify_manager/files/genre_reveal_state_backups/` directory. Never replace a
+newer state with an older deployment copy.
+
+Both paths are intentionally listed in `.gitignore`, and the Hugging Face
+uploader honors that file. A deployment package must therefore explicitly
+include `spotify_manager/files/genre_reveal_state.json` and its backup
+directory. Verify their entry counts in the uploaded HF revision before
+allowing the new container to replace the running one.
 
 > Why these names: `spotify_manager/settings.py` reads its fields from
 > environment variables (pydantic-settings), so `SPOTIPY_CLIENT_ID` →

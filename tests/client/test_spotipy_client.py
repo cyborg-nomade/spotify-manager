@@ -33,6 +33,8 @@ def test_get_spotipy_client(monkeypatch: pytest.MonkeyPatch) -> None:
     assert client.retries == 5
     assert client.status_retries == 5
     assert 429 not in client.status_forcelist
+    retry = client._session.get_adapter("https://").max_retries
+    assert retry.respect_retry_after_header is False
 
 
 def test_get_spotipy_client_accepts_retry_settings(

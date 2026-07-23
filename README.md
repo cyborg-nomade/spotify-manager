@@ -115,6 +115,43 @@ POST /commands/library-analysis-jobs/{job_id}/cancel
 After a web-page reload, the UI reconnects to active jobs through the collection
 endpoint, restores their progress and logs, and resumes polling automatically.
 
+## Genre Reveal
+
+The web UI includes a **Genre reveal** launcher immediately below Daily Mind
+Radio. It opens the existing 6,132-genre nearest-neighbour route through the
+Every Noise map without changing its ordering or controls.
+
+Set `GENRE_REVEAL_PLAYLIST` to the Spotify URL, URI, or ID of the destination
+playlist. **Run next genre** opens the first incomplete genre and its main
+Every Noise Spotify playlist, saves that playlist to the library, and appends
+the first ten tracks that are not already in the configured destination. The
+genre is checked only after both Spotify updates and the audit log succeed.
+
+The same operation is available from the CLI. It opens both source pages by
+default; pass `--no-open-pages` for a terminal-only run.
+
+```console
+uv run spotify-manager genre-reveal
+just genre-reveal
+just genre-reveal --no-open-pages
+```
+
+Completed genres and the **Hide completed** setting are synchronized through
+the password-protected `/genre-reveal/state` API and cached in the browser as a
+fallback. The browser retains the latest 50 snapshots, and the server backs up
+the current file before every replacement. The server writes progress atomically to
+`spotify_manager/files/genre_reveal_state.json`. This file survives page
+reloads and can be shared across browsers while the Space container is
+running, but it follows the same ephemeral-filesystem limitation as other
+runtime files and is reset when an unpersisted HF container is replaced.
+Set `GENRE_REVEAL_STATE_PATH` to a mounted persistent-storage path if the Space
+has persistent storage enabled.
+
+Successful Spotify operations are appended to
+`spotify_manager/files/genre_reveal_log.jsonl`, including the source playlist
+and exact track URIs added or skipped. Set `GENRE_REVEAL_LOG_PATH` to move this
+audit log to persistent storage.
+
 ## Library maintenance commands
 
 ### `monthly-routines`
@@ -417,6 +454,7 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `THE_QUEUE_3_PLAYLIST` | Spotify URL or id for the 18+ liked-track queue. |
 | `BLAST_FROM_THE_PAST_PLAYLIST` | Spotify URL or id for Friday Routine recovery tracks. |
 | `DAILY_MIND_RADIO_PLAYLIST` | Spotify URL or id for anniversary recovery tracks. |
+| `GENRE_REVEAL_PLAYLIST` | Spotify URL or id that receives each genre playlist's first ten tracks. |
 
 > This Space should be **Private** — the repository contains your personal
 > library export files.

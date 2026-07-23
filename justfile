@@ -109,6 +109,10 @@ blast-from-the-past *args:
 daily-mind-radio *args:
     {{ cli }} daily-mind-radio "$@"
 
+# Save and sample the first unchecked Every Noise genre playlist.
+genre-reveal *args:
+    {{ cli }} genre-reveal "$@"
+
 # Authenticate or force-refresh every configured Spotify app token.
 refresh-spotify-tokens *args:
     {{ cli }} refresh-spotify-tokens "$@"
