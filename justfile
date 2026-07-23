@@ -97,6 +97,10 @@ convert-lib *args:
 count-artists *args:
     {{ cli }} count-artists "$@"
 
+# Upload refreshed Spotify and Last.fm exports to the HF Space.
+upload-library-files-to-hf *args:
+    {{ cli }} upload-library-files-to-hf "$@"
+
 # Select Friday-routine tracks from past Last.fm scrobbles.
 blast-from-the-past *args:
     {{ cli }} blast-from-the-past "$@"

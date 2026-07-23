@@ -190,6 +190,32 @@ uv run spotify-manager count-artists
 just count-artists
 ```
 
+### `upload-library-files-to-hf`
+
+Uploads refreshed source exports to the private
+`cyborg-nomade/spotify-manager` Hugging Face Space. Authenticate once with
+`hf auth login` before running it. By default, the command validates and
+uploads both `YourLibrary.json` and `lastfmstats-man-et-arms.json`:
+
+```console
+uv run spotify-manager upload-library-files-to-hf
+just upload-library-files-to-hf
+```
+
+Their update schedules differ, so either export can be uploaded independently:
+
+```console
+just upload-library-files-to-hf --your-library-only
+just upload-library-files-to-hf --lastfm-only
+```
+
+Use `--dry-run` with any mode to validate the JSON and preview the files and
+sizes without changing local files or HF. A Last.fm upload also regenerates the
+tracked compressed base64 fallback parts, uploads them inline, and removes
+obsolete parts from the Space. This keeps the Docker deployment usable when HF
+stores the full export through large-file storage. A successful upload to
+`main` triggers a Space rebuild.
+
 ### `blast-from-the-past`
 
 Selects unique dates with scrobbles from
