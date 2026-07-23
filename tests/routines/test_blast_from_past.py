@@ -89,6 +89,25 @@ class FakeSpotify:
         return {"snapshot_id": "snapshot"}
 
 
+def test_playlist_state_includes_edition_tolerant_track_keys() -> None:
+    sp = FakeSpotify()
+    sp.playlist_tracks = [
+        spotify_track(
+            "existing",
+            "Song - 2011 Remastered",
+            "Beyoncé",
+            "Album",
+        )
+    ]
+
+    state = blast_from_past.load_playlist_state(
+        sp,  # type: ignore[arg-type]
+        "blast",
+    )
+
+    assert state.track_keys == frozenset({("beyonce", "song")})
+
+
 def test_load_scrobbles_uses_berlin_dates_and_newest_first(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(

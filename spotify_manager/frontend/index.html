@@ -224,6 +224,18 @@
       <div class="analysis-progress" id="dailyMindRadioProgress"></div>
     </section>
 
+    <section class="card" id="foundArtCard">
+      <h2>Found Art</h2>
+      <div class="blast-control">
+        <label for="foundArtCount">Tracks to add</label>
+        <input id="foundArtCount" type="number" min="1" step="1" value="20" inputmode="numeric" />
+      </div>
+      <div class="btns">
+        <button class="primary" data-action="startFoundArt">Add recommendations</button>
+      </div>
+      <div class="analysis-progress" id="foundArtProgress"></div>
+    </section>
+
     <section class="card" id="genreRevealCard">
       <h2>Genre reveal</h2>
       <div class="btns">
@@ -334,6 +346,7 @@
   var analysisJobs = {};
   var blastJob = null;
   var dailyMindRadioJob = null;
+  var foundArtJob = null;
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -500,6 +513,15 @@
         finished: "Daily Mind Radio finished",
       };
     }
+    if (kind === "found") {
+      return {
+        progressId: "foundArtProgress",
+        action: "startFoundArt",
+        basePath: "/commands/found-art",
+        command: "found_art",
+        finished: "Found Art finished",
+      };
+    }
     return {
       progressId: "blastProgress",
       action: "startBlast",
@@ -511,6 +533,7 @@
 
   function rememberPlaylistJob(kind, job) {
     if (kind === "daily") dailyMindRadioJob = job;
+    else if (kind === "found") foundArtJob = job;
     else blastJob = job;
   }
 
@@ -538,7 +561,36 @@
       }
       dateSummary += '</div>';
     }
-    var selections = (job.selections || []).map(function (item) {
+    var foundSummary = "";
+    if (kind === "found" && job.week_start) {
+      foundSummary = '<div class="playlist-dates">' +
+        '<div>Listening week: ' + esc(job.week_start) + '</div>' +
+        '<div>History: ' + esc(job.history_scrobbles || 0) + ' scrobbles across ' +
+          esc(job.history_tracks || 0) + ' tracks · ' +
+          esc(job.live_scrobbles_added || 0) + ' new</div>' +
+        '<div>Candidates: ' + esc(job.candidate_count || 0) + '</div></div>';
+    }
+    var selections = kind === "found"
+      ? (job.found_art_results || []).map(function (item) {
+        var actionClass = String(item.action || "").replace(/\s+/g, "-");
+        var trackScore = typeof item.track_similarity === "number"
+          ? Math.round(item.track_similarity * 100) + "% Spotify match"
+          : "";
+        var supportCount = (item.supporting_seeds || []).length;
+        return '<div class="blast-selection">' +
+          '<div class="blast-selection-title">' + esc(item.artist) + ' · ' + esc(item.track) + '</div>' +
+          '<div class="blast-selection-match">' +
+            esc(item.spotify_match || "No unliked qualifying Spotify match") + '</div>' +
+          '<div class="blast-selection-meta">base #' + esc(item.base_rank) +
+            ' · weekly ' + esc(Number(item.weekly_rank || 0).toFixed(3)) +
+            ' · score ' + esc(Number(item.score || 0).toFixed(3)) +
+            ' · best ' + esc(Math.round(Number(item.best_match || 0) * 100)) + '%' +
+            ' · ' + esc(supportCount) + (supportCount === 1 ? ' seed' : ' seeds') +
+            (trackScore ? ' · ' + esc(trackScore) : '') +
+            ' · <span class="blast-action ' + esc(actionClass) + '">' +
+              esc(item.action) + '</span></div></div>';
+      }).join("")
+      : (job.selections || []).map(function (item) {
       var actionClass = String(item.action || "").replace(/\s+/g, "-");
       var trackScore = typeof item.track_similarity === "number"
         ? Math.round(item.track_similarity * 100) + "% track"
@@ -572,7 +624,7 @@
         '<span class="analysis-log-message">Waiting for activity…</span></div>';
     }
     out.innerHTML = '<div class="analysis-state">' + esc(job.detail || job.status) + '</div>' +
-      dateSummary + summary + selections +
+      dateSummary + foundSummary + summary + selections +
       '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
@@ -643,6 +695,10 @@
     return restoreActivePlaylistJobs("daily");
   }
 
+  function restoreActiveFoundArtJobs() {
+    return restoreActivePlaylistJobs("found");
+  }
+
   // ---- Actions -----------------------------------------------------------
   var actions = {
     blastMode(btn) {
@@ -708,6 +764,37 @@
         renderError(out, e);
         setBusy(btn, false);
         showToast("Could not start Daily Mind Radio", "err");
+      }
+    },
+
+    async startFoundArt(btn) {
+      var input = document.getElementById("foundArtCount");
+      var count = Number(input.value);
+      var out = document.getElementById("foundArtProgress");
+      if (!Number.isInteger(count) || count < 1) {
+        showToast("Enter a positive whole number", "err");
+        input.focus();
+        return;
+      }
+      var q = new URLSearchParams();
+      q.set("count", String(count));
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api("/commands/found-art?" + q.toString(), { method: "POST" });
+        foundArtJob = job;
+        renderPlaylistJob("found", job);
+        pollPlaylistJob("found", job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "found_art") {
+          await pollPlaylistJob("found", activeJobId);
+          showToast("Reconnected to Found Art", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Found Art", "err");
       }
     },
 
@@ -922,6 +1009,7 @@
     restoreActiveAnalysisJobs();
     restoreActiveBlastJobs();
     restoreActiveDailyMindRadioJobs();
+    restoreActiveFoundArtJobs();
     return true;
   }
 

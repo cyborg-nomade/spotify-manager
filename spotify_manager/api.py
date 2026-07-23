@@ -40,6 +40,8 @@ from spotipy.exceptions import SpotifyException
 
 # UFI
 from spotify_manager.client import get_spotipy_client
+from spotify_manager.client.lastfm import LastFmClient
+from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.loaders_savers import load_your_library_file
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import ArtistLibraryStats
@@ -53,6 +55,7 @@ from spotify_manager.processors.total_albums_processor import update_total_album
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
+from spotify_manager.routines import found_art
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -139,6 +142,21 @@ class BlastSelectionResult(BaseModel):
     action: str
 
 
+class FoundArtSelectionResult(BaseModel):
+    """One Last.fm recommendation and its Spotify playlist outcome."""
+
+    artist: str
+    track: str
+    score: float
+    best_match: float
+    supporting_seeds: list[str] = Field(default_factory=list)
+    base_rank: int
+    weekly_rank: float
+    spotify_match: str | None = None
+    track_similarity: float | None = None
+    action: str
+
+
 class BlastJobResult(BaseModel):
     """Pollable state for one Last.fm-based playlist job."""
 
@@ -156,6 +174,12 @@ class BlastJobResult(BaseModel):
     target_dates: list[str] = Field(default_factory=list)
     missing_dates: list[str] = Field(default_factory=list)
     selections: list[BlastSelectionResult] = Field(default_factory=list)
+    week_start: str | None = None
+    history_tracks: int | None = None
+    history_scrobbles: int | None = None
+    live_scrobbles_added: int | None = None
+    candidate_count: int | None = None
+    found_art_results: list[FoundArtSelectionResult] = Field(default_factory=list)
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
 
@@ -654,6 +678,115 @@ def _run_daily_mind_radio_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _found_art_selection_result(
+    result: found_art.FoundArtResult,
+) -> FoundArtSelectionResult:
+    """Convert one Found Art result into its stable API representation."""
+    spotify_match = None
+    track_similarity = None
+    if result.match is not None:
+        album = result.match.album or "(no album)"
+        spotify_match = (
+            f"{', '.join(result.match.artists)} - {result.match.track} - {album}"
+        )
+        track_similarity = result.match.track_similarity
+    return FoundArtSelectionResult(
+        artist=result.candidate.artist,
+        track=result.candidate.track,
+        score=result.candidate.score,
+        best_match=result.candidate.best_match,
+        supporting_seeds=list(result.candidate.supporting_seeds),
+        base_rank=result.candidate.base_rank,
+        weekly_rank=result.candidate.weekly_rank,
+        spotify_match=spotify_match,
+        track_similarity=track_similarity,
+        action=result.action,
+    )
+
+
+def _run_found_art_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+    api_key: str,
+    username: str,
+    count: int,
+) -> None:
+    """Execute one Found Art web job and retain its complete trace."""
+    job = get_blast_job(job_id, command="found_art")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Found Art started"
+        _append_blast_log_locked(job, "Found Art started.")
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+    lastfm = LastFmClient(
+        api_key,
+        username,
+        event_callback=echo,
+    )
+
+    try:
+        summary = found_art.run_found_art(
+            spotify,
+            lastfm,
+            playlist_id,
+            count=count,
+            progress_callback=echo,
+        )
+    except (found_art.FoundArtError, LastFmError, SpotifyException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Found Art failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Found Art error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected Found Art error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [_found_art_selection_result(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "completed"
+            job.result.requested_count = summary.requested_count
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.added = summary.added
+            job.result.week_start = summary.week_start.isoformat()
+            job.result.history_tracks = summary.history_tracks
+            job.result.history_scrobbles = summary.history_scrobbles
+            job.result.live_scrobbles_added = summary.live_scrobbles_added
+            job.result.candidate_count = summary.candidate_count
+            job.result.found_art_results = results
+            job.result.detail = (
+                f"Added {summary.added} of {summary.requested_count} "
+                f"recommendations; playlist {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}."
+            )
+            for result in results:
+                target = result.spotify_match or "no unliked qualifying match"
+                _append_blast_log_locked(
+                    job,
+                    f"{result.artist} - {result.track} -> {target} ({result.action}).",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def start_blast_job(
     spotify: Spotify,
     playlist_id: str,
@@ -718,6 +851,46 @@ def start_daily_mind_radio_job(
         target=_run_daily_mind_radio_job,
         args=(job_id, spotify, playlist_id),
         name=f"daily-mind-radio-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_found_art_job(
+    spotify: Spotify,
+    playlist_id: str,
+    api_key: str,
+    username: str,
+    count: int,
+) -> BlastJobResult:
+    """Start one Found Art job, rejecting another playlist routine."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="found_art",
+                requested_count=count,
+            )
+        )
+        _append_blast_log_locked(job, "Found Art queued.")
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_found_art_job,
+        args=(job_id, spotify, playlist_id, api_key, username, count),
+        name=f"found-art-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -956,6 +1129,62 @@ def cmd_active_daily_mind_radio_jobs() -> list[BlastJobResult]:
 def cmd_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     """Return current progress for one Daily Mind Radio job."""
     job = get_blast_job(job_id, command="daily_mind_radio")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/found-art",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_found_art(
+    client: ClientDep,
+    count: Annotated[int, Query(ge=1)] = found_art.DEFAULT_COUNT,
+) -> BlastJobResult:
+    """Start a background Found Art recommendation update."""
+    configuration = Settings()
+    try:
+        playlist_id = found_art.parse_found_art_playlist_id(
+            configuration.found_art_playlist
+        )
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except found_art.FoundArtConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_found_art_job(
+        client,
+        playlist_id,
+        api_key,
+        username,
+        count,
+    )
+
+
+@app.get(
+    "/commands/found-art-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_found_art_jobs() -> list[BlastJobResult]:
+    """Return active Found Art jobs for web reload reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "found_art"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/found-art-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_found_art_job(job_id: str) -> BlastJobResult:
+    """Return current progress for one Found Art job."""
+    job = get_blast_job(job_id, command="found_art")
     with _blast_jobs_lock:
         return _blast_job_snapshot(job)
 

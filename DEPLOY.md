@@ -95,6 +95,9 @@ In the Space → **Settings → Variables and secrets**, add these as **Secrets*
 | `ALBUMS_TO_ADD` | From your local `.env` (an integer). |
 | `LIMIT` | From your local `.env` (an integer). |
 | `GENRE_REVEAL_PLAYLIST` | Spotify URL or id for the Genre Reveal destination playlist. |
+| `FOUND_ART_PLAYLIST` | Spotify URL or id for the Found Art destination playlist. |
+| `LASTFM_API_KEY` | Read-only Last.fm API key used by Found Art. |
+| `LASTFM_USERNAME` | Last.fm username whose listening history feeds Found Art. |
 
 `ALBUMS_TO_ADD` and `LIMIT` can be **Variables** rather than Secrets if you
 prefer; every Spotify credential and token-cache value must be a **Secret**.

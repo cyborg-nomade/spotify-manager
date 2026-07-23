@@ -28,3 +28,6 @@ class Settings(BaseSettings):
     blast_from_the_past_playlist: str | None = None
     daily_mind_radio_playlist: str | None = None
     genre_reveal_playlist: str | None = None
+    found_art_playlist: str | None = None
+    lastfm_api_key: str | None = None
+    lastfm_username: str | None = None

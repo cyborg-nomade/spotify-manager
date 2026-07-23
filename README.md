@@ -303,6 +303,63 @@ GET  /commands/blast-from-the-past-jobs
 GET  /commands/blast-from-the-past-jobs/{job_id}
 ```
 
+### `found-art`
+
+Builds a Last.fm-style recommendation list from the documented API and adds
+unheard tracks to the playlist configured by `FOUND_ART_PLAYLIST`. Configure
+`LASTFM_API_KEY` and `LASTFM_USERNAME`; the read-only API calls do not require a
+Last.fm shared secret or user session.
+
+The routine chooses a diverse mix of 90-day, one-year, and all-time seed tracks
+from the Last.fm export, then combines the ranked results from
+`track.getSimilar`. Both seed choice and final candidate choice use deterministic
+weighted sampling keyed to the Friday that begins the listening week. Repeated
+runs during one Friday-Thursday week therefore produce the same proposal, while
+the next Friday rotates both the seeds and the candidate order.
+
+A candidate is excluded when the normalized artist and track pair appears in
+the export, the live API delta, or a previous successful Found Art run.
+Remaster, deluxe, live, and similar edition suffixes are treated as the same
+track. A completed batch contains at most one track per artist; a failed,
+already-present, or liked candidate does not prevent another track by that
+artist from being considered.
+
+Before changing Spotify, candidates must pass the existing exact-artist and 90%
+track-name matching rules. Liked Songs, existing playlist entries, and duplicate
+Spotify results are not added. The default Friday-routine batch is 20 tracks:
+
+```console
+uv run spotify-manager found-art --dry-run
+just found-art --dry-run
+
+uv run spotify-manager found-art
+just found-art
+
+uv run spotify-manager found-art --count 10
+just found-art --count 10
+
+uv run spotify-manager found-art --max-playlist-length 50
+just found-art --max-playlist-length 50
+```
+
+Use either `--count` or `--max-playlist-length`, never both. `--seed-count`
+defaults to 30. Similar-track responses are cached for resumability during the
+current listening week, saved after each seed, and refreshed after the Friday
+boundary. Scrobbles newer than the export are kept in an append-only delta.
+Every completed real or dry run is recorded in
+`spotify_manager/files/found_art_log.jsonl`, including the week, seed sampling
+keys, original candidate ranks, and weekly sampling keys.
+
+The web UI places Found Art between Daily Mind Radio and Genre Reveal. Its count
+control also defaults to 20, and the background job retains progress logs and
+results so the page can reconnect after a reload:
+
+```text
+POST /commands/found-art?count=20
+GET  /commands/found-art-jobs
+GET  /commands/found-art-jobs/{job_id}
+```
+
 ### `daily-mind-radio`
 
 Selects one scrobble from today's date in the previous year, then from the
