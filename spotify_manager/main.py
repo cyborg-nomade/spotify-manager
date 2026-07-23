@@ -41,6 +41,7 @@ from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
+from spotify_manager.routines import upload_library_files as hf_upload
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -274,6 +275,114 @@ def convert_lib() -> None:
 def count_artists() -> None:
     """Print the number of artists in the YourLibrary file."""
     print(count_artists_in_library())
+
+
+def format_file_size(size_bytes: int) -> str:
+    """Format a byte count for a compact CLI summary."""
+    size = float(size_bytes)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if size < 1024 or unit == "GiB":
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    raise AssertionError("unreachable")
+
+
+@app.command(name="upload-library-files-to-hf")
+def upload_library_files_to_hf_command(
+    your_library_only: bool = typer.Option(
+        False,
+        "--your-library-only",
+        help="Upload YourLibrary.json without the Last.fm export.",
+    ),
+    lastfm_only: bool = typer.Option(
+        False,
+        "--lastfm-only",
+        help="Upload the Last.fm export without YourLibrary.json.",
+    ),
+    repo_id: str = typer.Option(
+        hf_upload.DEFAULT_REPO_ID,
+        "--repo-id",
+        help="Hugging Face Space repository id.",
+    ),
+    revision: str = typer.Option(
+        hf_upload.DEFAULT_REVISION,
+        "--revision",
+        help="Hugging Face Space branch or revision.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and summarize without changing local files or HF.",
+    ),
+) -> None:
+    """Upload refreshed Spotify and Last.fm exports to the HF Space."""
+    if your_library_only and lastfm_only:
+        raise typer.BadParameter(
+            "use either --your-library-only or --lastfm-only, not both"
+        )
+
+    console = Console()
+    try:
+        with console.status("Validating library exports"):
+            plan = hf_upload.prepare_library_files_upload(
+                include_your_library=not lastfm_only,
+                include_lastfm=not your_library_only,
+                repo_id=repo_id,
+                revision=revision,
+            )
+    except hf_upload.LibraryFilesUploadError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    table = Table(title=f"HF upload: {plan.repo_id}@{plan.revision}")
+    table.add_column("Export")
+    table.add_column("Items", justify="right")
+    table.add_column("Size", justify="right")
+    table.add_column("HF path")
+    for resource in plan.resources:
+        table.add_row(
+            resource.name,
+            f"{resource.item_count:,}",
+            format_file_size(resource.size_bytes),
+            resource.path_in_repo,
+        )
+    if plan.lastfm_parts:
+        table.add_row(
+            f"{len(plan.lastfm_parts)} inline Last.fm fallback parts",
+            "",
+            format_file_size(sum(len(part.content) for part in plan.lastfm_parts)),
+            f"{hf_upload.REMOTE_FILES_DIR}/{hf_upload.LASTFM_PART_PREFIX}*",
+            style="dim",
+        )
+    console.print(table)
+
+    if dry_run:
+        console.print(
+            f"Dry run complete: {plan.upload_file_count} files validated; "
+            "nothing was changed.",
+            style="bold green",
+        )
+        return
+
+    try:
+        with console.status("Uploading library exports to Hugging Face"):
+            result = hf_upload.upload_library_files(plan)
+    except hf_upload.LibraryFilesUploadError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    console.print(
+        f"Uploaded {result.uploaded_files} files "
+        f"({format_file_size(result.upload_size_bytes)}).",
+        style="bold green",
+    )
+    if result.deleted_stale_parts:
+        console.print(
+            f"Removed {result.deleted_stale_parts} obsolete fallback parts.",
+            style="yellow",
+        )
+    console.print(f"HF commit: {result.commit_url}", markup=False)
+    console.print("The Space rebuild has been triggered.", style="dim")
 
 
 def print_scrobble_selection_table(
