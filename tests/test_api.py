@@ -391,6 +391,106 @@ def test_active_daily_mind_radio_job_can_be_restored(
     assert client.get("/commands/daily-mind-radio-jobs").json() == []
 
 
+def test_found_art_endpoint_runs_background_job_with_requested_count(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    received = {}
+    candidate = api.found_art.FoundArtCandidate(
+        artist="Recommendation Artist",
+        track="Recommendation Track",
+        key=("recommendation artist", "recommendation track"),
+        score=1.25,
+        best_match=0.9,
+        supporting_seeds=("Seed Artist - Seed Track",),
+        base_rank=4,
+        weekly_rank=0.75,
+    )
+    match = api.blast_from_past.SpotifyTrackMatch(
+        spotify_id="recommendation-id",
+        uri="spotify:track:recommendation-id",
+        track="Recommendation Track",
+        artists=("Recommendation Artist",),
+        album="Recommendation Album",
+        search_rank=1,
+        track_similarity=1.0,
+        album_similarity=None,
+        popularity=42,
+        liked=False,
+    )
+
+    def complete(spotify, lastfm, playlist_id, **kwargs):
+        received.update(
+            spotify=spotify,
+            lastfm=lastfm,
+            playlist_id=playlist_id,
+            count=kwargs["count"],
+        )
+        kwargs["progress_callback"]("Getting Last.fm neighbors for seed 1/1")
+        return api.found_art.FoundArtSummary(
+            generated_at=datetime(2026, 7, 23, 12, 0, tzinfo=UTC),
+            week_start=date(2026, 7, 17),
+            playlist_id=playlist_id,
+            requested_count=kwargs["count"],
+            seed_count=1,
+            history_tracks=100,
+            history_scrobbles=250,
+            live_scrobbles_added=3,
+            candidate_count=50,
+            playlist_length_before=8,
+            playlist_length_after=9,
+            dry_run=False,
+            seeds=(),
+            results=(
+                api.found_art.FoundArtResult(
+                    candidate=candidate,
+                    match=match,
+                    action="added",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            found_art_playlist="spotify:playlist:found",
+            lastfm_api_key="lastfm-key",
+            lastfm_username="lastfm-user",
+        ),
+    )
+    monkeypatch.setattr(api.found_art, "run_found_art", complete)
+
+    response = client.post("/commands/found-art", params={"count": 7})
+
+    assert response.status_code == 202
+    result = wait_for_found_art_status(
+        client,
+        response.json()["job_id"],
+        {"completed"},
+    )
+    assert received["playlist_id"] == "found"
+    assert received["count"] == 7
+    assert received["lastfm"].api_key == "lastfm-key"
+    assert received["lastfm"].username == "lastfm-user"
+    assert result["command"] == "found_art"
+    assert result["requested_count"] == 7
+    assert result["added"] == 1
+    assert result["week_start"] == "2026-07-17"
+    assert result["history_scrobbles"] == 250
+    assert result["candidate_count"] == 50
+    assert result["found_art_results"][0]["artist"] == "Recommendation Artist"
+    assert result["found_art_results"][0]["spotify_match"] == (
+        "Recommendation Artist - Recommendation Track - Recommendation Album"
+    )
+    assert any(
+        entry["message"] == "Getting Last.fm neighbors for seed 1/1"
+        for entry in result["logs"]
+    )
+
+
 def wait_for_job_status(
     client: TestClient,
     job_id: str,
@@ -443,6 +543,24 @@ def wait_for_daily_mind_radio_status(
             return body
         sleep(0.01)
     pytest.fail(f"Daily Mind Radio job {job_id} did not reach {expected}")
+
+
+def wait_for_found_art_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+    timeout: float = 2,
+) -> dict:
+    """Poll one fast Found Art job until it reaches an expected state."""
+    deadline = monotonic() + timeout
+    while monotonic() < deadline:
+        response = client.get(f"/commands/found-art-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Found Art job {job_id} did not reach {expected}")
 
 
 def analysis_summary(mode: str):

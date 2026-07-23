@@ -138,6 +138,7 @@ class PlaylistState:
 
     total_items: int
     track_ids: frozenset[str]
+    track_keys: frozenset[tuple[str, str]] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -190,9 +191,7 @@ def load_scrobbles_by_date(
     """Load every export scrobble into Berlin-local Last.fm date buckets."""
     compressed_path = Path(f"{path}.gz")
     compressed_parts = tuple(sorted(path.parent.glob(f"{path.name}.gz.part-*")))
-    encoded_parts = tuple(
-        sorted(path.parent.glob(f"{path.name}.gz.b64.part-*"))
-    )
+    encoded_parts = tuple(sorted(path.parent.glob(f"{path.name}.gz.b64.part-*")))
     failures: list[str] = []
     payload: object | None = None
 
@@ -699,6 +698,7 @@ def load_playlist_state(sp: Spotify, playlist_id: str) -> PlaylistState:
     """Load the complete target playlist once."""
     offset = 0
     track_ids: set[str] = set()
+    track_keys: set[tuple[str, str]] = set()
     while True:
         response = sp._get(
             f"playlists/{playlist_id}/items",
@@ -721,6 +721,16 @@ def load_playlist_state(sp: Spotify, playlist_id: str) -> PlaylistState:
             spotify_id = str(raw_track.get("id") or "").strip()
             if spotify_id:
                 track_ids.add(spotify_id)
+            track_name = str(raw_track.get("name") or "").strip()
+            if track_name:
+                normalized_track = normalize_name(
+                    without_sliding_qualifiers(track_name)
+                )
+                track_keys.update(
+                    (normalize_name(artist), normalized_track)
+                    for artist in _spotify_artist_names(raw_track)
+                    if normalize_name(artist) and normalized_track
+                )
 
         offset += len(raw_items)
         total = response.get("total")
@@ -732,6 +742,7 @@ def load_playlist_state(sp: Spotify, playlist_id: str) -> PlaylistState:
             return PlaylistState(
                 total_items=total_items,
                 track_ids=frozenset(track_ids),
+                track_keys=frozenset(track_keys),
             )
         if not raw_items:
             raise SpotifyTrackResolutionError(

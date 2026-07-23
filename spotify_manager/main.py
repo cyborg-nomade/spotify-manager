@@ -31,6 +31,8 @@ from spotify_manager.client import RotatingSpotify
 from spotify_manager.client import SpotifyClientConfigurationError
 from spotify_manager.client import SpotifyRedirectURIError
 from spotify_manager.client import get_spotipy_client
+from spotify_manager.client.lastfm import LastFmClient
+from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
 from spotify_manager.processors.library_lookups import ArtistNotFoundError
@@ -40,6 +42,7 @@ from spotify_manager.processors.total_albums_processor import update_total_album
 from spotify_manager.routines import analyse_library as library_sync
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
+from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
@@ -438,6 +441,165 @@ def print_scrobble_selection_table(
             Text(result.action, style=action_styles[result.action]),
         )
     console.print(table)
+
+
+def print_found_art_table(
+    console: Console,
+    results: tuple[found_art.FoundArtResult, ...],
+) -> None:
+    """Print ranked Last.fm candidates and their Spotify outcomes."""
+    table = Table(title="Found Art")
+    table.add_column("#", justify="right")
+    table.add_column("Last.fm candidate")
+    table.add_column("Recommendation")
+    table.add_column("Spotify match")
+    table.add_column("Result")
+    action_styles = {
+        "added": "bold green",
+        "would add": "bold cyan",
+        "already present": "yellow",
+        "artist already selected": "yellow",
+        "duplicate": "yellow",
+        "liked": "magenta",
+        "no Spotify match": "bold red",
+    }
+    for number, result in enumerate(results, start=1):
+        candidate = result.candidate
+        support_count = len(candidate.supporting_seeds)
+        support_text = (
+            f"base #{candidate.base_rank}; weekly {candidate.weekly_rank:.3f}; "
+            f"score {candidate.score:.3f}; best {candidate.best_match:.0%}; "
+            f"{support_count} seed{'s' if support_count != 1 else ''}"
+        )
+        if result.action == "artist already selected":
+            match_text = Text("Skipped after this artist was selected", style="yellow")
+        elif result.match is None:
+            match_text = Text("No unliked qualifying match", style="red")
+        else:
+            match_text = Text(
+                f"{', '.join(result.match.artists)} - {result.match.track}\n"
+                f"{result.match.album or '(no album)'}; "
+                f"track {result.match.track_similarity:.0%}"
+            )
+        table.add_row(
+            str(number),
+            f"{candidate.artist} - {candidate.track}",
+            support_text,
+            match_text,
+            Text(result.action, style=action_styles[result.action]),
+        )
+    console.print(table)
+
+
+@app.command(name="found-art")
+def found_art_command(
+    count: int | None = typer.Option(
+        None,
+        "--count",
+        min=1,
+        help="Number of unheard tracks to add (default: 20).",
+    ),
+    max_playlist_length: int | None = typer.Option(
+        None,
+        "--max-playlist-length",
+        min=1,
+        help="Fill up to this playlist length instead of using --count.",
+    ),
+    seed_count: int = typer.Option(
+        found_art.DEFAULT_SEED_COUNT,
+        "--seed-count",
+        min=1,
+        help="Number of listening-history seeds sent to Last.fm.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Rank and resolve recommendations without changing Spotify.",
+    ),
+) -> None:
+    """Build Last.fm-style unheard recommendations for Found Art."""
+    console = Console()
+    if count is not None and max_playlist_length is not None:
+        raise typer.BadParameter(
+            "use either --count or --max-playlist-length, not both"
+        )
+
+    configuration = Settings()
+    try:
+        playlist_id = found_art.parse_found_art_playlist_id(
+            configuration.found_art_playlist
+        )
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except found_art.FoundArtConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    effective_count = (
+        found_art.DEFAULT_COUNT
+        if count is None and max_playlist_length is None
+        else count
+    )
+    lastfm_client = LastFmClient(
+        api_key,
+        username,
+        event_callback=lambda message: console.print(message, style="yellow"),
+    )
+    try:
+        with console.status("Preparing Found Art recommendations") as status:
+            summary = found_art.run_found_art(
+                client(),
+                lastfm_client,
+                playlist_id,
+                count=effective_count,
+                max_playlist_length=max_playlist_length,
+                seed_count=seed_count,
+                dry_run=dry_run,
+                progress_callback=status.update,
+            )
+    except (found_art.FoundArtError, LastFmError) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    print_found_art_table(console, summary.results)
+    console.print(
+        f"Listening week: {summary.week_start.isoformat()} through "
+        f"{(summary.week_start + timedelta(days=6)).isoformat()}",
+        style="bold cyan",
+    )
+    console.print(
+        f"History: {summary.history_scrobbles:,} scrobbles across "
+        f"{summary.history_tracks:,} tracks; "
+        f"{summary.live_scrobbles_added:,} new live scrobbles.",
+        style="dim",
+    )
+    console.print(
+        f"Recommendations: {summary.seed_count} seeds produced "
+        f"{summary.candidate_count:,} unheard candidates.",
+        style="dim",
+    )
+    if summary.dry_run:
+        console.print(
+            f"Dry run: selected {summary.selected} of "
+            f"{summary.requested_count} requested tracks; Spotify was unchanged.",
+            style="bold cyan",
+        )
+    else:
+        console.print(
+            f"Playlist: {summary.playlist_length_before} -> "
+            f"{summary.playlist_length_after} items; added {summary.added} of "
+            f"{summary.requested_count} requested tracks.",
+            style="bold",
+        )
 
 
 @app.command(name="blast-from-the-past")

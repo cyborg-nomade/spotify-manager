@@ -105,6 +105,10 @@ upload-library-files-to-hf *args:
 blast-from-the-past *args:
     {{ cli }} blast-from-the-past "$@"
 
+# Rebuild Last.fm-style unheard recommendations for Found Art.
+found-art *args:
+    {{ cli }} found-art "$@"
+
 # Add tracks from today's Last.fm anniversaries to Daily Mind Radio.
 daily-mind-radio *args:
     {{ cli }} daily-mind-radio "$@"

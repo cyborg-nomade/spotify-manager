@@ -138,6 +138,12 @@ spotify_manager/files/genre_reveal_state.json.tmp
 spotify_manager/files/genre_reveal_state_backups/
 spotify_manager/files/genre_reveal_log.jsonl
 
+# Restart-safe Last.fm recommendation state and Found Art audit log
+spotify_manager/files/found_art_cache.json
+spotify_manager/files/found_art_cache.json.tmp
+spotify_manager/files/found_art_recent_scrobbles.jsonl
+spotify_manager/files/found_art_log.jsonl
+
 # Restart-safe live-library staging and local undo snapshots
 spotify_manager/files/library_sync/
 spotify_manager/files/library_sync_backups/
