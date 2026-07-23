@@ -10,10 +10,12 @@ from typing import Any
 from typing import Protocol
 from urllib.parse import urlparse
 
+import requests
 import spotipy
 from spotipy.cache_handler import CacheFileHandler
 from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
+from urllib3.util.retry import Retry
 
 # UFI
 from spotify_manager.settings import Settings
@@ -171,6 +173,23 @@ class RotatingSpotify(spotipy.Spotify):
         self._allow_interactive_auth = allow_interactive_auth
         self._rotation_lock = RLock()
         super().__init__(auth_manager=auth_managers[0], **kwargs)
+
+    def _build_session(self) -> None:
+        """Build retries that return 429 responses to credential rotation."""
+        self._session = requests.Session()
+        retry = Retry(
+            total=self.retries,
+            connect=None,
+            read=False,
+            allowed_methods=frozenset({"GET", "POST", "PUT", "DELETE"}),
+            status=self.status_retries,
+            backoff_factor=self.backoff_factor,
+            status_forcelist=self.status_forcelist,
+            respect_retry_after_header=False,
+        )
+        adapter = requests.adapters.HTTPAdapter(max_retries=retry)
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
 
     @property
     def active_app_label(self) -> str:

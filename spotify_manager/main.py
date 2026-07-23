@@ -6,8 +6,10 @@ import termios
 import tty
 from datetime import datetime
 from datetime import timedelta
+from pathlib import Path
 from time import monotonic
 from time import sleep
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -38,6 +40,7 @@ from spotify_manager.processors.total_albums_processor import update_total_album
 from spotify_manager.routines import analyse_library as library_sync
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
+from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
@@ -582,6 +585,97 @@ def daily_mind_radio_command() -> None:
         f"{len(summary.batch.selections)} populated anniversary dates.",
         style="bold",
     )
+
+
+@app.command(name="genre-reveal")
+def genre_reveal_command(
+    state_path: Annotated[
+        Path,
+        typer.Option(
+            "--state-path",
+            help="Path to the shared Genre Reveal progress file.",
+        ),
+    ] = genre_reveal.DEFAULT_STATE_PATH,
+    log_path: Annotated[
+        Path,
+        typer.Option(
+            "--log-path",
+            help="Path to the append-only Genre Reveal audit log.",
+        ),
+    ] = genre_reveal.DEFAULT_LOG_PATH,
+    open_pages: bool = typer.Option(
+        True,
+        "--open-pages/--no-open-pages",
+        help="Open the Every Noise and Spotify source pages after completion.",
+    ),
+) -> None:
+    """Save and sample the first unchecked Every Noise genre playlist."""
+    console = Console()
+    configuration = Settings()
+    try:
+        destination_playlist_id = genre_reveal.parse_destination_playlist_id(
+            configuration.genre_reveal_playlist
+        )
+        state = genre_reveal.load_genre_reveal_state(state_path)
+        entry = genre_reveal.first_incomplete_genre(state)
+    except (
+        genre_reveal.GenreRevealConfigError,
+        genre_reveal.GenreRevealStateError,
+        genre_reveal.GenreRevealCompleteError,
+    ) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    try:
+        with console.status(f"Processing {entry.name}"):
+            result = genre_reveal.process_next_genre(
+                client(),
+                entry.slug,
+                entry.name,
+                destination_playlist_id,
+                log_path=log_path,
+            )
+            genre_reveal.mark_genre_completed(entry.slug, state_path)
+    except (
+        genre_reveal.GenreRevealSourceError,
+        genre_reveal.GenreRevealStateError,
+        genre_reveal.GenreRevealLogError,
+        blast_from_past.BlastFromPastError,
+    ) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    table = Table(title="Genre reveal")
+    table.add_column("#", justify="right")
+    table.add_column("Genre")
+    table.add_column("Source playlist")
+    table.add_column("Added", justify="right")
+    table.add_column("Already present", justify="right")
+    table.add_row(
+        str(entry.position),
+        entry.name,
+        result.source_playlist_id,
+        str(len(result.added_track_uris)),
+        str(len(result.already_present_track_uris)),
+    )
+    console.print(table)
+    console.print(f"Every Noise: {result.every_noise_url}", markup=False)
+    console.print(f"Spotify: {result.source_playlist_url}", markup=False)
+    console.print(
+        f"Saved the source playlist and completed {entry.name}.",
+        style="bold green",
+    )
+
+    if open_pages:
+        typer.launch(result.every_noise_url)
+        typer.launch(result.source_playlist_url)
 
 
 @app.command(name="refresh-spotify-tokens")

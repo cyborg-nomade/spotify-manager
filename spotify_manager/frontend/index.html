@@ -224,6 +224,13 @@
       <div class="analysis-progress" id="dailyMindRadioProgress"></div>
     </section>
 
+    <section class="card" id="genreRevealCard">
+      <h2>Genre reveal</h2>
+      <div class="btns">
+        <button class="primary" data-action="openGenreReveal">Open genre route</button>
+      </div>
+    </section>
+
     <!-- Artist stats -->
     <section class="card">
       <h2>Artist stats</h2>
@@ -702,6 +709,10 @@
         setBusy(btn, false);
         showToast("Could not start Daily Mind Radio", "err");
       }
+    },
+
+    openGenreReveal() {
+      window.location.assign("/genre-reveal");
     },
 
     async artistStats(btn) {
