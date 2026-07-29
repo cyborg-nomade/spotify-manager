@@ -92,6 +92,18 @@
   .blast-action.added { color: var(--green); }
   .blast-action.no-match { color: var(--red); }
   .blast-action.already-present, .blast-action.duplicate-selection { color: var(--amber); }
+  .new-wine-choice { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .new-wine-choice-title { font-size: .82rem; font-weight: 700; margin-bottom: 8px; overflow-wrap: anywhere; }
+  .new-wine-options { display: grid; gap: 7px; }
+  .new-wine-options button { border-radius: 6px; padding: 10px 12px; text-align: left; }
+  .new-wine-option-name { display: block; font-size: .82rem; }
+  .new-wine-option-meta { display: block; margin-top: 2px; color: var(--muted); font-size: .68rem; font-weight: 500; }
+  .new-wine-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
+  .new-wine-controls button { border-radius: 6px; padding: 10px 8px; font-size: .78rem; }
+  .new-wine-result.drop .blast-action { color: var(--red); }
+  .new-wine-result.advance .blast-action { color: var(--green); }
+  .new-wine-result.sauvignon .blast-action { color: #62c6ff; }
+  .new-wine-result.skip .blast-action { color: var(--amber); }
 
   .result { margin-top: 14px; display: none; }
   .result.show { display: block; }
@@ -243,6 +255,19 @@
       </div>
     </section>
 
+    <section class="card" id="newWineCard">
+      <h2>New wine from old bottles</h2>
+      <label class="inline">
+        <input type="checkbox" id="newWineDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions" style="margin-top:12px">
+        <button class="primary" data-action="startNewWine">Review releases</button>
+        <button class="danger cancel" data-action="cancelNewWine" hidden title="Stop flush">×</button>
+      </div>
+      <div class="analysis-progress" id="newWineProgress"></div>
+    </section>
+
     <!-- Artist stats -->
     <section class="card">
       <h2>Artist stats</h2>
@@ -347,6 +372,7 @@
   var blastJob = null;
   var dailyMindRadioJob = null;
   var foundArtJob = null;
+  var newWineJob = null;
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -369,10 +395,17 @@
   async function api(path, opts) {
     opts = opts || {};
     var res;
+    var requestHeaders = headers();
+    var body;
+    if (opts.json !== undefined) {
+      requestHeaders["Content-Type"] = "application/json";
+      body = JSON.stringify(opts.json);
+    }
     try {
       res = await fetch(API + path, {
         method: opts.method || "GET",
-        headers: headers(),
+        headers: requestHeaders,
+        body: body,
       });
     } catch (e) {
       throw { status: 0, detail: "Network error — is the server awake?" };
@@ -699,6 +732,132 @@
     return restoreActivePlaylistJobs("found");
   }
 
+  function renderNewWineJob(job) {
+    newWineJob = job;
+    var out = document.getElementById("newWineProgress");
+    var start = document.querySelector('[data-action="startNewWine"]');
+    var cancel = document.querySelector('[data-action="cancelNewWine"]');
+    var processed = typeof job.processed === "number" ? job.processed : 0;
+    var total = typeof job.total === "number" ? Math.max(job.total, processed) : null;
+    var pct = total === null ? null : (total === 0 ? 100 : Math.min(100, Math.round(processed * 100 / total)));
+    var meter = pct === null
+      ? '<div class="meter"><span class="indeterminate"></span></div>'
+      : '<div class="meter"><span style="width:' + pct + '%"></span></div>';
+    var count = total === null ? esc(processed) : esc(processed + " / " + total);
+    var summary = "";
+    if (typeof job.advanced === "number") {
+      summary = '<div class="blast-summary">' +
+        '<div><strong>' + esc(job.advanced) + '</strong><span>Advanced</span></div>' +
+        '<div><strong>' + esc(job.dropped || 0) + '</strong><span>Dropped</span></div>' +
+        '<div><strong>' + esc(job.sent_to_sauvignon || 0) + '</strong><span>Sauvignon</span></div>' +
+        '</div>';
+    }
+    var dropLabels = {
+      three_consecutive_unliked: "3 unliked",
+      manual_selection: "chosen",
+      only_current_year_single: "only current-year single",
+    };
+    var results = (job.new_wine_results || []).map(function (item) {
+      var actionClass = String(item.action || "").replace(/\s+/g, "-");
+      var action = item.action || "";
+      if (item.drop_reason) action += " · " + (dropLabels[item.drop_reason] || item.drop_reason);
+      if (item.album_unsaved) action += " · unsaved";
+      return '<div class="blast-selection new-wine-result ' + esc(actionClass) + '">' +
+        '<div class="blast-selection-title">' + esc(item.artist) + ' · ' + esc(item.source_track) + '</div>' +
+        '<div class="blast-selection-match">' + esc(item.release) + ' · ' + esc(item.release_type) +
+          (item.target_track ? ' → ' + esc(item.target_track) : '') + '</div>' +
+        '<div class="blast-selection-meta">' + (item.current_liked ? "liked" : "unliked") +
+          ' · streak ' + esc(item.consecutive_unliked) +
+          ' · <span class="blast-action">' + esc(action) + '</span></div></div>';
+    }).join("");
+    var pending = "";
+    if (job.pending_choice) {
+      var releaseButtons = (job.pending_choice.releases || []).map(function (release) {
+        return '<button class="ghost" data-action="newWineChoice" data-choice="' +
+          esc(release.spotify_id) + '">' +
+          '<span class="new-wine-option-name">' + esc(release.name) + '</span>' +
+          '<span class="new-wine-option-meta">' + esc(release.release_type) + ' · ' +
+            esc(release.release_date) + ' · ' + esc(release.total_tracks) + ' tracks · ' +
+            esc(release.primary_artist_name) + '</span></button>';
+      }).join("");
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">' + esc(job.pending_choice.artist) + ' · ' +
+          esc(job.pending_choice.source_track) + '</div>' +
+        '<div class="new-wine-options">' + releaseButtons + '</div>' +
+        '<div class="new-wine-controls">' +
+          '<button class="danger" data-action="newWineChoice" data-choice="drop">Drop</button>' +
+          '<button class="ghost" data-action="newWineChoice" data-choice="skip">Skip</button>' +
+          '<button class="ghost" data-action="newWineChoice" data-choice="quit">Quit</button>' +
+        '</div></div>';
+    }
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity…</span></div>';
+    }
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + ' · ' + count + '</div>' +
+      meter + summary + results + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running…");
+      if (job.status === "waiting") start.innerHTML = '<span class="spinner"></span> Waiting…';
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollNewWineJob(jobId) {
+    try {
+      var job = await api("/commands/flush-new-wine-jobs/" + jobId);
+      renderNewWineJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollNewWineJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("New Wine flush finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "New Wine flush stopped", "ok");
+      } else {
+        showToast("New Wine flush " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("newWineProgress"), e);
+      setBusy(document.querySelector('[data-action="startNewWine"]'), false);
+      showToast("Could not read New Wine progress", "err");
+    }
+  }
+
+  async function restoreActiveNewWineJobs() {
+    try {
+      var jobs = await api("/commands/flush-new-wine-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderNewWineJob(job);
+      pollNewWineJob(job.job_id);
+      showToast("Reconnected to New Wine flush", "ok");
+    } catch (e) {
+      if (e.status !== 401) showToast("Could not restore New Wine progress", "err");
+    }
+  }
+
   // ---- Actions -----------------------------------------------------------
   var actions = {
     blastMode(btn) {
@@ -795,6 +954,61 @@
         renderError(out, e);
         setBusy(btn, false);
         showToast("Could not start Found Art", "err");
+      }
+    },
+
+    async startNewWine(btn) {
+      var dryRun = document.getElementById("newWineDryRun").checked;
+      var out = document.getElementById("newWineProgress");
+      if (!dryRun && !confirm("Apply the New Wine flush to Spotify?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api("/commands/flush-new-wine?" + q.toString(), { method: "POST" });
+        renderNewWineJob(job);
+        pollNewWineJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "flush_new_wine") {
+          await pollNewWineJob(activeJobId);
+          showToast("Reconnected to New Wine flush", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start New Wine flush", "err");
+      }
+    },
+
+    async newWineChoice(btn) {
+      if (!newWineJob || !newWineJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/flush-new-wine-jobs/" + newWineJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice } }
+        );
+        renderNewWineJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit release choice", "err");
+      }
+    },
+
+    async cancelNewWine(btn) {
+      if (!newWineJob || !newWineJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/flush-new-wine-jobs/" + newWineJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderNewWineJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop New Wine flush", "err");
       }
     },
 
@@ -1010,6 +1224,7 @@
     restoreActiveBlastJobs();
     restoreActiveDailyMindRadioJobs();
     restoreActiveFoundArtJobs();
+    restoreActiveNewWineJobs();
     return true;
   }
 

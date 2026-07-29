@@ -14,7 +14,9 @@ jobs with pollable progress. The parsed library is cached; call
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -56,6 +58,8 @@ from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import found_art
+from spotify_manager.routines import new_wine
+from spotify_manager.routines import review_album_limits
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -157,6 +161,46 @@ class FoundArtSelectionResult(BaseModel):
     action: str
 
 
+class NewWineReleaseOption(BaseModel):
+    """One release offered while a web flush waits for a choice."""
+
+    spotify_id: str
+    name: str
+    release_type: str
+    release_date: str
+    total_tracks: int
+    primary_artist_name: str
+
+
+class NewWinePendingChoice(BaseModel):
+    """Current interactive choice exposed to the web client."""
+
+    artist: str
+    source_track: str
+    releases: list[NewWineReleaseOption] = Field(default_factory=list)
+
+
+class NewWineTrackResult(BaseModel):
+    """One completed New Wine source-track decision."""
+
+    artist: str
+    source_track: str
+    release: str
+    release_type: str
+    current_liked: bool
+    consecutive_unliked: int
+    action: str
+    target_track: str | None = None
+    album_unsaved: bool = False
+    drop_reason: str | None = None
+
+
+class NewWineChoiceRequest(BaseModel):
+    """Choice submitted for a waiting New Wine job."""
+
+    choice: str
+
+
 class BlastJobResult(BaseModel):
     """Pollable state for one Last.fm-based playlist job."""
 
@@ -180,6 +224,18 @@ class BlastJobResult(BaseModel):
     live_scrobbles_added: int | None = None
     candidate_count: int | None = None
     found_art_results: list[FoundArtSelectionResult] = Field(default_factory=list)
+    dry_run: bool = False
+    processed: int | None = None
+    total: int | None = None
+    advanced: int | None = None
+    dropped: int | None = None
+    sent_to_sauvignon: int | None = None
+    completed_singles: int | None = None
+    skipped: int | None = None
+    albums_unsaved: int | None = None
+    new_wine_results: list[NewWineTrackResult] = Field(default_factory=list)
+    pending_choice: NewWinePendingChoice | None = None
+    retry_at: str | None = None
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
 
@@ -198,6 +254,13 @@ class _BlastJob:
 
     result: BlastJobResult
     next_log_sequence: int = 1
+    choice_event: Event = dataclass_field(default_factory=Event)
+    cancel_event: Event = dataclass_field(default_factory=Event)
+    submitted_choice: str | None = None
+
+
+class _NewWineJobCancelledError(RuntimeError):
+    """Stop one web flush while preserving the routine's durable state."""
 
 
 _analysis_jobs: dict[str, _AnalysisJob] = {}
@@ -228,6 +291,17 @@ def get_analysis_client() -> Spotify:
 
 
 @lru_cache
+def get_interactive_client() -> Spotify:
+    """Provide an isolated no-retry client for interactive web routines."""
+    return get_spotipy_client(
+        retries=0,
+        status_retries=0,
+        status_forcelist=(999,),
+        allow_interactive_auth=False,
+    )
+
+
+@lru_cache
 def get_library() -> YourLibraryFile:
     """Provide the parsed YourLibrary.json, cached for the process."""
     return load_your_library_file()
@@ -235,6 +309,7 @@ def get_library() -> YourLibraryFile:
 
 ClientDep = Annotated[Spotify, Depends(get_client)]
 AnalysisClientDep = Annotated[Spotify, Depends(get_analysis_client)]
+InteractiveClientDep = Annotated[Spotify, Depends(get_interactive_client)]
 LibraryDep = Annotated[YourLibraryFile, Depends(get_library)]
 
 
@@ -787,6 +862,211 @@ def _run_found_art_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _new_wine_track_result(result: new_wine.FlushResult) -> NewWineTrackResult:
+    """Convert one New Wine result into its stable API representation."""
+    return NewWineTrackResult(
+        artist=result.artist,
+        source_track=result.source_track,
+        release=result.release,
+        release_type=result.release_type,
+        current_liked=result.current_liked,
+        consecutive_unliked=result.consecutive_unliked,
+        action=result.action,
+        target_track=result.target_track,
+        album_unsaved=result.album_unsaved,
+        drop_reason=result.drop_reason,
+    )
+
+
+def _run_new_wine_job(
+    job_id: str,
+    spotify: Spotify,
+    new_wine_playlist_id: str,
+    sauvignon_playlist_id: str,
+    dry_run: bool,
+) -> None:
+    """Execute one interactive New Wine flush as a reconnectable web job."""
+    job = get_blast_job(job_id, command="flush_new_wine")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "New Wine flush started"
+        _append_blast_log_locked(
+            job,
+            f"New Wine flush started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def progress_callback(completed: int, total: int, progress_status: str) -> None:
+        if job.cancel_event.is_set():
+            raise _NewWineJobCancelledError
+        with _blast_jobs_lock:
+            job.result.processed = completed
+            job.result.total = total
+            job.result.detail = progress_status
+
+    def choice_reader(
+        source: new_wine.PlaylistTrack,
+        candidates: tuple[new_wine.ReleaseCandidate, ...],
+    ) -> str:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _NewWineJobCancelledError
+            job.submitted_choice = None
+            job.choice_event.clear()
+            job.result.pending_choice = NewWinePendingChoice(
+                artist=source.primary_artist_name,
+                source_track=source.name,
+                releases=[
+                    NewWineReleaseOption(
+                        spotify_id=candidate.spotify_id,
+                        name=candidate.name,
+                        release_type=candidate.release_type,
+                        release_date=candidate.release_date,
+                        total_tracks=candidate.total_tracks,
+                        primary_artist_name=candidate.primary_artist_name,
+                    )
+                    for candidate in candidates
+                ],
+            )
+            job.result.status = "waiting"
+            job.result.detail = (
+                f"Choose a release for {source.primary_artist_name} after {source.name}"
+            )
+            _append_blast_log_locked(job, job.result.detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _NewWineJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                job.submitted_choice = None
+                job.choice_event.clear()
+                job.result.pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying release choice"
+                _append_blast_log_locked(job, f"Release choice received: {choice}.")
+                return choice
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _NewWineJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = new_wine.flush_new_wine(
+            spotify,
+            new_wine_playlist_id,
+            sauvignon_playlist_id,
+            choice_reader=choice_reader,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=retry_call,
+        )
+    except _NewWineJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.pending_choice = None
+            job.result.detail = (
+                "New Wine flush stopped. Progress was saved."
+                if not dry_run
+                else "New Wine dry run stopped."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.pending_choice = None
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.pending_choice = None
+            job.result.detail = (
+                f"Spotify HTTP {exc.http_status} remained unavailable after "
+                f"{exc.attempts} attempts while {exc.operation}. "
+                "Progress was saved."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except (new_wine.NewWineError, SpotifyException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.pending_choice = None
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"New Wine flush failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected New Wine flush error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.pending_choice = None
+            job.result.detail = f"Unexpected New Wine error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [_new_wine_track_result(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "paused" if summary.paused else "completed"
+            job.result.processed = summary.processed
+            job.result.total = summary.total
+            job.result.advanced = summary.advanced
+            job.result.dropped = summary.dropped
+            job.result.sent_to_sauvignon = summary.sent_to_sauvignon
+            job.result.completed_singles = summary.completed_singles
+            job.result.skipped = summary.skipped
+            job.result.albums_unsaved = summary.albums_unsaved
+            job.result.new_wine_results = results
+            job.result.pending_choice = None
+            if summary.paused:
+                job.result.detail = "New Wine flush paused. Progress was saved."
+            else:
+                unsave_label = "to unsave" if dry_run else "unsaved"
+                job.result.detail = (
+                    f"{summary.processed}/{summary.total} processed; "
+                    f"{summary.advanced} advanced, {summary.dropped} dropped, "
+                    f"{summary.sent_to_sauvignon} sent to Sauvignon, "
+                    f"{summary.albums_unsaved} albums {unsave_label}."
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.pending_choice = None
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def start_blast_job(
     spotify: Spotify,
     playlist_id: str,
@@ -891,6 +1171,55 @@ def start_found_art_job(
         target=_run_found_art_job,
         args=(job_id, spotify, playlist_id, api_key, username, count),
         name=f"found-art-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_new_wine_job(
+    spotify: Spotify,
+    new_wine_playlist_id: str,
+    sauvignon_playlist_id: str,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one New Wine web job, rejecting another playlist routine."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="flush_new_wine",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            f"New Wine flush queued{' in dry-run mode' if dry_run else ''}.",
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_new_wine_job,
+        args=(
+            job_id,
+            spotify,
+            new_wine_playlist_id,
+            sauvignon_playlist_id,
+            dry_run,
+        ),
+        name=f"new-wine-flush-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -1186,6 +1515,117 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
     """Return current progress for one Found Art job."""
     job = get_blast_job(job_id, command="found_art")
     with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-new-wine",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_flush_new_wine(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start an interactive New Wine flush with reconnectable web state."""
+    configuration = Settings()
+    try:
+        new_wine_playlist_id = new_wine.parse_playlist_id(
+            configuration.new_wine_from_old_bottles_playlist,
+            "NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST",
+        )
+        sauvignon_playlist_id = new_wine.parse_playlist_id(
+            configuration.sauvignon_terre_neuve_playlist,
+            "SAUVIGNON_TERRE_NEUVE_PLAYLIST",
+        )
+    except new_wine.NewWineConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_new_wine_job(
+        client,
+        new_wine_playlist_id,
+        sauvignon_playlist_id,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/flush-new-wine-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_new_wine_jobs() -> list[BlastJobResult]:
+    """Return active New Wine jobs so the web UI can reconnect after reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "flush_new_wine"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/flush-new-wine-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_new_wine_job(job_id: str) -> BlastJobResult:
+    """Return current progress and any pending choice for one New Wine job."""
+    job = get_blast_job(job_id, command="flush_new_wine")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-new-wine-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_new_wine_release(
+    job_id: str,
+    request: NewWineChoiceRequest,
+) -> BlastJobResult:
+    """Submit one release or control choice to a waiting New Wine job."""
+    job = get_blast_job(job_id, command="flush_new_wine")
+    with _blast_jobs_lock:
+        pending = job.result.pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="New Wine job is not waiting for a release choice",
+            )
+        allowed = {
+            new_wine.CHOICE_DROP,
+            new_wine.CHOICE_SKIP,
+            new_wine.CHOICE_QUIT,
+            *(release.spotify_id for release in pending.releases),
+        }
+        if request.choice not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail="release choice is not available",
+            )
+        job.submitted_choice = request.choice
+        job.result.pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Release choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-new-wine-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_new_wine_job(job_id: str) -> BlastJobResult:
+    """Request a clean stop at the next New Wine processing boundary."""
+    job = get_blast_job(job_id, command="flush_new_wine")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(status_code=409, detail="New Wine job is not active")
+        job.result.status = "cancelling"
+        job.result.pending_choice = None
+        job.result.detail = "Stopping New Wine flush"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
         return _blast_job_snapshot(job)
 
 

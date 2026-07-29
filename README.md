@@ -360,6 +360,63 @@ GET  /commands/found-art-jobs
 GET  /commands/found-art-jobs/{job_id}
 ```
 
+### `flush-new-wine`
+
+Advances every track present at the start of a *New Wine from Old Bottles*
+flush exactly once. Configure `NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST` and
+`SAUVIGNON_TERRE_NEUVE_PLAYLIST` with Spotify playlist URLs, URIs, or ids.
+
+Album and EP tracks follow Spotify's disc and track order automatically. When
+the current item is a single, the CLI scans the primary artist's complete
+Spotify catalog and shows the releases from the current year, including each
+release's type, date, and track count. You can select a release, drop the
+current single, skip it for this run, or quit. When the current single is the
+artist's only release that year, it is dropped automatically. Switching to a
+different release always starts at its first track, even when the single also
+appears on that release.
+
+Liked status is read live from Spotify. Three consecutive unliked tracks,
+including the current track, drop the release. A dropped release is also
+unsaved when it does not meet the usual whole-track 50% rule, including the
+existing odd-track rounding behavior. Reaching the final track of an album or
+EP adds its first track to *Sauvignon Terre-Neuve*. Singles are never added
+there and simply complete. Any required addition succeeds before the previous
+New Wine track is removed.
+
+Inspect the full plan first:
+
+```console
+uv run spotify-manager flush-new-wine --dry-run
+just flush-new-wine --dry-run
+```
+
+Then apply it:
+
+```console
+uv run spotify-manager flush-new-wine
+just flush-new-wine
+```
+
+Real runs snapshot their starting playlist in
+`spotify_manager/files/new_wine_flush_state.json`, save after every mutation,
+and resume that batch after an interruption without advancing completed entries
+again. Consecutive-unliked streaks are carried to the next selected track.
+Every real or dry-run result is appended to
+`spotify_manager/files/new_wine_flush_log.jsonl`; dry runs do not change
+Spotify, the generated library mirrors, or restart state.
+
+The web UI places New Wine immediately below Genre Reveal and defaults to
+dry-run mode. Its background job retains logs and pending release choices
+across page reloads:
+
+```text
+POST /commands/flush-new-wine?dry_run=true
+GET  /commands/flush-new-wine-jobs
+GET  /commands/flush-new-wine-jobs/{job_id}
+POST /commands/flush-new-wine-jobs/{job_id}/choice
+POST /commands/flush-new-wine-jobs/{job_id}/cancel
+```
+
 ### `daily-mind-radio`
 
 Selects one scrobble from today's date in the previous year, then from the
@@ -512,6 +569,8 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `BLAST_FROM_THE_PAST_PLAYLIST` | Spotify URL or id for Friday Routine recovery tracks. |
 | `DAILY_MIND_RADIO_PLAYLIST` | Spotify URL or id for anniversary recovery tracks. |
 | `GENRE_REVEAL_PLAYLIST` | Spotify URL or id that receives each genre playlist's first ten tracks. |
+| `NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST` | Spotify URL or id for releases being advanced track by track. |
+| `SAUVIGNON_TERRE_NEUVE_PLAYLIST` | Spotify URL or id receiving the first track of completed albums and EPs. |
 
 > This Space should be **Private** — the repository contains your personal
 > library export files.
