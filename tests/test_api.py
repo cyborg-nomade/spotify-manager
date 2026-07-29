@@ -617,6 +617,213 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
     assert client.get("/commands/flush-new-wine-jobs").json() == []
 
 
+def test_slow_listening_web_job_handles_all_interactive_choices(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    source_release = api.new_wine.ReleaseCandidate(
+        spotify_id="source-release",
+        uri="spotify:album:source-release",
+        name="Source Album",
+        release_type="Album",
+        release_date="2020-01-01",
+        total_tracks=2,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+    )
+    source = api.new_wine.PlaylistTrack(
+        spotify_id="source-track",
+        uri="spotify:track:source-track",
+        name="Source Track",
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        release=source_release,
+    )
+    target = api.new_wine.ReleaseTrack(
+        spotify_id="target-track",
+        uri="spotify:track:target-track",
+        name="Target Track",
+        disc_number=1,
+        track_number=1,
+    )
+    first_release = api.slow_listening.DiscographyRelease(
+        spotify_id="first-release",
+        uri="spotify:album:first-release",
+        name="First Release",
+        release_type="Album",
+        release_date="2021-01-01",
+        chronology_date="2021-01-01",
+        total_tracks=8,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        identity="first release",
+        saved=True,
+        plain=True,
+        edition_rank=0,
+    )
+    second_release = api.slow_listening.DiscographyRelease(
+        spotify_id="second-release",
+        uri="spotify:album:second-release",
+        name="Second Release",
+        release_type="EP",
+        release_date="2021-01-01",
+        chronology_date="2021-01-01",
+        total_tracks=4,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        identity="second release",
+        saved=False,
+        plain=True,
+        edition_rank=0,
+    )
+    received: dict[str, object] = {}
+
+    def flush(spotify, playlist_id, **kwargs):
+        received.update(
+            spotify=spotify,
+            playlist_id=playlist_id,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"](0, 1, "Reviewing Source Track")
+        received["track_choice"] = kwargs["action_reader"](
+            source,
+            target,
+            first_release,
+        )
+        received["release_order"] = kwargs["order_reader"](
+            "2021-01-01",
+            (first_release, second_release),
+        )
+        kwargs["completion_notifier"](source)
+        kwargs["echo"]("Slow Listening choices applied")
+        return api.slow_listening.FlushSummary(
+            run_id="run",
+            total=1,
+            processed=1,
+            advanced=1,
+            completed_artists=0,
+            skipped=0,
+            paused=False,
+            dry_run=kwargs["dry_run"],
+            resumed=False,
+            results=(
+                api.slow_listening.FlushResult(
+                    source_track=source.name,
+                    source_release=source_release.name,
+                    artist=source.primary_artist_name,
+                    action="advance",
+                    target_track=target.name,
+                    target_release=first_release.name,
+                    skipped_candidates=("Skipped Track (Source Album)",),
+                    dry_run=kwargs["dry_run"],
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            slow_listening_playlist="spotify:playlist:slow",
+        ),
+    )
+    monkeypatch.setattr(
+        api.slow_listening,
+        "flush_slow_listening",
+        flush,
+    )
+
+    started = client.post(
+        "/commands/flush-slow-listening",
+        params={"dry_run": "false"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    track_waiting = wait_for_slow_listening_status(client, job_id, {"waiting"})
+    assert track_waiting["slow_listening_pending_choice"] == {
+        "kind": "track",
+        "artist": "Artist",
+        "source_track": "Source Track",
+        "source_release": "Source Album",
+        "target_track": "Target Track",
+        "target_release": "First Release",
+        "release_date": None,
+        "releases": [],
+    }
+    assert [
+        job["job_id"]
+        for job in client.get("/commands/flush-slow-listening-jobs").json()
+    ] == [job_id]
+
+    track_choice = client.post(
+        f"/commands/flush-slow-listening-jobs/{job_id}/choice",
+        json={"choice": "advance"},
+    )
+    assert track_choice.status_code == 200
+
+    order_waiting = wait_for_slow_listening_status(client, job_id, {"waiting"})
+    pending_order = order_waiting["slow_listening_pending_choice"]
+    assert pending_order["kind"] == "release_order"
+    assert [release["spotify_id"] for release in pending_order["releases"]] == [
+        "first-release",
+        "second-release",
+    ]
+
+    invalid_order = client.post(
+        f"/commands/flush-slow-listening-jobs/{job_id}/choice",
+        json={
+            "choice": "order",
+            "order": ["first-release", "first-release"],
+        },
+    )
+    assert invalid_order.status_code == 400
+
+    order_choice = client.post(
+        f"/commands/flush-slow-listening-jobs/{job_id}/choice",
+        json={
+            "choice": "order",
+            "order": ["second-release", "first-release"],
+        },
+    )
+    assert order_choice.status_code == 200
+
+    completion_waiting = wait_for_slow_listening_status(
+        client,
+        job_id,
+        {"waiting"},
+    )
+    assert completion_waiting["slow_listening_pending_choice"]["kind"] == "completion"
+
+    completion_choice = client.post(
+        f"/commands/flush-slow-listening-jobs/{job_id}/choice",
+        json={"choice": "continue"},
+    )
+    assert completion_choice.status_code == 200
+
+    completed = wait_for_slow_listening_status(client, job_id, {"completed"})
+    assert received["playlist_id"] == "slow"
+    assert received["dry_run"] is False
+    assert received["track_choice"] == "advance"
+    assert received["release_order"] == (
+        "second-release",
+        "first-release",
+    )
+    assert completed["processed"] == 1
+    assert completed["advanced"] == 1
+    assert completed["slow_listening_results"][0]["target_track"] == "Target Track"
+    assert completed["slow_listening_results"][0]["skipped_candidates"] == [
+        "Skipped Track (Source Album)"
+    ]
+    assert any(
+        entry["message"] == "Slow Listening choices applied"
+        for entry in completed["logs"]
+    )
+    assert client.get("/commands/flush-slow-listening-jobs").json() == []
+
+
 def wait_for_job_status(
     client: TestClient,
     job_id: str,
@@ -704,6 +911,23 @@ def wait_for_new_wine_status(
             return body
         sleep(0.01)
     pytest.fail(f"New Wine job {job_id} did not reach {expected}")
+
+
+def wait_for_slow_listening_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one Slow Listening job until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/flush-slow-listening-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Slow Listening job {job_id} did not reach {expected}")
 
 
 def analysis_summary(mode: str):

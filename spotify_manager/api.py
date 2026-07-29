@@ -60,6 +60,7 @@ from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import review_album_limits
+from spotify_manager.routines import slow_listening
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -201,6 +202,51 @@ class NewWineChoiceRequest(BaseModel):
     choice: str
 
 
+class SlowListeningReleaseOption(BaseModel):
+    """One equal-date release offered for chronological ordering."""
+
+    spotify_id: str
+    name: str
+    release_type: str
+    release_date: str
+    total_tracks: int
+    saved: bool
+    plain: bool
+
+
+class SlowListeningPendingChoice(BaseModel):
+    """Current Slow Listening interaction exposed to the web client."""
+
+    kind: Literal["track", "release_order", "completion"]
+    artist: str
+    source_track: str | None = None
+    source_release: str | None = None
+    target_track: str | None = None
+    target_release: str | None = None
+    release_date: str | None = None
+    releases: list[SlowListeningReleaseOption] = Field(default_factory=list)
+
+
+class SlowListeningTrackResult(BaseModel):
+    """One completed Slow Listening source-track transition."""
+
+    artist: str
+    source_track: str
+    source_release: str
+    action: str
+    target_track: str | None = None
+    target_release: str | None = None
+    skipped_candidates: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class SlowListeningChoiceRequest(BaseModel):
+    """Choice or release ordering submitted to a waiting web job."""
+
+    choice: str
+    order: list[str] = Field(default_factory=list)
+
+
 class BlastJobResult(BaseModel):
     """Pollable state for one Last.fm-based playlist job."""
 
@@ -235,6 +281,9 @@ class BlastJobResult(BaseModel):
     albums_unsaved: int | None = None
     new_wine_results: list[NewWineTrackResult] = Field(default_factory=list)
     pending_choice: NewWinePendingChoice | None = None
+    completed_artists: int | None = None
+    slow_listening_results: list[SlowListeningTrackResult] = Field(default_factory=list)
+    slow_listening_pending_choice: SlowListeningPendingChoice | None = None
     retry_at: str | None = None
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
@@ -257,10 +306,15 @@ class _BlastJob:
     choice_event: Event = dataclass_field(default_factory=Event)
     cancel_event: Event = dataclass_field(default_factory=Event)
     submitted_choice: str | None = None
+    submitted_order: tuple[str, ...] | None = None
 
 
 class _NewWineJobCancelledError(RuntimeError):
     """Stop one web flush while preserving the routine's durable state."""
+
+
+class _SlowListeningJobCancelledError(RuntimeError):
+    """Stop one Slow Listening web flush at an interaction boundary."""
 
 
 _analysis_jobs: dict[str, _AnalysisJob] = {}
@@ -1067,6 +1121,267 @@ def _run_new_wine_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _slow_listening_track_result(
+    result: slow_listening.FlushResult,
+) -> SlowListeningTrackResult:
+    """Convert one Slow Listening result into its stable API representation."""
+    return SlowListeningTrackResult(
+        artist=result.artist,
+        source_track=result.source_track,
+        source_release=result.source_release,
+        action=result.action,
+        target_track=result.target_track,
+        target_release=result.target_release,
+        skipped_candidates=list(result.skipped_candidates),
+        reason=result.reason,
+    )
+
+
+def _run_slow_listening_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+    dry_run: bool,
+) -> None:
+    """Execute an interactive Slow Listening flush as a reconnectable job."""
+    job = get_blast_job(job_id, command="flush_slow_listening")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Slow Listening flush started"
+        _append_blast_log_locked(
+            job,
+            f"Slow Listening flush started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def progress_callback(completed: int, total: int, progress_status: str) -> None:
+        if job.cancel_event.is_set():
+            raise _SlowListeningJobCancelledError
+        with _blast_jobs_lock:
+            job.result.processed = completed
+            job.result.total = total
+            job.result.detail = progress_status
+
+    def wait_for_submission(
+        pending: SlowListeningPendingChoice,
+        detail: str,
+    ) -> tuple[str, tuple[str, ...] | None]:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _SlowListeningJobCancelledError
+            job.submitted_choice = None
+            job.submitted_order = None
+            job.choice_event.clear()
+            job.result.slow_listening_pending_choice = pending
+            job.result.status = "waiting"
+            job.result.detail = detail
+            _append_blast_log_locked(job, detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _SlowListeningJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                order = job.submitted_order
+                job.submitted_choice = None
+                job.submitted_order = None
+                job.choice_event.clear()
+                job.result.slow_listening_pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying Slow Listening choice"
+                _append_blast_log_locked(
+                    job,
+                    f"Slow Listening choice received: {choice}.",
+                )
+                return choice, order
+
+    def action_reader(
+        source: new_wine.PlaylistTrack,
+        target: new_wine.ReleaseTrack,
+        target_release: slow_listening.DiscographyRelease,
+    ) -> str:
+        choice, _order = wait_for_submission(
+            SlowListeningPendingChoice(
+                kind="track",
+                artist=source.primary_artist_name,
+                source_track=source.name,
+                source_release=source.release.name,
+                target_track=target.name,
+                target_release=target_release.name,
+            ),
+            (
+                f"Add {target.name} ({target_release.name}) after "
+                f"{source.primary_artist_name} - {source.name}?"
+            ),
+        )
+        return choice
+
+    def order_reader(
+        release_date: str,
+        candidates: tuple[slow_listening.DiscographyRelease, ...],
+    ) -> tuple[str, ...]:
+        artist = candidates[0].primary_artist_name if candidates else "Artist"
+        choice, order = wait_for_submission(
+            SlowListeningPendingChoice(
+                kind="release_order",
+                artist=artist,
+                release_date=release_date,
+                releases=[
+                    SlowListeningReleaseOption(
+                        spotify_id=candidate.spotify_id,
+                        name=candidate.name,
+                        release_type=candidate.release_type,
+                        release_date=candidate.release_date,
+                        total_tracks=candidate.total_tracks,
+                        saved=candidate.saved,
+                        plain=candidate.plain,
+                    )
+                    for candidate in candidates
+                ],
+            ),
+            f"Order {artist}'s releases dated {release_date}.",
+        )
+        if choice != "order" or order is None:
+            raise slow_listening.SlowListeningError(
+                "Slow Listening release order was not submitted."
+            )
+        return order
+
+    def completion_notifier(source: new_wine.PlaylistTrack) -> None:
+        choice, _order = wait_for_submission(
+            SlowListeningPendingChoice(
+                kind="completion",
+                artist=source.primary_artist_name,
+                source_track=source.name,
+                source_release=source.release.name,
+            ),
+            (
+                f"{source.primary_artist_name} completed Slow Listening. "
+                "Add a replacement artist, then continue."
+            ),
+        )
+        if choice != "continue":
+            raise slow_listening.SlowListeningError(
+                "Slow Listening completion was not acknowledged."
+            )
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _SlowListeningJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = slow_listening.flush_slow_listening(
+            spotify,
+            playlist_id,
+            order_reader=order_reader,
+            completion_notifier=completion_notifier,
+            action_reader=action_reader,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=retry_call,
+        )
+    except _SlowListeningJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.slow_listening_pending_choice = None
+            job.result.detail = (
+                "Slow Listening flush stopped. Progress was saved."
+                if not dry_run
+                else "Slow Listening dry run stopped."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.slow_listening_pending_choice = None
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.slow_listening_pending_choice = None
+            job.result.detail = (
+                f"Spotify HTTP {exc.http_status} remained unavailable after "
+                f"{exc.attempts} attempts while {exc.operation}. "
+                "Progress was saved."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except (slow_listening.SlowListeningError, SpotifyException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.slow_listening_pending_choice = None
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Slow Listening flush failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Slow Listening flush error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.slow_listening_pending_choice = None
+            job.result.detail = f"Unexpected Slow Listening error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [_slow_listening_track_result(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "paused" if summary.paused else "completed"
+            job.result.processed = summary.processed
+            job.result.total = summary.total
+            job.result.advanced = summary.advanced
+            job.result.completed_artists = summary.completed_artists
+            job.result.skipped = summary.skipped
+            job.result.slow_listening_results = results
+            job.result.slow_listening_pending_choice = None
+            if summary.paused:
+                job.result.detail = "Slow Listening flush paused. Progress was saved."
+            else:
+                job.result.detail = (
+                    f"{summary.processed}/{summary.total} processed; "
+                    f"{summary.advanced} advanced, "
+                    f"{summary.completed_artists} artists completed, "
+                    f"{summary.skipped} skipped."
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.slow_listening_pending_choice = None
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def start_blast_job(
     spotify: Spotify,
     playlist_id: str,
@@ -1220,6 +1535,52 @@ def start_new_wine_job(
             dry_run,
         ),
         name=f"new-wine-flush-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_slow_listening_job(
+    spotify: Spotify,
+    playlist_id: str,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one Slow Listening web job, rejecting another playlist routine."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="flush_slow_listening",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            (
+                "Slow Listening flush queued in dry-run mode."
+                if dry_run
+                else "Slow Listening flush queued."
+            ),
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_slow_listening_job,
+        args=(job_id, spotify, playlist_id, dry_run),
+        name=f"slow-listening-flush-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -1623,6 +1984,135 @@ def cmd_cancel_new_wine_job(job_id: str) -> BlastJobResult:
         job.result.status = "cancelling"
         job.result.pending_choice = None
         job.result.detail = "Stopping New Wine flush"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-slow-listening",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_flush_slow_listening(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start an interactive Slow Listening flush with reconnectable state."""
+    configuration = Settings()
+    try:
+        playlist_id = slow_listening.parse_playlist_id(
+            configuration.slow_listening_playlist
+        )
+    except slow_listening.SlowListeningConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_slow_listening_job(
+        client,
+        playlist_id,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/flush-slow-listening-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_slow_listening_jobs() -> list[BlastJobResult]:
+    """Return active Slow Listening jobs for page-reload reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "flush_slow_listening"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/flush-slow-listening-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_slow_listening_job(job_id: str) -> BlastJobResult:
+    """Return current progress and the pending Slow Listening choice."""
+    job = get_blast_job(job_id, command="flush_slow_listening")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-slow-listening-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_slow_listening_track(
+    job_id: str,
+    request: SlowListeningChoiceRequest,
+) -> BlastJobResult:
+    """Submit a candidate, release order, or completion acknowledgement."""
+    job = get_blast_job(job_id, command="flush_slow_listening")
+    with _blast_jobs_lock:
+        pending = job.result.slow_listening_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Slow Listening job is not waiting for a choice",
+            )
+
+        submitted_order: tuple[str, ...] | None = None
+        if pending.kind == "track":
+            allowed = {
+                slow_listening.CHOICE_ADVANCE,
+                slow_listening.CHOICE_SKIP,
+                slow_listening.CHOICE_QUIT,
+            }
+            if request.choice not in allowed or request.order:
+                raise HTTPException(
+                    status_code=400,
+                    detail="track choice is not available",
+                )
+        elif pending.kind == "release_order":
+            expected_ids = {release.spotify_id for release in pending.releases}
+            submitted_order = tuple(request.order)
+            if (
+                request.choice != "order"
+                or len(submitted_order) != len(expected_ids)
+                or set(submitted_order) != expected_ids
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="release order must include every option exactly once",
+                )
+        elif request.choice != "continue" or request.order:
+            raise HTTPException(
+                status_code=400,
+                detail="completion choice is not available",
+            )
+
+        job.submitted_choice = request.choice
+        job.submitted_order = submitted_order
+        job.result.slow_listening_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Slow Listening choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-slow-listening-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_slow_listening_job(job_id: str) -> BlastJobResult:
+    """Request a clean stop at the next Slow Listening boundary."""
+    job = get_blast_job(job_id, command="flush_slow_listening")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail="Slow Listening job is not active",
+            )
+        job.result.status = "cancelling"
+        job.result.slow_listening_pending_choice = None
+        job.result.detail = "Stopping Slow Listening flush"
         _append_blast_log_locked(job, job.result.detail)
         job.cancel_event.set()
         job.choice_event.set()

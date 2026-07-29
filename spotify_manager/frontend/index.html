@@ -104,6 +104,20 @@
   .new-wine-result.advance .blast-action { color: var(--green); }
   .new-wine-result.sauvignon .blast-action { color: #62c6ff; }
   .new-wine-result.skip .blast-action { color: var(--amber); }
+  .slow-listening-order { display: grid; gap: 7px; }
+  .slow-listening-order-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 8px;
+    align-items: center; padding: 9px 10px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .slow-listening-order-row select {
+    width: 100%; margin: 0; padding: 7px 8px; background: var(--surface);
+    color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+    font-size: 16px;
+  }
+  .slow-listening-result.advance .blast-action { color: var(--green); }
+  .slow-listening-result.complete .blast-action { color: #62c6ff; }
+  .slow-listening-result.skip .blast-action { color: var(--amber); }
 
   .result { margin-top: 14px; display: none; }
   .result.show { display: block; }
@@ -268,6 +282,19 @@
       <div class="analysis-progress" id="newWineProgress"></div>
     </section>
 
+    <section class="card" id="slowListeningCard">
+      <h2>Slow listening</h2>
+      <label class="inline">
+        <input type="checkbox" id="slowListeningDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions" style="margin-top:12px">
+        <button class="primary" data-action="startSlowListening">Review next tracks</button>
+        <button class="danger cancel" data-action="cancelSlowListening" hidden title="Stop flush">×</button>
+      </div>
+      <div class="analysis-progress" id="slowListeningProgress"></div>
+    </section>
+
     <!-- Artist stats -->
     <section class="card">
       <h2>Artist stats</h2>
@@ -373,6 +400,7 @@
   var dailyMindRadioJob = null;
   var foundArtJob = null;
   var newWineJob = null;
+  var slowListeningJob = null;
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -858,6 +886,170 @@
     }
   }
 
+  function renderSlowListeningJob(job) {
+    slowListeningJob = job;
+    var out = document.getElementById("slowListeningProgress");
+    var start = document.querySelector('[data-action="startSlowListening"]');
+    var cancel = document.querySelector('[data-action="cancelSlowListening"]');
+    var processed = typeof job.processed === "number" ? job.processed : 0;
+    var total = typeof job.total === "number" ? Math.max(job.total, processed) : null;
+    var pct = total === null
+      ? null
+      : (total === 0 ? 100 : Math.min(100, Math.round(processed * 100 / total)));
+    var meter = pct === null
+      ? '<div class="meter"><span class="indeterminate"></span></div>'
+      : '<div class="meter"><span style="width:' + pct + '%"></span></div>';
+    var count = total === null ? esc(processed) : esc(processed + " / " + total);
+    var summary = "";
+    if (typeof job.advanced === "number") {
+      summary = '<div class="blast-summary">' +
+        '<div><strong>' + esc(job.advanced) + '</strong><span>Advanced</span></div>' +
+        '<div><strong>' + esc(job.completed_artists || 0) + '</strong><span>Completed</span></div>' +
+        '<div><strong>' + esc(job.skipped || 0) + '</strong><span>Skipped</span></div>' +
+        '</div>';
+    }
+    var results = (job.slow_listening_results || []).map(function (item) {
+      var actionClass = String(item.action || "").replace(/\s+/g, "-");
+      var target = item.target_track
+        ? ' → ' + esc(item.target_track) + ' (' + esc(item.target_release || "?") + ')'
+        : "";
+      var skippedCandidates = (item.skipped_candidates || []).length
+        ? '<div class="blast-selection-meta">Skipped candidates: ' +
+          esc(item.skipped_candidates.join(", ")) + '</div>'
+        : "";
+      var reason = item.reason ? ' · ' + esc(item.reason) : "";
+      return '<div class="blast-selection slow-listening-result ' + esc(actionClass) + '">' +
+        '<div class="blast-selection-title">' + esc(item.artist) + ' · ' +
+          esc(item.source_track) + '</div>' +
+        '<div class="blast-selection-match">' + esc(item.source_release) + target + '</div>' +
+        skippedCandidates +
+        '<div class="blast-selection-meta"><span class="blast-action">' +
+          esc(item.action) + '</span>' + reason + '</div></div>';
+    }).join("");
+    var pending = "";
+    var choice = job.slow_listening_pending_choice;
+    if (choice && choice.kind === "track") {
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">Next after ' + esc(choice.artist) +
+          ' · ' + esc(choice.source_track) + '</div>' +
+        '<div class="blast-selection-match">' + esc(choice.target_track) +
+          ' · ' + esc(choice.target_release) + '</div>' +
+        '<div class="new-wine-controls">' +
+          '<button class="primary" data-action="slowListeningChoice" data-choice="advance">Add track</button>' +
+          '<button class="ghost" data-action="slowListeningChoice" data-choice="skip">Skip track</button>' +
+          '<button class="ghost" data-action="slowListeningChoice" data-choice="quit">Quit</button>' +
+        '</div></div>';
+    } else if (choice && choice.kind === "release_order") {
+      var releases = choice.releases || [];
+      var rankOptions = releases.map(function (_release, index) {
+        return index + 1;
+      });
+      var releaseRows = releases.map(function (release, index) {
+        var options = rankOptions.map(function (rank) {
+          return '<option value="' + rank + '"' +
+            (rank === index + 1 ? ' selected' : '') + '>' + rank + '</option>';
+        }).join("");
+        return '<label class="slow-listening-order-row">' +
+          '<span><span class="new-wine-option-name">' + esc(release.name) + '</span>' +
+          '<span class="new-wine-option-meta">' + esc(release.release_type) + ' · ' +
+            esc(release.release_date) + ' · ' + esc(release.total_tracks) + ' tracks · ' +
+            (release.saved ? "saved" : "not saved") + ' · ' +
+            (release.plain ? "plain" : "decorated") + '</span></span>' +
+          '<select data-slow-order-id="' + esc(release.spotify_id) +
+            '" aria-label="Order for ' + esc(release.name) + '">' + options + '</select></label>';
+      }).join("");
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">Order ' + esc(choice.artist) +
+          ' releases dated ' + esc(choice.release_date) + '</div>' +
+        '<div class="slow-listening-order">' + releaseRows + '</div>' +
+        '<div class="btns"><button class="primary" data-action="submitSlowListeningOrder">' +
+          'Use this order</button></div></div>';
+    } else if (choice && choice.kind === "completion") {
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">' + esc(choice.artist) +
+          ' completed Slow Listening</div>' +
+        '<div class="blast-selection-match">Add a replacement artist to the playlist, then continue.</div>' +
+        '<div class="btns"><button class="primary" data-action="slowListeningChoice" ' +
+          'data-choice="continue">Continue</button></div></div>';
+    }
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity…</span></div>';
+    }
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) {
+        state += " · retry at " + retryDate.toLocaleString();
+      }
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + ' · ' + count +
+      '</div>' + meter + summary + results + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running…");
+      if (job.status === "waiting") {
+        start.innerHTML = '<span class="spinner"></span> Waiting…';
+      }
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollSlowListeningJob(jobId) {
+    try {
+      var job = await api("/commands/flush-slow-listening-jobs/" + jobId);
+      renderSlowListeningJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollSlowListeningJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Slow Listening flush finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "Slow Listening flush stopped", "ok");
+      } else {
+        showToast("Slow Listening flush " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("slowListeningProgress"), e);
+      setBusy(document.querySelector('[data-action="startSlowListening"]'), false);
+      showToast("Could not read Slow Listening progress", "err");
+    }
+  }
+
+  async function restoreActiveSlowListeningJobs() {
+    try {
+      var jobs = await api("/commands/flush-slow-listening-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderSlowListeningJob(job);
+      pollSlowListeningJob(job.job_id);
+      showToast("Reconnected to Slow Listening flush", "ok");
+    } catch (e) {
+      if (e.status !== 401) {
+        showToast("Could not restore Slow Listening progress", "err");
+      }
+    }
+  }
+
   // ---- Actions -----------------------------------------------------------
   var actions = {
     blastMode(btn) {
@@ -1009,6 +1201,103 @@
       } catch (e) {
         btn.disabled = false;
         showToast(e.detail || "Could not stop New Wine flush", "err");
+      }
+    },
+
+    async startSlowListening(btn) {
+      var dryRun = document.getElementById("slowListeningDryRun").checked;
+      var out = document.getElementById("slowListeningProgress");
+      if (!dryRun && !confirm("Apply the Slow Listening flush to Spotify?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api(
+          "/commands/flush-slow-listening?" + q.toString(),
+          { method: "POST" }
+        );
+        renderSlowListeningJob(job);
+        pollSlowListeningJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "flush_slow_listening") {
+          await pollSlowListeningJob(activeJobId);
+          showToast("Reconnected to Slow Listening flush", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Slow Listening flush", "err");
+      }
+    },
+
+    async slowListeningChoice(btn) {
+      if (!slowListeningJob || !slowListeningJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/flush-slow-listening-jobs/" +
+            slowListeningJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice } }
+        );
+        renderSlowListeningJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit Slow Listening choice", "err");
+      }
+    },
+
+    async submitSlowListeningOrder(btn) {
+      if (!slowListeningJob || !slowListeningJob.job_id) return;
+      var selects = Array.prototype.slice.call(
+        document.querySelectorAll("[data-slow-order-id]")
+      );
+      var ranked = selects.map(function (select) {
+        return {
+          spotifyId: select.dataset.slowOrderId,
+          rank: Number(select.value),
+        };
+      });
+      var ranks = ranked.map(function (item) { return item.rank; });
+      if (new Set(ranks).size !== ranked.length) {
+        showToast("Use each release position exactly once", "err");
+        return;
+      }
+      ranked.sort(function (left, right) { return left.rank - right.rank; });
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/flush-slow-listening-jobs/" +
+            slowListeningJob.job_id + "/choice",
+          {
+            method: "POST",
+            json: {
+              choice: "order",
+              order: ranked.map(function (item) { return item.spotifyId; }),
+            },
+          }
+        );
+        renderSlowListeningJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit release order", "err");
+      }
+    },
+
+    async cancelSlowListening(btn) {
+      if (!slowListeningJob || !slowListeningJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/flush-slow-listening-jobs/" +
+            slowListeningJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderSlowListeningJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop Slow Listening flush", "err");
       }
     },
 
@@ -1225,6 +1514,7 @@
     restoreActiveDailyMindRadioJobs();
     restoreActiveFoundArtJobs();
     restoreActiveNewWineJobs();
+    restoreActiveSlowListeningJobs();
     return true;
   }
 

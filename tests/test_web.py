@@ -205,7 +205,7 @@ def test_genre_reveal_rate_limit_returns_promptly_and_releases_lock(
     assert web._genre_reveal_run_lock.locked() is False
 
 
-def test_main_page_places_new_wine_below_genre_reveal(
+def test_main_page_places_slow_listening_below_new_wine(
     client: TestClient,
 ) -> None:
     response = client.get("/")
@@ -213,6 +213,7 @@ def test_main_page_places_new_wine_below_genre_reveal(
     daily_position = response.text.index('id="dailyMindRadioCard"')
     found_art_position = response.text.index('id="foundArtCard"')
     new_wine_position = response.text.index('id="newWineCard"')
+    slow_listening_position = response.text.index('id="slowListeningCard"')
     genre_position = response.text.index('id="genreRevealCard"')
     artist_position = response.text.index("<!-- Artist stats -->")
 
@@ -221,6 +222,7 @@ def test_main_page_places_new_wine_below_genre_reveal(
         < found_art_position
         < genre_position
         < new_wine_position
+        < slow_listening_position
         < artist_position
     )
     assert 'id="foundArtCount"' in response.text
@@ -233,4 +235,9 @@ def test_main_page_places_new_wine_below_genre_reveal(
     assert 'data-action="newWineChoice"' in response.text
     assert '"/commands/flush-new-wine-jobs/"' in response.text
     assert "restoreActiveNewWineJobs();" in response.text
+    assert 'id="slowListeningDryRun" checked' in response.text
+    assert 'data-action="startSlowListening"' in response.text
+    assert 'data-action="slowListeningChoice"' in response.text
+    assert '"/commands/flush-slow-listening-jobs/"' in response.text
+    assert "restoreActiveSlowListeningJobs();" in response.text
     assert 'data-action="openGenreReveal"' in response.text

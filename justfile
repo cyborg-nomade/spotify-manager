@@ -113,6 +113,10 @@ found-art *args:
 flush-new-wine *args:
     {{ cli }} flush-new-wine "$@"
 
+# Advance the first two Slow Listening tracks through studio releases.
+flush-slow-listening *args:
+    {{ cli }} flush-slow-listening "$@"
+
 # Add tracks from today's Last.fm anniversaries to Daily Mind Radio.
 daily-mind-radio *args:
     {{ cli }} daily-mind-radio "$@"
