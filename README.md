@@ -417,6 +417,59 @@ POST /commands/flush-new-wine-jobs/{job_id}/choice
 POST /commands/flush-new-wine-jobs/{job_id}/cancel
 ```
 
+### `flush-slow-listening`
+
+Advances at most the first two current entries in *Slow Listening*. Configure
+`SLOW_LISTENING_PLAYLIST` with its Spotify playlist URL, URI, or id. The command
+does not count plays or scrobbles; run it only after completing the five
+listens manually.
+
+For each entry, the primary artist's studio albums and studio EPs are followed
+chronologically, with tracks ordered by disc and track number. Singles, live
+releases, compilations, soundtracks, remix collections, and similar non-studio
+releases are excluded. Equivalent deluxe and reissued editions are collapsed:
+a saved edition is preferred first, then a plain edition. The CLI shows the
+next proposed track and offers to add it, skip that candidate and inspect the
+following track, or quit; Enter adds the displayed track by default. Skipped
+candidates are remembered if the run is resumed. Only when the search crosses
+from one release to another does the CLI ask how to order any same-date
+releases needed for that transition. The answer is remembered for later runs.
+
+Inspect both transitions without changing Spotify:
+
+```console
+uv run spotify-manager flush-slow-listening --dry-run
+just flush-slow-listening --dry-run
+```
+
+Then apply them:
+
+```console
+uv run spotify-manager flush-slow-listening
+just flush-slow-listening
+```
+
+The replacement is added before the previous track is removed. After the final
+track of the final eligible release, the artist leaves Slow Listening without
+any follow or library changes, and the CLI pauses while you add a replacement
+artist. Real runs resume from
+`spotify_manager/files/slow_listening_flush_state.json`; every real or dry-run
+transition is appended to
+`spotify_manager/files/slow_listening_flush_log.jsonl`.
+
+The web UI places Slow Listening directly below New Wine. It exposes the same
+candidate-track choices, equal-date release ordering, completion
+acknowledgement, dry-run default, progress logs, cancellation, and reconnects
+to an active prompt after a page reload:
+
+```text
+POST /commands/flush-slow-listening?dry_run=true
+GET  /commands/flush-slow-listening-jobs
+GET  /commands/flush-slow-listening-jobs/{job_id}
+POST /commands/flush-slow-listening-jobs/{job_id}/choice
+POST /commands/flush-slow-listening-jobs/{job_id}/cancel
+```
+
 ### `daily-mind-radio`
 
 Selects one scrobble from today's date in the previous year, then from the
@@ -571,6 +624,7 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `GENRE_REVEAL_PLAYLIST` | Spotify URL or id that receives each genre playlist's first ten tracks. |
 | `NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST` | Spotify URL or id for releases being advanced track by track. |
 | `SAUVIGNON_TERRE_NEUVE_PLAYLIST` | Spotify URL or id receiving the first track of completed albums and EPs. |
+| `SLOW_LISTENING_PLAYLIST` | Spotify URL or id for the two-track-per-day deep-listening rotation. |
 
 > This Space should be **Private** — the repository contains your personal
 > library export files.

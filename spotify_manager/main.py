@@ -49,6 +49,7 @@ from spotify_manager.routines import new_wine
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
+from spotify_manager.routines import slow_listening
 from spotify_manager.routines import upload_library_files as hf_upload
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
@@ -285,6 +286,112 @@ def ask_new_wine_release_choice(
         if response == "q":
             return new_wine.CHOICE_QUIT
         return candidates[int(response) - 1].spotify_id
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def ask_slow_listening_release_order(
+    console: Console,
+    release_date: str,
+    candidates: tuple[slow_listening.DiscographyRelease, ...],
+    progress: Progress | None = None,
+) -> tuple[str, ...]:
+    """Prompt for chronological order when Spotify dates are identical."""
+    if progress is not None:
+        progress.stop()
+    try:
+        table = Table(title=f"Order releases dated {release_date}")
+        table.add_column("#", justify="right")
+        table.add_column("Release")
+        table.add_column("Type")
+        table.add_column("Tracks", justify="right")
+        table.add_column("Edition")
+        table.add_column("Library")
+        for index, candidate in enumerate(candidates, start=1):
+            table.add_row(
+                str(index),
+                candidate.name,
+                candidate.release_type,
+                str(candidate.total_tracks),
+                "plain" if candidate.plain else "decorated",
+                "saved" if candidate.saved else "-",
+            )
+        console.print(table)
+        default = ",".join(str(index) for index in range(1, len(candidates) + 1))
+        while True:
+            response = Prompt.ask(
+                "Order as comma-separated release numbers / [q]uit",
+                default=default,
+                console=console,
+            ).strip()
+            if response.casefold() == "q":
+                raise slow_listening.SlowListeningCancelledError(
+                    "Slow Listening flush paused while ordering releases."
+                )
+            try:
+                indexes = tuple(int(value.strip()) for value in response.split(","))
+            except ValueError:
+                indexes = ()
+            expected = set(range(1, len(candidates) + 1))
+            if len(indexes) == len(candidates) and set(indexes) == expected:
+                return tuple(candidates[index - 1].spotify_id for index in indexes)
+            console.print(
+                "Enter every release number exactly once.",
+                style="bold yellow",
+            )
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def ask_slow_listening_action(
+    console: Console,
+    source: new_wine.PlaylistTrack,
+    target: new_wine.ReleaseTrack,
+    target_release: slow_listening.DiscographyRelease,
+    progress: Progress | None = None,
+) -> str:
+    """Ask whether the proposed replacement should be added or skipped."""
+    if progress is not None:
+        progress.stop()
+    try:
+        response = Prompt.ask(
+            (
+                f"Next after {source.primary_artist_name} - {source.name}: "
+                f"{target.name} ({target_release.name}). "
+                "[a]dd / [s]kip this track / [q]uit"
+            ),
+            choices=["a", "s", "q"],
+            default="a",
+            console=console,
+        )
+        return {
+            "a": slow_listening.CHOICE_ADVANCE,
+            "s": slow_listening.CHOICE_SKIP,
+            "q": slow_listening.CHOICE_QUIT,
+        }[response]
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def acknowledge_slow_listening_completion(
+    console: Console,
+    source: new_wine.PlaylistTrack,
+    progress: Progress | None = None,
+) -> None:
+    """Pause after an artist leaves Slow Listening so its slot can be filled."""
+    if progress is not None:
+        progress.stop()
+    try:
+        console.print(
+            f"{source.primary_artist_name} has completed Slow Listening.",
+            style="bold cyan",
+        )
+        console.input(
+            "Add a new artist to the playlist, then press Enter to continue. "
+        )
     finally:
         if progress is not None:
             progress.start()
@@ -830,6 +937,203 @@ def flush_new_wine_command(
         f"{summary.sent_to_sauvignon} sent to Sauvignon Terre-Neuve, "
         f"{summary.completed_singles} singles completed, "
         f"{summary.albums_unsaved} albums {album_action}, "
+        f"{summary.skipped} skipped.",
+        style="bold",
+    )
+    if summary.resumed:
+        console.print("Resumed the previously saved flush.", style="cyan")
+    if summary.paused:
+        console.print(
+            "Flush paused; run the command again to resume.",
+            style="bold yellow",
+        )
+
+
+@app.command(name="flush-slow-listening")
+def flush_slow_listening_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show the next two transitions without changing Spotify or state.",
+    ),
+) -> None:
+    """Advance the first two Slow Listening tracks through studio releases."""
+    console = Console()
+    progress_ref: Progress | None = None
+    configuration = Settings()
+    try:
+        playlist_id = slow_listening.parse_playlist_id(
+            configuration.slow_listening_playlist
+        )
+    except slow_listening.SlowListeningConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith("Added") or line.startswith("Removed"):
+            style = "bold green"
+        elif line.startswith("Would"):
+            style = "yellow"
+        elif line.startswith("Completed"):
+            style = "bold cyan"
+        elif line.startswith("Skipped"):
+            style = "dim yellow"
+        elif line.startswith("Source already removed"):
+            style = "cyan"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            description = "Planning Slow Listening flush"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(completed: int, total: int, status: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=completed,
+                    total=max(completed, total),
+                    description=status,
+                )
+
+            summary = slow_listening.flush_slow_listening(
+                review_client(),
+                playlist_id,
+                order_reader=lambda release_date, candidates: (
+                    ask_slow_listening_release_order(
+                        console,
+                        release_date,
+                        candidates,
+                        progress_ref,
+                    )
+                ),
+                completion_notifier=lambda source: (
+                    acknowledge_slow_listening_completion(
+                        console,
+                        source,
+                        progress_ref,
+                    )
+                ),
+                action_reader=lambda source, target, target_release: (
+                    ask_slow_listening_action(
+                        console,
+                        source,
+                        target,
+                        target_release,
+                        progress_ref,
+                    )
+                ),
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "The active Slow Listening run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        console.print(
+            "The active Slow Listening run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except slow_listening.SlowListeningCancelledError as exc:
+        console.print(str(exc), style="bold yellow", markup=False)
+        raise typer.Exit(code=0) from exc
+    except slow_listening.SlowListeningError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        console.print(
+            "The active Slow Listening run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        console.print(
+            "Slow Listening flush paused. The active run was saved.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+
+    table = Table(title="Slow Listening")
+    table.add_column("Artist")
+    table.add_column("Current")
+    table.add_column("Release")
+    table.add_column("Action")
+    table.add_column("Next")
+    action_styles = {
+        "advance": "green",
+        "complete": "bold cyan",
+        "skip": "yellow",
+    }
+    for result in summary.results:
+        action = str(result.action)
+        if result.skipped_candidates:
+            count = len(result.skipped_candidates)
+            action += f" ({count} candidate{'s' if count != 1 else ''} skipped)"
+        if result.reason:
+            action += f" ({result.reason})"
+        table.add_row(
+            result.artist,
+            result.source_track,
+            result.source_release,
+            Text(action, style=action_styles[result.action]),
+            (
+                f"{result.target_track} ({result.target_release})"
+                if result.target_track and result.target_release
+                else "-"
+            ),
+        )
+    console.print(table)
+    prefix = "Dry run" if summary.dry_run else "Flush"
+    console.print(
+        f"{prefix}: {summary.processed}/{summary.total} processed; "
+        f"{summary.advanced} advanced, "
+        f"{summary.completed_artists} artists completed, "
         f"{summary.skipped} skipped.",
         style="bold",
     )
