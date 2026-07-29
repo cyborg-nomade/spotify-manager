@@ -205,20 +205,32 @@ def test_genre_reveal_rate_limit_returns_promptly_and_releases_lock(
     assert web._genre_reveal_run_lock.locked() is False
 
 
-def test_main_page_places_found_art_between_daily_and_genre_reveal(
+def test_main_page_places_new_wine_below_genre_reveal(
     client: TestClient,
 ) -> None:
     response = client.get("/")
 
     daily_position = response.text.index('id="dailyMindRadioCard"')
     found_art_position = response.text.index('id="foundArtCard"')
+    new_wine_position = response.text.index('id="newWineCard"')
     genre_position = response.text.index('id="genreRevealCard"')
     artist_position = response.text.index("<!-- Artist stats -->")
 
-    assert daily_position < found_art_position < genre_position < artist_position
+    assert (
+        daily_position
+        < found_art_position
+        < genre_position
+        < new_wine_position
+        < artist_position
+    )
     assert 'id="foundArtCount"' in response.text
     assert 'value="20"' in response.text
     assert 'data-action="startFoundArt"' in response.text
     assert 'basePath: "/commands/found-art"' in response.text
     assert "restoreActiveFoundArtJobs();" in response.text
+    assert 'id="newWineDryRun" checked' in response.text
+    assert 'data-action="startNewWine"' in response.text
+    assert 'data-action="newWineChoice"' in response.text
+    assert '"/commands/flush-new-wine-jobs/"' in response.text
+    assert "restoreActiveNewWineJobs();" in response.text
     assert 'data-action="openGenreReveal"' in response.text

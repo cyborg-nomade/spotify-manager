@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from spotify_manager.api import app
 from spotify_manager.api import get_analysis_client
 from spotify_manager.api import get_client
+from spotify_manager.api import get_interactive_client
 from spotify_manager.api import get_library
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
@@ -81,6 +82,7 @@ def client() -> TestClient:
         api._blast_jobs.clear()
     app.dependency_overrides[get_client] = lambda: FakeSpotify()
     app.dependency_overrides[get_analysis_client] = lambda: FakeSpotify()
+    app.dependency_overrides[get_interactive_client] = lambda: FakeSpotify()
     app.dependency_overrides[get_library] = _library
     with TestClient(app) as test_client:
         yield test_client
@@ -491,6 +493,130 @@ def test_found_art_endpoint_runs_background_job_with_requested_count(
     )
 
 
+def test_new_wine_web_job_waits_for_and_applies_release_choice(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    current = api.new_wine.ReleaseCandidate(
+        spotify_id="current",
+        uri="spotify:album:current",
+        name="Current Single",
+        release_type="Single",
+        release_date="2026-01-01",
+        total_tracks=1,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+    )
+    alternative = api.new_wine.ReleaseCandidate(
+        spotify_id="alternative",
+        uri="spotify:album:alternative",
+        name="New Album",
+        release_type="Album",
+        release_date="2026-02-01",
+        total_tracks=8,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+    )
+    source = api.new_wine.PlaylistTrack(
+        spotify_id="track",
+        uri="spotify:track:track",
+        name="Current Track",
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        release=current,
+    )
+    received: dict[str, object] = {}
+
+    def flush(
+        spotify,
+        new_playlist_id,
+        sauvignon_playlist_id,
+        **kwargs,
+    ):
+        received.update(
+            spotify=spotify,
+            new_playlist_id=new_playlist_id,
+            sauvignon_playlist_id=sauvignon_playlist_id,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"](0, 1, "Reviewing Current Track")
+        choice = kwargs["choice_reader"](source, (current, alternative))
+        received["choice"] = choice
+        kwargs["echo"](f"Selected {choice}")
+        return api.new_wine.FlushSummary(
+            run_id="run",
+            total=1,
+            processed=1,
+            advanced=1,
+            dropped=0,
+            sent_to_sauvignon=0,
+            completed_singles=0,
+            skipped=0,
+            albums_unsaved=0,
+            paused=False,
+            dry_run=kwargs["dry_run"],
+            resumed=False,
+            results=(
+                api.new_wine.FlushResult(
+                    source_track=source.name,
+                    artist=source.primary_artist_name,
+                    release=alternative.name,
+                    release_type=alternative.release_type,
+                    current_liked=False,
+                    consecutive_unliked=1,
+                    action="advance",
+                    target_track="Opening Track",
+                    dry_run=kwargs["dry_run"],
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            new_wine_from_old_bottles_playlist="spotify:playlist:new",
+            sauvignon_terre_neuve_playlist="spotify:playlist:sauv",
+        ),
+    )
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
+
+    started = client.post("/commands/flush-new-wine", params={"dry_run": "true"})
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    waiting = wait_for_new_wine_status(client, job_id, {"waiting"})
+    assert waiting["dry_run"] is True
+    assert waiting["pending_choice"]["source_track"] == "Current Track"
+    assert [
+        release["spotify_id"] for release in waiting["pending_choice"]["releases"]
+    ] == ["current", "alternative"]
+    assert [
+        job["job_id"] for job in client.get("/commands/flush-new-wine-jobs").json()
+    ] == [job_id]
+
+    choice = client.post(
+        f"/commands/flush-new-wine-jobs/{job_id}/choice",
+        json={"choice": "alternative"},
+    )
+
+    assert choice.status_code == 200
+    completed = wait_for_new_wine_status(client, job_id, {"completed"})
+    assert received["new_playlist_id"] == "new"
+    assert received["sauvignon_playlist_id"] == "sauv"
+    assert received["dry_run"] is True
+    assert received["choice"] == "alternative"
+    assert completed["processed"] == 1
+    assert completed["advanced"] == 1
+    assert completed["new_wine_results"][0]["target_track"] == "Opening Track"
+    assert any(
+        entry["message"] == "Selected alternative" for entry in completed["logs"]
+    )
+    assert client.get("/commands/flush-new-wine-jobs").json() == []
+
+
 def wait_for_job_status(
     client: TestClient,
     job_id: str,
@@ -561,6 +687,23 @@ def wait_for_found_art_status(
             return body
         sleep(0.01)
     pytest.fail(f"Found Art job {job_id} did not reach {expected}")
+
+
+def wait_for_new_wine_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one New Wine job until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/flush-new-wine-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"New Wine job {job_id} did not reach {expected}")
 
 
 def analysis_summary(mode: str):

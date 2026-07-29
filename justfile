@@ -109,6 +109,10 @@ blast-from-the-past *args:
 found-art *args:
     {{ cli }} found-art "$@"
 
+# Advance every New Wine track once by its selected release.
+flush-new-wine *args:
+    {{ cli }} flush-new-wine "$@"
+
 # Add tracks from today's Last.fm anniversaries to Daily Mind Radio.
 daily-mind-radio *args:
     {{ cli }} daily-mind-radio "$@"

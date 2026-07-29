@@ -4,6 +4,7 @@ import select
 import sys
 import termios
 import tty
+from collections.abc import Callable
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
@@ -44,6 +45,7 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
+from spotify_manager.routines import new_wine
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
@@ -233,6 +235,55 @@ def ask_artist_release_choice(
             return artist_review.CHOICE_SKIP
         if response == "q":
             return artist_review.CHOICE_QUIT
+        return candidates[int(response) - 1].spotify_id
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def ask_new_wine_release_choice(
+    console: Console,
+    source: new_wine.PlaylistTrack,
+    candidates: tuple[new_wine.ReleaseCandidate, ...],
+    progress: Progress | None = None,
+) -> str:
+    """Prompt for the release that should follow one single."""
+    if progress is not None:
+        progress.stop()
+    try:
+        table = Table(
+            title=(
+                f"Choose a release for {source.primary_artist_name} after {source.name}"
+            )
+        )
+        table.add_column("#", justify="right")
+        table.add_column("Release")
+        table.add_column("Type")
+        table.add_column("Date")
+        table.add_column("Tracks", justify="right")
+        table.add_column("Primary artist")
+        for index, candidate in enumerate(candidates, start=1):
+            table.add_row(
+                str(index),
+                candidate.name,
+                candidate.release_type,
+                candidate.release_date,
+                str(candidate.total_tracks),
+                candidate.primary_artist_name,
+            )
+        console.print(table)
+        choices = [str(index) for index in range(1, len(candidates) + 1)]
+        response = Prompt.ask(
+            "Release number / [d]rop / [s]kip this run / [q]uit",
+            choices=[*choices, "d", "s", "q"],
+            console=console,
+        )
+        if response == "d":
+            return new_wine.CHOICE_DROP
+        if response == "s":
+            return new_wine.CHOICE_SKIP
+        if response == "q":
+            return new_wine.CHOICE_QUIT
         return candidates[int(response) - 1].spotify_id
     finally:
         if progress is not None:
@@ -599,6 +650,195 @@ def found_art_command(
             f"{summary.playlist_length_after} items; added {summary.added} of "
             f"{summary.requested_count} requested tracks.",
             style="bold",
+        )
+
+
+@app.command(name="flush-new-wine")
+def flush_new_wine_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show the complete flush plan without changing Spotify or state.",
+    ),
+) -> None:
+    """Advance every New Wine track once according to its release."""
+    console = Console()
+    progress_ref: Progress | None = None
+    configuration = Settings()
+    try:
+        new_wine_playlist_id = new_wine.parse_playlist_id(
+            configuration.new_wine_from_old_bottles_playlist,
+            "NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST",
+        )
+        sauvignon_playlist_id = new_wine.parse_playlist_id(
+            configuration.sauvignon_terre_neuve_playlist,
+            "SAUVIGNON_TERRE_NEUVE_PLAYLIST",
+        )
+    except new_wine.NewWineConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith("Added") or line.startswith("Removed"):
+            style = "bold green"
+        elif line.startswith("Would"):
+            style = "yellow"
+        elif line.startswith("No ") or "skipping" in line.casefold():
+            style = "dim yellow"
+        elif line.startswith("Source already removed"):
+            style = "cyan"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            description = "Planning New Wine flush"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(completed: int, total: int, status: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=completed,
+                    total=max(completed, total),
+                    description=status,
+                )
+
+            summary = new_wine.flush_new_wine(
+                review_client(),
+                new_wine_playlist_id,
+                sauvignon_playlist_id,
+                choice_reader=lambda source, candidates: ask_new_wine_release_choice(
+                    console,
+                    source,
+                    candidates,
+                    progress_ref,
+                ),
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "The active New Wine run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        console.print(
+            "The active New Wine run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except new_wine.NewWineError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        console.print(
+            "The active New Wine run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        console.print(
+            "New Wine flush paused. The active run was saved.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+
+    table = Table(title="New Wine from Old Bottles")
+    table.add_column("Artist")
+    table.add_column("Current track")
+    table.add_column("Release")
+    table.add_column("Like")
+    table.add_column("Streak", justify="right")
+    table.add_column("Action")
+    table.add_column("Next")
+    action_styles = {
+        "advance": "green",
+        "drop": "bold red",
+        "sauvignon": "bold cyan",
+        "complete single": "cyan",
+        "skip": "yellow",
+    }
+    for result in summary.results:
+        action = str(result.action)
+        drop_labels = {
+            "three_consecutive_unliked": "3 unliked",
+            "manual_selection": "chosen",
+            "only_current_year_single": "only current-year single",
+        }
+        if result.action == "drop" and result.drop_reason:
+            action += f" ({drop_labels.get(result.drop_reason, result.drop_reason)})"
+        if result.album_unsaved:
+            action += " + unsaved"
+        table.add_row(
+            result.artist,
+            result.source_track,
+            f"{result.release} ({result.release_type})",
+            "liked" if result.current_liked else "unliked",
+            str(result.consecutive_unliked),
+            Text(action, style=action_styles[result.action]),
+            result.target_track or "-",
+        )
+    console.print(table)
+    prefix = "Dry run" if summary.dry_run else "Flush"
+    album_action = "to unsave" if summary.dry_run else "unsaved"
+    console.print(
+        f"{prefix}: {summary.processed}/{summary.total} processed; "
+        f"{summary.advanced} advanced, {summary.dropped} dropped, "
+        f"{summary.sent_to_sauvignon} sent to Sauvignon Terre-Neuve, "
+        f"{summary.completed_singles} singles completed, "
+        f"{summary.albums_unsaved} albums {album_action}, "
+        f"{summary.skipped} skipped.",
+        style="bold",
+    )
+    if summary.resumed:
+        console.print("Resumed the previously saved flush.", style="cyan")
+    if summary.paused:
+        console.print(
+            "Flush paused; run the command again to resume.",
+            style="bold yellow",
         )
 
 
