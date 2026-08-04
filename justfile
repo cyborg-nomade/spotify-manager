@@ -125,6 +125,10 @@ flush-new-wine *args:
 flush-slow-listening *args:
     {{ cli }} flush-slow-listening "$@"
 
+# Advance the first Requeue for a Dream artist to their next release.
+flush-requeue-for-a-dream *args:
+    {{ cli }} flush-requeue-for-a-dream "$@"
+
 # Add tracks from today's Last.fm anniversaries to Daily Mind Radio.
 daily-mind-radio *args:
     {{ cli }} daily-mind-radio "$@"
