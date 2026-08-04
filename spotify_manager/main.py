@@ -22,6 +22,7 @@ from rich.progress import SpinnerColumn
 from rich.progress import TextColumn
 from rich.progress import TimeElapsedColumn
 from rich.prompt import Prompt
+from rich.status import Status
 from rich.table import Table
 from rich.text import Text
 from spotipy import Spotify
@@ -49,7 +50,9 @@ from spotify_manager.routines import new_wine
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
+from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
+from spotify_manager.routines import something_old
 from spotify_manager.routines import upload_library_files as hf_upload
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
@@ -657,6 +660,336 @@ def print_found_art_table(
             Text(result.action, style=action_styles[result.action]),
         )
     console.print(table)
+
+
+def print_scrobble_history_summary(
+    console: Console,
+    summary: scrobble_history.ScrobbleHistorySummary,
+) -> None:
+    """Render one compact Last.fm history refresh summary."""
+    table = Table(title="Last.fm scrobble history")
+    table.add_column("Source")
+    table.add_column("Scrobbles", justify="right")
+    table.add_row("Existing export", f"{summary.export_scrobbles:,}")
+    table.add_row("Legacy Found Art delta", f"+{summary.legacy_scrobbles_added:,}")
+    table.add_row("Live Last.fm API", f"+{summary.live_scrobbles_added:,}")
+    table.add_row("Merged total", f"{summary.total_scrobbles:,}", style="bold")
+    console.print(table)
+    if summary.dry_run:
+        console.print("Dry run: the canonical history was not changed.", style="cyan")
+    elif summary.persisted:
+        console.print(
+            f"Saved atomically after backup: {summary.backup_path}",
+            style="bold green",
+            markup=False,
+        )
+    else:
+        console.print("The canonical history was already current.", style="green")
+
+
+def _scrobble_date(timestamp_ms: int) -> str:
+    """Format one Last.fm timestamp in the listening timezone."""
+    return datetime.fromtimestamp(
+        timestamp_ms / 1000,
+        blast_from_past.SCROBBLE_TIMEZONE,
+    ).strftime("%Y-%m-%d")
+
+
+def ask_something_old_artist(
+    console: Console,
+    artist_name: str,
+    candidates: tuple[something_old.SpotifyArtistCandidate, ...],
+    status: Status,
+) -> str:
+    """Prompt when Spotify has several exact-name artist matches."""
+    status.stop()
+    try:
+        table = Table(title=f"Choose the Spotify artist for {artist_name}")
+        table.add_column("#", justify="right")
+        table.add_column("Artist")
+        table.add_column("Popularity", justify="right")
+        table.add_column("Followers", justify="right")
+        table.add_column("Spotify id")
+        for index, candidate in enumerate(candidates, start=1):
+            table.add_row(
+                str(index),
+                candidate.name,
+                str(candidate.popularity) if candidate.popularity is not None else "?",
+                (
+                    f"{candidate.followers:,}"
+                    if candidate.followers is not None
+                    else "?"
+                ),
+                candidate.spotify_id,
+            )
+        console.print(table)
+        response = Prompt.ask(
+            "Artist number or (q)uit",
+            choices=[*(str(index) for index in range(1, len(candidates) + 1)), "q"],
+            default="q",
+            console=console,
+        )
+        return "quit" if response == "q" else candidates[int(response) - 1].spotify_id
+    finally:
+        status.start()
+
+
+def ask_something_old_mode(
+    console: Console,
+    artist: something_old.GoldenOldieArtist,
+    spotify_artist: something_old.SpotifyArtistCandidate,
+    status: Status,
+) -> str:
+    """Prompt for Last.fm tracks, Spotify tracks, or one album/EP."""
+    status.stop()
+    try:
+        console.print(
+            f"[bold]{artist.artist}[/bold] · {artist.scrobbles:,} scrobbles · "
+            f"average {_scrobble_date(artist.average_scrobble_ms)} · "
+            f"Spotify: {spotify_artist.name}"
+        )
+        table = Table(title="Something Old selection")
+        table.add_column("#", justify="right")
+        table.add_column("Source")
+        table.add_column("What will be added")
+        table.add_row("1", "Last.fm", "Up to 10 most-scrobbled tracks")
+        table.add_row("2", "Spotify", "Up to 10 current popular tracks")
+        table.add_row("3", "Catalog", "One complete studio album or EP")
+        console.print(table)
+        response = Prompt.ask(
+            "Selection or (q)uit",
+            choices=["1", "2", "3", "q"],
+            default="1",
+            console=console,
+        )
+        return {
+            "1": "lastfm_top_tracks",
+            "2": "spotify_top_tracks",
+            "3": "album",
+            "q": "quit",
+        }[response]
+    finally:
+        status.start()
+
+
+def ask_something_old_album(
+    console: Console,
+    artist: something_old.GoldenOldieArtist,
+    releases: tuple[slow_listening.DiscographyRelease, ...],
+    status: Status,
+) -> str:
+    """Prompt for one chronologically displayed studio album or EP."""
+    status.stop()
+    try:
+        table = Table(title=f"Albums and EPs by {artist.artist}")
+        table.add_column("#", justify="right")
+        table.add_column("Date")
+        table.add_column("Type")
+        table.add_column("Release")
+        table.add_column("Tracks", justify="right")
+        table.add_column("Edition")
+        for index, release in enumerate(releases, start=1):
+            edition = (
+                "saved" if release.saved else "plain" if release.plain else "other"
+            )
+            table.add_row(
+                str(index),
+                release.chronology_date,
+                release.release_type,
+                release.name,
+                str(release.total_tracks),
+                edition,
+            )
+        console.print(table)
+        response = Prompt.ask(
+            "Release number or (q)uit",
+            choices=[*(str(index) for index in range(1, len(releases) + 1)), "q"],
+            default="q",
+            console=console,
+        )
+        return "quit" if response == "q" else releases[int(response) - 1].spotify_id
+    finally:
+        status.start()
+
+
+def print_something_old_summary(
+    console: Console,
+    summary: something_old.SomethingOldSummary,
+) -> None:
+    """Render Golden Oldies context and the selected Spotify tracks."""
+    if summary.action == "playlist not empty":
+        console.print(
+            f"Something Old already contains {summary.playlist_length_before} "
+            "item(s); nothing was changed.",
+            style="yellow",
+        )
+        return
+    if summary.history_refresh is not None:
+        print_scrobble_history_summary(console, summary.history_refresh)
+    if summary.ranking_preview:
+        ranking = Table(title="Golden Oldies · oldest average scrobble dates")
+        ranking.add_column("#", justify="right")
+        ranking.add_column("Artist")
+        ranking.add_column("Scrobbles", justify="right")
+        ranking.add_column("Average date")
+        for index, artist in enumerate(summary.ranking_preview, start=1):
+            ranking.add_row(
+                str(index),
+                artist.artist,
+                f"{artist.scrobbles:,}",
+                _scrobble_date(artist.average_scrobble_ms),
+            )
+        console.print(ranking)
+    if summary.action == "cancelled":
+        console.print(
+            "Something Old was cancelled; Spotify was unchanged.", style="yellow"
+        )
+        return
+
+    selection = Table(title="Something Old playlist selection")
+    selection.add_column("#", justify="right")
+    selection.add_column("Track")
+    selection.add_column("Release")
+    selection.add_column("Source")
+    selection.add_column("Last.fm", justify="right")
+    for index, track in enumerate(summary.tracks, start=1):
+        selection.add_row(
+            str(index),
+            f"{', '.join(track.artists)} - {track.track}",
+            track.album or "(no album)",
+            track.source,
+            (str(track.lastfm_scrobbles) if track.lastfm_scrobbles is not None else ""),
+        )
+    console.print(selection)
+    if summary.dry_run:
+        console.print(
+            f"Dry run: would add {len(summary.tracks)} track(s); "
+            "Spotify and local files were unchanged.",
+            style="bold cyan",
+        )
+    else:
+        console.print(
+            f"Something Old: {summary.playlist_length_before} -> "
+            f"{summary.playlist_length_after}; added {len(summary.tracks)} track(s).",
+            style="bold green",
+        )
+
+
+@app.command(name="update-scrobble-history")
+def update_scrobble_history_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Fetch and report new scrobbles without changing local files.",
+    ),
+) -> None:
+    """Update the canonical Last.fm export used by every history routine."""
+    console = Console()
+    configuration = Settings()
+    try:
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except found_art.FoundArtConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    lastfm_client = LastFmClient(
+        api_key,
+        username,
+        event_callback=lambda message: console.print(message, style="yellow"),
+    )
+    try:
+        with console.status("Refreshing Last.fm scrobble history") as status:
+            summary = scrobble_history.refresh_scrobble_history(
+                lastfm_client,
+                expected_username=username,
+                dry_run=dry_run,
+                progress_callback=status.update,
+            )
+    except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    print_scrobble_history_summary(console, summary)
+
+
+@app.command(name="something-old")
+def something_old_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Resolve and display the selection without changing files or Spotify.",
+    ),
+) -> None:
+    """Fill an empty Something Old slot from Last.fm Golden Oldies."""
+    console = Console()
+    configuration = Settings()
+    try:
+        playlist_id = something_old.parse_playlist_id(
+            configuration.something_old_new_playlist
+        )
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (
+        something_old.SomethingOldConfigError,
+        found_art.FoundArtConfigError,
+    ) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    lastfm_client = LastFmClient(
+        api_key,
+        username,
+        event_callback=lambda message: console.print(message, style="yellow"),
+    )
+    try:
+        with console.status("Preparing Something Old") as status:
+            summary = something_old.run_something_old(
+                client(),
+                lastfm_client,
+                playlist_id,
+                expected_username=username,
+                artist_choice_reader=lambda artist, candidates: (
+                    ask_something_old_artist(
+                        console,
+                        artist.artist,
+                        candidates,
+                        status,
+                    )
+                ),
+                mode_reader=lambda artist, spotify_artist: ask_something_old_mode(
+                    console,
+                    artist,
+                    spotify_artist,
+                    status,
+                ),
+                album_choice_reader=lambda artist, releases: ask_something_old_album(
+                    console,
+                    artist,
+                    releases,
+                    status,
+                ),
+                dry_run=dry_run,
+                progress_callback=status.update,
+            )
+    except (
+        something_old.SomethingOldError,
+        scrobble_history.ScrobbleHistoryError,
+        LastFmError,
+    ) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+    print_something_old_summary(console, summary)
 
 
 @app.command(name="found-art")

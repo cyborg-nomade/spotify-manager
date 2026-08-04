@@ -60,7 +60,9 @@ from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import review_album_limits
+from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
+from spotify_manager.routines import something_old
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -274,6 +276,64 @@ class SlowListeningChoiceRequest(BaseModel):
     order: list[str] = Field(default_factory=list)
 
 
+class SomethingOldArtistOption(BaseModel):
+    """One exact-name Spotify artist offered to the web client."""
+
+    spotify_id: str
+    name: str
+    popularity: int | None = None
+    followers: int | None = None
+
+
+class SomethingOldReleaseOption(BaseModel):
+    """One filtered studio album or EP offered for Something Old."""
+
+    spotify_id: str
+    name: str
+    release_type: str
+    release_date: str
+    total_tracks: int
+    saved: bool
+    plain: bool
+
+
+class SomethingOldPendingChoice(BaseModel):
+    """Current Something Old interaction exposed to the web client."""
+
+    kind: Literal["artist", "mode", "album"]
+    artist: str
+    scrobbles: int
+    average_scrobble_date: str
+    spotify_artist: str | None = None
+    artist_candidates: list[SomethingOldArtistOption] = Field(default_factory=list)
+    releases: list[SomethingOldReleaseOption] = Field(default_factory=list)
+
+
+class SomethingOldRankingEntry(BaseModel):
+    """One Golden Oldies artist shown in the web ranking preview."""
+
+    artist: str
+    scrobbles: int
+    average_scrobble_date: str
+
+
+class SomethingOldTrackResult(BaseModel):
+    """One Spotify track selected for Something Old."""
+
+    spotify_id: str
+    track: str
+    album: str
+    artists: list[str]
+    source: str
+    lastfm_scrobbles: int | None = None
+
+
+class SomethingOldChoiceRequest(BaseModel):
+    """One artist, source mode, album, or quit choice."""
+
+    choice: str
+
+
 class BlastJobResult(BaseModel):
     """Pollable state for one Last.fm-based playlist job."""
 
@@ -294,7 +354,11 @@ class BlastJobResult(BaseModel):
     week_start: str | None = None
     history_tracks: int | None = None
     history_scrobbles: int | None = None
+    history_export_scrobbles: int | None = None
+    history_legacy_scrobbles_added: int | None = None
     live_scrobbles_added: int | None = None
+    history_persisted: bool | None = None
+    history_backup_path: str | None = None
     candidate_count: int | None = None
     found_art_results: list[FoundArtSelectionResult] = Field(default_factory=list)
     dry_run: bool = False
@@ -313,6 +377,15 @@ class BlastJobResult(BaseModel):
     completed_artists: int | None = None
     slow_listening_results: list[SlowListeningTrackResult] = Field(default_factory=list)
     slow_listening_pending_choice: SlowListeningPendingChoice | None = None
+    something_old_action: str | None = None
+    something_old_artist: str | None = None
+    something_old_average_scrobble_date: str | None = None
+    something_old_spotify_artist: str | None = None
+    something_old_mode: str | None = None
+    something_old_release: str | None = None
+    something_old_ranking: list[SomethingOldRankingEntry] = Field(default_factory=list)
+    something_old_tracks: list[SomethingOldTrackResult] = Field(default_factory=list)
+    something_old_pending_choice: SomethingOldPendingChoice | None = None
     retry_at: str | None = None
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
@@ -344,6 +417,10 @@ class _NewWineJobCancelledError(RuntimeError):
 
 class _SlowListeningJobCancelledError(RuntimeError):
     """Stop one Slow Listening web flush at an interaction boundary."""
+
+
+class _SomethingOldJobCancelledError(RuntimeError):
+    """Stop one Something Old web job at an interaction or retry boundary."""
 
 
 _analysis_jobs: dict[str, _AnalysisJob] = {}
@@ -1454,6 +1531,412 @@ def _run_slow_listening_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _something_old_date(timestamp_ms: int) -> str:
+    """Format one scrobble timestamp in the listening timezone."""
+    return (
+        datetime.fromtimestamp(
+            timestamp_ms / 1000,
+            blast_from_past.SCROBBLE_TIMEZONE,
+        )
+        .date()
+        .isoformat()
+    )
+
+
+def _something_old_track_result(
+    track: something_old.SelectedTrack,
+) -> SomethingOldTrackResult:
+    """Convert one Something Old selection into its API representation."""
+    return SomethingOldTrackResult(
+        spotify_id=track.spotify_id,
+        track=track.track,
+        album=track.album,
+        artists=list(track.artists),
+        source=track.source,
+        lastfm_scrobbles=track.lastfm_scrobbles,
+    )
+
+
+def _run_something_old_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+    api_key: str,
+    username: str,
+    dry_run: bool,
+) -> None:
+    """Execute Something Old as a reconnectable interactive web job."""
+    job = get_blast_job(job_id, command="something_old")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Something Old started"
+        _append_blast_log_locked(
+            job,
+            f"Something Old started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def wait_for_submission(
+        pending: SomethingOldPendingChoice,
+        detail: str,
+    ) -> str:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _SomethingOldJobCancelledError
+            job.submitted_choice = None
+            job.choice_event.clear()
+            job.result.something_old_pending_choice = pending
+            job.result.status = "waiting"
+            job.result.detail = detail
+            _append_blast_log_locked(job, detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _SomethingOldJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                job.submitted_choice = None
+                job.choice_event.clear()
+                job.result.something_old_pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying Something Old choice"
+                _append_blast_log_locked(
+                    job,
+                    f"Something Old choice received: {choice}.",
+                )
+                return choice
+
+    def artist_choice_reader(
+        artist: something_old.GoldenOldieArtist,
+        candidates: tuple[something_old.SpotifyArtistCandidate, ...],
+    ) -> str:
+        average_date = _something_old_date(artist.average_scrobble_ms)
+        with _blast_jobs_lock:
+            job.result.something_old_artist = artist.artist
+            job.result.something_old_average_scrobble_date = average_date
+        return wait_for_submission(
+            SomethingOldPendingChoice(
+                kind="artist",
+                artist=artist.artist,
+                scrobbles=artist.scrobbles,
+                average_scrobble_date=average_date,
+                artist_candidates=[
+                    SomethingOldArtistOption(
+                        spotify_id=candidate.spotify_id,
+                        name=candidate.name,
+                        popularity=candidate.popularity,
+                        followers=candidate.followers,
+                    )
+                    for candidate in candidates
+                ],
+            ),
+            f"Choose the exact Spotify artist for {artist.artist}.",
+        )
+
+    def mode_reader(
+        artist: something_old.GoldenOldieArtist,
+        spotify_artist: something_old.SpotifyArtistCandidate,
+    ) -> str:
+        with _blast_jobs_lock:
+            job.result.something_old_artist = artist.artist
+            job.result.something_old_average_scrobble_date = _something_old_date(
+                artist.average_scrobble_ms
+            )
+            job.result.something_old_spotify_artist = spotify_artist.name
+        return wait_for_submission(
+            SomethingOldPendingChoice(
+                kind="mode",
+                artist=artist.artist,
+                scrobbles=artist.scrobbles,
+                average_scrobble_date=_something_old_date(artist.average_scrobble_ms),
+                spotify_artist=spotify_artist.name,
+            ),
+            f"Choose what to add for {artist.artist}.",
+        )
+
+    def album_choice_reader(
+        artist: something_old.GoldenOldieArtist,
+        releases: tuple[slow_listening.DiscographyRelease, ...],
+    ) -> str:
+        return wait_for_submission(
+            SomethingOldPendingChoice(
+                kind="album",
+                artist=artist.artist,
+                scrobbles=artist.scrobbles,
+                average_scrobble_date=_something_old_date(artist.average_scrobble_ms),
+                spotify_artist=job.result.something_old_spotify_artist,
+                releases=[
+                    SomethingOldReleaseOption(
+                        spotify_id=release.spotify_id,
+                        name=release.name,
+                        release_type=release.release_type,
+                        release_date=release.chronology_date,
+                        total_tracks=release.total_tracks,
+                        saved=release.saved,
+                        plain=release.plain,
+                    )
+                    for release in releases
+                ],
+            ),
+            f"Choose one album or EP by {artist.artist}.",
+        )
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _SomethingOldJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    lastfm = LastFmClient(
+        api_key,
+        username,
+        event_callback=echo,
+    )
+    try:
+        summary = something_old.run_something_old(
+            spotify,
+            lastfm,
+            playlist_id,
+            expected_username=username,
+            mode_reader=mode_reader,
+            album_choice_reader=album_choice_reader,
+            artist_choice_reader=artist_choice_reader,
+            dry_run=dry_run,
+            progress_callback=echo,
+            retry_call=retry_call,
+        )
+    except _SomethingOldJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.something_old_pending_choice = None
+            job.result.detail = "Something Old stopped. Spotify was unchanged."
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.something_old_pending_choice = None
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.something_old_pending_choice = None
+            job.result.detail = (
+                f"Spotify HTTP {exc.http_status} remained unavailable after "
+                f"{exc.attempts} attempts while {exc.operation}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except SpotifyException as exc:
+        with _blast_jobs_lock:
+            if exc.http_status == 429:
+                retry_after = review_album_limits.get_retry_after_seconds(exc)
+                retry_at = (
+                    datetime.now(UTC) + timedelta(seconds=retry_after)
+                    if retry_after is not None
+                    else None
+                )
+                job.result.status = "paused"
+                job.result.retry_at = retry_at.isoformat() if retry_at else None
+                job.result.detail = (
+                    "Spotify rate limit reached. "
+                    f"{review_album_limits.format_retry_after(retry_after)}."
+                )
+            else:
+                job.result.status = "failed"
+                job.result.detail = str(exc)
+            job.result.something_old_pending_choice = None
+            _append_blast_log_locked(job, job.result.detail)
+    except (
+        something_old.SomethingOldError,
+        scrobble_history.ScrobbleHistoryError,
+        LastFmError,
+    ) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.something_old_pending_choice = None
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Something Old failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Something Old error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.something_old_pending_choice = None
+            job.result.detail = f"Unexpected Something Old error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        ranking = [
+            SomethingOldRankingEntry(
+                artist=entry.artist,
+                scrobbles=entry.scrobbles,
+                average_scrobble_date=_something_old_date(entry.average_scrobble_ms),
+            )
+            for entry in summary.ranking_preview
+        ]
+        tracks = [_something_old_track_result(track) for track in summary.tracks]
+        with _blast_jobs_lock:
+            job.result.status = (
+                "cancelled" if summary.action == "cancelled" else "completed"
+            )
+            job.result.something_old_action = summary.action
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.added = len(tracks) if summary.action == "added" else 0
+            job.result.something_old_ranking = ranking
+            job.result.something_old_tracks = tracks
+            job.result.something_old_pending_choice = None
+            if summary.history_refresh is not None:
+                job.result.live_scrobbles_added = (
+                    summary.history_refresh.live_scrobbles_added
+                )
+                job.result.history_scrobbles = summary.history_refresh.total_scrobbles
+            if summary.artist is not None:
+                job.result.something_old_artist = summary.artist.artist
+                job.result.something_old_average_scrobble_date = _something_old_date(
+                    summary.artist.average_scrobble_ms
+                )
+            if summary.spotify_artist is not None:
+                job.result.something_old_spotify_artist = summary.spotify_artist.name
+            job.result.something_old_mode = summary.mode
+            job.result.something_old_release = (
+                summary.release.name if summary.release is not None else None
+            )
+            if summary.action == "playlist not empty":
+                job.result.detail = (
+                    f"Something Old already contains {summary.playlist_length_before} "
+                    "item(s); nothing was changed."
+                )
+            elif summary.action == "cancelled":
+                job.result.detail = "Something Old was cancelled."
+            elif summary.action == "would add":
+                job.result.detail = (
+                    f"Dry run: would add {len(tracks)} track(s) for "
+                    f"{job.result.something_old_artist}."
+                )
+            else:
+                job.result.detail = (
+                    f"Added {len(tracks)} track(s) for "
+                    f"{job.result.something_old_artist}."
+                )
+            for track in tracks:
+                _append_blast_log_locked(
+                    job,
+                    f"Selected {', '.join(track.artists)} - {track.track} "
+                    f"({track.album or 'no album'}).",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.something_old_pending_choice = None
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
+def _run_scrobble_history_job(
+    job_id: str,
+    api_key: str,
+    username: str,
+    dry_run: bool,
+) -> None:
+    """Refresh the shared Last.fm record as a reconnectable web job."""
+    job = get_blast_job(job_id, command="update_scrobble_history")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Last.fm scrobble history update started"
+        _append_blast_log_locked(
+            job,
+            (
+                "Last.fm scrobble history update started in dry-run mode."
+                if dry_run
+                else "Last.fm scrobble history update started."
+            ),
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    lastfm = LastFmClient(
+        api_key,
+        username,
+        event_callback=echo,
+    )
+    try:
+        summary = scrobble_history.refresh_scrobble_history(
+            lastfm,
+            expected_username=username,
+            dry_run=dry_run,
+            progress_callback=echo,
+        )
+    except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Scrobble history update failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected scrobble history update error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected scrobble history update error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        with _blast_jobs_lock:
+            job.result.status = "completed"
+            job.result.history_export_scrobbles = summary.export_scrobbles
+            job.result.history_legacy_scrobbles_added = summary.legacy_scrobbles_added
+            job.result.live_scrobbles_added = summary.live_scrobbles_added
+            job.result.history_scrobbles = summary.total_scrobbles
+            job.result.history_persisted = summary.persisted
+            job.result.history_backup_path = (
+                str(summary.backup_path) if summary.backup_path else None
+            )
+            if summary.dry_run:
+                job.result.detail = (
+                    "Dry run complete; the canonical Last.fm history was unchanged."
+                )
+            elif summary.persisted:
+                job.result.detail = "Last.fm scrobble history updated safely."
+            else:
+                job.result.detail = "Last.fm scrobble history was already current."
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def start_blast_job(
     spotify: Spotify,
     playlist_id: str,
@@ -1658,6 +2141,100 @@ def start_slow_listening_job(
         target=_run_slow_listening_job,
         args=(job_id, spotify, playlist_id, dry_run),
         name=f"slow-listening-flush-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_something_old_job(
+    spotify: Spotify,
+    playlist_id: str,
+    api_key: str,
+    username: str,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one interactive Something Old job with reload-safe state."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="something_old",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            (
+                "Something Old queued in dry-run mode."
+                if dry_run
+                else "Something Old queued."
+            ),
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_something_old_job,
+        args=(job_id, spotify, playlist_id, api_key, username, dry_run),
+        name=f"something-old-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_scrobble_history_job(
+    api_key: str,
+    username: str,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one shared Last.fm history refresh with reload-safe state."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist or history routine is running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="update_scrobble_history",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            (
+                "Last.fm scrobble history update queued in dry-run mode."
+                if dry_run
+                else "Last.fm scrobble history update queued."
+            ),
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_scrobble_history_job,
+        args=(job_id, api_key, username, dry_run),
+        name=f"scrobble-history-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -2200,6 +2777,186 @@ def cmd_cancel_slow_listening_job(job_id: str) -> BlastJobResult:
         _append_blast_log_locked(job, job.result.detail)
         job.cancel_event.set()
         job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/something-old",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_something_old(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start an interactive Something Old selection with reconnectable state."""
+    configuration = Settings()
+    try:
+        playlist_id = something_old.parse_playlist_id(
+            configuration.something_old_new_playlist
+        )
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (
+        something_old.SomethingOldConfigError,
+        found_art.FoundArtConfigError,
+    ) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_something_old_job(
+        client,
+        playlist_id,
+        api_key,
+        username,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/something-old-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_something_old_jobs() -> list[BlastJobResult]:
+    """Return active Something Old jobs for page-reload reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "something_old"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/something-old-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_something_old_job(job_id: str) -> BlastJobResult:
+    """Return current Something Old progress and any pending choice."""
+    job = get_blast_job(job_id, command="something_old")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/something-old-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_something_old(
+    job_id: str,
+    request: SomethingOldChoiceRequest,
+) -> BlastJobResult:
+    """Submit an exact artist, source mode, album/EP, or quit choice."""
+    job = get_blast_job(job_id, command="something_old")
+    with _blast_jobs_lock:
+        pending = job.result.something_old_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Something Old job is not waiting for a choice",
+            )
+
+        if pending.kind == "artist":
+            allowed = {
+                "quit",
+                *(candidate.spotify_id for candidate in pending.artist_candidates),
+            }
+        elif pending.kind == "mode":
+            allowed = {
+                "lastfm_top_tracks",
+                "spotify_top_tracks",
+                "album",
+                "quit",
+            }
+        else:
+            allowed = {
+                "quit",
+                *(release.spotify_id for release in pending.releases),
+            }
+        if request.choice not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail="Something Old choice is not available",
+            )
+
+        job.submitted_choice = request.choice
+        job.result.something_old_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Something Old choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/something-old-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_something_old_job(job_id: str) -> BlastJobResult:
+    """Request a clean stop at the next Something Old boundary."""
+    job = get_blast_job(job_id, command="something_old")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail="Something Old job is not active",
+            )
+        job.result.status = "cancelling"
+        job.result.something_old_pending_choice = None
+        job.result.detail = "Stopping Something Old"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/update-scrobble-history",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_update_scrobble_history(
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start a background refresh of the shared Last.fm scrobble record."""
+    configuration = Settings()
+    try:
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except found_art.FoundArtConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_scrobble_history_job(
+        api_key,
+        username,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/update-scrobble-history-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_scrobble_history_jobs() -> list[BlastJobResult]:
+    """Return active history refreshes for page-reload reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "update_scrobble_history"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/update-scrobble-history-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_scrobble_history_job(job_id: str) -> BlastJobResult:
+    """Return the current state and logs for one history refresh."""
+    job = get_blast_job(job_id, command="update_scrobble_history")
+    with _blast_jobs_lock:
         return _blast_job_snapshot(job)
 
 

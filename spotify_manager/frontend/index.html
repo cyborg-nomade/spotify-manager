@@ -300,6 +300,31 @@
       <div class="analysis-progress" id="slowListeningProgress"></div>
     </section>
 
+    <section class="card" id="somethingOldCard">
+      <h2>Something old, something new</h2>
+      <label class="inline">
+        <input type="checkbox" id="somethingOldDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions" style="margin-top:12px">
+        <button class="primary" data-action="startSomethingOld">Fill Something Old</button>
+        <button class="danger cancel" data-action="cancelSomethingOld" hidden title="Stop routine">×</button>
+      </div>
+      <div class="analysis-progress" id="somethingOldProgress"></div>
+    </section>
+
+    <section class="card" id="scrobbleHistoryCard">
+      <h2>Last.fm scrobble history</h2>
+      <label class="inline">
+        <input type="checkbox" id="scrobbleHistoryDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions" style="margin-top:12px">
+        <button class="primary" data-action="startScrobbleHistory">Update scrobble history</button>
+      </div>
+      <div class="analysis-progress" id="scrobbleHistoryProgress"></div>
+    </section>
+
     <!-- Artist stats -->
     <section class="card">
       <h2>Artist stats</h2>
@@ -406,6 +431,8 @@
   var foundArtJob = null;
   var newWineJob = null;
   var slowListeningJob = null;
+  var somethingOldJob = null;
+  var scrobbleHistoryJob = null;
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -1087,6 +1114,267 @@
     }
   }
 
+  function renderSomethingOldJob(job) {
+    somethingOldJob = job;
+    var out = document.getElementById("somethingOldProgress");
+    var start = document.querySelector('[data-action="startSomethingOld"]');
+    var cancel = document.querySelector('[data-action="cancelSomethingOld"]');
+    document.getElementById("somethingOldDryRun").checked = Boolean(job.dry_run);
+
+    var history = "";
+    if (typeof job.history_scrobbles === "number" && job.something_old_action) {
+      history = '<div class="playlist-dates">History: ' +
+        esc(job.history_scrobbles) + ' scrobbles · ' +
+        esc(job.live_scrobbles_added || 0) + ' new</div>';
+    }
+
+    var ranking = "";
+    if (job.something_old_ranking && job.something_old_ranking.length) {
+      ranking = '<div class="new-wine-refill"><div class="new-wine-choice-title">' +
+        'Golden Oldies</div>' + job.something_old_ranking.map(function (entry, index) {
+          return '<div class="blast-selection"><div class="blast-selection-title">' +
+            esc((index + 1) + ". " + entry.artist) + '</div>' +
+            '<div class="blast-selection-meta">' + esc(entry.scrobbles) +
+            ' scrobbles · average ' + esc(entry.average_scrobble_date) +
+            '</div></div>';
+        }).join("") + '</div>';
+    }
+
+    var tracks = (job.something_old_tracks || []).map(function (track) {
+      var lastfm = typeof track.lastfm_scrobbles === "number"
+        ? ' · ' + track.lastfm_scrobbles + ' Last.fm scrobbles'
+        : '';
+      return '<div class="blast-selection"><div class="blast-selection-title">' +
+        esc((track.artists || []).join(", ") + " - " + track.track) + '</div>' +
+        '<div class="blast-selection-match">' + esc(track.album || "No album") + '</div>' +
+        '<div class="blast-selection-meta">' + esc(track.source) + esc(lastfm) +
+        '</div></div>';
+    }).join("");
+    if (tracks) {
+      tracks = '<div class="new-wine-refill"><div class="new-wine-choice-title">' +
+        esc(job.dry_run ? "Tracks that would be added" : "Tracks added") +
+        '</div>' + tracks + '</div>';
+    }
+
+    var choice = job.something_old_pending_choice;
+    var pending = "";
+    if (choice) {
+      var context = '<div class="blast-selection-match">' +
+        esc(choice.scrobbles) + ' scrobbles · average ' +
+        esc(choice.average_scrobble_date) + '</div>';
+      var options = "";
+      if (choice.kind === "artist") {
+        options = (choice.artist_candidates || []).map(function (candidate) {
+          var popularity = candidate.popularity == null ? "?" : candidate.popularity;
+          var followers = candidate.followers == null
+            ? "?"
+            : Number(candidate.followers).toLocaleString();
+          return '<button class="ghost" data-action="somethingOldChoice" data-choice="' +
+            esc(candidate.spotify_id) + '"><span class="new-wine-option-name">' +
+            esc(candidate.name) + '</span><span class="new-wine-option-meta">' +
+            'Popularity ' + esc(popularity) + ' · ' + esc(followers) +
+            ' followers · ' + esc(candidate.spotify_id) + '</span></button>';
+        }).join("");
+      } else if (choice.kind === "mode") {
+        options =
+          '<button class="ghost" data-action="somethingOldChoice" data-choice="lastfm_top_tracks">' +
+            '<span class="new-wine-option-name">Last.fm top tracks</span>' +
+            '<span class="new-wine-option-meta">Up to 10 most-scrobbled tracks</span></button>' +
+          '<button class="ghost" data-action="somethingOldChoice" data-choice="spotify_top_tracks">' +
+            '<span class="new-wine-option-name">Spotify popular tracks</span>' +
+            '<span class="new-wine-option-meta">Up to 10 current top tracks</span></button>' +
+          '<button class="ghost" data-action="somethingOldChoice" data-choice="album">' +
+            '<span class="new-wine-option-name">Album or EP</span>' +
+            '<span class="new-wine-option-meta">Choose one complete studio release</span></button>';
+      } else if (choice.kind === "album") {
+        options = (choice.releases || []).map(function (release) {
+          var edition = release.saved ? "saved" : (release.plain ? "plain" : "other");
+          return '<button class="ghost" data-action="somethingOldChoice" data-choice="' +
+            esc(release.spotify_id) + '"><span class="new-wine-option-name">' +
+            esc(release.name) + '</span><span class="new-wine-option-meta">' +
+            esc(release.release_date) + ' · ' + esc(release.release_type) + ' · ' +
+            esc(release.total_tracks) + ' tracks · ' + esc(edition) + '</span></button>';
+        }).join("");
+      }
+      pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
+        esc(choice.kind === "artist" ? "Choose the Spotify artist for " + choice.artist :
+          (choice.kind === "mode" ? "Choose what to add for " + choice.artist :
+            "Choose an album or EP by " + choice.artist)) + '</div>' + context +
+        '<div class="new-wine-options">' + options + '</div>' +
+        '<div class="btns"><button class="danger" data-action="somethingOldChoice" ' +
+        'data-choice="quit">Quit</button></div></div>';
+    }
+
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity...</span></div>';
+    }
+
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) {
+        state += " · retry at " + retryDate.toLocaleString();
+      }
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
+      history + ranking + tracks + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running...");
+      if (job.status === "waiting") {
+        start.innerHTML = '<span class="spinner"></span> Waiting...';
+      }
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollSomethingOldJob(jobId) {
+    try {
+      var job = await api("/commands/something-old-jobs/" + jobId);
+      renderSomethingOldJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollSomethingOldJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Something Old finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "Something Old stopped", "ok");
+      } else {
+        showToast("Something Old " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("somethingOldProgress"), e);
+      setBusy(document.querySelector('[data-action="startSomethingOld"]'), false);
+      showToast("Could not read Something Old progress", "err");
+    }
+  }
+
+  async function restoreActiveSomethingOldJobs() {
+    try {
+      var jobs = await api("/commands/something-old-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderSomethingOldJob(job);
+      pollSomethingOldJob(job.job_id);
+      showToast("Reconnected to Something Old", "ok");
+    } catch (e) {
+      if (e.status !== 401) {
+        showToast("Could not restore Something Old progress", "err");
+      }
+    }
+  }
+
+  function renderScrobbleHistoryJob(job) {
+    scrobbleHistoryJob = job;
+    var out = document.getElementById("scrobbleHistoryProgress");
+    var start = document.querySelector('[data-action="startScrobbleHistory"]');
+    document.getElementById("scrobbleHistoryDryRun").checked = Boolean(job.dry_run);
+
+    var counts = "";
+    if (typeof job.history_scrobbles === "number") {
+      counts = '<div class="new-wine-refill"><div class="new-wine-choice-title">' +
+        'History summary</div>' +
+        '<div class="playlist-dates">Existing export: ' +
+        esc(Number(job.history_export_scrobbles || 0).toLocaleString()) +
+        ' scrobbles · legacy delta: +' +
+        esc(Number(job.history_legacy_scrobbles_added || 0).toLocaleString()) +
+        ' · live: +' +
+        esc(Number(job.live_scrobbles_added || 0).toLocaleString()) +
+        ' · merged total: ' +
+        esc(Number(job.history_scrobbles).toLocaleString()) + '</div></div>';
+    }
+
+    var backup = "";
+    if (job.history_backup_path) {
+      backup = '<div class="playlist-dates">Backup: ' +
+        esc(job.history_backup_path) + '</div>';
+    }
+
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity...</span></div>';
+    }
+
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
+      counts + backup +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    if (isAnalysisActive(job.status)) {
+      if (!start.disabled) setBusy(start, true, "Updating...");
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollScrobbleHistoryJob(jobId) {
+    try {
+      var job = await api("/commands/update-scrobble-history-jobs/" + jobId);
+      renderScrobbleHistoryJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollScrobbleHistoryJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Scrobble history update finished", "ok");
+      } else {
+        showToast("Scrobble history update " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("scrobbleHistoryProgress"), e);
+      setBusy(document.querySelector('[data-action="startScrobbleHistory"]'), false);
+      showToast("Could not read scrobble history progress", "err");
+    }
+  }
+
+  async function restoreActiveScrobbleHistoryJobs() {
+    try {
+      var jobs = await api("/commands/update-scrobble-history-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderScrobbleHistoryJob(job);
+      pollScrobbleHistoryJob(job.job_id);
+      showToast("Reconnected to scrobble history update", "ok");
+    } catch (e) {
+      if (e.status !== 401) {
+        showToast("Could not restore scrobble history progress", "err");
+      }
+    }
+  }
+
   // ---- Actions -----------------------------------------------------------
   var actions = {
     blastMode(btn) {
@@ -1340,6 +1628,94 @@
       }
     },
 
+    async startSomethingOld(btn) {
+      var dryRun = document.getElementById("somethingOldDryRun").checked;
+      var out = document.getElementById("somethingOldProgress");
+      if (!dryRun && !confirm("Add the Something Old selection to Spotify?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting...");
+      try {
+        var job = await api(
+          "/commands/something-old?" + q.toString(),
+          { method: "POST" }
+        );
+        renderSomethingOldJob(job);
+        pollSomethingOldJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "something_old") {
+          await pollSomethingOldJob(activeJobId);
+          showToast("Reconnected to Something Old", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Something Old", "err");
+      }
+    },
+
+    async somethingOldChoice(btn) {
+      if (!somethingOldJob || !somethingOldJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/something-old-jobs/" +
+            somethingOldJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice } }
+        );
+        renderSomethingOldJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit Something Old choice", "err");
+      }
+    },
+
+    async cancelSomethingOld(btn) {
+      if (!somethingOldJob || !somethingOldJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/something-old-jobs/" +
+            somethingOldJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderSomethingOldJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop Something Old", "err");
+      }
+    },
+
+    async startScrobbleHistory(btn) {
+      var dryRun = document.getElementById("scrobbleHistoryDryRun").checked;
+      var out = document.getElementById("scrobbleHistoryProgress");
+      if (!dryRun && !confirm("Update the canonical Last.fm scrobble history?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting...");
+      try {
+        var job = await api(
+          "/commands/update-scrobble-history?" + q.toString(),
+          { method: "POST" }
+        );
+        renderScrobbleHistoryJob(job);
+        pollScrobbleHistoryJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "update_scrobble_history") {
+          await pollScrobbleHistoryJob(activeJobId);
+          showToast("Reconnected to scrobble history update", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start scrobble history update", "err");
+      }
+    },
+
     openGenreReveal() {
       window.location.assign("/genre-reveal");
     },
@@ -1554,6 +1930,8 @@
     restoreActiveFoundArtJobs();
     restoreActiveNewWineJobs();
     restoreActiveSlowListeningJobs();
+    restoreActiveSomethingOldJobs();
+    restoreActiveScrobbleHistoryJobs();
     return true;
   }
 

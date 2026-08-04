@@ -22,6 +22,7 @@ from spotipy import Spotify
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
 from spotify_manager.routines import blast_from_past
+from spotify_manager.routines import scrobble_history as shared_scrobble_history
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -252,131 +253,31 @@ def validate_lastfm_configuration(
     return api_key.strip(), username.strip()
 
 
-def _load_export_scrobbles(path: Path) -> list[blast_from_past.Scrobble]:
-    """Load the existing export through its JSON/gzip fallback-aware loader."""
-    by_date = blast_from_past.load_scrobbles_by_date(path)
-    return [scrobble for bucket in by_date.values() for scrobble in bucket]
-
-
-def load_recent_scrobbles(
-    path: Path = DEFAULT_RECENT_PATH,
-) -> list[blast_from_past.Scrobble]:
-    """Load the append-only API delta accumulated after the export."""
-    if not path.exists():
-        return []
-
-    scrobbles: list[blast_from_past.Scrobble] = []
-    current_line = 0
-    try:
-        with path.open(encoding="utf-8") as delta_file:
-            for line_number, line in enumerate(delta_file, start=1):
-                current_line = line_number
-                if not line.strip():
-                    continue
-                raw = json.loads(line)
-                if not isinstance(raw, dict):
-                    raise ValueError("record is not an object")
-                scrobbles.append(
-                    blast_from_past.Scrobble(
-                        artist=str(raw["artist"]),
-                        track=str(raw["track"]),
-                        album=str(raw.get("album") or ""),
-                        timestamp_ms=int(raw["timestamp_ms"]),
-                    )
-                )
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        detail = f" at line {current_line}" if current_line else ""
-        raise FoundArtStateError(
-            f"Found Art recent-scrobble state is invalid{detail}: {path}"
-        ) from exc
-    return scrobbles
-
-
-def _scrobble_event_key(
-    scrobble: blast_from_past.Scrobble,
-) -> tuple[int, str, str, str]:
-    """Return a stable identity for export/API overlap removal."""
-    artist_key, track_key = canonical_track_key(scrobble.artist, scrobble.track)
-    return (
-        scrobble.timestamp_ms,
-        artist_key,
-        track_key,
-        blast_from_past.normalize_name(scrobble.album),
-    )
-
-
-def append_recent_scrobbles(
-    scrobbles: Iterable[blast_from_past.Scrobble],
-    path: Path = DEFAULT_RECENT_PATH,
-) -> None:
-    """Append verified live scrobbles after a complete API delta fetch."""
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as delta_file:
-            for scrobble in scrobbles:
-                record = {
-                    "artist": scrobble.artist,
-                    "track": scrobble.track,
-                    "album": scrobble.album,
-                    "timestamp_ms": scrobble.timestamp_ms,
-                }
-                delta_file.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except OSError as exc:
-        raise FoundArtStateError(
-            f"Could not update Found Art recent-scrobble state: {path}"
-        ) from exc
-
-
 def refresh_scrobble_history(
     lastfm: LastFmReader,
     *,
     export_path: Path = DEFAULT_SCROBBLES_PATH,
     recent_path: Path = DEFAULT_RECENT_PATH,
+    dry_run: bool = False,
     now: datetime | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[list[blast_from_past.Scrobble], int]:
-    """Merge the export, saved API delta, and newly fetched live scrobbles."""
-    if progress_callback is not None:
-        progress_callback("Loading the Last.fm export and live delta")
-    export_scrobbles = _load_export_scrobbles(export_path)
-    saved_recent = load_recent_scrobbles(recent_path)
-    history = export_scrobbles + saved_recent
-    if not history:
-        raise FoundArtStateError("The Last.fm listening history is empty.")
-
-    known_events = {_scrobble_event_key(scrobble) for scrobble in history}
-    latest_timestamp_ms = max(scrobble.timestamp_ms for scrobble in history)
-    fetched_at = (now or datetime.now(UTC)).astimezone(UTC)
-    to_timestamp = int(fetched_at.timestamp())
-    from_timestamp = latest_timestamp_ms // 1000
-    if from_timestamp > to_timestamp:
-        return history, 0
-
-    if progress_callback is not None:
-        progress_callback("Checking Last.fm for scrobbles newer than the export")
-    live_tracks = lastfm.recent_tracks(
-        from_timestamp=from_timestamp,
-        to_timestamp=to_timestamp,
-    )
-    fresh: list[blast_from_past.Scrobble] = []
-    for live_track in live_tracks:
-        scrobble = blast_from_past.Scrobble(
-            artist=live_track.artist,
-            track=live_track.track,
-            album=live_track.album,
-            timestamp_ms=live_track.timestamp_seconds * 1000,
+    """Refresh the canonical export and absorb the legacy Found Art delta."""
+    try:
+        summary = shared_scrobble_history.refresh_scrobble_history(
+            lastfm,
+            expected_username=getattr(lastfm, "username", None),
+            export_path=export_path,
+            legacy_delta_path=recent_path,
+            backup_dir=export_path.parent / "lastfm_history_backups",
+            log_path=export_path.parent / "scrobble_history_update_log.jsonl",
+            dry_run=dry_run,
+            now=now,
+            progress_callback=progress_callback,
         )
-        event_key = _scrobble_event_key(scrobble)
-        if event_key in known_events:
-            continue
-        known_events.add(event_key)
-        fresh.append(scrobble)
-
-    fresh.sort(key=lambda scrobble: scrobble.timestamp_ms)
-    if fresh:
-        append_recent_scrobbles(fresh, recent_path)
-        history.extend(fresh)
-    return history, len(fresh)
+    except shared_scrobble_history.ScrobbleHistoryError as exc:
+        raise FoundArtStateError(str(exc)) from exc
+    return list(summary.history), summary.live_scrobbles_added
 
 
 def aggregate_track_history(
@@ -1018,6 +919,7 @@ def run_found_art(
         lastfm,
         export_path=export_path,
         recent_path=recent_path,
+        dry_run=dry_run,
         now=generated_at,
         progress_callback=progress_callback,
     )

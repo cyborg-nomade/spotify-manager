@@ -185,10 +185,10 @@ def friday_track_cutoff(today: date | None = None) -> date:
     return date(current_date.year - FRIDAY_TRACK_CUTOFF_YEARS, 12, 31)
 
 
-def load_scrobbles_by_date(
+def load_scrobble_export(
     path: Path = DEFAULT_SCROBBLES_PATH,
-) -> dict[date, list[Scrobble]]:
-    """Load every export scrobble into Berlin-local Last.fm date buckets."""
+) -> dict[str, object]:
+    """Load the Last.fm export, including its deployment fallbacks."""
     compressed_path = Path(f"{path}.gz")
     compressed_parts = tuple(sorted(path.parent.glob(f"{path.name}.gz.part-*")))
     encoded_parts = tuple(sorted(path.parent.glob(f"{path.name}.gz.b64.part-*")))
@@ -252,11 +252,20 @@ def load_scrobbles_by_date(
     if payload is None:
         raise LastFmExportError("Last.fm export failed: " + "; ".join(failures))
 
-    raw_scrobbles = payload.get("scrobbles") if isinstance(payload, dict) else None
-    if not isinstance(raw_scrobbles, list):
+    if not isinstance(payload, dict) or not isinstance(payload.get("scrobbles"), list):
         raise LastFmExportError(
             f"Last.fm export must contain a 'scrobbles' list: {path}"
         )
+    return payload
+
+
+def load_scrobbles_by_date(
+    path: Path = DEFAULT_SCROBBLES_PATH,
+) -> dict[date, list[Scrobble]]:
+    """Load every export scrobble into Berlin-local Last.fm date buckets."""
+    payload = load_scrobble_export(path)
+    raw_scrobbles = payload["scrobbles"]
+    assert isinstance(raw_scrobbles, list)
 
     by_date: dict[date, list[Scrobble]] = {}
     for index, raw_scrobble in enumerate(raw_scrobbles):

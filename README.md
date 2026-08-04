@@ -253,6 +253,42 @@ obsolete parts from the Space. This keeps the Docker deployment usable when HF
 stores the full export through large-file storage. A successful upload to
 `main` triggers a Space rebuild.
 
+### `update-scrobble-history`
+
+Keeps `spotify_manager/files/lastfmstats-man-et-arms.json` as the canonical
+Last.fm record shared by Blast from the Past, Daily Mind Radio, Found Art, and
+Something Old. It reads the latest timestamp in the export, fetches the complete
+newer range through `user.getRecentTracks`, de-duplicates the inclusive boundary,
+and absorbs the older append-only Found Art delta when present.
+
+A real update creates a timestamped gzip backup under
+`spotify_manager/files/lastfm_history_backups/`, completes the replacement
+through an adjacent temporary file, and records the counts in
+`scrobble_history_update_log.jsonl`. If fetching, backup creation, or the
+temporary write fails, the existing export remains in place.
+
+```console
+uv run spotify-manager update-scrobble-history --dry-run
+just update-scrobble-history --dry-run
+
+uv run spotify-manager update-scrobble-history
+just update-scrobble-history
+```
+
+Dry-run mode fetches and merges the live delta only in memory. It does not
+rewrite the export, create a backup or audit record, or change Spotify.
+
+The web card below Something Old runs the same updater as a reconnectable
+background job. It starts in dry-run mode, shows the export and merge counts,
+streams Last.fm retry and update logs, and restores an active job after a page
+reload. A successful real update also displays the server-side backup path.
+
+```text
+POST /commands/update-scrobble-history?dry_run=true
+GET  /commands/update-scrobble-history-jobs
+GET  /commands/update-scrobble-history-jobs/{job_id}
+```
+
 ### `blast-from-the-past`
 
 Selects unique dates with scrobbles from
@@ -318,7 +354,8 @@ runs during one Friday-Thursday week therefore produce the same proposal, while
 the next Friday rotates both the seeds and the candidate order.
 
 A candidate is excluded when the normalized artist and track pair appears in
-the export, the live API delta, or a previous successful Found Art run.
+the canonical export, its freshly fetched in-memory API delta, or a previous
+successful Found Art run.
 Remaster, deluxe, live, and similar edition suffixes are treated as the same
 track. A completed batch contains at most one track per artist; a failed,
 already-present, or liked candidate does not prevent another track by that
@@ -345,7 +382,8 @@ just found-art --max-playlist-length 50
 Use either `--count` or `--max-playlist-length`, never both. `--seed-count`
 defaults to 30. Similar-track responses are cached for resumability during the
 current listening week, saved after each seed, and refreshed after the Friday
-boundary. Scrobbles newer than the export are kept in an append-only delta.
+boundary. Real runs merge newer scrobbles into the canonical export through the
+same backup-first history updater; dry runs use the fresh data only in memory.
 Every completed real or dry run is recorded in
 `spotify_manager/files/found_art_log.jsonl`, including the week, seed sampling
 keys, original candidate ranks, and weekly sampling keys.
@@ -358,6 +396,56 @@ results so the page can reconnect after a reload:
 POST /commands/found-art?count=20
 GET  /commands/found-art-jobs
 GET  /commands/found-art-jobs/{job_id}
+```
+
+### `something-old`
+
+Implements the Something Old half of *Something Old, Something New*. Configure
+`SOMETHING_OLD_NEW_PLAYLIST` with its Spotify URL, URI, or id. The command acts
+only when that playlist is empty; otherwise it exits without refreshing history
+or prompting.
+
+For an empty playlist, the command refreshes the canonical Last.fm record and
+reproduces the Golden Oldies ranking: artists with at least 50 scrobbles are
+sorted by ascending average scrobble timestamp. The freshly calculated first
+artist is always selected, including when that is the same artist as the
+previous run.
+
+The interactive prompt offers three choices:
+
+- Up to ten most-scrobbled Last.fm track titles, resolved with the existing
+  exact-artist and 90% track-name Spotify matcher.
+- Up to ten tracks from Spotify's current popular-track ranking for the artist.
+- One complete studio album or EP. Releases use the same filtering and edition
+  rules as Slow Listening: singles, compilations, live releases, soundtracks,
+  and similar non-studio releases are excluded; duplicate editions prefer saved
+  or plain versions; choices are displayed chronologically.
+
+The playlist is checked again immediately before the selected tracks are
+added. Successful real additions are recorded with their exact Spotify URIs in
+`spotify_manager/files/something_old_log.jsonl`.
+
+```console
+uv run spotify-manager something-old --dry-run
+just something-old --dry-run
+
+uv run spotify-manager something-old
+just something-old
+```
+
+Dry runs still fetch the latest Last.fm data and show all prompts and Rich
+tables, but neither local files nor Spotify are changed.
+
+The web card uses the same cautious dry-run default and exposes each artist,
+source, and album/EP choice through a reconnectable background job. Reloading
+the page restores the active prompt and its logs.
+
+```text
+POST /commands/something-old?dry_run=true
+GET  /commands/something-old-jobs
+GET  /commands/something-old-jobs/{job_id}
+POST /commands/something-old-jobs/{job_id}/choice
+POST /commands/something-old-jobs/{job_id}/cancel
 ```
 
 ### `flush-new-wine`
@@ -649,9 +737,13 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `BLAST_FROM_THE_PAST_PLAYLIST` | Spotify URL or id for Friday Routine recovery tracks. |
 | `DAILY_MIND_RADIO_PLAYLIST` | Spotify URL or id for anniversary recovery tracks. |
 | `GENRE_REVEAL_PLAYLIST` | Spotify URL or id that receives each genre playlist's first ten tracks. |
+| `FOUND_ART_PLAYLIST` | Spotify URL or id for the Found Art recommendation playlist. |
 | `NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST` | Spotify URL or id for releases being advanced track by track. |
 | `SAUVIGNON_TERRE_NEUVE_PLAYLIST` | Spotify URL or id receiving the first track of completed albums and EPs. |
 | `SLOW_LISTENING_PLAYLIST` | Spotify URL or id for the two-track-per-day deep-listening rotation. |
+| `SOMETHING_OLD_NEW_PLAYLIST` | Spotify URL or id for the alternating Something Old, Something New slot. |
+| `LASTFM_API_KEY` | Read-only Last.fm API key used to refresh scrobble history. |
+| `LASTFM_USERNAME` | Last.fm username associated with the canonical scrobble export. |
 
 > This Space should be **Private** — the repository contains your personal
 > library export files.
