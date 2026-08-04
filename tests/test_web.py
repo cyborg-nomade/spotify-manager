@@ -44,6 +44,24 @@ def test_genre_reveal_shell_is_open_but_state_api_is_protected() -> None:
     assert "/genre-reveal/state" not in OPEN_PATHS
 
 
+def test_new_wine_web_labels_jump_to_later_liked_track(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'item.advance_reason === "next_liked_track"' in response.text
+    assert 'action += " · next liked"' in response.text
+    assert "job.pending_choice.terminal_release" in response.text
+    assert 'data-choice="finish">Finish' in response.text
+    assert "item.continuation_release" in response.text
+    assert "item.continuation_track" in response.text
+    assert 'id="newWineNoDiscovery"' in response.text
+    assert 'q.set("no_discovery", noDiscovery ? "true" : "false")' in response.text
+    assert "job.new_wine_refill" in response.text
+    assert 'cellar.before + " → " + cellar.after' in response.text
+    assert "cellar.removed_from_cellar" in response.text
+    assert 'Boolean(job.no_discovery)' in response.text
+
+
 def test_genre_reveal_page_preserves_route_and_server_sync(client: TestClient) -> None:
     response = client.get("/genre-reveal")
 
@@ -231,6 +249,7 @@ def test_main_page_places_slow_listening_below_new_wine(
     assert 'basePath: "/commands/found-art"' in response.text
     assert "restoreActiveFoundArtJobs();" in response.text
     assert 'id="newWineDryRun" checked' in response.text
+    assert 'id="newWineNoDiscovery"' in response.text
     assert 'data-action="startNewWine"' in response.text
     assert 'data-action="newWineChoice"' in response.text
     assert '"/commands/flush-new-wine-jobs/"' in response.text

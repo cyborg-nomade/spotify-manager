@@ -248,7 +248,7 @@ def ask_new_wine_release_choice(
     candidates: tuple[new_wine.ReleaseCandidate, ...],
     progress: Progress | None = None,
 ) -> str:
-    """Prompt for the release that should follow one single."""
+    """Prompt for the release that should follow the current release."""
     if progress is not None:
         progress.stop()
     try:
@@ -274,11 +274,21 @@ def ask_new_wine_release_choice(
             )
         console.print(table)
         choices = [str(index) for index in range(1, len(candidates) + 1)]
-        response = Prompt.ask(
-            "Release number / [d]rop / [s]kip this run / [q]uit",
-            choices=[*choices, "d", "s", "q"],
-            console=console,
-        )
+        at_album_endpoint = source.release.release_type in {"Album", "EP"}
+        if at_album_endpoint:
+            response = Prompt.ask(
+                "Release number / [f]inish / [s]kip this run / [q]uit",
+                choices=[*choices, "f", "s", "q"],
+                console=console,
+            )
+        else:
+            response = Prompt.ask(
+                "Release number / [d]rop / [s]kip this run / [q]uit",
+                choices=[*choices, "d", "s", "q"],
+                console=console,
+            )
+        if response == "f":
+            return new_wine.CHOICE_FINISH
         if response == "d":
             return new_wine.CHOICE_DROP
         if response == "s":
@@ -767,6 +777,11 @@ def flush_new_wine_command(
         "--dry-run",
         help="Show the complete flush plan without changing Spotify or state.",
     ),
+    no_discovery: bool = typer.Option(
+        False,
+        "--no-discovery",
+        help=("Refill only from artists with 18 liked tracks or 3 saved albums."),
+    ),
 ) -> None:
     """Advance every New Wine track once according to its release."""
     console = Console()
@@ -781,13 +796,21 @@ def flush_new_wine_command(
             configuration.sauvignon_terre_neuve_playlist,
             "SAUVIGNON_TERRE_NEUVE_PLAYLIST",
         )
+        wine_cellar_playlist_id = new_wine.parse_playlist_id(
+            configuration.wine_cellar_playlist,
+            "WINE_CELLAR_PLAYLIST",
+        )
     except new_wine.NewWineConfigError as exc:
         console.print(str(exc), style="bold red", markup=False)
         raise typer.Exit(code=1) from exc
 
     def echo(line: str = "") -> None:
         style = None
-        if line.startswith("Added") or line.startswith("Removed"):
+        if (
+            line.startswith("Added")
+            or line.startswith("Moved")
+            or line.startswith("Removed")
+        ):
             style = "bold green"
         elif line.startswith("Would"):
             style = "yellow"
@@ -844,6 +867,8 @@ def flush_new_wine_command(
                     candidates,
                     progress_ref,
                 ),
+                wine_cellar_playlist_id=wine_cellar_playlist_id,
+                no_discovery=no_discovery,
                 dry_run=dry_run,
                 echo=echo,
                 progress_callback=update_progress,
@@ -917,8 +942,13 @@ def flush_new_wine_command(
         }
         if result.action == "drop" and result.drop_reason:
             action += f" ({drop_labels.get(result.drop_reason, result.drop_reason)})"
+        if result.advance_reason == "next_liked_track":
+            action += " (next liked)"
         if result.album_unsaved:
             action += " + unsaved"
+        next_track = result.target_track or "-"
+        if result.continuation_track:
+            next_track = f"{result.continuation_release} - {result.continuation_track}"
         table.add_row(
             result.artist,
             result.source_track,
@@ -926,9 +956,37 @@ def flush_new_wine_command(
             "liked" if result.current_liked else "unliked",
             str(result.consecutive_unliked),
             Text(action, style=action_styles[result.action]),
-            result.target_track or "-",
+            next_track,
         )
     console.print(table)
+    if summary.refill is not None:
+        refill_table = Table(title="Wine Cellar refill")
+        refill_table.add_column("Artist")
+        refill_table.add_column("Track")
+        refill_table.add_column("Action")
+        refill_table.add_column("Liked", justify="right")
+        refill_table.add_column("Albums", justify="right")
+        displayed_results = [
+            result for result in summary.refill.results if result.action != "ineligible"
+        ]
+        for result in displayed_results:
+            refill_table.add_row(
+                result.artist,
+                result.source_track,
+                result.action,
+                str(result.liked_tracks) if result.liked_tracks is not None else "-",
+                str(result.saved_albums) if result.saved_albums is not None else "-",
+            )
+        if displayed_results:
+            console.print(refill_table)
+        mode = "no-discovery" if summary.refill.no_discovery else "standard"
+        console.print(
+            f"Wine Cellar ({mode}): New Wine {summary.refill.before} -> "
+            f"{summary.refill.after}; {summary.refill.added} added, "
+            f"{summary.refill.removed_from_cellar} removed from Wine Cellar, "
+            f"{summary.refill.ineligible} ineligible.",
+            style="bold cyan",
+        )
     prefix = "Dry run" if summary.dry_run else "Flush"
     album_action = "to unsave" if summary.dry_run else "unsaved"
     console.print(

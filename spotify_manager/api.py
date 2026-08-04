@@ -178,6 +178,7 @@ class NewWinePendingChoice(BaseModel):
 
     artist: str
     source_track: str
+    terminal_release: bool = False
     releases: list[NewWineReleaseOption] = Field(default_factory=list)
 
 
@@ -193,7 +194,33 @@ class NewWineTrackResult(BaseModel):
     action: str
     target_track: str | None = None
     album_unsaved: bool = False
+    advance_reason: str | None = None
     drop_reason: str | None = None
+    continuation_release: str | None = None
+    continuation_track: str | None = None
+
+
+class NewWineCellarTrackResult(BaseModel):
+    """One Wine Cellar entry moved or reconciled by a web flush."""
+
+    artist: str
+    source_track: str
+    action: str
+    liked_tracks: int | None = None
+    saved_albums: int | None = None
+
+
+class NewWineRefillResult(BaseModel):
+    """Web representation of the post-flush Wine Cellar refill."""
+
+    target_size: int
+    before: int
+    after: int
+    added: int
+    removed_from_cellar: int
+    ineligible: int
+    no_discovery: bool
+    results: list[NewWineCellarTrackResult] = Field(default_factory=list)
 
 
 class NewWineChoiceRequest(BaseModel):
@@ -271,6 +298,7 @@ class BlastJobResult(BaseModel):
     candidate_count: int | None = None
     found_art_results: list[FoundArtSelectionResult] = Field(default_factory=list)
     dry_run: bool = False
+    no_discovery: bool = False
     processed: int | None = None
     total: int | None = None
     advanced: int | None = None
@@ -280,6 +308,7 @@ class BlastJobResult(BaseModel):
     skipped: int | None = None
     albums_unsaved: int | None = None
     new_wine_results: list[NewWineTrackResult] = Field(default_factory=list)
+    new_wine_refill: NewWineRefillResult | None = None
     pending_choice: NewWinePendingChoice | None = None
     completed_artists: int | None = None
     slow_listening_results: list[SlowListeningTrackResult] = Field(default_factory=list)
@@ -928,7 +957,38 @@ def _new_wine_track_result(result: new_wine.FlushResult) -> NewWineTrackResult:
         action=result.action,
         target_track=result.target_track,
         album_unsaved=result.album_unsaved,
+        advance_reason=result.advance_reason,
         drop_reason=result.drop_reason,
+        continuation_release=result.continuation_release,
+        continuation_track=result.continuation_track,
+    )
+
+
+def _new_wine_refill_result(
+    refill: new_wine.CellarRefillSummary | None,
+) -> NewWineRefillResult | None:
+    """Convert a Wine Cellar refill while keeping web payloads compact."""
+    if refill is None:
+        return None
+    return NewWineRefillResult(
+        target_size=refill.target_size,
+        before=refill.before,
+        after=refill.after,
+        added=refill.added,
+        removed_from_cellar=refill.removed_from_cellar,
+        ineligible=refill.ineligible,
+        no_discovery=refill.no_discovery,
+        results=[
+            NewWineCellarTrackResult(
+                artist=result.artist,
+                source_track=result.source_track,
+                action=result.action,
+                liked_tracks=result.liked_tracks,
+                saved_albums=result.saved_albums,
+            )
+            for result in refill.results
+            if result.action != "ineligible"
+        ],
     )
 
 
@@ -937,7 +997,9 @@ def _run_new_wine_job(
     spotify: Spotify,
     new_wine_playlist_id: str,
     sauvignon_playlist_id: str,
+    wine_cellar_playlist_id: str,
     dry_run: bool,
+    no_discovery: bool,
 ) -> None:
     """Execute one interactive New Wine flush as a reconnectable web job."""
     job = get_blast_job(job_id, command="flush_new_wine")
@@ -975,6 +1037,7 @@ def _run_new_wine_job(
             job.result.pending_choice = NewWinePendingChoice(
                 artist=source.primary_artist_name,
                 source_track=source.name,
+                terminal_release=source.release.release_type in {"Album", "EP"},
                 releases=[
                     NewWineReleaseOption(
                         spotify_id=candidate.spotify_id,
@@ -1037,6 +1100,8 @@ def _run_new_wine_job(
             new_wine_playlist_id,
             sauvignon_playlist_id,
             choice_reader=choice_reader,
+            wine_cellar_playlist_id=wine_cellar_playlist_id,
+            no_discovery=no_discovery,
             dry_run=dry_run,
             echo=echo,
             progress_callback=progress_callback,
@@ -1101,6 +1166,7 @@ def _run_new_wine_job(
             job.result.skipped = summary.skipped
             job.result.albums_unsaved = summary.albums_unsaved
             job.result.new_wine_results = results
+            job.result.new_wine_refill = _new_wine_refill_result(summary.refill)
             job.result.pending_choice = None
             if summary.paused:
                 job.result.detail = "New Wine flush paused. Progress was saved."
@@ -1112,6 +1178,12 @@ def _run_new_wine_job(
                     f"{summary.sent_to_sauvignon} sent to Sauvignon, "
                     f"{summary.albums_unsaved} albums {unsave_label}."
                 )
+                if summary.refill is not None:
+                    job.result.detail += (
+                        f" New Wine {summary.refill.before} -> "
+                        f"{summary.refill.after}; {summary.refill.added} pulled "
+                        "from Wine Cellar."
+                    )
             _append_blast_log_locked(job, job.result.detail)
     finally:
         if callable(spotify_event_setter):
@@ -1495,8 +1567,10 @@ def start_new_wine_job(
     spotify: Spotify,
     new_wine_playlist_id: str,
     sauvignon_playlist_id: str,
+    wine_cellar_playlist_id: str,
     *,
     dry_run: bool,
+    no_discovery: bool,
 ) -> BlastJobResult:
     """Start one New Wine web job, rejecting another playlist routine."""
     with _blast_jobs_lock:
@@ -1516,6 +1590,7 @@ def start_new_wine_job(
                 job_id=job_id,
                 command="flush_new_wine",
                 dry_run=dry_run,
+                no_discovery=no_discovery,
             )
         )
         _append_blast_log_locked(
@@ -1532,7 +1607,9 @@ def start_new_wine_job(
             spotify,
             new_wine_playlist_id,
             sauvignon_playlist_id,
+            wine_cellar_playlist_id,
             dry_run,
+            no_discovery,
         ),
         name=f"new-wine-flush-{job_id[:8]}",
         daemon=True,
@@ -1887,6 +1964,7 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
 def cmd_flush_new_wine(
     client: InteractiveClientDep,
     dry_run: bool = True,
+    no_discovery: bool = False,
 ) -> BlastJobResult:
     """Start an interactive New Wine flush with reconnectable web state."""
     configuration = Settings()
@@ -1899,13 +1977,19 @@ def cmd_flush_new_wine(
             configuration.sauvignon_terre_neuve_playlist,
             "SAUVIGNON_TERRE_NEUVE_PLAYLIST",
         )
+        wine_cellar_playlist_id = new_wine.parse_playlist_id(
+            configuration.wine_cellar_playlist,
+            "WINE_CELLAR_PLAYLIST",
+        )
     except new_wine.NewWineConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return start_new_wine_job(
         client,
         new_wine_playlist_id,
         sauvignon_playlist_id,
+        wine_cellar_playlist_id,
         dry_run=dry_run,
+        no_discovery=no_discovery,
     )
 
 

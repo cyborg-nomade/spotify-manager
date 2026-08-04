@@ -539,7 +539,9 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
             spotify=spotify,
             new_playlist_id=new_playlist_id,
             sauvignon_playlist_id=sauvignon_playlist_id,
+            wine_cellar_playlist_id=kwargs["wine_cellar_playlist_id"],
             dry_run=kwargs["dry_run"],
+            no_discovery=kwargs["no_discovery"],
         )
         kwargs["progress_callback"](0, 1, "Reviewing Current Track")
         choice = kwargs["choice_reader"](source, (current, alternative))
@@ -568,7 +570,35 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
                     consecutive_unliked=1,
                     action="advance",
                     target_track="Opening Track",
+                    advance_reason="next_liked_track",
                     dry_run=kwargs["dry_run"],
+                ),
+            ),
+            refill=api.new_wine.CellarRefillSummary(
+                target_size=10,
+                before=8,
+                after=10,
+                added=2,
+                removed_from_cellar=2,
+                ineligible=1,
+                no_discovery=kwargs["no_discovery"],
+                results=(
+                    api.new_wine.CellarRefillResult(
+                        source_track="Not Eligible",
+                        artist="Discovery Artist",
+                        action="ineligible",
+                        liked_tracks=2,
+                        saved_albums=0,
+                        dry_run=kwargs["dry_run"],
+                    ),
+                    api.new_wine.CellarRefillResult(
+                        source_track="Cellar Track",
+                        artist="Known Artist",
+                        action="moved",
+                        liked_tracks=18,
+                        saved_albums=1,
+                        dry_run=kwargs["dry_run"],
+                    ),
                 ),
             ),
         )
@@ -579,17 +609,23 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
         lambda: SimpleNamespace(
             new_wine_from_old_bottles_playlist="spotify:playlist:new",
             sauvignon_terre_neuve_playlist="spotify:playlist:sauv",
+            wine_cellar_playlist="spotify:playlist:cellar",
         ),
     )
     monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
 
-    started = client.post("/commands/flush-new-wine", params={"dry_run": "true"})
+    started = client.post(
+        "/commands/flush-new-wine",
+        params={"dry_run": "true", "no_discovery": "true"},
+    )
 
     assert started.status_code == 202
     job_id = started.json()["job_id"]
     waiting = wait_for_new_wine_status(client, job_id, {"waiting"})
     assert waiting["dry_run"] is True
+    assert waiting["no_discovery"] is True
     assert waiting["pending_choice"]["source_track"] == "Current Track"
+    assert waiting["pending_choice"]["terminal_release"] is False
     assert [
         release["spotify_id"] for release in waiting["pending_choice"]["releases"]
     ] == ["current", "alternative"]
@@ -606,11 +642,34 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
     completed = wait_for_new_wine_status(client, job_id, {"completed"})
     assert received["new_playlist_id"] == "new"
     assert received["sauvignon_playlist_id"] == "sauv"
+    assert received["wine_cellar_playlist_id"] == "cellar"
     assert received["dry_run"] is True
+    assert received["no_discovery"] is True
     assert received["choice"] == "alternative"
     assert completed["processed"] == 1
     assert completed["advanced"] == 1
     assert completed["new_wine_results"][0]["target_track"] == "Opening Track"
+    assert completed["new_wine_results"][0]["advance_reason"] == "next_liked_track"
+    assert completed["new_wine_results"][0]["continuation_release"] is None
+    assert completed["new_wine_results"][0]["continuation_track"] is None
+    assert completed["new_wine_refill"] == {
+        "target_size": 10,
+        "before": 8,
+        "after": 10,
+        "added": 2,
+        "removed_from_cellar": 2,
+        "ineligible": 1,
+        "no_discovery": True,
+        "results": [
+            {
+                "artist": "Known Artist",
+                "source_track": "Cellar Track",
+                "action": "moved",
+                "liked_tracks": 18,
+                "saved_albums": 1,
+            }
+        ],
+    }
     assert any(
         entry["message"] == "Selected alternative" for entry in completed["logs"]
     )
