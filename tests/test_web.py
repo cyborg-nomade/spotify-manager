@@ -223,7 +223,7 @@ def test_genre_reveal_rate_limit_returns_promptly_and_releases_lock(
     assert web._genre_reveal_run_lock.locked() is False
 
 
-def test_main_page_places_slow_listening_below_new_wine(
+def test_main_page_places_playlist_routines_in_expected_order(
     client: TestClient,
 ) -> None:
     response = client.get("/")
@@ -233,6 +233,7 @@ def test_main_page_places_slow_listening_below_new_wine(
     new_wine_position = response.text.index('id="newWineCard"')
     slow_listening_position = response.text.index('id="slowListeningCard"')
     something_old_position = response.text.index('id="somethingOldCard"')
+    requeue_position = response.text.index('id="requeueForADreamCard"')
     scrobble_history_position = response.text.index('id="scrobbleHistoryCard"')
     genre_position = response.text.index('id="genreRevealCard"')
     artist_position = response.text.index("<!-- Artist stats -->")
@@ -244,6 +245,7 @@ def test_main_page_places_slow_listening_below_new_wine(
         < new_wine_position
         < slow_listening_position
         < something_old_position
+        < requeue_position
         < scrobble_history_position
         < artist_position
     )
@@ -272,6 +274,13 @@ def test_main_page_places_slow_listening_below_new_wine(
     assert "job.something_old_ranking" in response.text
     assert "job.something_old_tracks" in response.text
     assert "restoreActiveSomethingOldJobs();" in response.text
+    assert 'id="requeueForADreamDryRun" checked' in response.text
+    assert 'data-action="startRequeueForADream"' in response.text
+    assert 'data-action="cancelRequeueForADream"' in response.text
+    assert '"/commands/flush-requeue-for-a-dream-jobs/"' in response.text
+    assert "job.requeue_target_release" in response.text
+    assert "job.requeue_target_track" in response.text
+    assert "restoreActiveRequeueForADreamJobs();" in response.text
     assert 'id="scrobbleHistoryDryRun" checked' in response.text
     assert 'data-action="startScrobbleHistory"' in response.text
     assert '"/commands/update-scrobble-history-jobs/"' in response.text

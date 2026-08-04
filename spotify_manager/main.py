@@ -48,6 +48,7 @@ from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import recover_removed_albums
+from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
 from spotify_manager.routines import scrobble_history
@@ -1535,6 +1536,112 @@ def flush_slow_listening_command(
             "Flush paused; run the command again to resume.",
             style="bold yellow",
         )
+
+
+@app.command(name="flush-requeue-for-a-dream")
+def flush_requeue_for_a_dream_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show the next release transition without changing Spotify.",
+    ),
+) -> None:
+    """Advance the first Requeue for a Dream artist by one release."""
+    console = Console()
+    configuration = Settings()
+    try:
+        playlist_id = requeue_for_a_dream.parse_playlist_id(
+            configuration.reqeueue_for_a_dream_playlist
+        )
+    except requeue_for_a_dream.RequeueForADreamConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = "bold green" if line.startswith(("Added", "Removed")) else "cyan"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with console.status(
+            "Planning Requeue for a Dream" + (" (dry run)" if dry_run else "")
+        ) as status:
+            summary = requeue_for_a_dream.flush_requeue_for_a_dream(
+                review_client(),
+                playlist_id,
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=status.update,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except requeue_for_a_dream.RequeueForADreamError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    table = Table(title="Requeue for a Dream")
+    table.add_column("Artist")
+    table.add_column("Current release")
+    table.add_column("Action")
+    table.add_column("Next release")
+    table.add_column("First track")
+    action = {
+        "advance": "would advance" if dry_run else "advanced",
+        "drop": "would drop" if dry_run else "dropped",
+        "empty": "empty",
+        "skip": "skipped",
+    }[summary.action]
+    if summary.target_already_present:
+        action += " (already present)"
+    if summary.reason:
+        action += f" ({summary.reason})"
+    table.add_row(
+        summary.artist or "-",
+        summary.source_release or "-",
+        action,
+        summary.target_release or "-",
+        summary.target_track or "-",
+    )
+    console.print(table)
+    console.print(
+        f"Playlist: {summary.playlist_length_before} -> "
+        f"{summary.playlist_length_after} tracks"
+        + (" (preview only)." if dry_run else "."),
+        style="bold cyan" if dry_run else "bold green",
+    )
 
 
 @app.command(name="blast-from-the-past")

@@ -59,6 +59,7 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_wine
+from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
@@ -386,6 +387,15 @@ class BlastJobResult(BaseModel):
     something_old_ranking: list[SomethingOldRankingEntry] = Field(default_factory=list)
     something_old_tracks: list[SomethingOldTrackResult] = Field(default_factory=list)
     something_old_pending_choice: SomethingOldPendingChoice | None = None
+    requeue_action: str | None = None
+    requeue_artist: str | None = None
+    requeue_source_track: str | None = None
+    requeue_source_release: str | None = None
+    requeue_target_track: str | None = None
+    requeue_target_release: str | None = None
+    requeue_target_release_type: str | None = None
+    requeue_target_release_date: str | None = None
+    requeue_target_already_present: bool | None = None
     retry_at: str | None = None
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
@@ -421,6 +431,10 @@ class _SlowListeningJobCancelledError(RuntimeError):
 
 class _SomethingOldJobCancelledError(RuntimeError):
     """Stop one Something Old web job at an interaction or retry boundary."""
+
+
+class _RequeueForADreamJobCancelledError(RuntimeError):
+    """Stop one Requeue for a Dream job at an API or retry boundary."""
 
 
 _analysis_jobs: dict[str, _AnalysisJob] = {}
@@ -1863,6 +1877,174 @@ def _run_something_old_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _run_requeue_for_a_dream_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+    dry_run: bool,
+) -> None:
+    """Execute one reconnectable Requeue for a Dream transition."""
+    job = get_blast_job(job_id, command="flush_requeue_for_a_dream")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Requeue for a Dream started"
+        _append_blast_log_locked(
+            job,
+            (
+                "Requeue for a Dream started in dry-run mode."
+                if dry_run
+                else "Requeue for a Dream started."
+            ),
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _RequeueForADreamJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        if job.cancel_event.is_set():
+            raise _RequeueForADreamJobCancelledError
+        result = review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+        if job.cancel_event.is_set():
+            raise _RequeueForADreamJobCancelledError
+        return result
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = requeue_for_a_dream.flush_requeue_for_a_dream(
+            spotify,
+            playlist_id,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=echo,
+            retry_call=retry_call,
+        )
+    except _RequeueForADreamJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = (
+                "Requeue for a Dream stopped safely. Rerun it to continue."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = (
+                f"Spotify HTTP {exc.http_status} remained unavailable after "
+                f"{exc.attempts} attempts while {exc.operation}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except SpotifyException as exc:
+        with _blast_jobs_lock:
+            if exc.http_status == 429:
+                retry_after = review_album_limits.get_retry_after_seconds(exc)
+                retry_at = (
+                    datetime.now(UTC) + timedelta(seconds=retry_after)
+                    if retry_after is not None
+                    else None
+                )
+                job.result.status = "paused"
+                job.result.retry_at = retry_at.isoformat() if retry_at else None
+                job.result.detail = (
+                    "Spotify rate limit reached. "
+                    f"{review_album_limits.format_retry_after(retry_after)}."
+                )
+            else:
+                job.result.status = "failed"
+                job.result.detail = str(exc)
+            _append_blast_log_locked(job, job.result.detail)
+    except requeue_for_a_dream.RequeueForADreamError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Requeue for a Dream failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Requeue for a Dream error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected Requeue for a Dream error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        with _blast_jobs_lock:
+            job.result.status = "completed"
+            job.result.requeue_action = summary.action
+            job.result.requeue_artist = summary.artist
+            job.result.requeue_source_track = summary.source_track
+            job.result.requeue_source_release = summary.source_release
+            job.result.requeue_target_track = summary.target_track
+            job.result.requeue_target_release = summary.target_release
+            job.result.requeue_target_release_type = summary.target_release_type
+            job.result.requeue_target_release_date = summary.target_release_date
+            job.result.requeue_target_already_present = summary.target_already_present
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.added = int(
+                summary.action == "advance" and not summary.target_already_present
+            )
+            if summary.action == "advance":
+                verb = "would advance" if dry_run else "advanced"
+                job.result.detail = (
+                    f"{verb.capitalize()} {summary.artist} from "
+                    f"{summary.source_release} to {summary.target_release}."
+                )
+            elif summary.action == "drop":
+                verb = "would drop" if dry_run else "dropped"
+                job.result.detail = (
+                    f"{verb.capitalize()} {summary.artist} after the final "
+                    "eligible release."
+                )
+            elif summary.action == "empty":
+                job.result.detail = "Requeue for a Dream is empty."
+            else:
+                job.result.detail = (
+                    f"Skipped {summary.artist or 'the playlist head'}: "
+                    f"{summary.reason or 'no safe transition was found'}."
+                )
+            if summary.target_track:
+                _append_blast_log_locked(
+                    job,
+                    f"Next track: {summary.target_track} ({summary.target_release}).",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def _run_scrobble_history_job(
     job_id: str,
     api_key: str,
@@ -2189,6 +2371,52 @@ def start_something_old_job(
         target=_run_something_old_job,
         args=(job_id, spotify, playlist_id, api_key, username, dry_run),
         name=f"something-old-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_requeue_for_a_dream_job(
+    spotify: Spotify,
+    playlist_id: str,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one Requeue for a Dream job with reload-safe state."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="flush_requeue_for_a_dream",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            (
+                "Requeue for a Dream queued in dry-run mode."
+                if dry_run
+                else "Requeue for a Dream queued."
+            ),
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_requeue_for_a_dream_job,
+        args=(job_id, spotify, playlist_id, dry_run),
+        name=f"requeue-for-a-dream-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -2907,6 +3135,76 @@ def cmd_cancel_something_old_job(job_id: str) -> BlastJobResult:
         _append_blast_log_locked(job, job.result.detail)
         job.cancel_event.set()
         job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-requeue-for-a-dream",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_flush_requeue_for_a_dream(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start a reconnectable Requeue for a Dream transition."""
+    configuration = Settings()
+    try:
+        playlist_id = requeue_for_a_dream.parse_playlist_id(
+            configuration.reqeueue_for_a_dream_playlist
+        )
+    except requeue_for_a_dream.RequeueForADreamConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_requeue_for_a_dream_job(
+        client,
+        playlist_id,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/flush-requeue-for-a-dream-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_requeue_for_a_dream_jobs() -> list[BlastJobResult]:
+    """Return active Requeue for a Dream jobs after a page reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "flush_requeue_for_a_dream"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/flush-requeue-for-a-dream-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
+    """Return the current state and logs for one Requeue transition."""
+    job = get_blast_job(job_id, command="flush_requeue_for_a_dream")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-requeue-for-a-dream-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
+    """Request a clean stop at the next API or retry boundary."""
+    job = get_blast_job(job_id, command="flush_requeue_for_a_dream")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail="Requeue for a Dream job is not active",
+            )
+        job.result.status = "cancelling"
+        job.result.detail = "Stopping Requeue for a Dream"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
         return _blast_job_snapshot(job)
 
 

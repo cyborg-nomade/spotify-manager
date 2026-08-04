@@ -8,6 +8,7 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 from pathlib import Path
+from threading import Event
 from time import monotonic
 from time import sleep
 from types import SimpleNamespace
@@ -1073,6 +1074,90 @@ def test_something_old_web_job_handles_all_interactive_choices(
     assert client.get("/commands/something-old-jobs").json() == []
 
 
+def test_requeue_for_a_dream_web_job_reports_transition_and_reconnects(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    entered = Event()
+    release_worker = Event()
+    received: dict[str, object] = {}
+
+    def run(spotify, playlist_id, **kwargs):
+        received.update(
+            spotify=spotify,
+            playlist_id=playlist_id,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"]("Loading Artist's discography")
+        entered.set()
+        assert release_worker.wait(2)
+        return api.requeue_for_a_dream.RequeueForADreamSummary(
+            recorded_at=datetime(2026, 8, 4, tzinfo=UTC),
+            playlist_id=playlist_id,
+            dry_run=True,
+            action="advance",
+            playlist_length_before=4,
+            playlist_length_after=4,
+            artist="Artist",
+            source_track="Current Track",
+            source_release="First Album",
+            target_track="Next Track",
+            target_release="Second Album",
+            target_release_type="Album",
+            target_release_date="2002-03-04",
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            reqeueue_for_a_dream_playlist=("spotify:playlist:0000000000000000000000"),
+        ),
+    )
+    monkeypatch.setattr(
+        api.requeue_for_a_dream,
+        "flush_requeue_for_a_dream",
+        run,
+    )
+
+    started = client.post(
+        "/commands/flush-requeue-for-a-dream",
+        params={"dry_run": "true"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    assert entered.wait(2)
+    assert [
+        job["job_id"]
+        for job in client.get("/commands/flush-requeue-for-a-dream-jobs").json()
+    ] == [job_id]
+
+    release_worker.set()
+    completed = wait_for_requeue_for_a_dream_status(
+        client,
+        job_id,
+        {"completed"},
+    )
+    assert received["playlist_id"] == "0000000000000000000000"
+    assert received["dry_run"] is True
+    assert completed["requeue_action"] == "advance"
+    assert completed["requeue_artist"] == "Artist"
+    assert completed["requeue_source_release"] == "First Album"
+    assert completed["requeue_target_track"] == "Next Track"
+    assert completed["requeue_target_release"] == "Second Album"
+    assert completed["requeue_target_release_type"] == "Album"
+    assert completed["playlist_length_before"] == 4
+    assert completed["playlist_length_after"] == 4
+    assert any(
+        entry["message"] == "Loading Artist's discography"
+        for entry in completed["logs"]
+    )
+    assert client.get("/commands/flush-requeue-for-a-dream-jobs").json() == []
+
+
 def test_scrobble_history_web_job_reports_refresh_summary(
     client: TestClient,
     monkeypatch,
@@ -1259,6 +1344,23 @@ def wait_for_something_old_status(
             return body
         sleep(0.01)
     pytest.fail(f"Something Old job {job_id} did not reach {expected}")
+
+
+def wait_for_requeue_for_a_dream_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one Requeue for a Dream job until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/flush-requeue-for-a-dream-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Requeue for a Dream job {job_id} did not reach {expected}")
 
 
 def wait_for_scrobble_history_status(

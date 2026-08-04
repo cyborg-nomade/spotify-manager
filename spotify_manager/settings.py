@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     wine_cellar_playlist: str | None = None
     sauvignon_terre_neuve_playlist: str | None = None
     slow_listening_playlist: str | None = None
+    reqeueue_for_a_dream_playlist: str | None = None
     something_old_new_playlist: str | None = None
     lastfm_api_key: str | None = None
     lastfm_username: str | None = None

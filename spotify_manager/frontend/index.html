@@ -313,6 +313,19 @@
       <div class="analysis-progress" id="somethingOldProgress"></div>
     </section>
 
+    <section class="card" id="requeueForADreamCard">
+      <h2>Requeue for a dream</h2>
+      <label class="inline">
+        <input type="checkbox" id="requeueForADreamDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions" style="margin-top:12px">
+        <button class="primary" data-action="startRequeueForADream">Advance first artist</button>
+        <button class="danger cancel" data-action="cancelRequeueForADream" hidden title="Stop routine">×</button>
+      </div>
+      <div class="analysis-progress" id="requeueForADreamProgress"></div>
+    </section>
+
     <section class="card" id="scrobbleHistoryCard">
       <h2>Last.fm scrobble history</h2>
       <label class="inline">
@@ -432,6 +445,7 @@
   var newWineJob = null;
   var slowListeningJob = null;
   var somethingOldJob = null;
+  var requeueForADreamJob = null;
   var scrobbleHistoryJob = null;
 
   function showToast(msg, kind) {
@@ -1284,6 +1298,125 @@
     }
   }
 
+  function renderRequeueForADreamJob(job) {
+    requeueForADreamJob = job;
+    var out = document.getElementById("requeueForADreamProgress");
+    var start = document.querySelector('[data-action="startRequeueForADream"]');
+    var cancel = document.querySelector('[data-action="cancelRequeueForADream"]');
+    document.getElementById("requeueForADreamDryRun").checked = Boolean(job.dry_run);
+
+    var transition = "";
+    if (job.requeue_action) {
+      var target = "";
+      if (job.requeue_action === "advance") {
+        var releaseMeta = [
+          job.requeue_target_release_type,
+          job.requeue_target_release_date,
+          job.requeue_target_already_present ? "track already present" : null,
+        ].filter(Boolean).join(" · ");
+        target = '<div class="blast-selection"><div class="blast-selection-title">' +
+          esc(job.requeue_target_track || "Unknown first track") + '</div>' +
+          '<div class="blast-selection-match">Next: ' +
+          esc(job.requeue_target_release || "Unknown release") + '</div>' +
+          (releaseMeta ? '<div class="blast-selection-meta">' +
+            esc(releaseMeta) + '</div>' : '') + '</div>';
+      } else if (job.requeue_action === "drop") {
+        target = '<div class="playlist-dates">Final eligible release reached; ' +
+          (job.dry_run ? 'the current track would be removed.' :
+            'the current track was removed.') + '</div>';
+      }
+      transition = '<div class="new-wine-refill"><div class="new-wine-choice-title">' +
+        esc(job.requeue_artist || "Playlist head") + '</div>' +
+        '<div class="blast-selection"><div class="blast-selection-title">' +
+        esc(job.requeue_source_track || "Unknown track") + '</div>' +
+        '<div class="blast-selection-match">Current: ' +
+        esc(job.requeue_source_release || "Unknown release") + '</div></div>' +
+        target + '</div>';
+    }
+
+    var playlist = "";
+    if (typeof job.playlist_length_before === "number") {
+      playlist = '<div class="playlist-dates">Playlist: ' +
+        esc(job.playlist_length_before) + ' → ' +
+        esc(job.playlist_length_after) + ' tracks</div>';
+    }
+
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity...</span></div>';
+    }
+
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) {
+        state += " · retry at " + retryDate.toLocaleString();
+      }
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
+      transition + playlist +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running...");
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollRequeueForADreamJob(jobId) {
+    try {
+      var job = await api("/commands/flush-requeue-for-a-dream-jobs/" + jobId);
+      renderRequeueForADreamJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollRequeueForADreamJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Requeue for a Dream finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "Requeue for a Dream stopped", "ok");
+      } else {
+        showToast("Requeue for a Dream " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("requeueForADreamProgress"), e);
+      setBusy(document.querySelector('[data-action="startRequeueForADream"]'), false);
+      showToast("Could not read Requeue for a Dream progress", "err");
+    }
+  }
+
+  async function restoreActiveRequeueForADreamJobs() {
+    try {
+      var jobs = await api("/commands/flush-requeue-for-a-dream-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderRequeueForADreamJob(job);
+      pollRequeueForADreamJob(job.job_id);
+      showToast("Reconnected to Requeue for a Dream", "ok");
+    } catch (e) {
+      if (e.status !== 401) {
+        showToast("Could not restore Requeue for a Dream progress", "err");
+      }
+    }
+  }
+
   function renderScrobbleHistoryJob(job) {
     scrobbleHistoryJob = job;
     var out = document.getElementById("scrobbleHistoryProgress");
@@ -1688,6 +1821,50 @@
       }
     },
 
+    async startRequeueForADream(btn) {
+      var dryRun = document.getElementById("requeueForADreamDryRun").checked;
+      var out = document.getElementById("requeueForADreamProgress");
+      if (!dryRun && !confirm("Advance the first Requeue for a Dream artist?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting...");
+      try {
+        var job = await api(
+          "/commands/flush-requeue-for-a-dream?" + q.toString(),
+          { method: "POST" }
+        );
+        renderRequeueForADreamJob(job);
+        pollRequeueForADreamJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "flush_requeue_for_a_dream") {
+          await pollRequeueForADreamJob(activeJobId);
+          showToast("Reconnected to Requeue for a Dream", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Requeue for a Dream", "err");
+      }
+    },
+
+    async cancelRequeueForADream(btn) {
+      if (!requeueForADreamJob || !requeueForADreamJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/flush-requeue-for-a-dream-jobs/" +
+            requeueForADreamJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderRequeueForADreamJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop Requeue for a Dream", "err");
+      }
+    },
+
     async startScrobbleHistory(btn) {
       var dryRun = document.getElementById("scrobbleHistoryDryRun").checked;
       var out = document.getElementById("scrobbleHistoryProgress");
@@ -1931,6 +2108,7 @@
     restoreActiveNewWineJobs();
     restoreActiveSlowListeningJobs();
     restoreActiveSomethingOldJobs();
+    restoreActiveRequeueForADreamJobs();
     restoreActiveScrobbleHistoryJobs();
     return true;
   }

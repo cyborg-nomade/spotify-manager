@@ -585,6 +585,52 @@ POST /commands/flush-slow-listening-jobs/{job_id}/choice
 POST /commands/flush-slow-listening-jobs/{job_id}/cancel
 ```
 
+### `flush-requeue-for-a-dream`
+
+Advances the artist represented by the first track in *Requeue for a Dream*.
+Configure `REQEUEUE_FOR_A_DREAM_PLAYLIST` with its Spotify URL, URI, or id. The
+setting name preserves the spelling currently used in `.env`.
+
+The routine loads the primary artist's studio albums and EPs chronologically
+using the same filtering and edition preferences as Slow Listening. It adds the
+first track of the next release in Spotify disc/track order, then removes the
+old playlist track. If that release's first track is already present, it is not
+duplicated. When the current release is the final eligible release, the old
+track is removed without adding a replacement; the artist is not unfollowed
+and no albums are changed. Empty playlists and releases that cannot be mapped
+safely are left unchanged.
+
+Preview the transition:
+
+```console
+uv run spotify-manager flush-requeue-for-a-dream --dry-run
+just flush-requeue-for-a-dream --dry-run
+```
+
+Apply it:
+
+```console
+uv run spotify-manager flush-requeue-for-a-dream
+just flush-requeue-for-a-dream
+```
+
+A real run rechecks the playlist head immediately before changing Spotify. The
+replacement is always added before the old track is removed, making a retry
+safe if removal is interrupted. Completed real decisions are appended to
+`spotify_manager/files/requeue_for_a_dream_log.jsonl`.
+
+The web card sits directly below Something Old and starts in dry-run mode. It
+shows the current and next releases, the selected first track, the projected or
+actual playlist length, and live retry logs. An active job and its logs are
+restored after a page reload.
+
+```text
+POST /commands/flush-requeue-for-a-dream?dry_run=true
+GET  /commands/flush-requeue-for-a-dream-jobs
+GET  /commands/flush-requeue-for-a-dream-jobs/{job_id}
+POST /commands/flush-requeue-for-a-dream-jobs/{job_id}/cancel
+```
+
 ### `daily-mind-radio`
 
 Selects one scrobble from today's date in the previous year, then from the
@@ -742,6 +788,7 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `SAUVIGNON_TERRE_NEUVE_PLAYLIST` | Spotify URL or id receiving the first track of completed albums and EPs. |
 | `SLOW_LISTENING_PLAYLIST` | Spotify URL or id for the two-track-per-day deep-listening rotation. |
 | `SOMETHING_OLD_NEW_PLAYLIST` | Spotify URL or id for the alternating Something Old, Something New slot. |
+| `REQEUEUE_FOR_A_DREAM_PLAYLIST` | Spotify URL or id for the chronological discography queue. |
 | `LASTFM_API_KEY` | Read-only Last.fm API key used to refresh scrobble history. |
 | `LASTFM_USERNAME` | Last.fm username associated with the canonical scrobble export. |
 
