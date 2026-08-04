@@ -109,6 +109,14 @@ blast-from-the-past *args:
 found-art *args:
     {{ cli }} found-art "$@"
 
+# Merge the latest Last.fm API scrobbles into the canonical export.
+update-scrobble-history *args:
+    {{ cli }} update-scrobble-history "$@"
+
+# Fill an empty Something Old slot from Last.fm Golden Oldies.
+something-old *args:
+    {{ cli }} something-old "$@"
+
 # Advance every New Wine track once by its selected release.
 flush-new-wine *args:
     {{ cli }} flush-new-wine "$@"

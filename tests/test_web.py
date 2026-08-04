@@ -59,7 +59,7 @@ def test_new_wine_web_labels_jump_to_later_liked_track(client: TestClient) -> No
     assert "job.new_wine_refill" in response.text
     assert 'cellar.before + " → " + cellar.after' in response.text
     assert "cellar.removed_from_cellar" in response.text
-    assert 'Boolean(job.no_discovery)' in response.text
+    assert "Boolean(job.no_discovery)" in response.text
 
 
 def test_genre_reveal_page_preserves_route_and_server_sync(client: TestClient) -> None:
@@ -232,6 +232,8 @@ def test_main_page_places_slow_listening_below_new_wine(
     found_art_position = response.text.index('id="foundArtCard"')
     new_wine_position = response.text.index('id="newWineCard"')
     slow_listening_position = response.text.index('id="slowListeningCard"')
+    something_old_position = response.text.index('id="somethingOldCard"')
+    scrobble_history_position = response.text.index('id="scrobbleHistoryCard"')
     genre_position = response.text.index('id="genreRevealCard"')
     artist_position = response.text.index("<!-- Artist stats -->")
 
@@ -241,6 +243,8 @@ def test_main_page_places_slow_listening_below_new_wine(
         < genre_position
         < new_wine_position
         < slow_listening_position
+        < something_old_position
+        < scrobble_history_position
         < artist_position
     )
     assert 'id="foundArtCount"' in response.text
@@ -259,4 +263,20 @@ def test_main_page_places_slow_listening_below_new_wine(
     assert 'data-action="slowListeningChoice"' in response.text
     assert '"/commands/flush-slow-listening-jobs/"' in response.text
     assert "restoreActiveSlowListeningJobs();" in response.text
+    assert 'id="somethingOldDryRun" checked' in response.text
+    assert 'data-action="startSomethingOld"' in response.text
+    assert 'data-action="somethingOldChoice"' in response.text
+    assert '"/commands/something-old-jobs/"' in response.text
+    assert 'data-choice="lastfm_top_tracks"' in response.text
+    assert 'data-choice="spotify_top_tracks"' in response.text
+    assert "job.something_old_ranking" in response.text
+    assert "job.something_old_tracks" in response.text
+    assert "restoreActiveSomethingOldJobs();" in response.text
+    assert 'id="scrobbleHistoryDryRun" checked' in response.text
+    assert 'data-action="startScrobbleHistory"' in response.text
+    assert '"/commands/update-scrobble-history-jobs/"' in response.text
+    assert "job.history_export_scrobbles" in response.text
+    assert "job.history_legacy_scrobbles_added" in response.text
+    assert "job.history_backup_path" in response.text
+    assert "restoreActiveScrobbleHistoryJobs();" in response.text
     assert 'data-action="openGenreReveal"' in response.text

@@ -7,6 +7,7 @@ credentials, or YourLibrary.json file are needed.
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from pathlib import Path
 from time import monotonic
 from time import sleep
 from types import SimpleNamespace
@@ -883,6 +884,260 @@ def test_slow_listening_web_job_handles_all_interactive_choices(
     assert client.get("/commands/flush-slow-listening-jobs").json() == []
 
 
+def test_something_old_web_job_handles_all_interactive_choices(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    artist = api.something_old.GoldenOldieArtist(
+        artist="Old Artist",
+        scrobbles=50,
+        average_scrobble_ms=1_000,
+        first_scrobble_ms=1,
+        last_scrobble_ms=2_000,
+        top_tracks=(),
+    )
+    first_spotify_artist = api.something_old.SpotifyArtistCandidate(
+        spotify_id="artist-one",
+        name="Old Artist",
+        uri="spotify:artist:artist-one",
+        popularity=60,
+        followers=10_000,
+        search_rank=1,
+    )
+    second_spotify_artist = api.something_old.SpotifyArtistCandidate(
+        spotify_id="artist-two",
+        name="Old Artist",
+        uri="spotify:artist:artist-two",
+        popularity=10,
+        followers=20,
+        search_rank=2,
+    )
+    release = api.slow_listening.DiscographyRelease(
+        spotify_id="release-id",
+        uri="spotify:album:release-id",
+        name="Old Album",
+        release_type="Album",
+        release_date="2000-01-01",
+        chronology_date="2000-01-01",
+        total_tracks=2,
+        primary_artist_id="artist-one",
+        primary_artist_name="Old Artist",
+        identity="old album",
+        saved=True,
+        plain=True,
+        edition_rank=0,
+    )
+    selected_track = api.something_old.SelectedTrack(
+        spotify_id="track-id",
+        uri="spotify:track:track-id",
+        track="Old Track",
+        album="Old Album",
+        artists=("Old Artist",),
+        source="Album: Old Album",
+    )
+    history = tuple(
+        api.blast_from_past.Scrobble(
+            track="Old Track",
+            artist="Old Artist",
+            album="Old Album",
+            timestamp_ms=index + 1,
+        )
+        for index in range(50)
+    )
+    history_summary = api.scrobble_history.ScrobbleHistorySummary(
+        checked_at=datetime(2026, 8, 4, tzinfo=UTC),
+        username="man-et-arms",
+        history=history,
+        export_scrobbles=49,
+        legacy_scrobbles_added=0,
+        live_scrobbles_added=1,
+        dry_run=True,
+        persisted=False,
+        backup_path=None,
+    )
+    received: dict[str, object] = {}
+
+    def run(spotify, lastfm, playlist_id, **kwargs):
+        received.update(
+            spotify=spotify,
+            lastfm=lastfm,
+            playlist_id=playlist_id,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"]("Calculating Golden Oldies")
+        received["artist_choice"] = kwargs["artist_choice_reader"](
+            artist,
+            (first_spotify_artist, second_spotify_artist),
+        )
+        received["mode_choice"] = kwargs["mode_reader"](
+            artist,
+            first_spotify_artist,
+        )
+        received["album_choice"] = kwargs["album_choice_reader"](
+            artist,
+            (release,),
+        )
+        return api.something_old.SomethingOldSummary(
+            generated_at=datetime(2026, 8, 4, tzinfo=UTC),
+            playlist_id=playlist_id,
+            playlist_length_before=0,
+            playlist_length_after=0,
+            dry_run=True,
+            action="would add",
+            history_refresh=history_summary,
+            ranking_preview=(artist,),
+            artist=artist,
+            spotify_artist=first_spotify_artist,
+            mode="album",
+            release=release,
+            tracks=(selected_track,),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            something_old_new_playlist=("spotify:playlist:0000000000000000000000"),
+            lastfm_api_key="lastfm-key",
+            lastfm_username="man-et-arms",
+        ),
+    )
+    monkeypatch.setattr(api.something_old, "run_something_old", run)
+
+    started = client.post(
+        "/commands/something-old",
+        params={"dry_run": "true"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    artist_waiting = wait_for_something_old_status(client, job_id, {"waiting"})
+    assert artist_waiting["something_old_pending_choice"]["kind"] == "artist"
+    assert [
+        candidate["spotify_id"]
+        for candidate in artist_waiting["something_old_pending_choice"][
+            "artist_candidates"
+        ]
+    ] == ["artist-one", "artist-two"]
+    assert [
+        job["job_id"] for job in client.get("/commands/something-old-jobs").json()
+    ] == [job_id]
+
+    invalid_artist = client.post(
+        f"/commands/something-old-jobs/{job_id}/choice",
+        json={"choice": "not-an-artist"},
+    )
+    assert invalid_artist.status_code == 400
+    artist_choice = client.post(
+        f"/commands/something-old-jobs/{job_id}/choice",
+        json={"choice": "artist-one"},
+    )
+    assert artist_choice.status_code == 200
+
+    mode_waiting = wait_for_something_old_status(client, job_id, {"waiting"})
+    assert mode_waiting["something_old_pending_choice"]["kind"] == "mode"
+    assert mode_waiting["something_old_pending_choice"]["scrobbles"] == 50
+    mode_choice = client.post(
+        f"/commands/something-old-jobs/{job_id}/choice",
+        json={"choice": "album"},
+    )
+    assert mode_choice.status_code == 200
+
+    album_waiting = wait_for_something_old_status(client, job_id, {"waiting"})
+    pending_album = album_waiting["something_old_pending_choice"]
+    assert pending_album["kind"] == "album"
+    assert pending_album["releases"][0]["spotify_id"] == "release-id"
+    album_choice = client.post(
+        f"/commands/something-old-jobs/{job_id}/choice",
+        json={"choice": "release-id"},
+    )
+    assert album_choice.status_code == 200
+
+    completed = wait_for_something_old_status(client, job_id, {"completed"})
+    assert received["playlist_id"] == "0000000000000000000000"
+    assert received["dry_run"] is True
+    assert received["artist_choice"] == "artist-one"
+    assert received["mode_choice"] == "album"
+    assert received["album_choice"] == "release-id"
+    assert completed["something_old_action"] == "would add"
+    assert completed["something_old_artist"] == "Old Artist"
+    assert completed["something_old_release"] == "Old Album"
+    assert completed["something_old_tracks"][0]["track"] == "Old Track"
+    assert completed["history_scrobbles"] == 50
+    assert completed["live_scrobbles_added"] == 1
+    assert any(
+        entry["message"] == "Calculating Golden Oldies" for entry in completed["logs"]
+    )
+    assert client.get("/commands/something-old-jobs").json() == []
+
+
+def test_scrobble_history_web_job_reports_refresh_summary(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    history = tuple(
+        api.blast_from_past.Scrobble(
+            track="Track",
+            artist="Artist",
+            album="Album",
+            timestamp_ms=index + 1,
+        )
+        for index in range(12)
+    )
+    received: dict[str, object] = {}
+
+    def refresh(lastfm, **kwargs):
+        received.update(lastfm=lastfm, **kwargs)
+        kwargs["progress_callback"]("Fetching page 1 of 1 from Last.fm")
+        return api.scrobble_history.ScrobbleHistorySummary(
+            checked_at=datetime(2026, 8, 4, tzinfo=UTC),
+            username="man-et-arms",
+            history=history,
+            export_scrobbles=10,
+            legacy_scrobbles_added=1,
+            live_scrobbles_added=1,
+            dry_run=False,
+            persisted=True,
+            backup_path=Path("/tmp/scrobbles-backup.json.gz"),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            lastfm_api_key="lastfm-key",
+            lastfm_username="man-et-arms",
+        ),
+    )
+    monkeypatch.setattr(api.scrobble_history, "refresh_scrobble_history", refresh)
+
+    started = client.post(
+        "/commands/update-scrobble-history",
+        params={"dry_run": "false"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    completed = wait_for_scrobble_history_status(client, job_id, {"completed"})
+    assert received["expected_username"] == "man-et-arms"
+    assert received["dry_run"] is False
+    assert completed["history_export_scrobbles"] == 10
+    assert completed["history_legacy_scrobbles_added"] == 1
+    assert completed["live_scrobbles_added"] == 1
+    assert completed["history_scrobbles"] == 12
+    assert completed["history_persisted"] is True
+    assert completed["history_backup_path"] == "/tmp/scrobbles-backup.json.gz"
+    assert any(
+        entry["message"] == "Fetching page 1 of 1 from Last.fm"
+        for entry in completed["logs"]
+    )
+    assert client.get("/commands/update-scrobble-history-jobs").json() == []
+
+
 def wait_for_job_status(
     client: TestClient,
     job_id: str,
@@ -987,6 +1242,40 @@ def wait_for_slow_listening_status(
             return body
         sleep(0.01)
     pytest.fail(f"Slow Listening job {job_id} did not reach {expected}")
+
+
+def wait_for_something_old_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one Something Old job until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/something-old-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Something Old job {job_id} did not reach {expected}")
+
+
+def wait_for_scrobble_history_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one scrobble-history refresh until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/update-scrobble-history-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Scrobble history job {job_id} did not reach {expected}")
 
 
 def analysis_summary(mode: str):

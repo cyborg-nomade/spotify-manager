@@ -169,7 +169,12 @@ def test_refresh_history_merges_only_new_live_scrobbles(tmp_path: Path) -> None:
         "Known Track",
         "New Track",
     ]
-    assert len(recent_path.read_text().splitlines()) == 1
+    assert not recent_path.exists()
+    persisted = json.loads(export_path.read_text())
+    assert [record["track"] for record in persisted["scrobbles"]] == [
+        "Known Track",
+        "New Track",
+    ]
 
 
 def test_seed_selection_combines_recent_annual_and_overall_tracks() -> None:

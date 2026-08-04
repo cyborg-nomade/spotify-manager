@@ -143,6 +143,9 @@ spotify_manager/files/found_art_cache.json
 spotify_manager/files/found_art_cache.json.tmp
 spotify_manager/files/found_art_recent_scrobbles.jsonl
 spotify_manager/files/found_art_log.jsonl
+spotify_manager/files/lastfm_history_backups/
+spotify_manager/files/scrobble_history_update_log.jsonl
+spotify_manager/files/something_old_log.jsonl
 
 # Restart-safe New Wine flush state and audit log
 spotify_manager/files/new_wine_flush_state.json
