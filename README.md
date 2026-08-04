@@ -365,6 +365,7 @@ GET  /commands/found-art-jobs/{job_id}
 Advances every track present at the start of a *New Wine from Old Bottles*
 flush exactly once. Configure `NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST` and
 `SAUVIGNON_TERRE_NEUVE_PLAYLIST` with Spotify playlist URLs, URIs, or ids.
+Configure `WINE_CELLAR_PLAYLIST` the same way for the post-flush refill.
 
 Album and EP tracks follow Spotify's disc and track order automatically. When
 the current item is a single, the CLI scans the primary artist's complete
@@ -375,13 +376,24 @@ artist's only release that year, it is dropped automatically. Switching to a
 different release always starts at its first track, even when the single also
 appears on that release.
 
-Liked status is read live from Spotify. Three consecutive unliked tracks,
-including the current track, drop the release. A dropped release is also
-unsaved when it does not meet the usual whole-track 50% rule, including the
-existing odd-track rounding behavior. Reaching the final track of an album or
-EP adds its first track to *Sauvignon Terre-Neuve*. Singles are never added
-there and simply complete. Any required addition succeeds before the previous
-New Wine track is removed.
+Liked status is read live from Spotify. At three consecutive unliked tracks,
+including the current track, the routine advances to the first later liked
+track and restarts the streak. The release is dropped only after three
+consecutive unliked tracks following its final liked track. A dropped release
+is also unsaved when it does not meet the usual whole-track 50% rule, including
+the existing odd-track rounding behavior. At either an album/EP drop or its
+final track, the release picker offers the artist's other releases from the
+current year. Selecting one starts it from its first track with a fresh unliked
+streak; Finish completes the current endpoint without a follow-up. Reaching the
+final track of an album or EP still adds its first track to *Sauvignon
+Terre-Neuve*. Singles are never added there and simply complete. Any required
+addition succeeds before the previous New Wine track is removed.
+
+After a completed flush, the command recounts New Wine live and fills any
+available slots up to 10 from the top of Wine Cellar. Each selected track is
+added to New Wine before it is removed from Wine Cellar. The refill is part of
+the saved run, so an interruption between those operations resumes without
+advancing or adding the transferred track twice.
 
 Inspect the full plan first:
 
@@ -397,6 +409,19 @@ uv run spotify-manager flush-new-wine
 just flush-new-wine
 ```
 
+Use `--no-discovery` to refill only from primary artists with at least 18 live
+Liked Songs or at least 3 live saved albums. The local
+`liked_tracks_total.json` and `albums_total_new.json` mirrors supply candidate
+Spotify ids, but each id's current status is checked through Spotify's live API
+in batches of 10 before the artist qualifies. Ineligible entries remain in
+Wine Cellar while the command continues through the playlist in its existing
+order:
+
+```console
+uv run spotify-manager flush-new-wine --no-discovery
+just flush-new-wine --no-discovery
+```
+
 Real runs snapshot their starting playlist in
 `spotify_manager/files/new_wine_flush_state.json`, save after every mutation,
 and resume that batch after an interruption without advancing completed entries
@@ -406,11 +431,13 @@ Every real or dry-run result is appended to
 Spotify, the generated library mirrors, or restart state.
 
 The web UI places New Wine immediately below Genre Reveal and defaults to
-dry-run mode. Its background job retains logs and pending release choices
+dry-run mode. It also exposes the no-discovery refill as a checkbox and shows
+the Wine Cellar transfer summary when the run finishes. Its background job
+retains the selected mode, logs, pending release choices, and refill results
 across page reloads:
 
 ```text
-POST /commands/flush-new-wine?dry_run=true
+POST /commands/flush-new-wine?dry_run=true&no_discovery=false
 GET  /commands/flush-new-wine-jobs
 GET  /commands/flush-new-wine-jobs/{job_id}
 POST /commands/flush-new-wine-jobs/{job_id}/choice

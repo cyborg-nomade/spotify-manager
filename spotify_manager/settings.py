@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     genre_reveal_playlist: str | None = None
     found_art_playlist: str | None = None
     new_wine_from_old_bottles_playlist: str | None = None
+    wine_cellar_playlist: str | None = None
     sauvignon_terre_neuve_playlist: str | None = None
     slow_listening_playlist: str | None = None
     lastfm_api_key: str | None = None
