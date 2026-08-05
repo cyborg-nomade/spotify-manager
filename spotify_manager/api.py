@@ -1268,8 +1268,8 @@ def _run_new_wine_job(
             job.result.status = "paused"
             job.result.pending_choice = None
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}. "
+                review_album_limits.format_transient_spotify_failure(exc)
+                + ". "
                 "Progress was saved."
             )
             _append_blast_log_locked(job, job.result.detail)
@@ -1540,8 +1540,8 @@ def _run_slow_listening_job(
             job.result.status = "paused"
             job.result.slow_listening_pending_choice = None
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}. "
+                review_album_limits.format_transient_spotify_failure(exc)
+                + ". "
                 "Progress was saved."
             )
             _append_blast_log_locked(job, job.result.detail)
@@ -1809,8 +1809,7 @@ def _run_something_old_job(
             job.result.status = "paused"
             job.result.something_old_pending_choice = None
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}."
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             _append_blast_log_locked(job, job.result.detail)
     except SpotifyException as exc:
@@ -2004,8 +2003,7 @@ def _run_requeue_for_a_dream_job(
         with _blast_jobs_lock:
             job.result.status = "paused"
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}."
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             _append_blast_log_locked(job, job.result.detail)
     except SpotifyException as exc:
@@ -2186,8 +2184,7 @@ def _run_palace_of_memory_job(
         with _blast_jobs_lock:
             job.result.status = "paused"
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}."
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             _append_blast_log_locked(job, job.result.detail)
     except SpotifyException as exc:

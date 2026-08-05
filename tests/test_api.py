@@ -885,6 +885,90 @@ def test_slow_listening_web_job_handles_all_interactive_choices(
     assert client.get("/commands/flush-slow-listening-jobs").json() == []
 
 
+def test_slow_listening_web_job_retries_a_connection_reset(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from requests.exceptions import ConnectionError as RequestsConnectionError
+
+    from spotify_manager import api
+
+    attempts = 0
+    retry_spotify_server_errors = (
+        api.review_album_limits.retry_spotify_server_errors
+    )
+
+    def retry_without_wait(*args, **kwargs):
+        kwargs["sleep"] = lambda _seconds: None
+        return retry_spotify_server_errors(*args, **kwargs)
+
+    def flush(_spotify, _playlist_id, **kwargs):
+        nonlocal attempts
+
+        def load_playlist() -> None:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RequestsConnectionError(
+                    "Connection aborted.",
+                    ConnectionResetError(104, "Connection reset by peer"),
+                )
+
+        kwargs["retry_call"](
+            load_playlist,
+            "loading the Slow Listening playlist",
+        )
+        return api.slow_listening.FlushSummary(
+            run_id="run",
+            total=0,
+            processed=0,
+            advanced=0,
+            completed_artists=0,
+            skipped=0,
+            paused=False,
+            dry_run=kwargs["dry_run"],
+            resumed=False,
+            results=(),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            slow_listening_playlist="spotify:playlist:slow",
+        ),
+    )
+    monkeypatch.setattr(
+        api.review_album_limits,
+        "retry_spotify_server_errors",
+        retry_without_wait,
+    )
+    monkeypatch.setattr(api.slow_listening, "flush_slow_listening", flush)
+
+    started = client.post(
+        "/commands/flush-slow-listening",
+        params={"dry_run": "true"},
+    )
+
+    assert started.status_code == 202
+    completed = wait_for_slow_listening_status(
+        client,
+        started.json()["job_id"],
+        {"completed"},
+    )
+    assert attempts == 2
+    assert completed["detail"] == (
+        "0/0 processed; 0 advanced, 0 artists completed, 0 skipped."
+    )
+    assert any(
+        entry["message"].startswith(
+            "Spotify connection interrupted while loading the Slow Listening "
+            "playlist. Retrying in 10 seconds (at "
+        )
+        for entry in completed["logs"]
+    )
+
+
 def test_something_old_web_job_handles_all_interactive_choices(
     client: TestClient,
     monkeypatch,

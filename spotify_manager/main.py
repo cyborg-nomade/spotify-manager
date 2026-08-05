@@ -1222,9 +1222,7 @@ def flush_new_wine_command(
         raise typer.Exit(code=0) from exc
     except review_album_limits.SpotifyTransientServerError as exc:
         console.print(
-            "Spotify API temporarily unavailable "
-            f"({exc.http_status}) after {exc.attempts} attempts "
-            f"while {exc.operation}.",
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
             style="bold yellow",
         )
         console.print(
@@ -1458,9 +1456,7 @@ def flush_slow_listening_command(
         raise typer.Exit(code=0) from exc
     except review_album_limits.SpotifyTransientServerError as exc:
         console.print(
-            "Spotify API temporarily unavailable "
-            f"({exc.http_status}) after {exc.attempts} attempts "
-            f"while {exc.operation}.",
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
             style="bold yellow",
         )
         console.print(
@@ -1596,9 +1592,7 @@ def flush_requeue_for_a_dream_command(
         raise typer.Exit(code=0) from exc
     except review_album_limits.SpotifyTransientServerError as exc:
         console.print(
-            "Spotify API temporarily unavailable "
-            f"({exc.http_status}) after {exc.attempts} attempts "
-            f"while {exc.operation}.",
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
             style="bold yellow",
         )
         raise typer.Exit(code=0) from exc
@@ -1735,9 +1729,7 @@ def fill_palace_of_memory_command(
         raise typer.Exit(code=0) from exc
     except review_album_limits.SpotifyTransientServerError as exc:
         console.print(
-            "Spotify API temporarily unavailable "
-            f"({exc.http_status}) after {exc.attempts} attempts "
-            f"while {exc.operation}.",
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
             style="bold yellow",
         )
         raise typer.Exit(code=0) from exc
@@ -2474,9 +2466,7 @@ def review_album_limits_command(
         raise typer.Exit(code=0) from exc
     except review_album_limits.SpotifyTransientServerError as exc:
         console.print(
-            "Spotify API temporarily unavailable "
-            f"({exc.http_status}) after {exc.attempts} attempts "
-            f"while {exc.operation}.",
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
             style="bold yellow",
         )
         console.print(
@@ -2561,9 +2551,7 @@ def recover_removed_albums_command(
         raise typer.Exit(code=0) from exc
     except recover_removed_albums.SpotifyTransientServerError as exc:
         console.print(
-            "Spotify API temporarily unavailable "
-            f"({exc.http_status}) after {exc.attempts} attempts "
-            f"while {exc.operation}.",
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
             style="bold yellow",
         )
         console.print(
@@ -2676,9 +2664,7 @@ def review_artists_command(
         raise typer.Exit(code=0) from exc
     except artist_review.SpotifyTransientServerError as exc:
         console.print(
-            "Spotify API temporarily unavailable "
-            f"({exc.http_status}) after {exc.attempts} attempts "
-            f"while {exc.operation}.",
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
             style="bold yellow",
         )
         console.print(

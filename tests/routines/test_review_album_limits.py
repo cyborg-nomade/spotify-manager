@@ -6,6 +6,8 @@ from datetime import timedelta
 from datetime import timezone
 
 import pytest
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.models.stats import AlbumsStats
@@ -490,6 +492,76 @@ def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
     )
     assert exc.value.attempts == 2
     assert sleeps == [7]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        RequestsConnectionError(
+            "Connection aborted.",
+            ConnectionResetError(104, "Connection reset by peer"),
+        ),
+        RequestsTimeout("Spotify request timed out"),
+    ],
+)
+def test_retry_spotify_server_errors_retries_transport_failures(
+    error: RequestsConnectionError | RequestsTimeout,
+) -> None:
+    attempts = 0
+    output: list[str] = []
+    sleeps: list[float] = []
+
+    def operation() -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise error
+        return "connected"
+
+    result = review_album_limits.retry_spotify_server_errors(
+        operation,
+        "loading the Slow Listening playlist",
+        echo=output.append,
+        sleep=sleeps.append,
+        retry_delay_seconds=10,
+        max_attempts=3,
+    )
+
+    assert result == "connected"
+    assert attempts == 2
+    assert sleeps == [10]
+    assert len(output) == 1
+    assert output[0].startswith(
+        "Spotify connection interrupted while loading the Slow Listening "
+        "playlist. Retrying in 10 seconds (at "
+    )
+
+
+def test_retry_spotify_server_errors_reports_exhausted_connection_retries() -> None:
+    attempts = 0
+
+    def operation() -> None:
+        nonlocal attempts
+        attempts += 1
+        raise RequestsConnectionError("Connection reset by peer")
+
+    with pytest.raises(review_album_limits.SpotifyTransientServerError) as exc:
+        review_album_limits.retry_spotify_server_errors(
+            operation,
+            "loading the Slow Listening playlist",
+            echo=lambda _line: None,
+            sleep=lambda _seconds: None,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    assert attempts == 3
+    assert exc.value.http_status is None
+    assert exc.value.attempts == 3
+    assert review_album_limits.format_transient_spotify_failure(exc.value) == (
+        "Spotify connection remained unavailable after 3 attempts while "
+        "loading the Slow Listening playlist"
+    )
 
 
 def test_review_records_followed_artist_and_updates_stats_history(
