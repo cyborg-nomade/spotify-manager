@@ -326,6 +326,26 @@
       <div class="analysis-progress" id="requeueForADreamProgress"></div>
     </section>
 
+    <section class="card" id="palaceOfMemoryCard">
+      <h2>Palace of memory</h2>
+      <label class="inline">
+        <input type="checkbox" id="palaceOfMemoryDryRun" checked />
+        Dry run
+      </label>
+      <label for="palaceAlphabeticalStart">Alphabetical start (optional)</label>
+      <input id="palaceAlphabeticalStart" type="text" placeholder="Position, Spotify album, or Artist - Album" />
+      <div class="analysis-actions" style="margin-top:12px">
+        <button class="primary" data-action="startPalaceOfMemory">Fill Palace of Memory</button>
+        <button class="danger cancel" data-action="cancelPalaceOfMemory" hidden title="Stop routine">×</button>
+      </div>
+      <label for="palaceAlphabeticalCursor">Set next alphabetical position</label>
+      <div class="analysis-actions">
+        <input id="palaceAlphabeticalCursor" type="number" min="1" step="1" inputmode="numeric" placeholder="1-based position" style="margin:0" />
+        <button class="ghost" data-action="setPalaceOfMemoryCursor">Set cursor</button>
+      </div>
+      <div class="analysis-progress" id="palaceOfMemoryProgress"></div>
+    </section>
+
     <section class="card" id="scrobbleHistoryCard">
       <h2>Last.fm scrobble history</h2>
       <label class="inline">
@@ -446,6 +466,7 @@
   var slowListeningJob = null;
   var somethingOldJob = null;
   var requeueForADreamJob = null;
+  var palaceOfMemoryJob = null;
   var scrobbleHistoryJob = null;
 
   function showToast(msg, kind) {
@@ -1417,6 +1438,168 @@
     }
   }
 
+  function renderPalaceOfMemoryJob(job) {
+    palaceOfMemoryJob = job;
+    var out = document.getElementById("palaceOfMemoryProgress");
+    var start = document.querySelector('[data-action="startPalaceOfMemory"]');
+    var setCursor = document.querySelector('[data-action="setPalaceOfMemoryCursor"]');
+    var cancel = document.querySelector('[data-action="cancelPalaceOfMemory"]');
+    document.getElementById("palaceOfMemoryDryRun").checked = Boolean(job.dry_run);
+    if (job.palace_alphabetical_reference) {
+      var targetInput = job.palace_cursor_only
+        ? document.getElementById("palaceAlphabeticalCursor")
+        : document.getElementById("palaceAlphabeticalStart");
+      targetInput.value = job.palace_alphabetical_reference;
+    }
+
+    var refresh = "";
+    if (job.palace_album_refresh) {
+      var albumRefresh = job.palace_album_refresh;
+      refresh = '<div class="new-wine-refill"><div class="new-wine-choice-title">' +
+        'Saved albums ' + (albumRefresh.persisted ? 'updated' : 'already current') +
+        '</div><div class="playlist-dates">' +
+        esc(albumRefresh.previous) + ' → ' + esc(albumRefresh.current) +
+        ' · +' + esc(albumRefresh.added) + ' / -' + esc(albumRefresh.removed) +
+        ' · ' + esc(albumRefresh.skipped) + ' skipped</div>' +
+        (albumRefresh.backup_path
+          ? '<div class="playlist-dates">Backup: ' +
+            esc(albumRefresh.backup_path) + '</div>'
+          : '') + '</div>';
+    }
+
+    var cursor = "";
+    if (typeof job.palace_alphabetical_next_index === "number") {
+      if (job.palace_cursor_only) {
+        cursor = '<div class="new-wine-refill"><div class="new-wine-choice-title">' +
+          'Next alphabetical album · position ' +
+          esc(job.palace_alphabetical_next_index + 1) + '</div>' +
+          '<div class="blast-selection-title">' +
+          esc(job.palace_next_album_artist || "Unknown artist") + ' - ' +
+          esc(job.palace_next_album || "Unknown album") + '</div></div>';
+      } else {
+        cursor = '<div class="playlist-dates">Alphabetical cursor' +
+          (job.palace_alphabetical_cursor_overridden ? ' (manual)' : '') + ': ' +
+          esc(job.palace_alphabetical_start_index + 1) + ' → ' +
+          esc(job.palace_alphabetical_next_index + 1) + '</div>';
+      }
+    }
+
+    var random = "";
+    if (job.random_org_timestamp) {
+      var randomDate = new Date(job.random_org_timestamp);
+      var timestamp = isNaN(randomDate.getTime())
+        ? job.random_org_timestamp
+        : randomDate.toLocaleString();
+      random = '<div class="playlist-dates">Random.org: ' + esc(timestamp) +
+        ' · cutoff ' + esc(job.palace_cutoff_date) +
+        ' · ' + esc(Number(job.palace_available_dates || 0).toLocaleString()) +
+        ' eligible dates</div>';
+    }
+
+    var selections = (job.palace_results || []).map(function (result) {
+      var location = result.source === "history"
+        ? [result.selected_date,
+          result.history_position && result.albums_on_date
+            ? result.history_position + "/" + result.albums_on_date
+            : null].filter(Boolean).join(" · ")
+        : "saved albums";
+      var resolvedAlbum = result.spotify_album || result.album;
+      var actionClass = String(result.action || "").replace(/\s+/g, "-");
+      return '<div class="blast-selection"><div class="blast-selection-title">' +
+        esc(result.artist) + ' - ' + esc(resolvedAlbum) + '</div>' +
+        '<div class="blast-selection-match">' +
+        esc(result.first_track || "No Spotify match") + '</div>' +
+        '<div class="blast-selection-meta">' + esc(result.source) + ' · ' +
+        esc(location) + ' · <span class="blast-action ' + esc(actionClass) + '">' +
+        esc(result.action) + '</span></div></div>';
+    }).join("");
+
+    var playlist = "";
+    if (typeof job.playlist_length_before === "number") {
+      playlist = '<div class="playlist-dates">Playlist: ' +
+        esc(job.playlist_length_before) + ' → ' +
+        esc(job.playlist_length_after) + ' tracks</div>';
+    }
+
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity...</span></div>';
+    }
+
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) {
+        state += " · retry at " + retryDate.toLocaleString();
+      }
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
+      refresh + cursor + random + selections + playlist +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running...");
+      if (!setCursor.disabled) setBusy(setCursor, true, "Running...");
+    } else {
+      setBusy(start, false);
+      setBusy(setCursor, false);
+    }
+  }
+
+  async function pollPalaceOfMemoryJob(jobId) {
+    try {
+      var job = await api("/commands/fill-palace-of-memory-jobs/" + jobId);
+      renderPalaceOfMemoryJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollPalaceOfMemoryJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Palace of Memory finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "Palace of Memory stopped", "ok");
+      } else {
+        showToast("Palace of Memory " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("palaceOfMemoryProgress"), e);
+      setBusy(document.querySelector('[data-action="startPalaceOfMemory"]'), false);
+      setBusy(document.querySelector('[data-action="setPalaceOfMemoryCursor"]'), false);
+      showToast("Could not read Palace of Memory progress", "err");
+    }
+  }
+
+  async function restoreActivePalaceOfMemoryJobs() {
+    try {
+      var jobs = await api("/commands/fill-palace-of-memory-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderPalaceOfMemoryJob(job);
+      pollPalaceOfMemoryJob(job.job_id);
+      showToast("Reconnected to Palace of Memory", "ok");
+    } catch (e) {
+      if (e.status !== 401) {
+        showToast("Could not restore Palace of Memory progress", "err");
+      }
+    }
+  }
+
   function renderScrobbleHistoryJob(job) {
     scrobbleHistoryJob = job;
     var out = document.getElementById("scrobbleHistoryProgress");
@@ -1865,6 +2048,86 @@
       }
     },
 
+    async startPalaceOfMemory(btn) {
+      var dryRun = document.getElementById("palaceOfMemoryDryRun").checked;
+      var alphabeticalStart = document.getElementById("palaceAlphabeticalStart").value.trim();
+      var out = document.getElementById("palaceOfMemoryProgress");
+      if (!dryRun && !confirm("Add the selected album first tracks to Palace of Memory?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      if (alphabeticalStart) q.set("alphabetical_start", alphabeticalStart);
+      setBusy(btn, true, "Starting...");
+      try {
+        var job = await api(
+          "/commands/fill-palace-of-memory?" + q.toString(),
+          { method: "POST" }
+        );
+        renderPalaceOfMemoryJob(job);
+        pollPalaceOfMemoryJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "fill_palace_of_memory") {
+          await pollPalaceOfMemoryJob(activeJobId);
+          showToast("Reconnected to Palace of Memory", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Palace of Memory", "err");
+      }
+    },
+
+    async setPalaceOfMemoryCursor(btn) {
+      var input = document.getElementById("palaceAlphabeticalCursor");
+      var position = Number(input.value);
+      var out = document.getElementById("palaceOfMemoryProgress");
+      if (!Number.isInteger(position) || position < 1) {
+        showToast("Enter a valid 1-based cursor position", "err");
+        return;
+      }
+      if (!confirm("Set position " + position + " as the next alphabetical album?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", "false");
+      q.set("set_alphabetical_cursor", String(position));
+      setBusy(btn, true, "Setting...");
+      try {
+        var job = await api(
+          "/commands/fill-palace-of-memory?" + q.toString(),
+          { method: "POST" }
+        );
+        renderPalaceOfMemoryJob(job);
+        pollPalaceOfMemoryJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "fill_palace_of_memory") {
+          await pollPalaceOfMemoryJob(activeJobId);
+          showToast("Reconnected to Palace of Memory", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not set Palace cursor", "err");
+      }
+    },
+
+    async cancelPalaceOfMemory(btn) {
+      if (!palaceOfMemoryJob || !palaceOfMemoryJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/fill-palace-of-memory-jobs/" +
+            palaceOfMemoryJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderPalaceOfMemoryJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop Palace of Memory", "err");
+      }
+    },
+
     async startScrobbleHistory(btn) {
       var dryRun = document.getElementById("scrobbleHistoryDryRun").checked;
       var out = document.getElementById("scrobbleHistoryProgress");
@@ -2109,6 +2372,7 @@
     restoreActiveSlowListeningJobs();
     restoreActiveSomethingOldJobs();
     restoreActiveRequeueForADreamJobs();
+    restoreActivePalaceOfMemoryJobs();
     restoreActiveScrobbleHistoryJobs();
     return true;
   }

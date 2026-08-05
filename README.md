@@ -631,6 +631,87 @@ GET  /commands/flush-requeue-for-a-dream-jobs/{job_id}
 POST /commands/flush-requeue-for-a-dream-jobs/{job_id}/cancel
 ```
 
+### `fill-palace-of-memory`
+
+Adds the first tracks of ten albums to *Palace of Memory*: five from the saved
+album mirror's Spotify-style alphabetical order, followed by five selected from
+Last.fm history. Configure `PALACE_OF_MEMORY_PLAYLIST` with its Spotify URL,
+URI, or id.
+
+Every run first rebuilds `albums_total_new.json` from the complete live saved
+albums endpoint. A changed mirror is replaced atomically and the previous file
+is retained under `spotify_manager/files/palace_of_memory_album_backups/`.
+Refresh counts are recorded in `palace_of_memory_album_refresh_log.jsonl`, even
+when the mirror is already current. This preflight also happens during a dry
+run so the alphabetical selection always uses live data.
+
+The alphabetical half resumes from `palace_of_memory_state.json`, wrapping at
+the end of the saved list. The cursor advances only after a successful real
+playlist update. Override its starting point with `--alphabetical-start`, using
+a 1-based position in the refreshed mirror, a Spotify album id/URI/URL, an exact
+album title, or `Artist - Album`. A successful real run persists the position
+after those five albums as the new cursor; a dry run only previews the override.
+For the historical half, Random.org chooses five unique dates with album-bearing
+scrobbles between November 27, 2007 and December 31 of the previous year. Only
+the Random.org response timestamp's seconds are used: the zero-based seconds
+value selects from each date's albums ranked by scrobble count, wrapping when
+the date has fewer albums.
+
+To correct only the durable cursor without selecting albums or changing the
+playlist, give its 1-based position in the freshly rebuilt saved-album mirror:
+
+```console
+just fill-palace-of-memory --set-alphabetical-cursor 250
+```
+
+This stores position 250 as the next alphabetical album and exits. The live
+saved-album refresh still runs first so the position refers to current data.
+
+Historical albums prefer a matching edition already present in the refreshed
+saved-album mirror. Otherwise, Spotify search requires an exact normalized
+artist match and at least 90% album-name similarity. The routine preserves
+Spotify disc/track order, adds only the first playable track, and does not
+duplicate a track already in the playlist or selected elsewhere in the batch.
+The playlist is rechecked immediately before a real addition.
+
+Preview the album selection without changing Spotify or the cursor:
+
+```console
+uv run spotify-manager fill-palace-of-memory --dry-run
+just fill-palace-of-memory --dry-run
+```
+
+Preview a corrected alphabetical starting point before persisting it:
+
+```console
+just fill-palace-of-memory --dry-run --alphabetical-start "Artist - Album"
+just fill-palace-of-memory --alphabetical-start 250
+```
+
+Apply it:
+
+```console
+uv run spotify-manager fill-palace-of-memory
+just fill-palace-of-memory
+```
+
+Completed real runs are appended to
+`spotify_manager/files/palace_of_memory_log.jsonl` with the Random.org trace,
+album matches, exact first tracks, and playlist counts.
+
+The web card sits directly below Requeue for a Dream. It supports dry runs,
+manual alphabetical starts, cursor-only adjustments, cancellation, live album
+refresh and retry logs, and restoration of an active job after a page reload.
+Cursor-only adjustments update the same `palace_of_memory_state.json` used by
+the CLI and do not read or change the playlist.
+
+```text
+POST /commands/fill-palace-of-memory
+GET  /commands/fill-palace-of-memory-jobs
+GET  /commands/fill-palace-of-memory-jobs/{job_id}
+POST /commands/fill-palace-of-memory-jobs/{job_id}/cancel
+```
+
 ### `daily-mind-radio`
 
 Selects one scrobble from today's date in the previous year, then from the
@@ -789,6 +870,7 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `SLOW_LISTENING_PLAYLIST` | Spotify URL or id for the two-track-per-day deep-listening rotation. |
 | `SOMETHING_OLD_NEW_PLAYLIST` | Spotify URL or id for the alternating Something Old, Something New slot. |
 | `REQEUEUE_FOR_A_DREAM_PLAYLIST` | Spotify URL or id for the chronological discography queue. |
+| `PALACE_OF_MEMORY_PLAYLIST` | Spotify URL or id receiving five alphabetical and five historical album first tracks. |
 | `LASTFM_API_KEY` | Read-only Last.fm API key used to refresh scrobble history. |
 | `LASTFM_USERNAME` | Last.fm username associated with the canonical scrobble export. |
 

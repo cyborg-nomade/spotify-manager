@@ -140,6 +140,11 @@
     "uri": "spotify:album:6UwjRSX9RQyNgJ3LwYhr9i"
   },
   {
+    "artist": "AC/DC",
+    "album": "'74 Jailbreak",
+    "uri": "spotify:album:7kkopGL8qBX9KNQu88tH2y"
+  },
+  {
     "artist": "7 Days Of Funk",
     "album": "7 Days of Funk",
     "uri": "spotify:album:3x2qoJX6nDBPnJVlbmv5wc"
@@ -308,6 +313,11 @@
     "artist": "Pitty",
     "album": "Admirável Chip Novo",
     "uri": "spotify:album:6t9HEcqxPe5dsIlHyYwATK"
+  },
+  {
+    "artist": "Pitty",
+    "album": "ADMIRÁVEL CHIP NOVO (RE)ATIVADO",
+    "uri": "spotify:album:6bIHDpi2YUAO3C2CinsGSZ"
   },
   {
     "artist": "Numenorean",
@@ -705,11 +715,6 @@
     "uri": "spotify:album:1HrMmB5useeZ0F5lHrMvl0"
   },
   {
-    "artist": "Atoms For Peace",
-    "album": "AMOK",
-    "uri": "spotify:album:77Ie9frENeQwYUGHrrS0pk"
-  },
-  {
     "artist": "Aldair Playboy",
     "album": "Amor Falso",
     "uri": "spotify:album:18Y2yU2nkT3bF9vnTs6qKf"
@@ -1028,11 +1033,6 @@
     "artist": "Lady Gaga",
     "album": "ARTPOP",
     "uri": "spotify:album:2eRJUtI7nXrQ5uYQ7tzTo9"
-  },
-  {
-    "artist": "RADWIMPS",
-    "album": "Arutokoroni no Teiri",
-    "uri": "spotify:album:3phjMsKsr6V1aicq04S3Ie"
   },
   {
     "artist": "Pelican",
@@ -1488,6 +1488,11 @@
     "artist": "Rainbow",
     "album": "Bent Out Of Shape",
     "uri": "spotify:album:0f65AyIqY5pg9URI3vf2Pw"
+  },
+  {
+    "artist": "Oscar Peterson",
+    "album": "Ben Webster Meets Oscar Peterson",
+    "uri": "spotify:album:52vxvueV32JO6tZHaSojRZ"
   },
   {
     "artist": "Basement",
@@ -2740,6 +2745,11 @@
     "uri": "spotify:album:744i0LypfMwHHrKhzsqAx0"
   },
   {
+    "artist": "Sepultura",
+    "album": "The Cloud of Unknowing",
+    "uri": "spotify:album:7gyjCQevMUqidIjSUkJKWK"
+  },
+  {
     "artist": "Scott Bradlee's Postmodern Jukebox",
     "album": "Clubbin' With Grandpa",
     "uri": "spotify:album:2T46DrPiNwn89DDfl8J48E"
@@ -2800,14 +2810,14 @@
     "uri": "spotify:album:4Uv86qWpGTxf7fU7lG5X6F"
   },
   {
-    "artist": "Far From Alaska",
-    "album": "Collision Course",
-    "uri": "spotify:album:6yFWUmRFl70br2bZQm1ko0"
-  },
-  {
     "artist": "JAŸ-Z",
     "album": "Collision Course",
     "uri": "spotify:album:5NH94cATqx5fjBE794xZLy"
+  },
+  {
+    "artist": "Far From Alaska",
+    "album": "Collision Course",
+    "uri": "spotify:album:6yFWUmRFl70br2bZQm1ko0"
   },
   {
     "artist": "36 Crazyfists",
@@ -3158,6 +3168,11 @@
     "artist": "Matanza Inc",
     "album": "Crônicas do Post Mortem: Um Guia para Demônios e Espíritos Obsessores",
     "uri": "spotify:album:5gvMFlmRuDpR4Ocp0VtM7x"
+  },
+  {
+    "artist": "Papa Roach",
+    "album": "Crooked Teeth (Deluxe)",
+    "uri": "spotify:album:42pJv4keQVIGlkldOruZ6M"
   },
   {
     "artist": "Incubus",
@@ -3798,11 +3813,6 @@
     "artist": "Titãs",
     "album": "Domingo",
     "uri": "spotify:album:4IFlQVkA52eozU6tkINqBW"
-  },
-  {
-    "artist": "Ebony",
-    "album": "Dona de Casa",
-    "uri": "spotify:album:59YfQZNocygHKxxJ7DEaAQ"
   },
   {
     "artist": "CSS",
@@ -4605,11 +4615,6 @@
     "uri": "spotify:album:48DZGgsnOeX8CZR2SjUMmH"
   },
   {
-    "artist": "XCOMM",
-    "album": "Fake ID",
-    "uri": "spotify:album:3j0l6G5egPLj01Lta0LCJX"
-  },
-  {
     "artist": "lostprophets",
     "album": "THE FAKE SOUND OF PROGRESS",
     "uri": "spotify:album:7ayZBKBA9unVg0HID8pRCg"
@@ -4718,6 +4723,11 @@
     "artist": "Red Sparowes",
     "album": "The Fear Is Excruciating, But Therein Lies The Answer",
     "uri": "spotify:album:1Ts2vNW6MlSwoUnjdv6CFl"
+  },
+  {
+    "artist": "Public Enemy",
+    "album": "Fear Of A Black Planet",
+    "uri": "spotify:album:0aFNb4RDk2hmKKLa0bzXNz"
   },
   {
     "artist": "Spiritbox",
@@ -5007,7 +5017,7 @@
   {
     "artist": "Post Animal",
     "album": "Forward Motion Godyssey",
-    "uri": "spotify:album:5by6UNPdzWLsUCENjlVJky"
+    "uri": "spotify:album:59rHe21EvYnO5EYFBW6Epq"
   },
   {
     "artist": "Pelican",
@@ -5123,6 +5133,11 @@
     "artist": "Superpoze",
     "album": "From the Cold - EP",
     "uri": "spotify:album:5DnJTlhxNvntRVwJgIuX1B"
+  },
+  {
+    "artist": "Senses Fail",
+    "album": "From The Depths Of Dreams",
+    "uri": "spotify:album:1fkYkX93JNp0DefPY6U6VP"
   },
   {
     "artist": "Allt",
@@ -5770,9 +5785,19 @@
     "uri": "spotify:album:39AMnevcJVGYVhCALp1kvQ"
   },
   {
+    "artist": "Inferi",
+    "album": "Heaven Wept",
+    "uri": "spotify:album:3Z6LJLIiXjfOXJ3En4MkJp"
+  },
+  {
     "artist": "Sum 41",
     "album": "Heaven :x: Hell",
     "uri": "spotify:album:4a4vGdTg7UTfNluS7QdFsF"
+  },
+  {
+    "artist": "Public Enemy",
+    "album": "He Got Game (Soundtrack)",
+    "uri": "spotify:album:265OEkRcX40ppxgHGuu4cI"
   },
   {
     "artist": "Spineshank",
@@ -6900,6 +6925,11 @@
     "uri": "spotify:album:2KHMlw1od7046xsDX61cCZ"
   },
   {
+    "artist": "Mc Luanna",
+    "album": "IRREFREÁVEL",
+    "uri": "spotify:album:37GSicVBksghz8FmLvrUiQ"
+  },
+  {
     "artist": "Art Of Dying",
     "album": "I Say Done",
     "uri": "spotify:album:4QghKjFqrVfzZdMmQJhRLO"
@@ -6963,6 +6993,11 @@
     "artist": "Lily Allen",
     "album": "It's Not Me, It's You",
     "uri": "spotify:album:2OUL7ZpAvUaWyylZ1lXpe0"
+  },
+  {
+    "artist": "Public Enemy",
+    "album": "It Takes A Nation Of Millions To Hold Us Back (Deluxe Edition)",
+    "uri": "spotify:album:3PxXiYU3PjymOEE22PewGZ"
   },
   {
     "artist": "Toundra",
@@ -7230,6 +7265,11 @@
     "uri": "spotify:album:1eEdZy4kjI5kZCDPLl9gFH"
   },
   {
+    "artist": "Subaeris",
+    "album": "Kegare",
+    "uri": "spotify:album:57yUMZaFRAL7xKdjIEd7ed"
+  },
+  {
     "artist": "Mariybu",
     "album": "Kein Ponyhof",
     "uri": "spotify:album:40XDSJnsxmultAZzOo5Jid"
@@ -7320,11 +7360,6 @@
     "uri": "spotify:album:0GBinFgv2QoF7O2Pjm6GuV"
   },
   {
-    "artist": "Ikkimel",
-    "album": "KINK",
-    "uri": "spotify:album:3cASKABpbIaxVuuWJmDgY5"
-  },
-  {
     "artist": "IOTUNN",
     "album": "Kinship",
     "uri": "spotify:album:0ytACQNYRcPabJC8aJChq7"
@@ -7358,6 +7393,11 @@
     "artist": "Thy Worshiper",
     "album": "Klechdy",
     "uri": "spotify:album:1YJEL5FreFBWsx6q7D0c3a"
+  },
+  {
+    "artist": "Ebony",
+    "album": "KM2 (De Luxo)",
+    "uri": "spotify:album:6TWX7QLULtq9672vLeUZTO"
   },
   {
     "artist": "Portico Quartet",
@@ -11995,6 +12035,11 @@
     "uri": "spotify:album:4l1qlTezUlEl8w1ZVpADAo"
   },
   {
+    "artist": "2Pac",
+    "album": "Me Against The World",
+    "uri": "spotify:album:3OrucS4sHv6Bl9GS4rafEk"
+  },
+  {
     "artist": "Valesca Popozuda",
     "album": "Me Ama - Mama",
     "uri": "spotify:album:1XK2eh4rlBW1yiTUzxjSG0"
@@ -12840,6 +12885,11 @@
     "uri": "spotify:album:6xl8w4ZYkKxGmRGACtvF3m"
   },
   {
+    "artist": "Wilson Simonal",
+    "album": "Meus Momentos: Wilson Simonal",
+    "uri": "spotify:album:0foX6OEQjzghYlhwZHeF7C"
+  },
+  {
     "artist": "Pabllo Vittar",
     "album": "MEXE (Remix)",
     "uri": "spotify:album:0QBSKm7MWMs4zOBR3YkTm3"
@@ -13103,6 +13153,11 @@
     "artist": "Merda",
     "album": "Minha Linda Coleção de Ep's do Conjunto de Musica Rock Merda Vol 1",
     "uri": "spotify:album:3HDWptTgZfDyJLQ72j6AHE"
+  },
+  {
+    "artist": "Naná Vasconcelos",
+    "album": "Minha Lôa",
+    "uri": "spotify:album:2XLebAD6yrgk199wLjTO5C"
   },
   {
     "artist": "Tall Towers",
@@ -13823,6 +13878,11 @@
     "artist": "Opeth",
     "album": "Morningrise",
     "uri": "spotify:album:3HWs3jLWZ23nDyLz27BY3P"
+  },
+  {
+    "artist": "DIR EN GREY",
+    "album": "MORTAL DOWNER",
+    "uri": "spotify:album:2D3RptApwFH6b1iMyz53qu"
   },
   {
     "artist": "Matanza Ritual",
@@ -14565,6 +14625,11 @@
     "uri": "spotify:album:2ibmwlkwqpxDAk8sTKf824"
   },
   {
+    "artist": "Wilson Simonal",
+    "album": "Nem Vem Que Não Tem",
+    "uri": "spotify:album:2T4SgxLYyvVJxqwWGk4Pjq"
+  },
+  {
     "artist": "Gal Costa",
     "album": "Nenhuma Dor",
     "uri": "spotify:album:3uv833F3xc92vzytEkbmN6"
@@ -14778,11 +14843,6 @@
     "artist": "Metopia",
     "album": "New Dawn",
     "uri": "spotify:album:2JUMN1YcLl2vcxRXYIjal6"
-  },
-  {
-    "artist": "From Ashes to New",
-    "album": "New Disease",
-    "uri": "spotify:album:23L4tjuxXU9eTZ1Zs1VZDf"
   },
   {
     "artist": "Linkin Park",
@@ -15145,6 +15205,11 @@
     "uri": "spotify:album:7n5kZhxjk76GU7ssMkgjOd"
   },
   {
+    "artist": "Raul Seixas",
+    "album": "Novo Aeon",
+    "uri": "spotify:album:3hgOfaE0yiMg511d0Y1JfJ"
+  },
+  {
     "artist": "The Beatles",
     "album": "Now And Then",
     "uri": "spotify:album:2qQP2NgOoH6HqknnbpJmIk"
@@ -15313,6 +15378,11 @@
     "artist": "Legião Urbana",
     "album": "O Descobrimento Do Brasil",
     "uri": "spotify:album:6YrgsAJfmpimelyDGkaqU9"
+  },
+  {
+    "artist": "Raul Seixas",
+    "album": "O Dia Em Que A Terra Parou",
+    "uri": "spotify:album:1NVVfPAGKsOYcWnkDe1lPV"
   },
   {
     "artist": "Matanza",
@@ -15916,6 +15986,11 @@
   },
   {
     "artist": "Periphery",
+    "album": "Periphery",
+    "uri": "spotify:album:3oHtZi1nvlZ7XHzXv3wBlZ"
+  },
+  {
+    "artist": "Periphery",
     "album": "Periphery II",
     "uri": "spotify:album:5ebIq78IE2Pi9vyJOaYL4A"
   },
@@ -16063,6 +16138,11 @@
     "artist": "Leprous",
     "album": "Pitfalls",
     "uri": "spotify:album:1A5H6pesxiKqvVFGMKprSM"
+  },
+  {
+    "artist": "Pitty",
+    "album": "PITTYNANDO – As Suas, As Minhas e As Nossas",
+    "uri": "spotify:album:32twh3w8ohRnmxqlsxbxDq"
   },
   {
     "artist": "Underoath",
@@ -16238,11 +16318,6 @@
     "artist": "Gore.",
     "album": "Pray",
     "uri": "spotify:album:3YCi2v3qZOVD8Ni6JlnPVu"
-  },
-  {
-    "artist": "Miss May I",
-    "album": "Pray For Silence",
-    "uri": "spotify:album:11rrk0NEcUl5JWGS7uOfrS"
   },
   {
     "artist": "Pabllo Vittar",
@@ -16575,6 +16650,11 @@
     "uri": "spotify:album:1OXqbgvfrtkw4oRZe4noS6"
   },
   {
+    "artist": "From Ashes to New",
+    "album": "Reflections",
+    "uri": "spotify:album:0khYhFPJexeHI2w0X96XBy"
+  },
+  {
     "artist": "Peshay",
     "album": "Reflections",
     "uri": "spotify:album:6HaWUFqF3b1d8U3sJLUnEB"
@@ -16838,11 +16918,6 @@
     "artist": "Detonautas",
     "album": "Roque Marciano",
     "uri": "spotify:album:4EMuUEPopy4vaKijEl0sni"
-  },
-  {
-    "artist": "You+Me",
-    "album": "rose ave.",
-    "uri": "spotify:album:5roeGujs5AMWZHsxu0z1lZ"
   },
   {
     "artist": "Rammstein",
@@ -17135,11 +17210,6 @@
     "uri": "spotify:album:3ZsGNvzweYcvGf2NlIe7VX"
   },
   {
-    "artist": "Zeca Baleiro",
-    "album": "Sembal",
-    "uri": "spotify:album:3jb0i7cPqumhnn9vSJRLiy"
-  },
-  {
     "artist": "Bring Me The Horizon",
     "album": "Sempiternal (Expanded Edition)",
     "uri": "spotify:album:6IYPmM3xsOPL2XPSvf1ZAz"
@@ -17268,11 +17338,6 @@
     "artist": "Beastwars",
     "album": "The Ship // The Sea",
     "uri": "spotify:album:7t43JnFHR9WxpKCgCRa4tL"
-  },
-  {
-    "artist": "Cleef",
-    "album": "The Show Is Over",
-    "uri": "spotify:album:5rzJu7J8E1iuJgJKeqEjXV"
   },
   {
     "artist": "Slayer",
@@ -17960,6 +18025,11 @@
     "uri": "spotify:album:2XD0u81Bu0cnddlaYXUOT5"
   },
   {
+    "artist": "Jack Johnson",
+    "album": "SURFILMUSIC (Soundtrack & 4-Tracks)",
+    "uri": "spotify:album:52esglmGvBZwt2CoLK2Fam"
+  },
+  {
     "artist": "Dadá Boladão",
     "album": "Surtada (Remix Brega Funk)",
     "uri": "spotify:album:2zFE4Ze2DjkeZBMbbT4Mgj"
@@ -18455,11 +18525,6 @@
     "uri": "spotify:album:1qpGHOmNg4AV5xXm1BlzrG"
   },
   {
-    "artist": "XCOMM",
-    "album": "Time To Burn",
-    "uri": "spotify:album:5f011JqxXu4NdyQWKcXB4k"
-  },
-  {
     "artist": "Tim Maia",
     "album": "Tim Maia 1970",
     "uri": "spotify:album:7HjYI9iWYOsEEvBhyCva66"
@@ -18548,6 +18613,11 @@
     "artist": "System Of A Down",
     "album": "Toxicity",
     "uri": "spotify:album:6jWde94ln40epKIQCd8XUh"
+  },
+  {
+    "artist": "Arctic Monkeys",
+    "album": "Tranquility Base Hotel & Casino",
+    "uri": "spotify:album:7v6FNgLDS8KmaWA1amUtqe"
   },
   {
     "artist": "Caetano Veloso",
@@ -18988,11 +19058,6 @@
     "artist": "Los Hermanos",
     "album": "Ventura",
     "uri": "spotify:album:7KMAiyOVyJLIqWxsWD7Lmd"
-  },
-  {
-    "artist": "JILUKA",
-    "album": "VENΦM",
-    "uri": "spotify:album:36AyPiXNycj0ByoJkehbZO"
   },
   {
     "artist": "LUDMILLA",
@@ -19545,11 +19610,6 @@
     "uri": "spotify:album:5LEXck3kfixFaA3CqVE7bC"
   },
   {
-    "artist": "Ikkimel",
-    "album": "WHO'S THAT",
-    "uri": "spotify:album:5uI4pkcf0BN2KwKbFxMcXL"
-  },
-  {
     "artist": "Tocanna",
     "album": "WHO? WHO? フー？フー？",
     "uri": "spotify:album:01Dq3MZzY0MW1xCbmxiH5B"
@@ -19568,11 +19628,6 @@
     "artist": "nothing,nowhere.",
     "album": "will it emo (vol.1)",
     "uri": "spotify:album:3NPy8ws9AqlLHH38IWSxcr"
-  },
-  {
-    "artist": "Reflections",
-    "album": "Willow",
-    "uri": "spotify:album:5Apg4k20uOCc1KGPzum6K9"
   },
   {
     "artist": "Various Artists",

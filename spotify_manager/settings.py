@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     sauvignon_terre_neuve_playlist: str | None = None
     slow_listening_playlist: str | None = None
     reqeueue_for_a_dream_playlist: str | None = None
+    palace_of_memory_playlist: str | None = None
     something_old_new_playlist: str | None = None
     lastfm_api_key: str | None = None
     lastfm_username: str | None = None

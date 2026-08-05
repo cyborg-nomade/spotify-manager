@@ -59,6 +59,7 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_wine
+from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import scrobble_history
@@ -163,6 +164,32 @@ class FoundArtSelectionResult(BaseModel):
     spotify_match: str | None = None
     track_similarity: float | None = None
     action: str
+
+
+class PalaceAlbumSelectionResult(BaseModel):
+    """One Palace of Memory album and its resolved first track."""
+
+    source: str
+    selected_date: str | None = None
+    history_position: int | None = None
+    albums_on_date: int | None = None
+    artist: str
+    album: str
+    spotify_album: str | None = None
+    first_track: str | None = None
+    action: str
+
+
+class PalaceAlbumRefreshResult(BaseModel):
+    """Saved-album mirror refresh details shown by the web client."""
+
+    previous: int
+    current: int
+    added: int
+    removed: int
+    skipped: int
+    persisted: bool
+    backup_path: str | None = None
 
 
 class NewWineReleaseOption(BaseModel):
@@ -396,6 +423,17 @@ class BlastJobResult(BaseModel):
     requeue_target_release_type: str | None = None
     requeue_target_release_date: str | None = None
     requeue_target_already_present: bool | None = None
+    palace_cursor_only: bool = False
+    palace_alphabetical_reference: str | None = None
+    palace_alphabetical_start_index: int | None = None
+    palace_alphabetical_next_index: int | None = None
+    palace_alphabetical_cursor_overridden: bool = False
+    palace_next_album_artist: str | None = None
+    palace_next_album: str | None = None
+    palace_cutoff_date: str | None = None
+    palace_available_dates: int | None = None
+    palace_album_refresh: PalaceAlbumRefreshResult | None = None
+    palace_results: list[PalaceAlbumSelectionResult] = Field(default_factory=list)
     retry_at: str | None = None
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
@@ -435,6 +473,10 @@ class _SomethingOldJobCancelledError(RuntimeError):
 
 class _RequeueForADreamJobCancelledError(RuntimeError):
     """Stop one Requeue for a Dream job at an API or retry boundary."""
+
+
+class _PalaceOfMemoryJobCancelledError(RuntimeError):
+    """Stop one Palace of Memory job at an API or retry boundary."""
 
 
 _analysis_jobs: dict[str, _AnalysisJob] = {}
@@ -2045,6 +2087,227 @@ def _run_requeue_for_a_dream_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _run_palace_of_memory_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str | None,
+    dry_run: bool,
+    alphabetical_start: str | None,
+    cursor_position: int | None,
+) -> None:
+    """Execute one reconnectable Palace fill or cursor adjustment."""
+    job = get_blast_job(job_id, command="fill_palace_of_memory")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = (
+            "Setting Palace alphabetical cursor"
+            if cursor_position is not None
+            else "Palace of Memory started"
+        )
+        _append_blast_log_locked(job, job.result.detail)
+
+    def echo(message: str) -> None:
+        if job.cancel_event.is_set():
+            raise _PalaceOfMemoryJobCancelledError
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _PalaceOfMemoryJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        if job.cancel_event.is_set():
+            raise _PalaceOfMemoryJobCancelledError
+        result = review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+        if job.cancel_event.is_set():
+            raise _PalaceOfMemoryJobCancelledError
+        return result
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    cursor_update: palace_of_memory.AlphabeticalCursorUpdate | None = None
+    summary: palace_of_memory.PalaceOfMemorySummary | None = None
+    try:
+        if cursor_position is not None:
+            cursor_update = palace_of_memory.set_alphabetical_cursor(
+                spotify,
+                cursor_position,
+                progress_callback=echo,
+                retry_call=retry_call,
+            )
+        else:
+            if playlist_id is None:
+                raise palace_of_memory.PalaceOfMemoryConfigError(
+                    "Palace of Memory playlist is required."
+                )
+            summary = palace_of_memory.fill_palace_of_memory(
+                spotify,
+                playlist_id,
+                dry_run=dry_run,
+                alphabetical_start=alphabetical_start,
+                echo=echo,
+                progress_callback=echo,
+                retry_call=retry_call,
+            )
+    except _PalaceOfMemoryJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = "Palace of Memory stopped safely. Rerun it to continue."
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = (
+                f"Spotify HTTP {exc.http_status} remained unavailable after "
+                f"{exc.attempts} attempts while {exc.operation}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except SpotifyException as exc:
+        with _blast_jobs_lock:
+            if exc.http_status == 429:
+                retry_after = review_album_limits.get_retry_after_seconds(exc)
+                retry_at = (
+                    datetime.now(UTC) + timedelta(seconds=retry_after)
+                    if retry_after is not None
+                    else None
+                )
+                job.result.status = "paused"
+                job.result.retry_at = retry_at.isoformat() if retry_at else None
+                job.result.detail = (
+                    "Spotify rate limit reached. "
+                    f"{review_album_limits.format_retry_after(retry_after)}."
+                )
+            else:
+                job.result.status = "failed"
+                job.result.detail = str(exc)
+            _append_blast_log_locked(job, job.result.detail)
+    except palace_of_memory.PalaceOfMemoryError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Palace of Memory failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Palace of Memory error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected Palace of Memory error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        with _blast_jobs_lock:
+            job.result.status = "completed"
+            if cursor_update is not None:
+                refresh = cursor_update.album_refresh
+                job.result.palace_alphabetical_start_index = cursor_update.next_index
+                job.result.palace_alphabetical_next_index = cursor_update.next_index
+                job.result.palace_next_album_artist = cursor_update.next_album.artist
+                job.result.palace_next_album = cursor_update.next_album.album
+                job.result.detail = (
+                    f"Alphabetical cursor set to {cursor_update.next_index + 1}: "
+                    f"{cursor_update.next_album.artist} - "
+                    f"{cursor_update.next_album.album}."
+                )
+            elif summary is not None:
+                refresh = summary.album_refresh
+                job.result.random_org_timestamp = summary.generated_at.isoformat()
+                job.result.palace_cutoff_date = summary.cutoff_date.isoformat()
+                job.result.palace_available_dates = summary.available_dates
+                job.result.palace_alphabetical_start_index = (
+                    summary.alphabetical_start_index
+                )
+                job.result.palace_alphabetical_next_index = (
+                    summary.alphabetical_next_index
+                )
+                job.result.palace_alphabetical_cursor_overridden = (
+                    summary.alphabetical_cursor_overridden
+                )
+                job.result.playlist_length_before = summary.playlist_length_before
+                job.result.playlist_length_after = summary.playlist_length_after
+                job.result.added = summary.added
+                job.result.palace_results = [
+                    PalaceAlbumSelectionResult(
+                        source=result.source,
+                        selected_date=(
+                            result.selected_date.isoformat()
+                            if result.selected_date is not None
+                            else None
+                        ),
+                        history_position=result.history_position,
+                        albums_on_date=result.albums_on_date,
+                        artist=result.artist,
+                        album=result.album,
+                        spotify_album=(
+                            result.spotify_album.album
+                            if result.spotify_album is not None
+                            else None
+                        ),
+                        first_track=(
+                            result.first_track.name
+                            if result.first_track is not None
+                            else None
+                        ),
+                        action=result.action,
+                    )
+                    for result in summary.results
+                ]
+                verb = "Would add" if dry_run else "Added"
+                job.result.detail = (
+                    f"{verb} {summary.added} first track(s) to Palace of Memory."
+                )
+                for result in job.result.palace_results:
+                    _append_blast_log_locked(
+                        job,
+                        f"{result.source.title()}: {result.artist} - "
+                        f"{result.album} -> {result.first_track or 'no match'} "
+                        f"({result.action}).",
+                    )
+            else:  # pragma: no cover - defensive worker invariant
+                raise AssertionError("Palace worker completed without a result")
+
+            job.result.palace_album_refresh = PalaceAlbumRefreshResult(
+                previous=refresh.previous,
+                current=refresh.current,
+                added=refresh.added,
+                removed=refresh.removed,
+                skipped=refresh.skipped,
+                persisted=refresh.persisted,
+                backup_path=refresh.backup_path,
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def _run_scrobble_history_job(
     job_id: str,
     api_key: str,
@@ -2417,6 +2680,68 @@ def start_requeue_for_a_dream_job(
         target=_run_requeue_for_a_dream_job,
         args=(job_id, spotify, playlist_id, dry_run),
         name=f"requeue-for-a-dream-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_palace_of_memory_job(
+    spotify: Spotify,
+    playlist_id: str | None,
+    *,
+    dry_run: bool,
+    alphabetical_start: str | None,
+    cursor_position: int | None,
+) -> BlastJobResult:
+    """Start one reload-safe Palace fill or cursor adjustment."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        cursor_only = cursor_position is not None
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="fill_palace_of_memory",
+                dry_run=dry_run,
+                palace_cursor_only=cursor_only,
+                palace_alphabetical_reference=(
+                    str(cursor_position) if cursor_only else alphabetical_start
+                ),
+            )
+        )
+        queued_message = (
+            f"Palace alphabetical cursor adjustment to {cursor_position} queued."
+            if cursor_only
+            else (
+                "Palace of Memory queued in dry-run mode."
+                if dry_run
+                else "Palace of Memory queued."
+            )
+        )
+        _append_blast_log_locked(job, queued_message)
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_palace_of_memory_job,
+        args=(
+            job_id,
+            spotify,
+            playlist_id,
+            dry_run,
+            alphabetical_start,
+            cursor_position,
+        ),
+        name=f"palace-of-memory-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -3203,6 +3528,99 @@ def cmd_cancel_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
             )
         job.result.status = "cancelling"
         job.result.detail = "Stopping Requeue for a Dream"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/fill-palace-of-memory",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_fill_palace_of_memory(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+    alphabetical_start: str | None = None,
+    set_alphabetical_cursor: int | None = Query(default=None, ge=1),
+) -> BlastJobResult:
+    """Start a reconnectable Palace fill or cursor-only adjustment."""
+    cleaned_start = alphabetical_start.strip() if alphabetical_start else None
+    if set_alphabetical_cursor is not None and dry_run:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "set_alphabetical_cursor persists immediately and cannot use dry_run"
+            ),
+        )
+    if set_alphabetical_cursor is not None and cleaned_start is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "use either set_alphabetical_cursor or alphabetical_start, not both"
+            ),
+        )
+
+    playlist_id = None
+    if set_alphabetical_cursor is None:
+        configuration = Settings()
+        try:
+            playlist_id = palace_of_memory.parse_playlist_id(
+                configuration.palace_of_memory_playlist
+            )
+        except palace_of_memory.PalaceOfMemoryConfigError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return start_palace_of_memory_job(
+        client,
+        playlist_id,
+        dry_run=dry_run,
+        alphabetical_start=cleaned_start,
+        cursor_position=set_alphabetical_cursor,
+    )
+
+
+@app.get(
+    "/commands/fill-palace-of-memory-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_palace_of_memory_jobs() -> list[BlastJobResult]:
+    """Return active Palace jobs after a page reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "fill_palace_of_memory"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/fill-palace-of-memory-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_palace_of_memory_job(job_id: str) -> BlastJobResult:
+    """Return current Palace progress, results, and logs."""
+    job = get_blast_job(job_id, command="fill_palace_of_memory")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/fill-palace-of-memory-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_palace_of_memory_job(job_id: str) -> BlastJobResult:
+    """Request a clean Palace stop at the next API or retry boundary."""
+    job = get_blast_job(job_id, command="fill_palace_of_memory")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail="Palace of Memory job is not active",
+            )
+        job.result.status = "cancelling"
+        job.result.detail = "Stopping Palace of Memory"
         _append_blast_log_locked(job, job.result.detail)
         job.cancel_event.set()
         return _blast_job_snapshot(job)

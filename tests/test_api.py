@@ -1158,6 +1158,170 @@ def test_requeue_for_a_dream_web_job_reports_transition_and_reconnects(
     assert client.get("/commands/flush-requeue-for-a-dream-jobs").json() == []
 
 
+def test_palace_of_memory_web_job_reports_results_and_reconnects(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    entered = Event()
+    release_worker = Event()
+    received: dict[str, object] = {}
+
+    def run(spotify, playlist_id, **kwargs):
+        received.update(
+            spotify=spotify,
+            playlist_id=playlist_id,
+            dry_run=kwargs["dry_run"],
+            alphabetical_start=kwargs["alphabetical_start"],
+        )
+        kwargs["progress_callback"]("Refreshing saved albums at offset 50")
+        entered.set()
+        assert release_worker.wait(2)
+        spotify_album = api.palace_of_memory.SpotifyAlbum(
+            spotify_id="album-id",
+            uri="spotify:album:album-id",
+            artist="Palace Artist",
+            album="Palace Album",
+            saved=True,
+            similarity=1.0,
+        )
+        first_track = api.palace_of_memory.SpotifyFirstTrack(
+            spotify_id="track-id",
+            uri="spotify:track:track-id",
+            name="Opening Track",
+        )
+        return api.palace_of_memory.PalaceOfMemorySummary(
+            generated_at=datetime(2026, 8, 4, 15, 30, tzinfo=UTC),
+            playlist_id=playlist_id,
+            dry_run=True,
+            cutoff_date=date(2025, 12, 31),
+            available_dates=5_092,
+            alphabetical_start_index=5,
+            alphabetical_next_index=10,
+            alphabetical_cursor_overridden=True,
+            playlist_length_before=7,
+            playlist_length_after=8,
+            album_refresh=api.palace_of_memory.SavedAlbumRefresh(
+                checked_at=datetime(2026, 8, 4, tzinfo=UTC),
+                previous=3_982,
+                current=3_983,
+                added=1,
+                removed=0,
+                skipped=0,
+                persisted=True,
+                backup_path="/tmp/albums-backup.json",
+            ),
+            results=(
+                api.palace_of_memory.PalaceAlbumResult(
+                    source="alphabetical",
+                    artist="Palace Artist",
+                    album="Palace Album",
+                    spotify_album=spotify_album,
+                    first_track=first_track,
+                    action="added",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            palace_of_memory_playlist=("spotify:playlist:0000000000000000000000"),
+        ),
+    )
+    monkeypatch.setattr(api.palace_of_memory, "fill_palace_of_memory", run)
+
+    started = client.post(
+        "/commands/fill-palace-of-memory",
+        params={"dry_run": "true", "alphabetical_start": "6"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    assert entered.wait(2)
+    assert [
+        job["job_id"]
+        for job in client.get("/commands/fill-palace-of-memory-jobs").json()
+    ] == [job_id]
+
+    release_worker.set()
+    completed = wait_for_palace_of_memory_status(client, job_id, {"completed"})
+    assert received["playlist_id"] == "0000000000000000000000"
+    assert received["dry_run"] is True
+    assert received["alphabetical_start"] == "6"
+    assert completed["palace_alphabetical_start_index"] == 5
+    assert completed["palace_alphabetical_next_index"] == 10
+    assert completed["palace_alphabetical_cursor_overridden"] is True
+    assert completed["palace_cutoff_date"] == "2025-12-31"
+    assert completed["palace_available_dates"] == 5_092
+    assert completed["palace_album_refresh"]["current"] == 3_983
+    assert completed["palace_results"][0]["first_track"] == "Opening Track"
+    assert completed["playlist_length_before"] == 7
+    assert completed["playlist_length_after"] == 8
+    assert any(
+        entry["message"] == "Refreshing saved albums at offset 50"
+        for entry in completed["logs"]
+    )
+    assert client.get("/commands/fill-palace-of-memory-jobs").json() == []
+
+
+def test_palace_web_can_persist_only_cursor_without_playlist_config(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    def set_cursor(_spotify, position, **kwargs):
+        kwargs["progress_callback"]("Refreshing the saved-album mirror")
+        return api.palace_of_memory.AlphabeticalCursorUpdate(
+            next_index=249,
+            next_album=YourLibraryAlbum(
+                artist="Cursor Artist",
+                album="Cursor Album",
+                uri="spotify:album:cursor-album",
+            ),
+            album_refresh=api.palace_of_memory.SavedAlbumRefresh(
+                checked_at=datetime(2026, 8, 4, tzinfo=UTC),
+                previous=3_983,
+                current=3_983,
+                added=0,
+                removed=0,
+                skipped=0,
+                persisted=False,
+                backup_path=None,
+            ),
+        )
+
+    monkeypatch.setattr(api.palace_of_memory, "set_alphabetical_cursor", set_cursor)
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("cursor-only mode must not load playlist settings")
+        ),
+    )
+
+    started = client.post(
+        "/commands/fill-palace-of-memory",
+        params={"dry_run": "false", "set_alphabetical_cursor": 250},
+    )
+
+    assert started.status_code == 202
+    completed = wait_for_palace_of_memory_status(
+        client,
+        started.json()["job_id"],
+        {"completed"},
+    )
+    assert completed["palace_cursor_only"] is True
+    assert completed["palace_alphabetical_reference"] == "250"
+    assert completed["palace_alphabetical_next_index"] == 249
+    assert completed["palace_next_album_artist"] == "Cursor Artist"
+    assert completed["palace_next_album"] == "Cursor Album"
+    assert completed["playlist_length_before"] is None
+
+
 def test_scrobble_history_web_job_reports_refresh_summary(
     client: TestClient,
     monkeypatch,
@@ -1361,6 +1525,23 @@ def wait_for_requeue_for_a_dream_status(
             return body
         sleep(0.01)
     pytest.fail(f"Requeue for a Dream job {job_id} did not reach {expected}")
+
+
+def wait_for_palace_of_memory_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one Palace job until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/fill-palace-of-memory-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Palace of Memory job {job_id} did not reach {expected}")
 
 
 def wait_for_scrobble_history_status(
