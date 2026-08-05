@@ -389,54 +389,6 @@
       <div class="result" id="albumResult"></div>
     </section>
 
-    <!-- Quick utilities -->
-    <section class="card">
-      <h2>Library</h2>
-      <div class="btns">
-        <button class="ghost" data-action="countArtists">Count artists in library</button>
-        <button class="ghost" data-action="refreshLibrary">Refresh library cache</button>
-      </div>
-      <div class="result" id="utilResult"></div>
-    </section>
-
-    <!-- Commands -->
-    <section class="card">
-      <h2>Library analyses</h2>
-      <div class="analysis-row" data-analysis="async">
-        <div class="analysis-title">YourLibrary.json → *_async</div>
-        <div class="analysis-actions">
-          <button class="primary" data-action="analysis" data-mode="async">Build async files</button>
-          <button class="danger cancel" data-action="cancelAnalysis" data-mode="async" hidden title="Cancel analysis">×</button>
-        </div>
-        <div class="analysis-progress" id="analysis-async"></div>
-      </div>
-      <div class="analysis-row" data-analysis="sync">
-        <div class="analysis-title">Spotify API → *_sync</div>
-        <div class="analysis-actions">
-          <button class="primary" data-action="analysis" data-mode="sync">Build sync files</button>
-          <button class="danger cancel" data-action="cancelAnalysis" data-mode="sync" hidden title="Cancel analysis">×</button>
-        </div>
-        <div class="analysis-progress" id="analysis-sync"></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <details class="commands">
-        <summary>Commands</summary>
-        <p class="cmd-note">These run the same routines as the CLI. The ones marked ⚠ modify your Spotify library and/or the data files on the server. You'll be asked to confirm.</p>
-        <div class="btns">
-          <button class="ghost" data-action="cmd" data-cmd="count-artists" data-method="GET">Count artists</button>
-          <button class="ghost" data-action="cmd" data-cmd="compare-lib-files" data-method="POST">Compare library files</button>
-          <button class="danger" data-action="cmd" data-cmd="convert-lib" data-method="POST" data-confirm="1">⚠ Convert library file</button>
-          <button class="danger" data-action="cmd" data-cmd="analyse-comp" data-method="POST" data-confirm="1">⚠ Analyse comparison (live)</button>
-          <button class="danger" data-action="cmd" data-cmd="update-total-albums" data-method="POST" data-confirm="1">⚠ Update total albums (live)</button>
-          <button class="danger" data-action="cmd" data-cmd="restore-your-library" data-method="POST" data-confirm="1">⚠ Restore library to Spotify</button>
-          <button class="danger" data-action="cmd" data-cmd="monthly-routines" data-method="POST" data-confirm="1">⚠ Run monthly routines</button>
-        </div>
-        <div class="result" id="cmdResult"></div>
-      </details>
-    </section>
-
     <div class="foot">
       <button class="ghost" id="logout" style="max-width:160px;margin:0 auto;">Sign out</button>
       <div style="height:10px"></div>
@@ -2364,7 +2316,6 @@
     gate.classList.add("hidden");
     app.classList.remove("hidden");
     checkHealth();
-    restoreActiveAnalysisJobs();
     restoreActiveBlastJobs();
     restoreActiveDailyMindRadioJobs();
     restoreActiveFoundArtJobs();

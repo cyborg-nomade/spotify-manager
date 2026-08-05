@@ -301,3 +301,19 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "job.history_backup_path" in response.text
     assert "restoreActiveScrobbleHistoryJobs();" in response.text
     assert 'data-action="openGenreReveal"' in response.text
+
+
+def test_main_page_hides_legacy_library_and_command_cards(
+    client: TestClient,
+) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "<h2>Library</h2>" not in response.text
+    assert "<h2>Library analyses</h2>" not in response.text
+    assert "<summary>Commands</summary>" not in response.text
+    assert 'data-action="countArtists"' not in response.text
+    assert 'data-action="refreshLibrary"' not in response.text
+    assert '<button class="primary" data-action="analysis"' not in response.text
+    assert '<button class="ghost" data-action="cmd"' not in response.text
+    assert "restoreActiveAnalysisJobs();" not in response.text
