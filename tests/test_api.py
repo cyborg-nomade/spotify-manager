@@ -1,8 +1,4 @@
-"""Tests for the FastAPI interface.
-
-Both the Spotify client and the library are overridden so no network,
-credentials, or YourLibrary.json file are needed.
-"""
+"""Tests for the FastAPI interface with isolated Spotify and file dependencies."""
 
 from datetime import UTC
 from datetime import date
@@ -15,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from spotipy.exceptions import SpotifyException
 
 from spotify_manager.api import app
 from spotify_manager.api import get_analysis_client
@@ -53,7 +51,7 @@ def _library() -> YourLibraryFile:
 
 
 class FakeSpotify:
-    """Minimal spotipy stand-in: only album_tracks is exercised."""
+    """Minimal spotipy stand-in for API endpoint tests."""
 
     def __init__(self) -> None:
         self.event_callback = None
@@ -63,15 +61,97 @@ class FakeSpotify:
         self.event_callback = callback
         return previous
 
-    def album_tracks(self, album_id, limit=50, offset=0):
+    def search(
+        self, q, limit=10, offset=0, type="track", market=None  # noqa: A002
+    ):
+        if type == "artist":
+            return {"artists": {"items": [{"id": "art1", "name": "Radiohead"}]}}
+        if type == "album":
+            items = []
+            if "Nope" not in q:
+                items = [
+                    {
+                        "id": "alb1",
+                        "name": "OK Computer",
+                        "artists": [{"id": "art1", "name": "Radiohead"}],
+                    }
+                ]
+            return {"albums": {"items": items}}
+        raise AssertionError(f"unexpected search type: {type}")
+
+    def artist(self, artist_id):
+        return {"id": artist_id, "name": "Radiohead"}
+
+    def artist_albums(
+        self,
+        artist_id,
+        album_type=None,
+        include_groups=None,
+        country=None,
+        limit=20,
+        offset=0,
+    ):
         return {
             "items": [
-                {"id": "t1", "name": "Airbag", "uri": "spotify:track:t1"},
-                {"id": "t2", "name": "Karma Police", "uri": "spotify:track:t2"},
-                {"id": "t3", "name": "Let Down", "uri": "spotify:track:t3"},
+                {
+                    "id": "alb1",
+                    "name": "OK Computer",
+                    "artists": [{"id": "art1", "name": "Radiohead"}],
+                }
             ],
             "next": None,
         }
+
+    def albums(self, album_ids, market=None):
+        return {
+            "albums": [
+                {
+                    "id": album_id,
+                    "name": "OK Computer",
+                    "artists": [{"id": "art1", "name": "Radiohead"}],
+                    "tracks": self.album_tracks(album_id),
+                }
+                for album_id in album_ids
+            ]
+        }
+
+    def album(self, album_id, market=None):
+        return {
+            "id": album_id,
+            "name": "OK Computer",
+            "artists": [{"id": "art1", "name": "Radiohead"}],
+        }
+
+    def album_tracks(self, album_id, limit=50, offset=0):
+        return {
+            "items": [
+                {
+                    "id": "t1",
+                    "name": "Airbag",
+                    "uri": "spotify:track:t1",
+                    "artists": [{"id": "art1", "name": "Radiohead"}],
+                },
+                {
+                    "id": "t2",
+                    "name": "Karma Police",
+                    "uri": "spotify:track:t2",
+                    "artists": [{"id": "art1", "name": "Radiohead"}],
+                },
+                {
+                    "id": "t3",
+                    "name": "Let Down",
+                    "uri": "spotify:track:t3",
+                    "artists": [{"id": "art1", "name": "Radiohead"}],
+                },
+            ],
+            "next": None,
+        }
+
+    def current_user_saved_albums_contains(self, album_ids):
+        return [album_id == "alb1" for album_id in album_ids]
+
+    def current_user_saved_tracks_contains(self, track_ids=None):
+        return [track_id in {"t1", "t2"} for track_id in (track_ids or [])]
 
 
 @pytest.fixture
@@ -104,13 +184,20 @@ def test_auth_check(client: TestClient) -> None:
 
 
 def test_artist_stats_endpoint(client: TestClient) -> None:
-    resp = client.get("/artists/stats", params={"name": "radiohead"})
+    def fail_if_export_is_loaded():
+        raise AssertionError("live artist stats must not load YourLibrary.json")
+
+    app.dependency_overrides[get_library] = fail_if_export_is_loaded
+    try:
+        resp = client.get("/artists/stats", params={"name": "radiohead"})
+    finally:
+        app.dependency_overrides[get_library] = _library
     assert resp.status_code == 200
     body = resp.json()
     assert body["artist_id"] == "art1"
     assert body["liked_tracks"] == 2
     assert body["saved_releases"] == 1
-    assert body["source"] == "files"
+    assert body["source"] == "spotify-live"
 
 
 def test_artist_stats_requires_an_argument(client: TestClient) -> None:
@@ -118,18 +205,62 @@ def test_artist_stats_requires_an_argument(client: TestClient) -> None:
 
 
 def test_album_evaluation_endpoint(client: TestClient) -> None:
-    resp = client.get("/albums/evaluation", params={"name": "OK Computer"})
+    def fail_if_export_is_loaded():
+        raise AssertionError("live album evaluation must not load YourLibrary.json")
+
+    app.dependency_overrides[get_library] = fail_if_export_is_loaded
+    try:
+        resp = client.get("/albums/evaluation", params={"name": "OK Computer"})
+    finally:
+        app.dependency_overrides[get_library] = _library
     assert resp.status_code == 200
     body = resp.json()
     assert body["album_id"] == "alb1"
     assert body["decision"] == "keep"  # 2/3 liked
     assert body["total_tracks"] == 3
     assert body["liked_tracks"] == 2
+    assert body["source"] == "spotify-live"
+    assert body["from_cache"] is False
 
 
 def test_album_evaluation_not_found(client: TestClient) -> None:
     resp = client.get("/albums/evaluation", params={"name": "Nope"})
     assert resp.status_code == 404
+
+
+def test_live_lookup_spotify_500_is_reported_as_bad_gateway(
+    client: TestClient,
+) -> None:
+    class FailingSpotify:
+        def search(self, **kwargs):
+            raise SpotifyException(500, -1, "Spotify unavailable")
+
+    app.dependency_overrides[get_client] = FailingSpotify
+
+    resp = client.get("/artists/stats", params={"name": "Radiohead"})
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == (
+        "Spotify request failed (HTTP 500): Spotify unavailable"
+    )
+
+
+def test_live_lookup_connection_failure_is_reported_as_bad_gateway(
+    client: TestClient,
+) -> None:
+    class FailingSpotify:
+        def search(self, **kwargs):
+            raise RequestsConnectionError("connection reset")
+
+    app.dependency_overrides[get_client] = FailingSpotify
+
+    resp = client.get("/artists/stats", params={"name": "Radiohead"})
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == (
+        "Spotify could not be reached after several attempts. "
+        "Please try again shortly."
+    )
 
 
 def test_count_artists_endpoint(client: TestClient, monkeypatch) -> None:

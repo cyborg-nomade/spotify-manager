@@ -13,6 +13,7 @@ from time import sleep
 from typing import Annotated
 
 import typer
+from requests.exceptions import RequestException
 from rich.console import Console
 from rich.live import Live
 from rich.progress import BarColumn
@@ -37,9 +38,11 @@ from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
+from spotify_manager.processors.library_lookups import AmbiguousArtistError
 from spotify_manager.processors.library_lookups import ArtistNotFoundError
-from spotify_manager.processors.library_lookups import evaluate_album
-from spotify_manager.processors.library_lookups import get_artist_library_stats
+from spotify_manager.processors.library_lookups import SpotifyLookupResponseError
+from spotify_manager.processors.library_lookups import evaluate_album_live
+from spotify_manager.processors.library_lookups import get_live_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_sync
 from spotify_manager.routines import blast_from_past
@@ -2328,45 +2331,62 @@ def restore_library_sync_command(
 
 @app.command()
 def artist_stats(
-    name: str = typer.Argument(None, help="Artist name (as in your export)."),
+    name: str = typer.Argument(None, help="Exact Spotify artist name."),
     artist_id: str = typer.Option(None, "--artist-id", help="Spotify artist id."),
 ) -> None:
-    """Show liked-track and saved-release counts for an artist (local files)."""
+    """Show live liked-track and saved-release counts for an artist."""
     if not name and not artist_id:
         raise typer.BadParameter("provide an artist NAME or --artist-id")
     try:
-        stats = get_artist_library_stats(name=name, artist_id=artist_id)
-    except ArtistNotFoundError as exc:
+        stats = get_live_artist_library_stats(
+            client(),
+            name=name,
+            artist_id=artist_id,
+        )
+    except AmbiguousArtistError as exc:
         typer.echo(str(exc), err=True)
+        for candidate in exc.candidates:
+            typer.echo(
+                f"  {candidate['artist']} ({candidate['id']})",
+                err=True,
+            )
+        raise typer.Exit(code=1) from exc
+    except (ArtistNotFoundError, SpotifyLookupResponseError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        typer.echo(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
+    except RequestException as exc:
+        typer.echo(
+            "Spotify could not be reached after several attempts. "
+            "Please try again shortly.",
+            err=True,
+        )
         raise typer.Exit(code=1) from exc
     typer.echo(stats.model_dump_json(indent=2))
 
 
 @app.command()
 def album_decision(
-    name: str = typer.Argument(None, help="Album name (as in your export)."),
+    name: str = typer.Argument(None, help="Exact Spotify album name."),
     album_id: str = typer.Option(None, "--album-id", help="Spotify album id."),
     artist: str = typer.Option(None, "--artist", help="Disambiguate by artist."),
     threshold: float = 0.5,
-    no_cache: bool = typer.Option(
-        False, "--no-cache", help="Ignore the local tracklist cache for this run."
-    ),
-    refresh_cache: bool = typer.Option(
-        False, "--refresh-cache", help="Re-fetch the tracklist and update the cache."
-    ),
 ) -> None:
-    """Decide whether an album should be kept (>= threshold liked) or removed."""
+    """Evaluate an album against live Spotify Liked Songs state."""
     if not name and not album_id:
         raise typer.BadParameter("provide an album NAME or --album-id")
     try:
-        evaluation = evaluate_album(
-            client_factory=client,
+        evaluation = evaluate_album_live(
+            client(),
             name=name,
             album_id=album_id,
             artist=artist,
             threshold=threshold,
-            use_cache=not no_cache,
-            refresh_cache=refresh_cache,
         )
     except AmbiguousAlbumError as exc:
         typer.echo(str(exc), err=True)
@@ -2376,8 +2396,21 @@ def album_decision(
                 err=True,
             )
         raise typer.Exit(code=1) from exc
-    except AlbumNotFoundError as exc:
+    except (AlbumNotFoundError, SpotifyLookupResponseError) as exc:
         typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        typer.echo(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
+    except RequestException as exc:
+        typer.echo(
+            "Spotify could not be reached after several attempts. "
+            "Please try again shortly.",
+            err=True,
+        )
         raise typer.Exit(code=1) from exc
     typer.echo(evaluation.model_dump_json(indent=2))
 

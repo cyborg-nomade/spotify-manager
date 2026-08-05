@@ -382,7 +382,6 @@
       <input id="albumId" type="text" placeholder="album id" />
       <label for="threshold">Keep threshold (liked ratio)</label>
       <input id="threshold" type="number" min="0" max="1" step="0.05" value="0.5" />
-      <div class="inline"><input type="checkbox" id="refreshCache" /> <label for="refreshCache" style="margin:0">Refresh track-list cache (live API call)</label></div>
       <div class="btns">
         <button class="primary" data-action="albumEval">Evaluate album</button>
       </div>
@@ -2130,7 +2129,19 @@
             '<div class="stat"><div class="n">' + d.liked_tracks + '</div><div class="l">Liked tracks</div></div>' +
             '<div class="stat"><div class="n">' + d.saved_releases + '</div><div class="l">Saved releases</div></div>' +
           "</div>");
-      } catch (e) { renderError(out, e); }
+      } catch (e) {
+        if (e.status === 409 && e.data && e.data.candidates) {
+          var cands = e.data.candidates.map(function (c) {
+            return '<div class="kv">' + esc(c.artist) +
+              ' <span style="color:var(--muted)">(' + esc(c.id) + ")</span></div>";
+          }).join("");
+          renderResult(out,
+            '<div class="kv" style="color:var(--amber)">Multiple artists match. Use a Spotify artist ID:</div>' + cands
+          );
+        } else {
+          renderError(out, e);
+        }
+      }
       setBusy(btn, false);
     },
 
@@ -2139,7 +2150,6 @@
       var artist = document.getElementById("albumArtist").value.trim();
       var id = document.getElementById("albumId").value.trim();
       var threshold = document.getElementById("threshold").value;
-      var refresh = document.getElementById("refreshCache").checked;
       var out = document.getElementById("albumResult");
       if (!name && !id) { showToast("Enter an album name or ID", "err"); return; }
       var q = new URLSearchParams();
@@ -2147,7 +2157,6 @@
       if (id) q.set("album_id", id);
       if (artist) q.set("artist", artist);
       if (threshold) q.set("threshold", threshold);
-      if (refresh) q.set("refresh_cache", "true");
       setBusy(btn, true, "Evaluating…");
       try {
         var d = await api("/albums/evaluation?" + q.toString());

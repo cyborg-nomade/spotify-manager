@@ -258,6 +258,8 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "restoreActiveFoundArtJobs();" in response.text
     assert 'id="newWineDryRun" checked' in response.text
     assert 'id="newWineNoDiscovery"' in response.text
+    assert 'id="refreshCache"' not in response.text
+    assert 'q.set("refresh_cache"' not in response.text
     assert 'data-action="startNewWine"' in response.text
     assert 'data-action="newWineChoice"' in response.text
     assert '"/commands/flush-new-wine-jobs/"' in response.text

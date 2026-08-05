@@ -6,11 +6,10 @@ Run with::
 
 or via the installed script ``spotify-api``.
 
-The two lookups are files-first (source of truth: ``YourLibrary.json``).
-``artist-stats`` is fully local; ``album-evaluation`` makes a single live call
-to fetch the album's track list. Library analyses run as cancellable background
-jobs with pollable progress. The parsed library is cached; call
-``POST /library/refresh`` after re-exporting YourLibrary.json.
+Artist stats and album evaluation use live Spotify state. Library analyses run
+as cancellable background jobs with pollable progress. The parsed export used
+by legacy endpoints is cached; call ``POST /library/refresh`` after replacing
+``YourLibrary.json``.
 """
 
 import logging
@@ -37,6 +36,7 @@ from fastapi import status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pydantic import Field
+from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
@@ -50,9 +50,11 @@ from spotify_manager.models.lookups import ArtistLibraryStats
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
+from spotify_manager.processors.library_lookups import AmbiguousArtistError
 from spotify_manager.processors.library_lookups import ArtistNotFoundError
-from spotify_manager.processors.library_lookups import evaluate_album
-from spotify_manager.processors.library_lookups import get_artist_library_stats
+from spotify_manager.processors.library_lookups import SpotifyLookupResponseError
+from spotify_manager.processors.library_lookups import evaluate_album_live
+from spotify_manager.processors.library_lookups import get_live_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
@@ -2798,6 +2800,14 @@ def _artist_not_found(request: Request, exc: ArtistNotFoundError) -> JSONRespons
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
+@app.exception_handler(AmbiguousArtistError)
+def _ambiguous_artist(request: Request, exc: AmbiguousArtistError) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={"detail": str(exc), "candidates": exc.candidates},
+    )
+
+
 @app.exception_handler(AlbumNotFoundError)
 def _album_not_found(request: Request, exc: AlbumNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
@@ -2807,6 +2817,42 @@ def _album_not_found(request: Request, exc: AlbumNotFoundError) -> JSONResponse:
 def _ambiguous_album(request: Request, exc: AmbiguousAlbumError) -> JSONResponse:
     return JSONResponse(
         status_code=409, content={"detail": str(exc), "candidates": exc.candidates}
+    )
+
+
+@app.exception_handler(SpotifyLookupResponseError)
+def _invalid_spotify_lookup(
+    request: Request,
+    exc: SpotifyLookupResponseError,
+) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.exception_handler(SpotifyException)
+def _spotify_lookup_failed(request: Request, exc: SpotifyException) -> JSONResponse:
+    """Return useful lookup errors instead of an opaque HTTP 500 response."""
+    if exc.http_status == 429:
+        retry_after = review_album_limits.get_retry_after_seconds(exc)
+        detail = (
+            "Spotify rate limit reached after trying all configured credentials. "
+            f"{review_album_limits.format_retry_after(retry_after)}."
+        )
+        headers = {"Retry-After": str(retry_after)} if retry_after is not None else None
+        return JSONResponse(
+            status_code=429,
+            content={"detail": detail},
+            headers=headers,
+        )
+
+    status_code = exc.http_status if exc.http_status in {400, 403, 404} else 502
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "detail": (
+                f"Spotify request failed (HTTP {exc.http_status}): "
+                f"{exc.msg or 'unknown Spotify error'}"
+            )
+        },
     )
 
 
@@ -2830,44 +2876,60 @@ def refresh_library() -> CommandResult:
 
 
 # --------------------------------------------------------------------------- #
-# Lookups (files-first)
+# Live Spotify lookups
 # --------------------------------------------------------------------------- #
 @app.get("/artists/stats", response_model=ArtistLibraryStats)
 def artist_stats(
-    library: LibraryDep,
+    client: ClientDep,
     name: Annotated[str | None, Query()] = None,
     artist_id: Annotated[str | None, Query()] = None,
 ) -> ArtistLibraryStats:
-    """Liked-track and saved-release counts for an artist (local files only)."""
+    """Return live Liked Songs and Saved Albums counts for one artist."""
     if not name and not artist_id:
         raise HTTPException(status_code=400, detail="provide name or artist_id")
-    return get_artist_library_stats(name=name, artist_id=artist_id, library=library)
+    try:
+        return get_live_artist_library_stats(
+            client,
+            name=name,
+            artist_id=artist_id,
+        )
+    except RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Spotify could not be reached after several attempts. "
+                "Please try again shortly."
+            ),
+        ) from exc
 
 
 @app.get("/albums/evaluation", response_model=AlbumEvaluation)
 def album_evaluation(
     client: ClientDep,
-    library: LibraryDep,
     name: Annotated[str | None, Query()] = None,
     album_id: Annotated[str | None, Query()] = None,
     artist: Annotated[str | None, Query()] = None,
     threshold: float = 0.5,
-    use_cache: bool = True,
-    refresh_cache: bool = False,
 ) -> AlbumEvaluation:
-    """Keep/remove decision for an album (album id resolved locally)."""
+    """Return a keep/remove decision from live Spotify album and liked state."""
     if not name and not album_id:
         raise HTTPException(status_code=400, detail="provide name or album_id")
-    return evaluate_album(
-        client,
-        name=name,
-        album_id=album_id,
-        artist=artist,
-        library=library,
-        threshold=threshold,
-        use_cache=use_cache,
-        refresh_cache=refresh_cache,
-    )
+    try:
+        return evaluate_album_live(
+            client,
+            name=name,
+            album_id=album_id,
+            artist=artist,
+            threshold=threshold,
+        )
+    except RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Spotify could not be reached after several attempts. "
+                "Please try again shortly."
+            ),
+        ) from exc
 
 
 # --------------------------------------------------------------------------- #

@@ -765,8 +765,8 @@ same directory. They are ignored by Git and Docker.
 
 ### `artist-stats`
 
-Prints local liked-track and saved-release counts. Identify the artist by
-exported name or Spotify id:
+Prints live Liked Songs and Saved Albums counts. Identify the artist by an
+exact Spotify name or Spotify id:
 
 ```console
 uv run spotify-manager artist-stats "Miles Davis"
@@ -778,10 +778,9 @@ just artist-stats --artist-id SPOTIFY_ARTIST_ID
 
 ### `album-decision`
 
-Evaluates whether an album meets the liked-track threshold. Use an exported
-name or `--album-id`; `--artist` disambiguates duplicate album names.
-`--no-cache` bypasses the local tracklist cache, while `--refresh-cache`
-re-fetches and updates it.
+Evaluates whether an album meets the liked-track threshold using a fresh
+Spotify track list and live Liked Songs status. Use an exact Spotify name or
+`--album-id`; `--artist` disambiguates duplicate album names.
 
 ```console
 uv run spotify-manager album-decision "Kind of Blue" --artist "Miles Davis" --threshold 0.5
