@@ -129,6 +129,10 @@ flush-slow-listening *args:
 flush-requeue-for-a-dream *args:
     {{ cli }} flush-requeue-for-a-dream "$@"
 
+# Add five alphabetical and five historical albums to Palace of Memory.
+fill-palace-of-memory *args:
+    {{ cli }} fill-palace-of-memory "$@"
+
 # Add tracks from today's Last.fm anniversaries to Daily Mind Radio.
 daily-mind-radio *args:
     {{ cli }} daily-mind-radio "$@"

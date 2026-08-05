@@ -234,6 +234,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
     slow_listening_position = response.text.index('id="slowListeningCard"')
     something_old_position = response.text.index('id="somethingOldCard"')
     requeue_position = response.text.index('id="requeueForADreamCard"')
+    palace_position = response.text.index('id="palaceOfMemoryCard"')
     scrobble_history_position = response.text.index('id="scrobbleHistoryCard"')
     genre_position = response.text.index('id="genreRevealCard"')
     artist_position = response.text.index("<!-- Artist stats -->")
@@ -246,6 +247,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
         < slow_listening_position
         < something_old_position
         < requeue_position
+        < palace_position
         < scrobble_history_position
         < artist_position
     )
@@ -281,6 +283,16 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "job.requeue_target_release" in response.text
     assert "job.requeue_target_track" in response.text
     assert "restoreActiveRequeueForADreamJobs();" in response.text
+    assert 'id="palaceOfMemoryDryRun" checked' in response.text
+    assert 'id="palaceAlphabeticalStart"' in response.text
+    assert 'id="palaceAlphabeticalCursor"' in response.text
+    assert 'data-action="startPalaceOfMemory"' in response.text
+    assert 'data-action="setPalaceOfMemoryCursor"' in response.text
+    assert 'data-action="cancelPalaceOfMemory"' in response.text
+    assert '"/commands/fill-palace-of-memory-jobs/"' in response.text
+    assert "job.palace_results" in response.text
+    assert "job.palace_album_refresh" in response.text
+    assert "restoreActivePalaceOfMemoryJobs();" in response.text
     assert 'id="scrobbleHistoryDryRun" checked' in response.text
     assert 'data-action="startScrobbleHistory"' in response.text
     assert '"/commands/update-scrobble-history-jobs/"' in response.text

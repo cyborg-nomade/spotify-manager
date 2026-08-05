@@ -47,6 +47,7 @@ from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import new_wine
+from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
@@ -1639,6 +1640,194 @@ def flush_requeue_for_a_dream_command(
     console.print(
         f"Playlist: {summary.playlist_length_before} -> "
         f"{summary.playlist_length_after} tracks"
+        + (" (preview only)." if dry_run else "."),
+        style="bold cyan" if dry_run else "bold green",
+    )
+
+
+@app.command(name="fill-palace-of-memory")
+def fill_palace_of_memory_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Resolve the ten albums without changing Spotify or the cursor.",
+    ),
+    alphabetical_start: str | None = typer.Option(
+        None,
+        "--alphabetical-start",
+        help=(
+            "Start the alphabetical selection at this 1-based position, Spotify "
+            "album id/URI/URL, exact album title, or 'Artist - Album'."
+        ),
+    ),
+    set_alphabetical_cursor: int | None = typer.Option(
+        None,
+        "--set-alphabetical-cursor",
+        min=1,
+        help=(
+            "Persist this 1-based position as the next alphabetical album and "
+            "exit without changing the playlist."
+        ),
+    ),
+) -> None:
+    """Add five alphabetical and five historical album first tracks."""
+    console = Console()
+    if set_alphabetical_cursor is not None and dry_run:
+        raise typer.BadParameter(
+            "--set-alphabetical-cursor persists immediately and cannot use --dry-run"
+        )
+    if set_alphabetical_cursor is not None and alphabetical_start is not None:
+        raise typer.BadParameter(
+            "use either --set-alphabetical-cursor or --alphabetical-start, not both"
+        )
+
+    def echo(line: str = "") -> None:
+        style = "bold green" if line.startswith("Added") else "cyan"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    cursor_update: palace_of_memory.AlphabeticalCursorUpdate | None = None
+    summary: palace_of_memory.PalaceOfMemorySummary | None = None
+    try:
+        if set_alphabetical_cursor is not None:
+            with console.status("Setting the Palace alphabetical cursor") as status:
+                cursor_update = palace_of_memory.set_alphabetical_cursor(
+                    review_client(),
+                    set_alphabetical_cursor,
+                    progress_callback=status.update,
+                    retry_call=retry_call,
+                )
+        else:
+            configuration = Settings()
+            playlist_id = palace_of_memory.parse_playlist_id(
+                configuration.palace_of_memory_playlist
+            )
+            with console.status(
+                "Planning Palace of Memory" + (" (dry run)" if dry_run else "")
+            ) as status:
+                summary = palace_of_memory.fill_palace_of_memory(
+                    review_client(),
+                    playlist_id,
+                    dry_run=dry_run,
+                    alphabetical_start=alphabetical_start,
+                    echo=echo,
+                    progress_callback=status.update,
+                    retry_call=retry_call,
+                )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            "Spotify API temporarily unavailable "
+            f"({exc.http_status}) after {exc.attempts} attempts "
+            f"while {exc.operation}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except palace_of_memory.PalaceOfMemoryError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    if cursor_update is not None:
+        refresh = cursor_update.album_refresh
+    elif summary is not None:
+        refresh = summary.album_refresh
+    else:
+        raise AssertionError("Palace command completed without a result")
+    refresh_action = "updated" if refresh.persisted else "already current"
+    console.print(
+        f"Saved albums {refresh_action}: {refresh.previous} -> {refresh.current} "
+        f"({refresh.added} added, {refresh.removed} removed, "
+        f"{refresh.skipped} skipped).",
+        style="bold cyan",
+    )
+    if refresh.backup_path:
+        console.print(f"Album mirror backup: {refresh.backup_path}", style="dim")
+
+    if cursor_update is not None:
+        console.print(
+            f"Alphabetical cursor set to {cursor_update.next_index + 1}: "
+            f"{cursor_update.next_album.artist} - {cursor_update.next_album.album}. "
+            "The playlist was not changed.",
+            style="bold green",
+        )
+        return
+
+    assert summary is not None
+
+    table = Table(title="Palace of Memory")
+    table.add_column("Source")
+    table.add_column("Date / position")
+    table.add_column("Artist")
+    table.add_column("Album")
+    table.add_column("First track")
+    table.add_column("Action")
+    action_styles = {
+        "added": "bold green",
+        "already present": "cyan",
+        "duplicate selection": "yellow",
+        "no match": "bold red",
+    }
+    for result in summary.results:
+        if result.selected_date is None:
+            location = "saved albums"
+        else:
+            location = (
+                f"{result.selected_date.isoformat()} · "
+                f"{result.history_position}/{result.albums_on_date}"
+            )
+        resolved_album = (
+            result.spotify_album.album
+            if result.spotify_album is not None
+            else result.album
+        )
+        action = "would add" if dry_run and result.action == "added" else result.action
+        table.add_row(
+            result.source,
+            location,
+            result.artist,
+            resolved_album,
+            result.first_track.name if result.first_track is not None else "-",
+            Text(action, style=action_styles[result.action]),
+        )
+    console.print(table)
+    console.print(
+        f"Random.org timestamp: "
+        f"{summary.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')} · "
+        f"cutoff {summary.cutoff_date.isoformat()} · "
+        f"{summary.available_dates} eligible dates.",
+        style="cyan",
+    )
+    console.print(
+        "Alphabetical cursor"
+        + (" (manual)" if summary.alphabetical_cursor_overridden else "")
+        + f": {summary.alphabetical_start_index + 1} -> "
+        f"{summary.alphabetical_next_index + 1}. Playlist: "
+        f"{summary.playlist_length_before} -> {summary.playlist_length_after} tracks"
         + (" (preview only)." if dry_run else "."),
         style="bold cyan" if dry_run else "bold green",
     )
