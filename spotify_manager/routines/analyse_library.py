@@ -52,6 +52,7 @@ CHECKPOINT_VERSION = 1
 
 AnalysisMode = Literal["async", "sync", "mirrors"]
 ResourceName = Literal["albums", "tracks", "artists"]
+TrackRefreshMode = Literal["incremental", "full"]
 Echo = Callable[[str], None]
 ProgressCallback = Callable[[ResourceName, int, int | None, str], None]
 CancelCheck = Callable[[], bool]
@@ -694,7 +695,10 @@ def export_fingerprint(path: Path) -> dict[str, int]:
     return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
 
 
-def new_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
+def new_checkpoint(
+    paths: LibraryAnalysisPaths,
+    track_refresh_mode: TrackRefreshMode | None = None,
+) -> dict[str, Any]:
     """Create a fresh checkpoint for one mode."""
     checkpoint: dict[str, Any] = {
         "version": CHECKPOINT_VERSION,
@@ -717,10 +721,15 @@ def new_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
     }
     if paths.mode == "async":
         checkpoint["export_fingerprint"] = export_fingerprint(paths.your_library)
+    if paths.mode == "mirrors":
+        checkpoint["track_refresh_mode"] = track_refresh_mode or "incremental"
     return checkpoint
 
 
-def load_or_create_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
+def load_or_create_checkpoint(
+    paths: LibraryAnalysisPaths,
+    track_refresh_mode: TrackRefreshMode | None = None,
+) -> dict[str, Any]:
     """Resume a compatible incomplete checkpoint or start a fresh run."""
     raw = load_json(paths.checkpoint)
     compatible = (
@@ -733,6 +742,10 @@ def load_or_create_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
         compatible = raw.get("export_fingerprint") == export_fingerprint(
             paths.your_library
         )
+    if compatible and paths.mode == "mirrors":
+        compatible = raw.get("track_refresh_mode", "full") == (
+            track_refresh_mode or "incremental"
+        )
     if compatible:
         append_event(paths, str(raw["run_id"]), "run_resumed")
         return raw
@@ -740,7 +753,7 @@ def load_or_create_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
     if paths.staging_dir.exists():
         shutil.rmtree(paths.staging_dir)
     paths.staging_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint = new_checkpoint(paths)
+    checkpoint = new_checkpoint(paths, track_refresh_mode)
     write_json_atomic(paths.checkpoint, checkpoint)
     append_event(paths, str(checkpoint["run_id"]), "run_started")
     return checkpoint
@@ -1192,6 +1205,42 @@ def reconcile_offset_resource(
         progress_callback(resource, count, count, "Complete")
 
 
+def seed_incremental_tracks(
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+) -> None:
+    """Seed track staging from the mirror before scanning its recent edge."""
+    state = checkpoint["resources"]["tracks"]
+    if state["status"] != "pending":
+        return
+
+    existing = load_model_list(paths.liked_tracks_total, YourLibraryTrack)
+    append_models_jsonl(paths.stage("tracks"), existing)
+    state["status"] = "reconciling"
+    state["total"] = len(existing)
+    state["stable_passes"] = 0
+    write_json_atomic(paths.checkpoint, checkpoint)
+    append_event(
+        paths,
+        str(checkpoint["run_id"]),
+        "incremental_tracks_seeded",
+        count=len(existing),
+    )
+    echo(
+        f"Tracks: checking recent likes against {len(existing)} stored tracks. "
+        "Unliked tracks remain until a full rebuild."
+    )
+    if progress_callback:
+        progress_callback(
+            "tracks",
+            len(existing),
+            len(existing),
+            "Checking recent additions",
+        )
+
+
 def sync_initial_artists(
     sp: Spotify,
     paths: LibraryAnalysisPaths,
@@ -1488,11 +1537,13 @@ def refresh_live_library_mirrors_routine(
     sleep: Sleep = default_sleep,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
+    full_tracks: bool = False,
 ) -> LibrarySyncSummary:
-    """Refresh canonical album and liked-track mirrors from live Spotify."""
+    """Refresh albums fully and merge recent likes unless tracks are rebuilt."""
     if paths.mode != "mirrors":
         raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
-    checkpoint = load_or_create_checkpoint(paths)
+    track_refresh_mode: TrackRefreshMode = "full" if full_tracks else "incremental"
+    checkpoint = load_or_create_checkpoint(paths, track_refresh_mode)
     try:
         if checkpoint["status"] == "finalizing":
             return finalize_live_mirrors(
@@ -1501,10 +1552,36 @@ def refresh_live_library_mirrors_routine(
                 paths,
                 checkpoint,
             )
-        for resource in ("albums", "tracks"):
+        sync_initial_offset_resource(
+            sp,
+            "albums",
+            paths,
+            checkpoint,
+            echo,
+            progress_callback,
+            retry_wait,
+            cancel_check,
+            sleep,
+            retry_base_seconds,
+            retry_max_seconds,
+        )
+        reconcile_offset_resource(
+            sp,
+            "albums",
+            paths,
+            checkpoint,
+            echo,
+            progress_callback,
+            retry_wait,
+            cancel_check,
+            sleep,
+            retry_base_seconds,
+            retry_max_seconds,
+        )
+        if full_tracks:
             sync_initial_offset_resource(
                 sp,
-                resource,
+                "tracks",
                 paths,
                 checkpoint,
                 echo,
@@ -1515,19 +1592,21 @@ def refresh_live_library_mirrors_routine(
                 retry_base_seconds,
                 retry_max_seconds,
             )
-            reconcile_offset_resource(
-                sp,
-                resource,
-                paths,
-                checkpoint,
-                echo,
-                progress_callback,
-                retry_wait,
-                cancel_check,
-                sleep,
-                retry_base_seconds,
-                retry_max_seconds,
-            )
+        else:
+            seed_incremental_tracks(paths, checkpoint, echo, progress_callback)
+        reconcile_offset_resource(
+            sp,
+            "tracks",
+            paths,
+            checkpoint,
+            echo,
+            progress_callback,
+            retry_wait,
+            cancel_check,
+            sleep,
+            retry_base_seconds,
+            retry_max_seconds,
+        )
         return finalize_live_mirrors(
             load_models_jsonl(paths.stage("albums"), YourLibraryAlbum),
             load_models_jsonl(paths.stage("tracks"), YourLibraryTrack),

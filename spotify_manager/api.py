@@ -133,6 +133,7 @@ class AnalysisJobResult(BaseModel):
     completed_at: str | None = None
     run_id: str | None = None
     backup_dir: str | None = None
+    full_tracks: bool = False
     resources: dict[str, AnalysisResourceProgress]
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
@@ -618,6 +619,7 @@ def _run_analysis_job(
     job_id: str,
     mode: library_analysis.AnalysisMode,
     spotify: Spotify | None,
+    full_tracks: bool = False,
 ) -> None:
     """Execute one analysis worker and translate outcomes into job state."""
     job = get_analysis_job(job_id)
@@ -720,6 +722,7 @@ def _run_analysis_job(
                 progress_callback=progress_callback,
                 retry_wait=retry_wait,
                 cancel_check=job.cancel_event.is_set,
+                full_tracks=full_tracks,
             )
     except library_analysis.LibraryAnalysisCancelledError as exc:
         with _analysis_jobs_lock:
@@ -774,6 +777,7 @@ def _run_analysis_job(
 def start_analysis_job(
     mode: library_analysis.AnalysisMode,
     spotify: Spotify | None = None,
+    full_tracks: bool = False,
 ) -> AnalysisJobResult:
     """Start one background analysis, rejecting duplicate active modes."""
     command = (
@@ -797,6 +801,7 @@ def start_analysis_job(
             result=AnalysisJobResult(
                 job_id=job_id,
                 command=command,
+                full_tracks=full_tracks if mode == "mirrors" else False,
                 resources={
                     resource: AnalysisResourceProgress()
                     for resource in (
@@ -814,7 +819,7 @@ def start_analysis_job(
 
     Thread(
         target=_run_analysis_job,
-        args=(job_id, mode, spotify),
+        args=(job_id, mode, spotify, full_tracks),
         name=f"library-analysis-{mode}-{job_id[:8]}",
         daemon=True,
     ).start()
@@ -3847,9 +3852,12 @@ def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
     response_model=AnalysisJobResult,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def cmd_refresh_library_mirrors(client: AnalysisClientDep) -> AnalysisJobResult:
+def cmd_refresh_library_mirrors(
+    client: AnalysisClientDep,
+    full_tracks: bool = False,
+) -> AnalysisJobResult:
     """Refresh canonical saved-album and liked-track mirrors from Spotify."""
-    return start_analysis_job("mirrors", client)
+    return start_analysis_job("mirrors", client, full_tracks=full_tracks)
 
 
 @app.get(

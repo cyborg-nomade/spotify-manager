@@ -247,6 +247,10 @@
 
     <section class="card" id="libraryMirrorsCard">
       <h2>Live library mirrors</h2>
+      <div class="mode-switch" role="group" aria-label="Liked tracks refresh mode">
+        <button class="active" data-action="mirrorMode" data-mirror-mode="incremental" aria-pressed="true">Recent additions</button>
+        <button data-action="mirrorMode" data-mirror-mode="full" aria-pressed="false">Full rebuild</button>
+      </div>
       <div class="analysis-actions">
         <button class="primary" data-action="analysis" data-mode="mirrors">Update from Spotify</button>
         <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
@@ -549,6 +553,14 @@
     return ["queued", "running", "waiting", "cancelling"].indexOf(status) !== -1;
   }
 
+  function setMirrorMode(mode) {
+    document.querySelectorAll('[data-action="mirrorMode"]').forEach(function (item) {
+      var active = item.dataset.mirrorMode === mode;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
   function renderAnalysisJob(mode, job) {
     var out = document.getElementById("analysis-" + mode);
     var start = document.querySelector('[data-action="analysis"][data-mode="' + mode + '"]');
@@ -596,6 +608,12 @@
     if (log) log.scrollTop = log.scrollHeight;
     out.classList.add("show");
     var active = isAnalysisActive(job.status);
+    if (mode === "mirrors") {
+      setMirrorMode(job.full_tracks ? "full" : "incremental");
+      document.querySelectorAll('[data-action="mirrorMode"]').forEach(function (item) {
+        item.disabled = active;
+      });
+    }
     cancel.hidden = !active;
     cancel.disabled = job.status === "cancelling";
     if (active && !start.disabled) setBusy(start, true, "Running…");
@@ -1702,6 +1720,10 @@
 
   // ---- Actions -----------------------------------------------------------
   var actions = {
+    mirrorMode(btn) {
+      setMirrorMode(btn.dataset.mirrorMode);
+    },
+
     blastMode(btn) {
       var mode = btn.dataset.blastMode;
       document.querySelectorAll('[data-action="blastMode"]').forEach(function (item) {
@@ -2279,6 +2301,12 @@
         var endpoint = mode === "mirrors"
           ? "/commands/refresh-library-mirrors"
           : "/commands/analyse-library-" + mode;
+        if (mode === "mirrors") {
+          var mirrorMode = document.querySelector('[data-action="mirrorMode"].active');
+          if (mirrorMode && mirrorMode.dataset.mirrorMode === "full") {
+            endpoint += "?full_tracks=true";
+          }
+        }
         var job = await api(endpoint, { method: "POST" });
         analysisJobs[mode] = job;
         renderAnalysisJob(mode, job);

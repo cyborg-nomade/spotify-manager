@@ -310,6 +310,10 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "restoreActiveScrobbleHistoryJobs();" in response.text
     assert 'data-action="openGenreReveal"' in response.text
     assert 'data-mode="mirrors"' in response.text
+    assert 'data-mirror-mode="incremental"' in response.text
+    assert 'data-mirror-mode="full"' in response.text
+    assert 'setMirrorMode(job.full_tracks ? "full" : "incremental")' in response.text
+    assert 'endpoint += "?full_tracks=true"' in response.text
     assert '"/commands/refresh-library-mirrors"' in response.text
     assert 'api("/library-mirrors/status")' in response.text
     assert "loadServerFilesStatus();" in response.text

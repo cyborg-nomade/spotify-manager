@@ -290,6 +290,7 @@ def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
         paths=paths,
         retry_base_seconds=0,
         retry_max_seconds=0,
+        full_tracks=True,
     )
 
     assert paths.albums_total.name == "albums_total_new.json"
@@ -310,6 +311,46 @@ def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
     assert restored == ("albums_total_new.json", "liked_tracks_total.json")
     assert ids(paths.albums_total) == ["old-album"]
     assert ids(paths.liked_tracks_total) == ["old-track"]
+
+
+def test_live_mirror_incremental_tracks_merge_additions_without_removing(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    paths.albums_total.write_text("[]")
+    known_tracks = [track(f"known-{index:03}") for index in range(100)]
+    paths.liked_tracks_total.write_text(
+        json.dumps(
+            [
+                *(item.model_dump() for item in known_tracks),
+                track("now-unliked").model_dump(),
+            ]
+        )
+    )
+    spotify = FakeSpotify(tracks=[track("new"), *known_tracks])
+
+    summary = analyse_library.refresh_live_library_mirrors_routine(
+        spotify,
+        paths=paths,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+    )
+
+    assert set(ids(paths.liked_tracks_total)) == {
+        *(item.spotify_id for item in known_tracks),
+        "new",
+        "now-unliked",
+    }
+    assert max(spotify.track_calls) == 30
+    tracks_summary = next(
+        item for item in summary.resources if item.resource == "tracks"
+    )
+    assert tracks_summary.added == 1
+    assert tracks_summary.removed == 0
+    checkpoint = json.loads(paths.checkpoint.read_text())
+    assert checkpoint["track_refresh_mode"] == "incremental"
+    events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
+    assert any(item["event"] == "incremental_tracks_seeded" for item in events)
 
 
 def test_live_analysis_retries_only_server_errors_with_exponential_delays(

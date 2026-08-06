@@ -89,6 +89,13 @@ credential set and retry immediately, or `q` to stop cleanly. Rerunning the
 command resumes from its checkpoint. Both analysis modes keep JSON-lines audit
 logs and an undo manifest under `spotify_manager/files/`.
 
+The web app's **Live library mirrors** card always rebuilds saved albums, but
+defaults to **Recent additions** for Liked Songs. That mode merges unseen tracks
+from the newest API pages into `liked_tracks_total.json` and intentionally keeps
+older entries. Use **Full rebuild** occasionally to scan every liked track and
+remove tracks that have since been unliked. Both modes are checkpointed and keep
+the same backup and audit trail.
+
 ### `restore-library-sync`
 
 Restore the generated files from a completed analysis by passing the run id
