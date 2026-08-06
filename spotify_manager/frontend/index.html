@@ -609,7 +609,7 @@
     out.classList.add("show");
     var active = isAnalysisActive(job.status);
     if (mode === "mirrors") {
-      setMirrorMode(job.full_tracks ? "full" : "incremental");
+      setMirrorMode(job.full_rebuild ? "full" : "incremental");
       document.querySelectorAll('[data-action="mirrorMode"]').forEach(function (item) {
         item.disabled = active;
       });
@@ -2304,7 +2304,7 @@
         if (mode === "mirrors") {
           var mirrorMode = document.querySelector('[data-action="mirrorMode"].active');
           if (mirrorMode && mirrorMode.dataset.mirrorMode === "full") {
-            endpoint += "?full_tracks=true";
+            endpoint += "?full_rebuild=true";
           }
         }
         var job = await api(endpoint, { method: "POST" });

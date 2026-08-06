@@ -1877,18 +1877,18 @@ def test_sync_analysis_endpoint_uses_injected_no_retry_client(
     assert result["logs"][-1]["message"].startswith("Analysis completed")
 
 
-@pytest.mark.parametrize("full_tracks", [False, True])
+@pytest.mark.parametrize("full_rebuild", [False, True])
 def test_live_mirror_refresh_endpoint_skips_artist_progress(
     client: TestClient,
     monkeypatch,
-    full_tracks: bool,
+    full_rebuild: bool,
 ) -> None:
     from spotify_manager import api
 
     calls = []
 
     def complete_refresh(spotify, **kwargs):
-        calls.append((spotify, kwargs["full_tracks"]))
+        calls.append((spotify, kwargs["full_rebuild"]))
         kwargs["progress_callback"]("albums", 2, 2, "Complete")
         kwargs["progress_callback"]("tracks", 3, 3, "Complete")
         return analysis_summary("mirrors")
@@ -1901,7 +1901,7 @@ def test_live_mirror_refresh_endpoint_skips_artist_progress(
 
     response = client.post(
         "/commands/refresh-library-mirrors",
-        params={"full_tracks": str(full_tracks).lower()},
+        params={"full_rebuild": str(full_rebuild).lower()},
     )
 
     assert response.status_code == 202
@@ -1909,10 +1909,10 @@ def test_live_mirror_refresh_endpoint_skips_artist_progress(
     assert body["command"] == "refresh_library_mirrors"
     assert set(body["resources"]) == {"albums", "tracks"}
     assert body["resources"]["tracks"]["completed"] == 3
-    assert body["full_tracks"] is full_tracks
+    assert body["full_rebuild"] is full_rebuild
     assert len(calls) == 1
     assert isinstance(calls[0][0], FakeSpotify)
-    assert calls[0][1] is full_tracks
+    assert calls[0][1] is full_rebuild
 
 
 @pytest.mark.parametrize(

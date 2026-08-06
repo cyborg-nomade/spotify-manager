@@ -290,7 +290,7 @@ def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
         paths=paths,
         retry_base_seconds=0,
         retry_max_seconds=0,
-        full_tracks=True,
+        full_rebuild=True,
     )
 
     assert paths.albums_total.name == "albums_total_new.json"
@@ -313,11 +313,19 @@ def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
     assert ids(paths.liked_tracks_total) == ["old-track"]
 
 
-def test_live_mirror_incremental_tracks_merge_additions_without_removing(
+def test_live_mirror_incremental_resources_merge_additions_without_removing(
     tmp_path: Path,
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
-    paths.albums_total.write_text("[]")
+    known_albums = [album(f"known-album-{index:03}") for index in range(150)]
+    paths.albums_total.write_text(
+        json.dumps(
+            [
+                *(item.model_dump() for item in known_albums),
+                album("now-unsaved").model_dump(),
+            ]
+        )
+    )
     known_tracks = [track(f"known-{index:03}") for index in range(100)]
     paths.liked_tracks_total.write_text(
         json.dumps(
@@ -327,7 +335,10 @@ def test_live_mirror_incremental_tracks_merge_additions_without_removing(
             ]
         )
     )
-    spotify = FakeSpotify(tracks=[track("new"), *known_tracks])
+    spotify = FakeSpotify(
+        albums=[album("new-album"), *known_albums],
+        tracks=[track("new"), *known_tracks],
+    )
 
     summary = analyse_library.refresh_live_library_mirrors_routine(
         spotify,
@@ -336,20 +347,32 @@ def test_live_mirror_incremental_tracks_merge_additions_without_removing(
         retry_max_seconds=0,
     )
 
+    assert set(ids(paths.albums_total)) == {
+        *(item.spotify_id for item in known_albums),
+        "new-album",
+        "now-unsaved",
+    }
     assert set(ids(paths.liked_tracks_total)) == {
         *(item.spotify_id for item in known_tracks),
         "new",
         "now-unliked",
     }
+    assert max(spotify.album_calls) == 100
     assert max(spotify.track_calls) == 30
+    albums_summary = next(
+        item for item in summary.resources if item.resource == "albums"
+    )
     tracks_summary = next(
         item for item in summary.resources if item.resource == "tracks"
     )
+    assert albums_summary.added == 1
+    assert albums_summary.removed == 0
     assert tracks_summary.added == 1
     assert tracks_summary.removed == 0
     checkpoint = json.loads(paths.checkpoint.read_text())
-    assert checkpoint["track_refresh_mode"] == "incremental"
+    assert checkpoint["mirror_refresh_mode"] == "incremental"
     events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
+    assert any(item["event"] == "incremental_albums_seeded" for item in events)
     assert any(item["event"] == "incremental_tracks_seeded" for item in events)
 
 
