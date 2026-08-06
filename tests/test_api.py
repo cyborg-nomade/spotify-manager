@@ -183,6 +183,32 @@ def test_auth_check(client: TestClient) -> None:
     assert client.get("/auth/check").json() == {"status": "ok"}
 
 
+def test_library_mirror_status_reports_server_timestamps(
+    client: TestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spotify_manager import api
+
+    albums = tmp_path / "albums_total_new.json"
+    tracks = tmp_path / "liked_tracks_total.json"
+    albums.write_text("[]")
+    monkeypatch.setattr(api, "LIBRARY_MIRROR_FILE_PATHS", (albums, tracks))
+
+    response = client.get("/library-mirrors/status")
+
+    assert response.status_code == 200
+    files = response.json()["files"]
+    assert files[0]["filename"] == "albums_total_new.json"
+    assert files[0]["exists"] is True
+    assert datetime.fromisoformat(files[0]["updated_at"]).tzinfo is not None
+    assert files[1] == {
+        "filename": "liked_tracks_total.json",
+        "exists": False,
+        "updated_at": None,
+    }
+
+
 def test_artist_stats_endpoint(client: TestClient) -> None:
     def fail_if_export_is_loaded():
         raise AssertionError("live artist stats must not load YourLibrary.json")
@@ -1849,6 +1875,37 @@ def test_sync_analysis_endpoint_uses_injected_no_retry_client(
     ).json()
     assert any("credentials to app5" in entry["message"] for entry in result["logs"])
     assert result["logs"][-1]["message"].startswith("Analysis completed")
+
+
+def test_live_mirror_refresh_endpoint_skips_artist_progress(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    calls = []
+
+    def complete_refresh(spotify, **kwargs):
+        calls.append(spotify)
+        kwargs["progress_callback"]("albums", 2, 2, "Complete")
+        kwargs["progress_callback"]("tracks", 3, 3, "Complete")
+        return analysis_summary("mirrors")
+
+    monkeypatch.setattr(
+        api.library_analysis,
+        "refresh_live_library_mirrors_routine",
+        complete_refresh,
+    )
+
+    response = client.post("/commands/refresh-library-mirrors")
+
+    assert response.status_code == 202
+    body = wait_for_job_status(client, response.json()["job_id"], {"completed"})
+    assert body["command"] == "refresh_library_mirrors"
+    assert set(body["resources"]) == {"albums", "tracks"}
+    assert body["resources"]["tracks"]["completed"] == 3
+    assert len(calls) == 1
+    assert isinstance(calls[0], FakeSpotify)
 
 
 def test_live_analysis_job_can_be_cancelled_during_retry_wait(

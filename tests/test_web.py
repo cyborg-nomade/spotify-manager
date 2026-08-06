@@ -228,6 +228,9 @@ def test_main_page_places_playlist_routines_in_expected_order(
 ) -> None:
     response = client.get("/")
 
+    server_files_position = response.text.index('id="serverFilesCard"')
+    library_mirrors_position = response.text.index('id="libraryMirrorsCard"')
+    blast_position = response.text.index('id="blastCard"')
     daily_position = response.text.index('id="dailyMindRadioCard"')
     found_art_position = response.text.index('id="foundArtCard"')
     new_wine_position = response.text.index('id="newWineCard"')
@@ -240,7 +243,10 @@ def test_main_page_places_playlist_routines_in_expected_order(
     artist_position = response.text.index("<!-- Artist stats -->")
 
     assert (
-        daily_position
+        server_files_position
+        < library_mirrors_position
+        < blast_position
+        < daily_position
         < found_art_position
         < genre_position
         < new_wine_position
@@ -303,6 +309,10 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "job.history_backup_path" in response.text
     assert "restoreActiveScrobbleHistoryJobs();" in response.text
     assert 'data-action="openGenreReveal"' in response.text
+    assert 'data-mode="mirrors"' in response.text
+    assert '"/commands/refresh-library-mirrors"' in response.text
+    assert 'api("/library-mirrors/status")' in response.text
+    assert "loadServerFilesStatus();" in response.text
 
 
 def test_main_page_hides_legacy_library_and_command_cards(
@@ -316,6 +326,8 @@ def test_main_page_hides_legacy_library_and_command_cards(
     assert "<summary>Commands</summary>" not in response.text
     assert 'data-action="countArtists"' not in response.text
     assert 'data-action="refreshLibrary"' not in response.text
-    assert '<button class="primary" data-action="analysis"' not in response.text
+    assert 'data-action="analysis" data-mode="async"' not in response.text
+    assert 'data-action="analysis" data-mode="sync"' not in response.text
+    assert 'data-action="analysis" data-mode="mirrors"' in response.text
     assert '<button class="ghost" data-action="cmd"' not in response.text
-    assert "restoreActiveAnalysisJobs();" not in response.text
+    assert "restoreActiveAnalysisJobs();" in response.text

@@ -20,6 +20,7 @@ from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
 from functools import lru_cache
+from pathlib import Path
 from threading import Event
 from threading import Lock
 from threading import Thread
@@ -134,6 +135,20 @@ class AnalysisJobResult(BaseModel):
     backup_dir: str | None = None
     resources: dict[str, AnalysisResourceProgress]
     logs: list[AnalysisJobLog] = Field(default_factory=list)
+
+
+class ServerFileStatus(BaseModel):
+    """Filesystem update status for one canonical server-side mirror."""
+
+    filename: str
+    exists: bool
+    updated_at: str | None = None
+
+
+class LibraryMirrorFilesStatus(BaseModel):
+    """Update status for the files consumed by New Wine."""
+
+    files: list[ServerFileStatus]
 
 
 class BlastSelectionResult(BaseModel):
@@ -489,6 +504,10 @@ _analysis_logger = logging.getLogger(__name__)
 _blast_jobs: dict[str, _BlastJob] = {}
 _blast_jobs_lock = Lock()
 _MAX_BLAST_LOGS = 250
+LIBRARY_MIRROR_FILE_PATHS = (
+    library_analysis.DEFAULT_LIVE_MIRROR_PATHS.albums_total,
+    library_analysis.DEFAULT_LIVE_MIRROR_PATHS.liked_tracks_total,
+)
 
 
 @lru_cache
@@ -670,12 +689,24 @@ def _run_analysis_job(
                 progress_callback=progress_callback,
                 cancel_check=job.cancel_event.is_set,
             )
-        else:
+        elif mode == "sync":
             if spotify is None:
                 raise library_analysis.LibrarySyncError(
                     "A Spotify client is required for live analysis."
                 )
             summary = library_analysis.analyse_library_sync_routine(
+                spotify,
+                echo=echo,
+                progress_callback=progress_callback,
+                retry_wait=retry_wait,
+                cancel_check=job.cancel_event.is_set,
+            )
+        else:
+            if spotify is None:
+                raise library_analysis.LibrarySyncError(
+                    "A Spotify client is required for live mirror refresh."
+                )
+            summary = library_analysis.refresh_live_library_mirrors_routine(
                 spotify,
                 echo=echo,
                 progress_callback=progress_callback,
@@ -737,7 +768,9 @@ def start_analysis_job(
     spotify: Spotify | None = None,
 ) -> AnalysisJobResult:
     """Start one background analysis, rejecting duplicate active modes."""
-    command = f"analyse_library_{mode}"
+    command = (
+        "refresh_library_mirrors" if mode == "mirrors" else f"analyse_library_{mode}"
+    )
     with _analysis_jobs_lock:
         for existing in _analysis_jobs.values():
             if (
@@ -758,7 +791,11 @@ def start_analysis_job(
                 command=command,
                 resources={
                     resource: AnalysisResourceProgress()
-                    for resource in ("albums", "tracks", "artists")
+                    for resource in (
+                        ("albums", "tracks")
+                        if mode == "mirrors"
+                        else ("albums", "tracks", "artists")
+                    )
                 },
             ),
             cancel_event=Event(),
@@ -1270,8 +1307,7 @@ def _run_new_wine_job(
             job.result.status = "paused"
             job.result.pending_choice = None
             job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc)
-                + ". "
+                review_album_limits.format_transient_spotify_failure(exc) + ". "
                 "Progress was saved."
             )
             _append_blast_log_locked(job, job.result.detail)
@@ -1542,8 +1578,7 @@ def _run_slow_listening_job(
             job.result.status = "paused"
             job.result.slow_listening_pending_choice = None
             job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc)
-                + ". "
+                review_album_limits.format_transient_spotify_failure(exc) + ". "
                 "Progress was saved."
             )
             _append_blast_log_locked(job, job.result.detail)
@@ -3709,6 +3744,35 @@ def cmd_update_scrobble_history(
     )
 
 
+def _server_file_status(path: Path) -> ServerFileStatus:
+    """Return a UTC modification timestamp without failing on a missing file."""
+    try:
+        modified_at = datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat()
+    except FileNotFoundError:
+        return ServerFileStatus(filename=path.name, exists=False)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not read server file status for {path.name}.",
+        ) from exc
+    return ServerFileStatus(
+        filename=path.name,
+        exists=True,
+        updated_at=modified_at,
+    )
+
+
+@app.get(
+    "/library-mirrors/status",
+    response_model=LibraryMirrorFilesStatus,
+)
+def library_mirror_files_status() -> LibraryMirrorFilesStatus:
+    """Return update timestamps for New Wine's canonical mirror files."""
+    return LibraryMirrorFilesStatus(
+        files=[_server_file_status(path) for path in LIBRARY_MIRROR_FILE_PATHS]
+    )
+
+
 @app.get(
     "/commands/update-scrobble-history-jobs",
     response_model=list[BlastJobResult],
@@ -3753,6 +3817,16 @@ def cmd_analyse_library_async() -> AnalysisJobResult:
 def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
     """Start a live-only ``*_sync`` library analysis."""
     return start_analysis_job("sync", client)
+
+
+@app.post(
+    "/commands/refresh-library-mirrors",
+    response_model=AnalysisJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_refresh_library_mirrors(client: AnalysisClientDep) -> AnalysisJobResult:
+    """Refresh canonical saved-album and liked-track mirrors from Spotify."""
+    return start_analysis_job("mirrors", client)
 
 
 @app.get(

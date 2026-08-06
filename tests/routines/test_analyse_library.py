@@ -270,6 +270,47 @@ def test_live_analysis_reconciles_additions_without_restarting_on_new_total(
     assert {item.source for item in summary.resources} == {"live_api"}
 
 
+def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    paths.albums_total.write_text(json.dumps([album("old-album").model_dump()]))
+    paths.liked_tracks_total.write_text(
+        json.dumps([track("old-track").model_dump()])
+    )
+    spotify = FakeSpotify(
+        albums=[album("new-album")],
+        tracks=[track("new-track")],
+        artists=[artist("must-not-be-read")],
+    )
+
+    summary = analyse_library.refresh_live_library_mirrors_routine(
+        spotify,
+        paths=paths,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+    )
+
+    assert paths.albums_total.name == "albums_total_new.json"
+    assert paths.liked_tracks_total.name == "liked_tracks_total.json"
+    assert ids(paths.albums_total) == ["new-album"]
+    assert ids(paths.liked_tracks_total) == ["new-track"]
+    assert not paths.artists_total.exists()
+    assert not paths.stats_history.exists()
+    assert spotify.artist_calls == []
+    assert summary.mode == "mirrors"
+    assert [item.resource for item in summary.resources] == ["albums", "tracks"]
+    backup_dir = Path(summary.backup_dir)
+    assert (backup_dir / "albums.before.json").exists()
+    assert (backup_dir / "tracks.before.json").exists()
+
+    restored = analyse_library.restore_library_sync(summary.run_id, paths=paths)
+
+    assert restored == ("albums_total_new.json", "liked_tracks_total.json")
+    assert ids(paths.albums_total) == ["old-album"]
+    assert ids(paths.liked_tracks_total) == ["old-track"]
+
+
 def test_live_analysis_retries_only_server_errors_with_exponential_delays(
     tmp_path: Path,
 ) -> None:

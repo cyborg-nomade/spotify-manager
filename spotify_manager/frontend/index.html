@@ -168,6 +168,14 @@
   .analysis-log-line { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 8px; padding: 2px 0; }
   .analysis-log-time { color: var(--muted); font-variant-numeric: tabular-nums; }
   .analysis-log-message { overflow-wrap: anywhere; }
+  .server-files { border-top: 1px solid var(--border); }
+  .server-file {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px;
+    align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .server-file-name { font-size: .8rem; font-weight: 700; overflow-wrap: anywhere; }
+  .server-file-date { color: var(--muted); font-size: .72rem; text-align: right; }
+  .server-files-error { color: var(--red); font-size: .78rem; }
   .meter > span.indeterminate { width: 32%; animation: scan 1.2s ease-in-out infinite alternate; }
   @keyframes scan { from { transform: translateX(-20%); } to { transform: translateX(230%); } }
   @media (max-width: 380px) {
@@ -222,6 +230,29 @@
       <h1>Spotify Manager</h1>
       <div class="status" id="health"><span class="pill"></span><span id="healthTxt">checking…</span></div>
     </header>
+
+    <section class="card" id="serverFilesCard">
+      <h2>Server files</h2>
+      <div class="server-files" id="serverFilesStatus">
+        <div class="server-file">
+          <span class="server-file-name">albums_total_new.json</span>
+          <span class="server-file-date">Checking…</span>
+        </div>
+        <div class="server-file">
+          <span class="server-file-name">liked_tracks_total.json</span>
+          <span class="server-file-date">Checking…</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="libraryMirrorsCard">
+      <h2>Live library mirrors</h2>
+      <div class="analysis-actions">
+        <button class="primary" data-action="analysis" data-mode="mirrors">Update from Spotify</button>
+        <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
+      </div>
+      <div class="analysis-progress" id="analysis-mirrors"></div>
+    </section>
 
     <section class="card" id="blastCard">
       <h2>A blast from the past</h2>
@@ -489,6 +520,31 @@
     renderResult(el, '<div class="kv" style="color:var(--red)">✕ ' + esc(err.detail || "Error") + "</div>");
   }
 
+  function renderServerFilesStatus(data) {
+    var out = document.getElementById("serverFilesStatus");
+    var files = (data && data.files) || [];
+    out.innerHTML = files.map(function (file) {
+      var label = "Missing";
+      if (file.exists && file.updated_at) {
+        var updated = new Date(file.updated_at);
+        label = isNaN(updated.getTime()) ? file.updated_at : updated.toLocaleString();
+      }
+      return '<div class="server-file">' +
+        '<span class="server-file-name">' + esc(file.filename) + '</span>' +
+        '<span class="server-file-date">' + esc(label) + '</span></div>';
+    }).join("");
+  }
+
+  async function loadServerFilesStatus() {
+    var out = document.getElementById("serverFilesStatus");
+    try {
+      renderServerFilesStatus(await api("/library-mirrors/status"));
+    } catch (e) {
+      out.innerHTML = '<div class="server-files-error">✕ ' +
+        esc(e.detail || "Could not read server file dates") + '</div>';
+    }
+  }
+
   function isAnalysisActive(status) {
     return ["queued", "running", "waiting", "cancelling"].indexOf(status) !== -1;
   }
@@ -498,7 +554,9 @@
     var start = document.querySelector('[data-action="analysis"][data-mode="' + mode + '"]');
     var cancel = document.querySelector('[data-action="cancelAnalysis"][data-mode="' + mode + '"]');
     var labels = { albums: "Albums", tracks: "Tracks", artists: "Artists" };
-    var rows = ["albums", "tracks", "artists"].map(function (name) {
+    var rows = ["albums", "tracks", "artists"].filter(function (name) {
+      return job.resources && Object.prototype.hasOwnProperty.call(job.resources, name);
+    }).map(function (name) {
       var item = (job.resources && job.resources[name]) || { completed: 0, total: null, status: "Queued" };
       var reportedTotal = typeof item.total === "number" ? item.total : null;
       var total = reportedTotal == null ? null : Math.max(reportedTotal, item.completed);
@@ -553,6 +611,7 @@
         setTimeout(function () { pollAnalysis(mode, jobId); }, 1500);
       } else if (job.status === "completed") {
         showToast("Analysis finished", "ok");
+        if (mode === "mirrors") loadServerFilesStatus();
       } else if (job.status !== "cancelled" && job.status !== "paused") {
         showToast("Analysis " + job.status, "err");
       }
@@ -569,8 +628,7 @@
     try {
       var jobs = await api("/commands/library-analysis-jobs");
       jobs.forEach(function (job) {
-        var mode = job.command === "analyse_library_sync" ? "sync" :
-          (job.command === "analyse_library_async" ? "async" : null);
+        var mode = job.command === "refresh_library_mirrors" ? "mirrors" : null;
         if (!mode) return;
         analysisJobs[mode] = job;
         renderAnalysisJob(mode, job);
@@ -2218,7 +2276,10 @@
       var out = document.getElementById("analysis-" + mode);
       setBusy(btn, true, "Starting…");
       try {
-        var job = await api("/commands/analyse-library-" + mode, { method: "POST" });
+        var endpoint = mode === "mirrors"
+          ? "/commands/refresh-library-mirrors"
+          : "/commands/analyse-library-" + mode;
+        var job = await api(endpoint, { method: "POST" });
         analysisJobs[mode] = job;
         renderAnalysisJob(mode, job);
         pollAnalysis(mode, job.job_id);
@@ -2325,6 +2386,8 @@
     gate.classList.add("hidden");
     app.classList.remove("hidden");
     checkHealth();
+    loadServerFilesStatus();
+    restoreActiveAnalysisJobs();
     restoreActiveBlastJobs();
     restoreActiveDailyMindRadioJobs();
     restoreActiveFoundArtJobs();
