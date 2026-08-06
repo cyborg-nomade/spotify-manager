@@ -2090,8 +2090,13 @@ def wait_for_library_retry(
     if progress is not None:
         progress.stop()
     retry_at = datetime.now().astimezone() + timedelta(seconds=notice.delay_seconds)
+    failure = (
+        f"Spotify HTTP {notice.http_status}"
+        if notice.http_status is not None
+        else "Spotify connection interrupted"
+    )
     console.print(
-        f"Spotify HTTP {notice.http_status} while {notice.operation}.",
+        f"{failure} while {notice.operation}.",
         style="bold yellow",
     )
     console.print(

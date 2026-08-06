@@ -508,6 +508,10 @@ LIBRARY_MIRROR_FILE_PATHS = (
     library_analysis.DEFAULT_LIVE_MIRROR_PATHS.albums_total,
     library_analysis.DEFAULT_LIVE_MIRROR_PATHS.liked_tracks_total,
 )
+SPOTIFY_CONNECTION_FAILURE_DETAIL = (
+    "Spotify connection remained unavailable after automatic retries. "
+    "Please try again shortly."
+)
 
 
 @lru_cache
@@ -655,17 +659,21 @@ def _run_analysis_job(
 
     def retry_wait(notice: library_analysis.RetryNotice) -> bool:
         retry_at = datetime.now(UTC) + timedelta(seconds=notice.delay_seconds)
+        failure = (
+            f"Spotify HTTP {notice.http_status}"
+            if notice.http_status is not None
+            else "Spotify connection interrupted"
+        )
         with _analysis_jobs_lock:
             job.result.status = "waiting"
             job.result.retry_at = retry_at.isoformat()
             job.result.detail = (
-                f"Spotify HTTP {notice.http_status}; retry {notice.attempt} "
-                f"while {notice.operation}"
+                f"{failure}; retry {notice.attempt} while {notice.operation}"
             )
             _append_job_log_locked(
                 job,
                 f"Waiting until {retry_at.isoformat()} before retry "
-                f"{notice.attempt} after Spotify HTTP {notice.http_status} "
+                f"{notice.attempt} after {failure} "
                 f"while {notice.operation}. Cancel to save and stop.",
             )
         cancelled = job.cancel_event.wait(notice.delay_seconds)
@@ -887,6 +895,11 @@ def _run_blast_job(
             job.result.status = "failed"
             job.result.detail = str(exc)
             _append_blast_log_locked(job, f"Playlist routine failed: {exc}")
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
         _analysis_logger.exception("Unexpected blast-from-the-past error")
         with _blast_jobs_lock:
@@ -959,6 +972,11 @@ def _run_daily_mind_radio_job(
             job.result.status = "failed"
             job.result.detail = str(exc)
             _append_blast_log_locked(job, f"Playlist routine failed: {exc}")
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
         _analysis_logger.exception("Unexpected Daily Mind Radio error")
         with _blast_jobs_lock:
@@ -1078,6 +1096,11 @@ def _run_found_art_job(
             job.result.status = "failed"
             job.result.detail = str(exc)
             _append_blast_log_locked(job, f"Found Art failed: {exc}")
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
         _analysis_logger.exception("Unexpected Found Art error")
         with _blast_jobs_lock:

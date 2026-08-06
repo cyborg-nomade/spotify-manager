@@ -15,6 +15,8 @@ from typing import Any
 from typing import Literal
 
 from pydantic import BaseModel
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
@@ -59,9 +61,9 @@ LibraryModel = YourLibraryAlbum | YourLibraryTrack | YourLibraryArtist
 
 @dataclass(frozen=True)
 class RetryNotice:
-    """One scheduled retry after a transient Spotify server response."""
+    """One scheduled retry after a transient Spotify failure."""
 
-    http_status: int
+    http_status: int | None
     operation: str
     attempt: int
     delay_seconds: int
@@ -883,7 +885,7 @@ def spotify_call[T](
     retry_base_seconds: int,
     retry_max_seconds: int,
 ) -> T:
-    """Call Spotify, retrying only 5xx responses with exponential backoff."""
+    """Call Spotify, retrying 5xx and transport failures with backoff."""
     attempt = 0
     while True:
         try:
@@ -910,6 +912,32 @@ def spotify_call[T](
             )
             echo(
                 f"Spotify HTTP {exc.http_status} while {description}; "
+                f"retrying in {delay} seconds (attempt {attempt})."
+            )
+            should_continue = (
+                retry_wait(notice)
+                if retry_wait is not None
+                else _default_retry_wait(delay, sleep)
+            )
+            if not should_continue:
+                raise LibraryAnalysisCancelledError(
+                    "Live analysis paused during a Spotify retry wait."
+                ) from exc
+        except (RequestsConnectionError, RequestsTimeout) as exc:
+            attempt += 1
+            delay = retry_delay(retry_base_seconds, retry_max_seconds, attempt)
+            notice = RetryNotice(None, description, attempt, delay)
+            append_event(
+                paths,
+                str(checkpoint["run_id"]),
+                "transport_retry_scheduled",
+                error=type(exc).__name__,
+                operation=description,
+                attempt=attempt,
+                delay_seconds=delay,
+            )
+            echo(
+                f"Spotify connection interrupted while {description}; "
                 f"retrying in {delay} seconds (attempt {attempt})."
             )
             should_continue = (

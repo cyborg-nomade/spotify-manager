@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from requests.exceptions import ConnectionError as RequestsConnectionError
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -333,6 +334,43 @@ def test_live_analysis_retries_only_server_errors_with_exponential_delays(
     events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
     retries = [item for item in events if item["event"] == "server_retry_scheduled"]
     assert [item["delay_seconds"] for item in retries] == [10, 20]
+
+
+def test_live_analysis_retries_connection_resets_with_exponential_delays(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "sync")
+    spotify = FakeSpotify(albums=[album("album")])
+    original = spotify.current_user_saved_albums
+    attempts = 0
+    notices: list[analyse_library.RetryNotice] = []
+
+    def flaky_saved_albums(limit: int, offset: int) -> dict:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RequestsConnectionError(
+                "Connection aborted.",
+                ConnectionResetError(104, "Connection reset by peer"),
+            )
+        return original(limit, offset)
+
+    spotify.current_user_saved_albums = flaky_saved_albums  # type: ignore[method-assign]
+
+    analyse_library.analyse_library_sync_routine(
+        spotify,
+        paths=paths,
+        retry_wait=lambda notice: notices.append(notice) is None,
+    )
+
+    assert attempts > 1
+    assert len(notices) == 1
+    assert notices[0].http_status is None
+    assert notices[0].delay_seconds == 10
+    events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
+    retries = [item for item in events if item["event"] == "transport_retry_scheduled"]
+    assert len(retries) == 1
+    assert retries[0]["error"] == "ConnectionError"
 
 
 def test_retry_delay_stays_capped_for_many_failures() -> None:

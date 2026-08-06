@@ -1908,16 +1908,25 @@ def test_live_mirror_refresh_endpoint_skips_artist_progress(
     assert isinstance(calls[0], FakeSpotify)
 
 
+@pytest.mark.parametrize(
+    ("http_status", "failure"),
+    [
+        (502, "Spotify HTTP 502"),
+        (None, "Spotify connection interrupted"),
+    ],
+)
 def test_live_analysis_job_can_be_cancelled_during_retry_wait(
     client: TestClient,
     monkeypatch,
+    http_status: int | None,
+    failure: str,
 ) -> None:
     from spotify_manager import api
 
     def wait_for_server(_spotify, **kwargs):
         keep_waiting = kwargs["retry_wait"](
             api.library_analysis.RetryNotice(
-                http_status=502,
+                http_status=http_status,
                 operation="reading artists",
                 attempt=1,
                 delay_seconds=60,
@@ -1937,7 +1946,10 @@ def test_live_analysis_job_can_be_cancelled_during_retry_wait(
     job_id = started.json()["job_id"]
     waiting = wait_for_job_status(client, job_id, {"waiting"})
     assert waiting["retry_at"] is not None
-    assert any("Waiting until" in entry["message"] for entry in waiting["logs"])
+    assert any(
+        "Waiting until" in entry["message"] and failure in entry["message"]
+        for entry in waiting["logs"]
+    )
 
     cancelled = client.post(f"/commands/library-analysis-jobs/{job_id}/cancel")
 
