@@ -1,4 +1,4 @@
-"""Tests for the files-first artist-stats and album-evaluation lookups."""
+"""Tests for local and live artist-stats and album-evaluation lookups."""
 
 import pytest
 
@@ -8,9 +8,12 @@ from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
+from spotify_manager.processors.library_lookups import AmbiguousArtistError
 from spotify_manager.processors.library_lookups import ArtistNotFoundError
 from spotify_manager.processors.library_lookups import evaluate_album
+from spotify_manager.processors.library_lookups import evaluate_album_live
 from spotify_manager.processors.library_lookups import get_artist_library_stats
+from spotify_manager.processors.library_lookups import get_live_artist_library_stats
 from spotify_manager.processors.library_lookups import required_liked_tracks
 
 
@@ -57,6 +60,130 @@ class FakeSpotify:
         return {"items": self._tracks_by_album.get(album_id, []), "next": None}
 
 
+class LiveFakeSpotify:
+    """Spotify stand-in covering live artist and album library lookups."""
+
+    def __init__(self) -> None:
+        self.artist_search = [{"id": "art1", "name": "Radiohead"}]
+        self.contains_album_calls: list[list[str]] = []
+        self.contains_track_calls: list[list[str]] = []
+
+    @staticmethod
+    def _artist(artist_id: str = "art1", name: str = "Radiohead") -> dict:
+        return {"id": artist_id, "name": name}
+
+    @classmethod
+    def _album_summary(
+        cls,
+        album_id: str,
+        name: str,
+        artist_id: str = "art1",
+    ) -> dict:
+        return {
+            "id": album_id,
+            "name": name,
+            "artists": [cls._artist(artist_id, "Radiohead")],
+        }
+
+    @classmethod
+    def _album(cls, album_id: str) -> dict:
+        names = {"alb1": "OK Computer", "alb2": "The Bends"}
+        tracks = {
+            "alb1": [
+                {
+                    "id": "t1",
+                    "name": "Airbag",
+                    "uri": "spotify:track:t1",
+                    "artists": [cls._artist()],
+                },
+                {
+                    "id": "guest",
+                    "name": "Guest Track",
+                    "uri": "spotify:track:guest",
+                    "artists": [cls._artist("other", "Other"), cls._artist()],
+                },
+                {
+                    "id": "shared",
+                    "name": "Shared",
+                    "uri": "spotify:track:shared",
+                    "artists": [cls._artist()],
+                },
+            ],
+            "alb2": [
+                {
+                    "id": "shared",
+                    "name": "Shared",
+                    "uri": "spotify:track:shared",
+                    "artists": [cls._artist()],
+                },
+                {
+                    "id": "t2",
+                    "name": "Bones",
+                    "uri": "spotify:track:t2",
+                    "artists": [cls._artist()],
+                },
+            ],
+        }
+        return {
+            **cls._album_summary(album_id, names[album_id]),
+            "tracks": {"items": tracks[album_id], "next": None},
+        }
+
+    def search(
+        self, q, limit=10, offset=0, type="track", market=None  # noqa: A002
+    ):
+        if type == "artist":
+            return {"artists": {"items": self.artist_search}}
+        if type == "album":
+            items = [] if "Nope" in q else [self._album_summary("alb1", "OK Computer")]
+            return {"albums": {"items": items}}
+        raise AssertionError(f"unexpected search type: {type}")
+
+    def artist(self, artist_id):
+        return self._artist(artist_id)
+
+    def artist_albums(
+        self,
+        artist_id,
+        album_type=None,
+        include_groups=None,
+        country=None,
+        limit=20,
+        offset=0,
+    ):
+        if offset == 0:
+            return {
+                "items": [
+                    self._album_summary("alb1", "OK Computer"),
+                    self._album_summary("guest-album", "Guest", "other"),
+                    self._album_summary("alb1", "OK Computer"),
+                ],
+                "next": "next-page",
+            }
+        return {
+            "items": [self._album_summary("alb2", "The Bends")],
+            "next": None,
+        }
+
+    def albums(self, album_ids, market=None):
+        return {"albums": [self._album(album_id) for album_id in album_ids]}
+
+    def album(self, album_id, market=None):
+        return self._album(album_id)
+
+    def album_tracks(self, album_id, limit=50, offset=0, market=None):
+        return self._album(album_id)["tracks"]
+
+    def current_user_saved_albums_contains(self, album_ids):
+        self.contains_album_calls.append(album_ids)
+        return [album_id == "alb1" for album_id in album_ids]
+
+    def current_user_saved_tracks_contains(self, track_ids=None):
+        track_ids = track_ids or []
+        self.contains_track_calls.append(track_ids)
+        return [track_id in {"t1", "shared"} for track_id in track_ids]
+
+
 def test_artist_stats_by_name() -> None:
     stats = get_artist_library_stats(name="radiohead ", library=_library())
     assert stats.artist_id == "art1"
@@ -75,6 +202,30 @@ def test_artist_stats_by_id_resolves_name() -> None:
 def test_artist_stats_unknown_id_raises() -> None:
     with pytest.raises(ArtistNotFoundError):
         get_artist_library_stats(artist_id="nope", library=_library())
+
+
+def test_live_artist_stats_use_live_saved_and_liked_statuses() -> None:
+    sp = LiveFakeSpotify()
+
+    stats = get_live_artist_library_stats(sp, name="radiohead")
+
+    assert stats.artist_id == "art1"
+    assert stats.artist_name == "Radiohead"
+    assert stats.saved_releases == 1
+    assert stats.liked_tracks == 2
+    assert stats.source == "spotify-live"
+    assert sp.contains_album_calls == [["alb1", "alb2"]]
+    assert sp.contains_track_calls == [["t1", "shared", "t2"]]
+
+
+def test_live_artist_stats_require_an_id_for_ambiguous_exact_names() -> None:
+    sp = LiveFakeSpotify()
+    sp.artist_search.append({"id": "art2", "name": "Radiohead"})
+
+    with pytest.raises(AmbiguousArtistError) as exc:
+        get_live_artist_library_stats(sp, name="Radiohead")
+
+    assert [candidate["id"] for candidate in exc.value.candidates] == ["art1", "art2"]
 
 
 def test_evaluate_album_resolves_exact_id_not_search() -> None:
@@ -118,6 +269,23 @@ def test_evaluate_album_rounds_down_required_likes_for_odd_track_counts() -> Non
     assert result.liked_ratio == 0.4
     assert result.required_liked_tracks == 2
     assert result.decision == "keep"
+
+
+def test_live_album_evaluation_uses_fresh_liked_statuses() -> None:
+    sp = LiveFakeSpotify()
+
+    result = evaluate_album_live(sp, name="OK Computer")
+
+    assert result.album_id == "alb1"
+    assert result.album_name == "OK Computer"
+    assert result.artist_name == "Radiohead"
+    assert result.total_tracks == 3
+    assert result.liked_tracks == 2
+    assert result.required_liked_tracks == 1
+    assert result.decision == "keep"
+    assert result.source == "spotify-live"
+    assert result.from_cache is False
+    assert sp.contains_track_calls == [["t1", "guest", "shared"]]
 
 
 def test_required_liked_tracks_keeps_non_empty_positive_threshold_meaningful() -> None:

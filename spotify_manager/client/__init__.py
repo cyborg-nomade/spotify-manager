@@ -6,12 +6,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
+from time import sleep
 from typing import Any
 from typing import Protocol
 from urllib.parse import urlparse
 
 import requests
 import spotipy
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 from spotipy.cache_handler import CacheFileHandler
 from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
@@ -27,6 +30,8 @@ logger = logging.getLogger(__name__)
 LOOPBACK_HOSTS = {"127.0.0.1", "::1"}
 ROTATING_STATUS_FORCELIST = (500, 502, 503, 504)
 OPTIONAL_APP_LABELS = ("app5", "app6", "app7", "app8")
+TRANSIENT_CONNECTION_RETRY_BASE_SECONDS = 10
+TRANSIENT_CONNECTION_MAX_RETRIES = 3
 SpotifyEventCallback = Callable[[str], None]
 LOCALHOST_REDIRECT_MESSAGE = (
     "Spotify no longer accepts localhost redirect URIs. Set "
@@ -300,9 +305,10 @@ class RotatingSpotify(spotipy.Spotify):
         payload: object,
         params: dict[str, Any],
     ) -> Any:
-        """Retry a rate-limited request through the next configured app."""
+        """Retry rate limits and interrupted reads, including OAuth refreshes."""
         with self._rotation_lock:
             attempted = {self._active_app_index}
+            connection_retries = 0
             while True:
                 try:
                     return super()._internal_call(method, url, payload, params)
@@ -319,6 +325,20 @@ class RotatingSpotify(spotipy.Spotify):
                             "rate-limited or unavailable."
                         )
                         raise
+                except RequestsConnectionError, RequestsTimeout:
+                    retry_limit = min(self.retries, TRANSIENT_CONNECTION_MAX_RETRIES)
+                    if method.upper() != "GET" or connection_retries >= retry_limit:
+                        raise
+                    delay = TRANSIENT_CONNECTION_RETRY_BASE_SECONDS * (
+                        2**connection_retries
+                    )
+                    connection_retries += 1
+                    self._emit(
+                        "Spotify connection interrupted; retrying in "
+                        f"{delay} seconds (attempt {connection_retries + 1} of "
+                        f"{retry_limit + 1})."
+                    )
+                    sleep(delay)
 
 
 def get_spotipy_client(

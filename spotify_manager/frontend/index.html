@@ -168,6 +168,14 @@
   .analysis-log-line { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 8px; padding: 2px 0; }
   .analysis-log-time { color: var(--muted); font-variant-numeric: tabular-nums; }
   .analysis-log-message { overflow-wrap: anywhere; }
+  .server-files { border-top: 1px solid var(--border); }
+  .server-file {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px;
+    align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .server-file-name { font-size: .8rem; font-weight: 700; overflow-wrap: anywhere; }
+  .server-file-date { color: var(--muted); font-size: .72rem; text-align: right; }
+  .server-files-error { color: var(--red); font-size: .78rem; }
   .meter > span.indeterminate { width: 32%; animation: scan 1.2s ease-in-out infinite alternate; }
   @keyframes scan { from { transform: translateX(-20%); } to { transform: translateX(230%); } }
   @media (max-width: 380px) {
@@ -222,6 +230,33 @@
       <h1>Spotify Manager</h1>
       <div class="status" id="health"><span class="pill"></span><span id="healthTxt">checking…</span></div>
     </header>
+
+    <section class="card" id="serverFilesCard">
+      <h2>Server files</h2>
+      <div class="server-files" id="serverFilesStatus">
+        <div class="server-file">
+          <span class="server-file-name">albums_total_new.json</span>
+          <span class="server-file-date">Checking…</span>
+        </div>
+        <div class="server-file">
+          <span class="server-file-name">liked_tracks_total.json</span>
+          <span class="server-file-date">Checking…</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="libraryMirrorsCard">
+      <h2>Live library mirrors</h2>
+      <div class="mode-switch" role="group" aria-label="Liked tracks refresh mode">
+        <button class="active" data-action="mirrorMode" data-mirror-mode="incremental" aria-pressed="true">Recent additions</button>
+        <button data-action="mirrorMode" data-mirror-mode="full" aria-pressed="false">Full rebuild</button>
+      </div>
+      <div class="analysis-actions">
+        <button class="primary" data-action="analysis" data-mode="mirrors">Update from Spotify</button>
+        <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
+      </div>
+      <div class="analysis-progress" id="analysis-mirrors"></div>
+    </section>
 
     <section class="card" id="blastCard">
       <h2>A blast from the past</h2>
@@ -382,59 +417,10 @@
       <input id="albumId" type="text" placeholder="album id" />
       <label for="threshold">Keep threshold (liked ratio)</label>
       <input id="threshold" type="number" min="0" max="1" step="0.05" value="0.5" />
-      <div class="inline"><input type="checkbox" id="refreshCache" /> <label for="refreshCache" style="margin:0">Refresh track-list cache (live API call)</label></div>
       <div class="btns">
         <button class="primary" data-action="albumEval">Evaluate album</button>
       </div>
       <div class="result" id="albumResult"></div>
-    </section>
-
-    <!-- Quick utilities -->
-    <section class="card">
-      <h2>Library</h2>
-      <div class="btns">
-        <button class="ghost" data-action="countArtists">Count artists in library</button>
-        <button class="ghost" data-action="refreshLibrary">Refresh library cache</button>
-      </div>
-      <div class="result" id="utilResult"></div>
-    </section>
-
-    <!-- Commands -->
-    <section class="card">
-      <h2>Library analyses</h2>
-      <div class="analysis-row" data-analysis="async">
-        <div class="analysis-title">YourLibrary.json → *_async</div>
-        <div class="analysis-actions">
-          <button class="primary" data-action="analysis" data-mode="async">Build async files</button>
-          <button class="danger cancel" data-action="cancelAnalysis" data-mode="async" hidden title="Cancel analysis">×</button>
-        </div>
-        <div class="analysis-progress" id="analysis-async"></div>
-      </div>
-      <div class="analysis-row" data-analysis="sync">
-        <div class="analysis-title">Spotify API → *_sync</div>
-        <div class="analysis-actions">
-          <button class="primary" data-action="analysis" data-mode="sync">Build sync files</button>
-          <button class="danger cancel" data-action="cancelAnalysis" data-mode="sync" hidden title="Cancel analysis">×</button>
-        </div>
-        <div class="analysis-progress" id="analysis-sync"></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <details class="commands">
-        <summary>Commands</summary>
-        <p class="cmd-note">These run the same routines as the CLI. The ones marked ⚠ modify your Spotify library and/or the data files on the server. You'll be asked to confirm.</p>
-        <div class="btns">
-          <button class="ghost" data-action="cmd" data-cmd="count-artists" data-method="GET">Count artists</button>
-          <button class="ghost" data-action="cmd" data-cmd="compare-lib-files" data-method="POST">Compare library files</button>
-          <button class="danger" data-action="cmd" data-cmd="convert-lib" data-method="POST" data-confirm="1">⚠ Convert library file</button>
-          <button class="danger" data-action="cmd" data-cmd="analyse-comp" data-method="POST" data-confirm="1">⚠ Analyse comparison (live)</button>
-          <button class="danger" data-action="cmd" data-cmd="update-total-albums" data-method="POST" data-confirm="1">⚠ Update total albums (live)</button>
-          <button class="danger" data-action="cmd" data-cmd="restore-your-library" data-method="POST" data-confirm="1">⚠ Restore library to Spotify</button>
-          <button class="danger" data-action="cmd" data-cmd="monthly-routines" data-method="POST" data-confirm="1">⚠ Run monthly routines</button>
-        </div>
-        <div class="result" id="cmdResult"></div>
-      </details>
     </section>
 
     <div class="foot">
@@ -538,8 +524,41 @@
     renderResult(el, '<div class="kv" style="color:var(--red)">✕ ' + esc(err.detail || "Error") + "</div>");
   }
 
+  function renderServerFilesStatus(data) {
+    var out = document.getElementById("serverFilesStatus");
+    var files = (data && data.files) || [];
+    out.innerHTML = files.map(function (file) {
+      var label = "Missing";
+      if (file.exists && file.updated_at) {
+        var updated = new Date(file.updated_at);
+        label = isNaN(updated.getTime()) ? file.updated_at : updated.toLocaleString();
+      }
+      return '<div class="server-file">' +
+        '<span class="server-file-name">' + esc(file.filename) + '</span>' +
+        '<span class="server-file-date">' + esc(label) + '</span></div>';
+    }).join("");
+  }
+
+  async function loadServerFilesStatus() {
+    var out = document.getElementById("serverFilesStatus");
+    try {
+      renderServerFilesStatus(await api("/library-mirrors/status"));
+    } catch (e) {
+      out.innerHTML = '<div class="server-files-error">✕ ' +
+        esc(e.detail || "Could not read server file dates") + '</div>';
+    }
+  }
+
   function isAnalysisActive(status) {
     return ["queued", "running", "waiting", "cancelling"].indexOf(status) !== -1;
+  }
+
+  function setMirrorMode(mode) {
+    document.querySelectorAll('[data-action="mirrorMode"]').forEach(function (item) {
+      var active = item.dataset.mirrorMode === mode;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", active ? "true" : "false");
+    });
   }
 
   function renderAnalysisJob(mode, job) {
@@ -547,7 +566,9 @@
     var start = document.querySelector('[data-action="analysis"][data-mode="' + mode + '"]');
     var cancel = document.querySelector('[data-action="cancelAnalysis"][data-mode="' + mode + '"]');
     var labels = { albums: "Albums", tracks: "Tracks", artists: "Artists" };
-    var rows = ["albums", "tracks", "artists"].map(function (name) {
+    var rows = ["albums", "tracks", "artists"].filter(function (name) {
+      return job.resources && Object.prototype.hasOwnProperty.call(job.resources, name);
+    }).map(function (name) {
       var item = (job.resources && job.resources[name]) || { completed: 0, total: null, status: "Queued" };
       var reportedTotal = typeof item.total === "number" ? item.total : null;
       var total = reportedTotal == null ? null : Math.max(reportedTotal, item.completed);
@@ -587,6 +608,12 @@
     if (log) log.scrollTop = log.scrollHeight;
     out.classList.add("show");
     var active = isAnalysisActive(job.status);
+    if (mode === "mirrors") {
+      setMirrorMode(job.full_rebuild ? "full" : "incremental");
+      document.querySelectorAll('[data-action="mirrorMode"]').forEach(function (item) {
+        item.disabled = active;
+      });
+    }
     cancel.hidden = !active;
     cancel.disabled = job.status === "cancelling";
     if (active && !start.disabled) setBusy(start, true, "Running…");
@@ -602,6 +629,7 @@
         setTimeout(function () { pollAnalysis(mode, jobId); }, 1500);
       } else if (job.status === "completed") {
         showToast("Analysis finished", "ok");
+        if (mode === "mirrors") loadServerFilesStatus();
       } else if (job.status !== "cancelled" && job.status !== "paused") {
         showToast("Analysis " + job.status, "err");
       }
@@ -618,8 +646,7 @@
     try {
       var jobs = await api("/commands/library-analysis-jobs");
       jobs.forEach(function (job) {
-        var mode = job.command === "analyse_library_sync" ? "sync" :
-          (job.command === "analyse_library_async" ? "async" : null);
+        var mode = job.command === "refresh_library_mirrors" ? "mirrors" : null;
         if (!mode) return;
         analysisJobs[mode] = job;
         renderAnalysisJob(mode, job);
@@ -1693,6 +1720,10 @@
 
   // ---- Actions -----------------------------------------------------------
   var actions = {
+    mirrorMode(btn) {
+      setMirrorMode(btn.dataset.mirrorMode);
+    },
+
     blastMode(btn) {
       var mode = btn.dataset.blastMode;
       document.querySelectorAll('[data-action="blastMode"]').forEach(function (item) {
@@ -2178,7 +2209,19 @@
             '<div class="stat"><div class="n">' + d.liked_tracks + '</div><div class="l">Liked tracks</div></div>' +
             '<div class="stat"><div class="n">' + d.saved_releases + '</div><div class="l">Saved releases</div></div>' +
           "</div>");
-      } catch (e) { renderError(out, e); }
+      } catch (e) {
+        if (e.status === 409 && e.data && e.data.candidates) {
+          var cands = e.data.candidates.map(function (c) {
+            return '<div class="kv">' + esc(c.artist) +
+              ' <span style="color:var(--muted)">(' + esc(c.id) + ")</span></div>";
+          }).join("");
+          renderResult(out,
+            '<div class="kv" style="color:var(--amber)">Multiple artists match. Use a Spotify artist ID:</div>' + cands
+          );
+        } else {
+          renderError(out, e);
+        }
+      }
       setBusy(btn, false);
     },
 
@@ -2187,7 +2230,6 @@
       var artist = document.getElementById("albumArtist").value.trim();
       var id = document.getElementById("albumId").value.trim();
       var threshold = document.getElementById("threshold").value;
-      var refresh = document.getElementById("refreshCache").checked;
       var out = document.getElementById("albumResult");
       if (!name && !id) { showToast("Enter an album name or ID", "err"); return; }
       var q = new URLSearchParams();
@@ -2195,7 +2237,6 @@
       if (id) q.set("album_id", id);
       if (artist) q.set("artist", artist);
       if (threshold) q.set("threshold", threshold);
-      if (refresh) q.set("refresh_cache", "true");
       setBusy(btn, true, "Evaluating…");
       try {
         var d = await api("/albums/evaluation?" + q.toString());
@@ -2257,7 +2298,16 @@
       var out = document.getElementById("analysis-" + mode);
       setBusy(btn, true, "Starting…");
       try {
-        var job = await api("/commands/analyse-library-" + mode, { method: "POST" });
+        var endpoint = mode === "mirrors"
+          ? "/commands/refresh-library-mirrors"
+          : "/commands/analyse-library-" + mode;
+        if (mode === "mirrors") {
+          var mirrorMode = document.querySelector('[data-action="mirrorMode"].active');
+          if (mirrorMode && mirrorMode.dataset.mirrorMode === "full") {
+            endpoint += "?full_rebuild=true";
+          }
+        }
+        var job = await api(endpoint, { method: "POST" });
         analysisJobs[mode] = job;
         renderAnalysisJob(mode, job);
         pollAnalysis(mode, job.job_id);
@@ -2364,6 +2414,7 @@
     gate.classList.add("hidden");
     app.classList.remove("hidden");
     checkHealth();
+    loadServerFilesStatus();
     restoreActiveAnalysisJobs();
     restoreActiveBlastJobs();
     restoreActiveDailyMindRadioJobs();

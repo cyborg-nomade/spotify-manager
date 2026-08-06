@@ -15,6 +15,8 @@ from typing import Any
 from typing import Literal
 
 from pydantic import BaseModel
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
@@ -48,8 +50,9 @@ TRANSIENT_RETRY_BASE_SECONDS = 10
 TRANSIENT_RETRY_MAX_SECONDS = 30 * 60
 CHECKPOINT_VERSION = 1
 
-AnalysisMode = Literal["async", "sync"]
+AnalysisMode = Literal["async", "sync", "mirrors"]
 ResourceName = Literal["albums", "tracks", "artists"]
+MirrorRefreshMode = Literal["incremental", "full"]
 Echo = Callable[[str], None]
 ProgressCallback = Callable[[ResourceName, int, int | None, str], None]
 CancelCheck = Callable[[], bool]
@@ -59,9 +62,9 @@ LibraryModel = YourLibraryAlbum | YourLibraryTrack | YourLibraryArtist
 
 @dataclass(frozen=True)
 class RetryNotice:
-    """One scheduled retry after a transient Spotify server response."""
+    """One scheduled retry after a transient Spotify failure."""
 
-    http_status: int
+    http_status: int | None
     operation: str
     attempt: int
     delay_seconds: int
@@ -94,14 +97,15 @@ class LibraryAnalysisPaths:
     ) -> LibraryAnalysisPaths:
         """Build conventional paths beneath ``files_dir`` for one mode."""
         workspace = files_dir / f"library_analysis_{mode}"
+        suffix = "" if mode == "mirrors" else f"_{mode}"
         return cls(
             mode=mode,
             files_dir=files_dir,
             your_library=files_dir / "YourLibrary.json",
-            albums_total=files_dir / f"albums_total_new_{mode}.json",
-            liked_tracks_total=files_dir / f"liked_tracks_total_{mode}.json",
-            artists_total=files_dir / f"artists_total_{mode}.json",
-            stats_history=files_dir / f"stats_history_{mode}.json",
+            albums_total=files_dir / f"albums_total_new{suffix}.json",
+            liked_tracks_total=files_dir / f"liked_tracks_total{suffix}.json",
+            artists_total=files_dir / f"artists_total{suffix}.json",
+            stats_history=files_dir / f"stats_history{suffix}.json",
             checkpoint=workspace / "checkpoint.json",
             staging_dir=workspace / "staging",
             event_log=files_dir / f"library_analysis_{mode}_log.jsonl",
@@ -119,6 +123,7 @@ LibrarySyncPaths = LibraryAnalysisPaths
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_ASYNC_PATHS = LibraryAnalysisPaths.for_files_dir(FILES_DIR, "async")
 DEFAULT_SYNC_PATHS = LibraryAnalysisPaths.for_files_dir(FILES_DIR, "sync")
+DEFAULT_LIVE_MIRROR_PATHS = LibraryAnalysisPaths.for_files_dir(FILES_DIR, "mirrors")
 DEFAULT_PATHS = DEFAULT_SYNC_PATHS
 
 
@@ -571,6 +576,116 @@ def finalize_analysis(
     )
 
 
+def create_live_mirror_backup_manifest(
+    paths: LibraryAnalysisPaths,
+    run_id: str,
+    previous: dict[ResourceName, Sequence[LibraryModel]],
+    current: dict[ResourceName, Sequence[LibraryModel]],
+    summaries: tuple[ResourceSyncSummary, ...],
+) -> Path:
+    """Back up the two canonical mirrors before a live refresh publishes."""
+    backup_dir = paths.backups_dir / run_id
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    targets: dict[str, dict[str, object]] = {}
+    changes: dict[str, object] = {}
+    for resource in ("albums", "tracks"):
+        target_path = backup_targets(paths)[resource]
+        backup_name = f"{resource}.before.json"
+        existed = target_path.exists()
+        if existed:
+            shutil.copy2(target_path, backup_dir / backup_name)
+        targets[resource] = {
+            "target_name": target_path.name,
+            "existed": existed,
+            "backup_file": backup_name if existed else None,
+        }
+        added, removed = model_diff(previous[resource], current[resource])
+        changes[resource] = {
+            "added": [item.model_dump() for item in added],
+            "removed": [item.model_dump() for item in removed],
+        }
+
+    manifest = {
+        "version": 1,
+        "run_id": run_id,
+        "mode": paths.mode,
+        "created_at": utc_now(),
+        "targets": targets,
+        "changes": changes,
+        "summaries": [asdict(summary) for summary in summaries],
+    }
+    write_json_atomic(backup_dir / "manifest.json", manifest)
+    append_event(paths, run_id, "backup_created", backup_dir=str(backup_dir))
+    return backup_dir
+
+
+def finalize_live_mirrors(
+    albums: list[YourLibraryAlbum],
+    tracks: list[YourLibraryTrack],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+) -> LibrarySyncSummary:
+    """Atomically publish canonical album and liked-track mirrors."""
+    albums = sorted(deduplicate_models(albums), key=album_sort_key)
+    tracks = sorted(deduplicate_models(tracks), key=track_sort_key)
+    current: dict[ResourceName, Sequence[LibraryModel]] = {
+        "albums": albums,
+        "tracks": tracks,
+    }
+
+    if checkpoint["status"] != "finalizing":
+        previous: dict[ResourceName, Sequence[LibraryModel]] = {
+            "albums": load_model_list(paths.albums_total, YourLibraryAlbum),
+            "tracks": load_model_list(paths.liked_tracks_total, YourLibraryTrack),
+        }
+        resource_names: tuple[ResourceName, ...] = ("albums", "tracks")
+        summaries = tuple(
+            resource_summary(
+                resource,
+                "live_api",
+                previous[resource],
+                current[resource],
+                int(checkpoint["resources"][resource].get("skipped", 0)),
+            )
+            for resource in resource_names
+        )
+        backup_dir = create_live_mirror_backup_manifest(
+            paths,
+            str(checkpoint["run_id"]),
+            previous,
+            current,
+            summaries,
+        )
+        checkpoint["status"] = "finalizing"
+        checkpoint["backup_dir"] = str(backup_dir)
+        write_json_atomic(paths.checkpoint, checkpoint)
+    else:
+        backup_dir = Path(str(checkpoint["backup_dir"]))
+        manifest = load_json(backup_dir / "manifest.json")
+        if not isinstance(manifest, dict):
+            raise LibrarySyncError("The live-mirror backup manifest is invalid.")
+        summaries = tuple(ResourceSyncSummary(**item) for item in manifest["summaries"])
+
+    write_models(paths.albums_total, albums)
+    write_models(paths.liked_tracks_total, tracks)
+    checkpoint["status"] = "complete"
+    checkpoint["completed_at"] = utc_now()
+    write_json_atomic(paths.checkpoint, checkpoint)
+    append_event(
+        paths,
+        str(checkpoint["run_id"]),
+        "run_completed",
+        backup_dir=str(backup_dir),
+        summaries=[asdict(summary) for summary in summaries],
+    )
+    return LibrarySyncSummary(
+        run_id=str(checkpoint["run_id"]),
+        mode=paths.mode,
+        backup_dir=str(backup_dir),
+        resources=summaries,
+    )
+
+
 def export_fingerprint(path: Path) -> dict[str, int]:
     """Return enough metadata to detect an export replaced between resumes."""
     try:
@@ -580,7 +695,10 @@ def export_fingerprint(path: Path) -> dict[str, int]:
     return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
 
 
-def new_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
+def new_checkpoint(
+    paths: LibraryAnalysisPaths,
+    mirror_refresh_mode: MirrorRefreshMode | None = None,
+) -> dict[str, Any]:
     """Create a fresh checkpoint for one mode."""
     checkpoint: dict[str, Any] = {
         "version": CHECKPOINT_VERSION,
@@ -603,10 +721,15 @@ def new_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
     }
     if paths.mode == "async":
         checkpoint["export_fingerprint"] = export_fingerprint(paths.your_library)
+    if paths.mode == "mirrors":
+        checkpoint["mirror_refresh_mode"] = mirror_refresh_mode or "incremental"
     return checkpoint
 
 
-def load_or_create_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
+def load_or_create_checkpoint(
+    paths: LibraryAnalysisPaths,
+    mirror_refresh_mode: MirrorRefreshMode | None = None,
+) -> dict[str, Any]:
     """Resume a compatible incomplete checkpoint or start a fresh run."""
     raw = load_json(paths.checkpoint)
     compatible = (
@@ -619,6 +742,10 @@ def load_or_create_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
         compatible = raw.get("export_fingerprint") == export_fingerprint(
             paths.your_library
         )
+    if compatible and paths.mode == "mirrors":
+        compatible = raw.get("mirror_refresh_mode") == (
+            mirror_refresh_mode or "incremental"
+        )
     if compatible:
         append_event(paths, str(raw["run_id"]), "run_resumed")
         return raw
@@ -626,7 +753,7 @@ def load_or_create_checkpoint(paths: LibraryAnalysisPaths) -> dict[str, Any]:
     if paths.staging_dir.exists():
         shutil.rmtree(paths.staging_dir)
     paths.staging_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint = new_checkpoint(paths)
+    checkpoint = new_checkpoint(paths, mirror_refresh_mode)
     write_json_atomic(paths.checkpoint, checkpoint)
     append_event(paths, str(checkpoint["run_id"]), "run_started")
     return checkpoint
@@ -771,7 +898,7 @@ def spotify_call[T](
     retry_base_seconds: int,
     retry_max_seconds: int,
 ) -> T:
-    """Call Spotify, retrying only 5xx responses with exponential backoff."""
+    """Call Spotify, retrying 5xx and transport failures with backoff."""
     attempt = 0
     while True:
         try:
@@ -798,6 +925,32 @@ def spotify_call[T](
             )
             echo(
                 f"Spotify HTTP {exc.http_status} while {description}; "
+                f"retrying in {delay} seconds (attempt {attempt})."
+            )
+            should_continue = (
+                retry_wait(notice)
+                if retry_wait is not None
+                else _default_retry_wait(delay, sleep)
+            )
+            if not should_continue:
+                raise LibraryAnalysisCancelledError(
+                    "Live analysis paused during a Spotify retry wait."
+                ) from exc
+        except (RequestsConnectionError, RequestsTimeout) as exc:
+            attempt += 1
+            delay = retry_delay(retry_base_seconds, retry_max_seconds, attempt)
+            notice = RetryNotice(None, description, attempt, delay)
+            append_event(
+                paths,
+                str(checkpoint["run_id"]),
+                "transport_retry_scheduled",
+                error=type(exc).__name__,
+                operation=description,
+                attempt=attempt,
+                delay_seconds=delay,
+            )
+            echo(
+                f"Spotify connection interrupted while {description}; "
                 f"retrying in {delay} seconds (attempt {attempt})."
             )
             should_continue = (
@@ -1050,6 +1203,51 @@ def reconcile_offset_resource(
     )
     if progress_callback:
         progress_callback(resource, count, count, "Complete")
+
+
+def seed_incremental_offset_resource(
+    resource: Literal["albums", "tracks"],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+) -> None:
+    """Seed resource staging from its mirror before scanning the recent edge."""
+    state = checkpoint["resources"][resource]
+    if state["status"] != "pending":
+        return
+
+    if resource == "albums":
+        existing: list[LibraryModel] = load_model_list(
+            paths.albums_total,
+            YourLibraryAlbum,
+        )
+        retained_label = "Unsaved albums"
+    else:
+        existing = load_model_list(paths.liked_tracks_total, YourLibraryTrack)
+        retained_label = "Unliked tracks"
+    append_models_jsonl(paths.stage(resource), existing)
+    state["status"] = "reconciling"
+    state["total"] = len(existing)
+    state["stable_passes"] = 0
+    write_json_atomic(paths.checkpoint, checkpoint)
+    append_event(
+        paths,
+        str(checkpoint["run_id"]),
+        f"incremental_{resource}_seeded",
+        count=len(existing),
+    )
+    echo(
+        f"{resource.title()}: checking recent additions against "
+        f"{len(existing)} stored entries. {retained_label} remain until a full rebuild."
+    )
+    if progress_callback:
+        progress_callback(
+            resource,
+            len(existing),
+            len(existing),
+            "Checking recent additions",
+        )
 
 
 def sync_initial_artists(
@@ -1338,6 +1536,93 @@ def analyse_library_sync_routine(
         raise LibrarySyncError(f"Live analysis failed: {exc}") from exc
 
 
+def refresh_live_library_mirrors_routine(
+    sp: Spotify,
+    echo: Echo = print,
+    progress_callback: ProgressCallback | None = None,
+    retry_wait: RetryWait | None = None,
+    cancel_check: CancelCheck | None = None,
+    paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
+    sleep: Sleep = default_sleep,
+    retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
+    retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
+    full_rebuild: bool = False,
+) -> LibrarySyncSummary:
+    """Merge recent album and track additions or fully rebuild both mirrors."""
+    if paths.mode != "mirrors":
+        raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
+    mirror_refresh_mode: MirrorRefreshMode = "full" if full_rebuild else "incremental"
+    checkpoint = load_or_create_checkpoint(paths, mirror_refresh_mode)
+    try:
+        if checkpoint["status"] == "finalizing":
+            return finalize_live_mirrors(
+                load_models_jsonl(paths.stage("albums"), YourLibraryAlbum),
+                load_models_jsonl(paths.stage("tracks"), YourLibraryTrack),
+                paths,
+                checkpoint,
+            )
+        for resource in ("albums", "tracks"):
+            if full_rebuild:
+                sync_initial_offset_resource(
+                    sp,
+                    resource,
+                    paths,
+                    checkpoint,
+                    echo,
+                    progress_callback,
+                    retry_wait,
+                    cancel_check,
+                    sleep,
+                    retry_base_seconds,
+                    retry_max_seconds,
+                )
+            else:
+                seed_incremental_offset_resource(
+                    resource,
+                    paths,
+                    checkpoint,
+                    echo,
+                    progress_callback,
+                )
+            reconcile_offset_resource(
+                sp,
+                resource,
+                paths,
+                checkpoint,
+                echo,
+                progress_callback,
+                retry_wait,
+                cancel_check,
+                sleep,
+                retry_base_seconds,
+                retry_max_seconds,
+            )
+        return finalize_live_mirrors(
+            load_models_jsonl(paths.stage("albums"), YourLibraryAlbum),
+            load_models_jsonl(paths.stage("tracks"), YourLibraryTrack),
+            paths,
+            checkpoint,
+        )
+    except LibraryAnalysisCancelledError, SpotifyRateLimitError:
+        append_event(paths, str(checkpoint["run_id"]), "run_paused")
+        raise
+    except KeyboardInterrupt:
+        append_event(paths, str(checkpoint["run_id"]), "run_paused")
+        raise
+    except LibrarySyncError:
+        append_event(paths, str(checkpoint["run_id"]), "run_failed")
+        raise
+    except Exception as exc:
+        append_event(
+            paths,
+            str(checkpoint["run_id"]),
+            "run_failed",
+            error=type(exc).__name__,
+            detail=str(exc),
+        )
+        raise LibrarySyncError(f"Live mirror refresh failed: {exc}") from exc
+
+
 def restore_library_sync(
     run_id: str,
     paths: LibraryAnalysisPaths | None = None,
@@ -1346,7 +1631,9 @@ def restore_library_sync(
     if not run_id or any(part in run_id for part in ("/", "\\", "..")):
         raise LibrarySyncRestoreError("Invalid library-analysis run id.")
     candidates = (
-        [paths] if paths is not None else [DEFAULT_SYNC_PATHS, DEFAULT_ASYNC_PATHS]
+        [paths]
+        if paths is not None
+        else [DEFAULT_SYNC_PATHS, DEFAULT_ASYNC_PATHS, DEFAULT_LIVE_MIRROR_PATHS]
     )
     selected: LibraryAnalysisPaths | None = None
     backup_dir: Path | None = None
@@ -1394,6 +1681,7 @@ analyse_library_routine = analyse_library_sync_routine
 
 __all__ = [
     "DEFAULT_ASYNC_PATHS",
+    "DEFAULT_LIVE_MIRROR_PATHS",
     "DEFAULT_SYNC_PATHS",
     "IncompleteLiveResourceError",
     "LibraryAnalysisCancelledError",
@@ -1407,5 +1695,6 @@ __all__ = [
     "SpotifyRateLimitError",
     "analyse_library_async_routine",
     "analyse_library_sync_routine",
+    "refresh_live_library_mirrors_routine",
     "restore_library_sync",
 ]

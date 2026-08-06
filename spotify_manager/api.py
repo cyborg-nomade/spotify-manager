@@ -6,11 +6,10 @@ Run with::
 
 or via the installed script ``spotify-api``.
 
-The two lookups are files-first (source of truth: ``YourLibrary.json``).
-``artist-stats`` is fully local; ``album-evaluation`` makes a single live call
-to fetch the album's track list. Library analyses run as cancellable background
-jobs with pollable progress. The parsed library is cached; call
-``POST /library/refresh`` after re-exporting YourLibrary.json.
+Artist stats and album evaluation use live Spotify state. Library analyses run
+as cancellable background jobs with pollable progress. The parsed export used
+by legacy endpoints is cached; call ``POST /library/refresh`` after replacing
+``YourLibrary.json``.
 """
 
 import logging
@@ -21,6 +20,7 @@ from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
 from functools import lru_cache
+from pathlib import Path
 from threading import Event
 from threading import Lock
 from threading import Thread
@@ -37,6 +37,7 @@ from fastapi import status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pydantic import Field
+from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
@@ -50,9 +51,11 @@ from spotify_manager.models.lookups import ArtistLibraryStats
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
+from spotify_manager.processors.library_lookups import AmbiguousArtistError
 from spotify_manager.processors.library_lookups import ArtistNotFoundError
-from spotify_manager.processors.library_lookups import evaluate_album
-from spotify_manager.processors.library_lookups import get_artist_library_stats
+from spotify_manager.processors.library_lookups import SpotifyLookupResponseError
+from spotify_manager.processors.library_lookups import evaluate_album_live
+from spotify_manager.processors.library_lookups import get_live_artist_library_stats
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
@@ -130,8 +133,23 @@ class AnalysisJobResult(BaseModel):
     completed_at: str | None = None
     run_id: str | None = None
     backup_dir: str | None = None
+    full_rebuild: bool = False
     resources: dict[str, AnalysisResourceProgress]
     logs: list[AnalysisJobLog] = Field(default_factory=list)
+
+
+class ServerFileStatus(BaseModel):
+    """Filesystem update status for one canonical server-side mirror."""
+
+    filename: str
+    exists: bool
+    updated_at: str | None = None
+
+
+class LibraryMirrorFilesStatus(BaseModel):
+    """Update status for the files consumed by New Wine."""
+
+    files: list[ServerFileStatus]
 
 
 class BlastSelectionResult(BaseModel):
@@ -487,6 +505,14 @@ _analysis_logger = logging.getLogger(__name__)
 _blast_jobs: dict[str, _BlastJob] = {}
 _blast_jobs_lock = Lock()
 _MAX_BLAST_LOGS = 250
+LIBRARY_MIRROR_FILE_PATHS = (
+    library_analysis.DEFAULT_LIVE_MIRROR_PATHS.albums_total,
+    library_analysis.DEFAULT_LIVE_MIRROR_PATHS.liked_tracks_total,
+)
+SPOTIFY_CONNECTION_FAILURE_DETAIL = (
+    "Spotify connection remained unavailable after automatic retries. "
+    "Please try again shortly."
+)
 
 
 @lru_cache
@@ -593,6 +619,7 @@ def _run_analysis_job(
     job_id: str,
     mode: library_analysis.AnalysisMode,
     spotify: Spotify | None,
+    full_rebuild: bool = False,
 ) -> None:
     """Execute one analysis worker and translate outcomes into job state."""
     job = get_analysis_job(job_id)
@@ -634,17 +661,21 @@ def _run_analysis_job(
 
     def retry_wait(notice: library_analysis.RetryNotice) -> bool:
         retry_at = datetime.now(UTC) + timedelta(seconds=notice.delay_seconds)
+        failure = (
+            f"Spotify HTTP {notice.http_status}"
+            if notice.http_status is not None
+            else "Spotify connection interrupted"
+        )
         with _analysis_jobs_lock:
             job.result.status = "waiting"
             job.result.retry_at = retry_at.isoformat()
             job.result.detail = (
-                f"Spotify HTTP {notice.http_status}; retry {notice.attempt} "
-                f"while {notice.operation}"
+                f"{failure}; retry {notice.attempt} while {notice.operation}"
             )
             _append_job_log_locked(
                 job,
                 f"Waiting until {retry_at.isoformat()} before retry "
-                f"{notice.attempt} after Spotify HTTP {notice.http_status} "
+                f"{notice.attempt} after {failure} "
                 f"while {notice.operation}. Cancel to save and stop.",
             )
         cancelled = job.cancel_event.wait(notice.delay_seconds)
@@ -668,7 +699,7 @@ def _run_analysis_job(
                 progress_callback=progress_callback,
                 cancel_check=job.cancel_event.is_set,
             )
-        else:
+        elif mode == "sync":
             if spotify is None:
                 raise library_analysis.LibrarySyncError(
                     "A Spotify client is required for live analysis."
@@ -679,6 +710,19 @@ def _run_analysis_job(
                 progress_callback=progress_callback,
                 retry_wait=retry_wait,
                 cancel_check=job.cancel_event.is_set,
+            )
+        else:
+            if spotify is None:
+                raise library_analysis.LibrarySyncError(
+                    "A Spotify client is required for live mirror refresh."
+                )
+            summary = library_analysis.refresh_live_library_mirrors_routine(
+                spotify,
+                echo=echo,
+                progress_callback=progress_callback,
+                retry_wait=retry_wait,
+                cancel_check=job.cancel_event.is_set,
+                full_rebuild=full_rebuild,
             )
     except library_analysis.LibraryAnalysisCancelledError as exc:
         with _analysis_jobs_lock:
@@ -733,9 +777,12 @@ def _run_analysis_job(
 def start_analysis_job(
     mode: library_analysis.AnalysisMode,
     spotify: Spotify | None = None,
+    full_rebuild: bool = False,
 ) -> AnalysisJobResult:
     """Start one background analysis, rejecting duplicate active modes."""
-    command = f"analyse_library_{mode}"
+    command = (
+        "refresh_library_mirrors" if mode == "mirrors" else f"analyse_library_{mode}"
+    )
     with _analysis_jobs_lock:
         for existing in _analysis_jobs.values():
             if (
@@ -754,9 +801,14 @@ def start_analysis_job(
             result=AnalysisJobResult(
                 job_id=job_id,
                 command=command,
+                full_rebuild=full_rebuild if mode == "mirrors" else False,
                 resources={
                     resource: AnalysisResourceProgress()
-                    for resource in ("albums", "tracks", "artists")
+                    for resource in (
+                        ("albums", "tracks")
+                        if mode == "mirrors"
+                        else ("albums", "tracks", "artists")
+                    )
                 },
             ),
             cancel_event=Event(),
@@ -767,7 +819,7 @@ def start_analysis_job(
 
     Thread(
         target=_run_analysis_job,
-        args=(job_id, mode, spotify),
+        args=(job_id, mode, spotify, full_rebuild),
         name=f"library-analysis-{mode}-{job_id[:8]}",
         daemon=True,
     ).start()
@@ -848,6 +900,11 @@ def _run_blast_job(
             job.result.status = "failed"
             job.result.detail = str(exc)
             _append_blast_log_locked(job, f"Playlist routine failed: {exc}")
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
         _analysis_logger.exception("Unexpected blast-from-the-past error")
         with _blast_jobs_lock:
@@ -920,6 +977,11 @@ def _run_daily_mind_radio_job(
             job.result.status = "failed"
             job.result.detail = str(exc)
             _append_blast_log_locked(job, f"Playlist routine failed: {exc}")
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
         _analysis_logger.exception("Unexpected Daily Mind Radio error")
         with _blast_jobs_lock:
@@ -1039,6 +1101,11 @@ def _run_found_art_job(
             job.result.status = "failed"
             job.result.detail = str(exc)
             _append_blast_log_locked(job, f"Found Art failed: {exc}")
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
         _analysis_logger.exception("Unexpected Found Art error")
         with _blast_jobs_lock:
@@ -1268,8 +1335,7 @@ def _run_new_wine_job(
             job.result.status = "paused"
             job.result.pending_choice = None
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}. "
+                review_album_limits.format_transient_spotify_failure(exc) + ". "
                 "Progress was saved."
             )
             _append_blast_log_locked(job, job.result.detail)
@@ -1540,8 +1606,7 @@ def _run_slow_listening_job(
             job.result.status = "paused"
             job.result.slow_listening_pending_choice = None
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}. "
+                review_album_limits.format_transient_spotify_failure(exc) + ". "
                 "Progress was saved."
             )
             _append_blast_log_locked(job, job.result.detail)
@@ -1809,8 +1874,7 @@ def _run_something_old_job(
             job.result.status = "paused"
             job.result.something_old_pending_choice = None
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}."
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             _append_blast_log_locked(job, job.result.detail)
     except SpotifyException as exc:
@@ -2004,8 +2068,7 @@ def _run_requeue_for_a_dream_job(
         with _blast_jobs_lock:
             job.result.status = "paused"
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}."
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             _append_blast_log_locked(job, job.result.detail)
     except SpotifyException as exc:
@@ -2186,8 +2249,7 @@ def _run_palace_of_memory_job(
         with _blast_jobs_lock:
             job.result.status = "paused"
             job.result.detail = (
-                f"Spotify HTTP {exc.http_status} remained unavailable after "
-                f"{exc.attempts} attempts while {exc.operation}."
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             _append_blast_log_locked(job, job.result.detail)
     except SpotifyException as exc:
@@ -2801,6 +2863,14 @@ def _artist_not_found(request: Request, exc: ArtistNotFoundError) -> JSONRespons
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
+@app.exception_handler(AmbiguousArtistError)
+def _ambiguous_artist(request: Request, exc: AmbiguousArtistError) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={"detail": str(exc), "candidates": exc.candidates},
+    )
+
+
 @app.exception_handler(AlbumNotFoundError)
 def _album_not_found(request: Request, exc: AlbumNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
@@ -2810,6 +2880,42 @@ def _album_not_found(request: Request, exc: AlbumNotFoundError) -> JSONResponse:
 def _ambiguous_album(request: Request, exc: AmbiguousAlbumError) -> JSONResponse:
     return JSONResponse(
         status_code=409, content={"detail": str(exc), "candidates": exc.candidates}
+    )
+
+
+@app.exception_handler(SpotifyLookupResponseError)
+def _invalid_spotify_lookup(
+    request: Request,
+    exc: SpotifyLookupResponseError,
+) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.exception_handler(SpotifyException)
+def _spotify_lookup_failed(request: Request, exc: SpotifyException) -> JSONResponse:
+    """Return useful lookup errors instead of an opaque HTTP 500 response."""
+    if exc.http_status == 429:
+        retry_after = review_album_limits.get_retry_after_seconds(exc)
+        detail = (
+            "Spotify rate limit reached after trying all configured credentials. "
+            f"{review_album_limits.format_retry_after(retry_after)}."
+        )
+        headers = {"Retry-After": str(retry_after)} if retry_after is not None else None
+        return JSONResponse(
+            status_code=429,
+            content={"detail": detail},
+            headers=headers,
+        )
+
+    status_code = exc.http_status if exc.http_status in {400, 403, 404} else 502
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "detail": (
+                f"Spotify request failed (HTTP {exc.http_status}): "
+                f"{exc.msg or 'unknown Spotify error'}"
+            )
+        },
     )
 
 
@@ -2833,44 +2939,60 @@ def refresh_library() -> CommandResult:
 
 
 # --------------------------------------------------------------------------- #
-# Lookups (files-first)
+# Live Spotify lookups
 # --------------------------------------------------------------------------- #
 @app.get("/artists/stats", response_model=ArtistLibraryStats)
 def artist_stats(
-    library: LibraryDep,
+    client: ClientDep,
     name: Annotated[str | None, Query()] = None,
     artist_id: Annotated[str | None, Query()] = None,
 ) -> ArtistLibraryStats:
-    """Liked-track and saved-release counts for an artist (local files only)."""
+    """Return live Liked Songs and Saved Albums counts for one artist."""
     if not name and not artist_id:
         raise HTTPException(status_code=400, detail="provide name or artist_id")
-    return get_artist_library_stats(name=name, artist_id=artist_id, library=library)
+    try:
+        return get_live_artist_library_stats(
+            client,
+            name=name,
+            artist_id=artist_id,
+        )
+    except RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Spotify could not be reached after several attempts. "
+                "Please try again shortly."
+            ),
+        ) from exc
 
 
 @app.get("/albums/evaluation", response_model=AlbumEvaluation)
 def album_evaluation(
     client: ClientDep,
-    library: LibraryDep,
     name: Annotated[str | None, Query()] = None,
     album_id: Annotated[str | None, Query()] = None,
     artist: Annotated[str | None, Query()] = None,
     threshold: float = 0.5,
-    use_cache: bool = True,
-    refresh_cache: bool = False,
 ) -> AlbumEvaluation:
-    """Keep/remove decision for an album (album id resolved locally)."""
+    """Return a keep/remove decision from live Spotify album and liked state."""
     if not name and not album_id:
         raise HTTPException(status_code=400, detail="provide name or album_id")
-    return evaluate_album(
-        client,
-        name=name,
-        album_id=album_id,
-        artist=artist,
-        library=library,
-        threshold=threshold,
-        use_cache=use_cache,
-        refresh_cache=refresh_cache,
-    )
+    try:
+        return evaluate_album_live(
+            client,
+            name=name,
+            album_id=album_id,
+            artist=artist,
+            threshold=threshold,
+        )
+    except RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Spotify could not be reached after several attempts. "
+                "Please try again shortly."
+            ),
+        ) from exc
 
 
 # --------------------------------------------------------------------------- #
@@ -3650,6 +3772,35 @@ def cmd_update_scrobble_history(
     )
 
 
+def _server_file_status(path: Path) -> ServerFileStatus:
+    """Return a UTC modification timestamp without failing on a missing file."""
+    try:
+        modified_at = datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat()
+    except FileNotFoundError:
+        return ServerFileStatus(filename=path.name, exists=False)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not read server file status for {path.name}.",
+        ) from exc
+    return ServerFileStatus(
+        filename=path.name,
+        exists=True,
+        updated_at=modified_at,
+    )
+
+
+@app.get(
+    "/library-mirrors/status",
+    response_model=LibraryMirrorFilesStatus,
+)
+def library_mirror_files_status() -> LibraryMirrorFilesStatus:
+    """Return update timestamps for New Wine's canonical mirror files."""
+    return LibraryMirrorFilesStatus(
+        files=[_server_file_status(path) for path in LIBRARY_MIRROR_FILE_PATHS]
+    )
+
+
 @app.get(
     "/commands/update-scrobble-history-jobs",
     response_model=list[BlastJobResult],
@@ -3694,6 +3845,19 @@ def cmd_analyse_library_async() -> AnalysisJobResult:
 def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
     """Start a live-only ``*_sync`` library analysis."""
     return start_analysis_job("sync", client)
+
+
+@app.post(
+    "/commands/refresh-library-mirrors",
+    response_model=AnalysisJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_refresh_library_mirrors(
+    client: AnalysisClientDep,
+    full_rebuild: bool = False,
+) -> AnalysisJobResult:
+    """Refresh canonical saved-album and liked-track mirrors from Spotify."""
+    return start_analysis_job("mirrors", client, full_rebuild=full_rebuild)
 
 
 @app.get(

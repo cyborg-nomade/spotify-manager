@@ -89,6 +89,13 @@ credential set and retry immediately, or `q` to stop cleanly. Rerunning the
 command resumes from its checkpoint. Both analysis modes keep JSON-lines audit
 logs and an undo manifest under `spotify_manager/files/`.
 
+The web app's **Live library mirrors** card defaults to **Recent additions**.
+That mode merges unseen albums and tracks from the newest API pages into
+`albums_total_new.json` and `liked_tracks_total.json`, intentionally retaining
+older entries. Use **Full rebuild** occasionally to scan both collections in
+full and remove albums or tracks that have since been unsaved or unliked. Both
+modes are checkpointed and keep the same backup and audit trail.
+
 ### `restore-library-sync`
 
 Restore the generated files from a completed analysis by passing the run id
@@ -765,8 +772,8 @@ same directory. They are ignored by Git and Docker.
 
 ### `artist-stats`
 
-Prints local liked-track and saved-release counts. Identify the artist by
-exported name or Spotify id:
+Prints live Liked Songs and Saved Albums counts. Identify the artist by an
+exact Spotify name or Spotify id:
 
 ```console
 uv run spotify-manager artist-stats "Miles Davis"
@@ -778,10 +785,9 @@ just artist-stats --artist-id SPOTIFY_ARTIST_ID
 
 ### `album-decision`
 
-Evaluates whether an album meets the liked-track threshold. Use an exported
-name or `--album-id`; `--artist` disambiguates duplicate album names.
-`--no-cache` bypasses the local tracklist cache, while `--refresh-cache`
-re-fetches and updates it.
+Evaluates whether an album meets the liked-track threshold using a fresh
+Spotify track list and live Liked Songs status. Use an exact Spotify name or
+`--album-id`; `--artist` disambiguates duplicate album names.
 
 ```console
 uv run spotify-manager album-decision "Kind of Blue" --artist "Miles Davis" --threshold 0.5

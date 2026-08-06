@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 import spotipy
+from requests.exceptions import ConnectionError as RequestsConnectionError
 from spotipy.exceptions import SpotifyException
 
 # UFI
@@ -35,6 +36,7 @@ def test_get_spotipy_client(monkeypatch: pytest.MonkeyPatch) -> None:
     assert 429 not in client.status_forcelist
     retry = client._session.get_adapter("https://").max_retries
     assert retry.respect_retry_after_header is False
+    assert retry.read is False
 
 
 def test_get_spotipy_client_accepts_retry_settings(
@@ -60,6 +62,69 @@ def test_get_spotipy_client_accepts_retry_settings(
     assert client.retries == 0
     assert client.status_retries == 0
     assert client.status_forcelist == (999,)
+    retry = client._session.get_adapter("https://").max_retries
+    assert retry.read is False
+
+
+def test_get_request_retries_connection_reset_including_token_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        client_module,
+        "settings",
+        rotating_settings(),
+    )
+    calls = 0
+    sleeps: list[float] = []
+    events: list[str] = []
+
+    def api_call(_spotify, *_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RequestsConnectionError(
+                "Connection aborted.",
+                ConnectionResetError(104, "Connection reset by peer"),
+            )
+        return {"ok": True}
+
+    monkeypatch.setattr(spotipy.Spotify, "_internal_call", api_call)
+    monkeypatch.setattr(client_module, "sleep", sleeps.append)
+    spotify = client_module.get_spotipy_client(event_callback=events.append)
+
+    assert spotify._internal_call("GET", "endpoint", None, {}) == {"ok": True}
+    assert calls == 2
+    assert sleeps == [10]
+    assert events == [
+        "Spotify connection interrupted; retrying in 10 seconds (attempt 2 of 4)."
+    ]
+
+
+def test_mutating_request_does_not_retry_ambiguous_connection_reset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        client_module,
+        "settings",
+        rotating_settings(),
+    )
+    calls = 0
+    sleeps: list[float] = []
+
+    def api_call(_spotify, *_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise RequestsConnectionError("Connection reset by peer")
+
+    monkeypatch.setattr(spotipy.Spotify, "_internal_call", api_call)
+    monkeypatch.setattr(client_module, "sleep", sleeps.append)
+    spotify = client_module.get_spotipy_client()
+
+    with pytest.raises(RequestsConnectionError):
+        spotify._internal_call("POST", "endpoint", None, {})
+
+    assert calls == 1
+    assert sleeps == []
 
 
 class FakeCacheHandler:

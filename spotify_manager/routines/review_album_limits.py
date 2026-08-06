@@ -12,6 +12,8 @@ from math import ceil
 from pathlib import Path
 from time import sleep as default_sleep
 
+from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
@@ -83,10 +85,15 @@ class SpotifyRateLimitError(RuntimeError):
 
 
 class SpotifyTransientServerError(RuntimeError):
-    """Raised when Spotify keeps returning temporary server errors."""
+    """Raised when Spotify remains unreachable after temporary failures."""
 
-    def __init__(self, http_status: int, operation: str, attempts: int) -> None:
-        """Store the failed status and operation for user-facing output."""
+    def __init__(
+        self,
+        http_status: int | None,
+        operation: str,
+        attempts: int,
+    ) -> None:
+        """Store the failed status, when present, and attempted operation."""
         super().__init__("Spotify API temporarily unavailable")
         self.http_status = http_status
         self.operation = operation
@@ -145,9 +152,15 @@ def format_retry_delay(
 
     current_time = now or datetime.now().astimezone()
     retry_at = current_time + timedelta(seconds=retry_after_seconds)
-    minutes = max(1, ceil(retry_after_seconds / 60))
-    unit = "minute" if minutes == 1 else "minutes"
-    return f"in {minutes} {unit} (at {retry_at.isoformat(timespec='seconds')})"
+    if retry_after_seconds < 60:
+        seconds = max(1, ceil(retry_after_seconds))
+        unit = "second" if seconds == 1 else "seconds"
+        delay = f"in {seconds} {unit}"
+    else:
+        minutes = ceil(retry_after_seconds / 60)
+        unit = "minute" if minutes == 1 else "minutes"
+        delay = f"in {minutes} {unit}"
+    return f"{delay} (at {retry_at.isoformat(timespec='seconds')})"
 
 
 def format_retry_after(
@@ -158,6 +171,19 @@ def format_retry_after(
     return f"try again {format_retry_delay(retry_after_seconds, now=now)}"
 
 
+def format_transient_spotify_failure(exc: SpotifyTransientServerError) -> str:
+    """Format an exhausted HTTP or connection retry for user-facing output."""
+    if exc.http_status is not None:
+        return (
+            f"Spotify API temporarily unavailable ({exc.http_status}) after "
+            f"{exc.attempts} attempts while {exc.operation}"
+        )
+    return (
+        f"Spotify connection remained unavailable after {exc.attempts} attempts "
+        f"while {exc.operation}"
+    )
+
+
 def retry_spotify_server_errors[T](
     operation: Callable[[], T],
     description: str,
@@ -166,7 +192,7 @@ def retry_spotify_server_errors[T](
     retry_delay_seconds: int,
     max_attempts: int,
 ) -> T:
-    """Retry temporary Spotify server errors before giving up cleanly."""
+    """Retry temporary Spotify server and transport errors before giving up."""
     attempts = 0
     max_attempts = max(1, max_attempts)
 
@@ -188,6 +214,19 @@ def retry_spotify_server_errors[T](
             echo(
                 "Spotify API temporarily unavailable "
                 f"({exc.http_status}) while {description}. "
+                f"Retrying {format_retry_delay(retry_delay_seconds)}."
+            )
+            sleep(retry_delay_seconds)
+        except (RequestsConnectionError, RequestsTimeout) as exc:
+            if attempts >= max_attempts:
+                raise SpotifyTransientServerError(
+                    None,
+                    description,
+                    attempts,
+                ) from exc
+
+            echo(
+                f"Spotify connection interrupted while {description}. "
                 f"Retrying {format_retry_delay(retry_delay_seconds)}."
             )
             sleep(retry_delay_seconds)

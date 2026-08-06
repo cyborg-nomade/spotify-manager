@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from requests.exceptions import ConnectionError as RequestsConnectionError
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -270,6 +271,111 @@ def test_live_analysis_reconciles_additions_without_restarting_on_new_total(
     assert {item.source for item in summary.resources} == {"live_api"}
 
 
+def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    paths.albums_total.write_text(json.dumps([album("old-album").model_dump()]))
+    paths.liked_tracks_total.write_text(
+        json.dumps([track("old-track").model_dump()])
+    )
+    spotify = FakeSpotify(
+        albums=[album("new-album")],
+        tracks=[track("new-track")],
+        artists=[artist("must-not-be-read")],
+    )
+
+    summary = analyse_library.refresh_live_library_mirrors_routine(
+        spotify,
+        paths=paths,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+        full_rebuild=True,
+    )
+
+    assert paths.albums_total.name == "albums_total_new.json"
+    assert paths.liked_tracks_total.name == "liked_tracks_total.json"
+    assert ids(paths.albums_total) == ["new-album"]
+    assert ids(paths.liked_tracks_total) == ["new-track"]
+    assert not paths.artists_total.exists()
+    assert not paths.stats_history.exists()
+    assert spotify.artist_calls == []
+    assert summary.mode == "mirrors"
+    assert [item.resource for item in summary.resources] == ["albums", "tracks"]
+    backup_dir = Path(summary.backup_dir)
+    assert (backup_dir / "albums.before.json").exists()
+    assert (backup_dir / "tracks.before.json").exists()
+
+    restored = analyse_library.restore_library_sync(summary.run_id, paths=paths)
+
+    assert restored == ("albums_total_new.json", "liked_tracks_total.json")
+    assert ids(paths.albums_total) == ["old-album"]
+    assert ids(paths.liked_tracks_total) == ["old-track"]
+
+
+def test_live_mirror_incremental_resources_merge_additions_without_removing(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    known_albums = [album(f"known-album-{index:03}") for index in range(150)]
+    paths.albums_total.write_text(
+        json.dumps(
+            [
+                *(item.model_dump() for item in known_albums),
+                album("now-unsaved").model_dump(),
+            ]
+        )
+    )
+    known_tracks = [track(f"known-{index:03}") for index in range(100)]
+    paths.liked_tracks_total.write_text(
+        json.dumps(
+            [
+                *(item.model_dump() for item in known_tracks),
+                track("now-unliked").model_dump(),
+            ]
+        )
+    )
+    spotify = FakeSpotify(
+        albums=[album("new-album"), *known_albums],
+        tracks=[track("new"), *known_tracks],
+    )
+
+    summary = analyse_library.refresh_live_library_mirrors_routine(
+        spotify,
+        paths=paths,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+    )
+
+    assert set(ids(paths.albums_total)) == {
+        *(item.spotify_id for item in known_albums),
+        "new-album",
+        "now-unsaved",
+    }
+    assert set(ids(paths.liked_tracks_total)) == {
+        *(item.spotify_id for item in known_tracks),
+        "new",
+        "now-unliked",
+    }
+    assert max(spotify.album_calls) == 100
+    assert max(spotify.track_calls) == 30
+    albums_summary = next(
+        item for item in summary.resources if item.resource == "albums"
+    )
+    tracks_summary = next(
+        item for item in summary.resources if item.resource == "tracks"
+    )
+    assert albums_summary.added == 1
+    assert albums_summary.removed == 0
+    assert tracks_summary.added == 1
+    assert tracks_summary.removed == 0
+    checkpoint = json.loads(paths.checkpoint.read_text())
+    assert checkpoint["mirror_refresh_mode"] == "incremental"
+    events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
+    assert any(item["event"] == "incremental_albums_seeded" for item in events)
+    assert any(item["event"] == "incremental_tracks_seeded" for item in events)
+
+
 def test_live_analysis_retries_only_server_errors_with_exponential_delays(
     tmp_path: Path,
 ) -> None:
@@ -292,6 +398,43 @@ def test_live_analysis_retries_only_server_errors_with_exponential_delays(
     events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
     retries = [item for item in events if item["event"] == "server_retry_scheduled"]
     assert [item["delay_seconds"] for item in retries] == [10, 20]
+
+
+def test_live_analysis_retries_connection_resets_with_exponential_delays(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "sync")
+    spotify = FakeSpotify(albums=[album("album")])
+    original = spotify.current_user_saved_albums
+    attempts = 0
+    notices: list[analyse_library.RetryNotice] = []
+
+    def flaky_saved_albums(limit: int, offset: int) -> dict:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RequestsConnectionError(
+                "Connection aborted.",
+                ConnectionResetError(104, "Connection reset by peer"),
+            )
+        return original(limit, offset)
+
+    spotify.current_user_saved_albums = flaky_saved_albums  # type: ignore[method-assign]
+
+    analyse_library.analyse_library_sync_routine(
+        spotify,
+        paths=paths,
+        retry_wait=lambda notice: notices.append(notice) is None,
+    )
+
+    assert attempts > 1
+    assert len(notices) == 1
+    assert notices[0].http_status is None
+    assert notices[0].delay_seconds == 10
+    events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
+    retries = [item for item in events if item["event"] == "transport_retry_scheduled"]
+    assert len(retries) == 1
+    assert retries[0]["error"] == "ConnectionError"
 
 
 def test_retry_delay_stays_capped_for_many_failures() -> None:
