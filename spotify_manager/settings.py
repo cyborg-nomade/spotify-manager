@@ -38,5 +38,8 @@ class Settings(BaseSettings):
     reqeueue_for_a_dream_playlist: str | None = None
     palace_of_memory_playlist: str | None = None
     something_old_new_playlist: str | None = None
+    discography_newfoundland_playlist: str | None = None
+    discography_memory_lane_playlist: str | None = None
+    discography_requeue_playlist: str | None = None
     lastfm_api_key: str | None = None
     lastfm_username: str | None = None

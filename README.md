@@ -719,6 +719,53 @@ GET  /commands/flush-requeue-for-a-dream-jobs/{job_id}
 POST /commands/flush-requeue-for-a-dream-jobs/{job_id}/cancel
 ```
 
+### `plan-discographies`
+
+Builds the next discography batch from `DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST`,
+`DISCOGRAPHY_MEMORY_LANE_PLAYLIST`, and `DISCOGRAPHY_REQUEUE_PLAYLIST`. Artists
+are read from each marker track's primary artist and duplicates are collapsed
+without changing playlist order.
+
+For every artist considered, the command shows a chronological release table.
+The default selection contains canonical studio albums and EPs, preferring
+saved or plain editions; live records, compilations, soundtracks, and other
+non-studio albums can be opted in by entering their release numbers. True
+singles are excluded. The planner follows the persisted queue priority and
+searches the queues silently by their default counts, prompting only for artists
+actually selected for the batch. A new state starts with *The Requeue*. Starting
+priority then rotates by run through *The Requeue*, *Memory Lane*,
+*Newfoundland*, and back to *The Requeue*, independently of the additional
+queues used to fill that run's release slots.
+
+```console
+uv run spotify-manager plan-discographies --dry-run
+just plan-discographies --dry-run
+```
+
+Without `--dry-run`, a final confirmation removes every marker track for the
+shown primary artists from all three source playlists. Each completed removal
+is logged in `spotify_manager/files/discography_routine_log.jsonl`, including
+the exact selected releases. The next queue is saved atomically in
+`spotify_manager/files/discography_routine_state.json`.
+
+```console
+uv run spotify-manager plan-discographies
+just plan-discographies
+```
+
+The web card appears immediately below **New release check**. It exposes the
+same default release checklist, optional live/compilation selections, fractional
+day totals, and final marker-removal confirmation. Its background job can be
+reconnected after a page reload through:
+
+```text
+POST /commands/plan-discographies
+GET  /commands/plan-discographies-jobs
+GET  /commands/plan-discographies-jobs/{job_id}
+POST /commands/plan-discographies-jobs/{job_id}/choice
+POST /commands/plan-discographies-jobs/{job_id}/cancel
+```
+
 ### `fill-palace-of-memory`
 
 Adds the first tracks of ten albums to *Palace of Memory*: five from the saved

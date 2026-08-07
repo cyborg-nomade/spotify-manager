@@ -47,6 +47,7 @@ from spotify_manager.processors.total_albums_processor import update_total_album
 from spotify_manager.routines import analyse_library as library_sync
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
+from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import new_wine
@@ -393,6 +394,69 @@ def ask_slow_listening_action(
     finally:
         if progress is not None:
             progress.start()
+
+
+def ask_discography_release_selection(
+    console: Console,
+    artist: discography.QueueArtist,
+    candidates: tuple[discography.CatalogRelease, ...],
+    status: Status | None = None,
+) -> tuple[str, ...]:
+    """Prompt for the exact canonical releases to count for one artist."""
+    if status is not None:
+        status.stop()
+    try:
+        table = Table(title=f"Choose releases for {artist.name}")
+        table.add_column("#", justify="right")
+        table.add_column("Release")
+        table.add_column("Type")
+        table.add_column("Date")
+        table.add_column("Tracks", justify="right")
+        table.add_column("Saved")
+        table.add_column("Default")
+        default_indexes: list[int] = []
+        for index, release in enumerate(candidates, start=1):
+            if release.default:
+                default_indexes.append(index)
+            table.add_row(
+                str(index),
+                release.name,
+                release.release_type,
+                release.chronology_date,
+                str(release.total_tracks),
+                "yes" if release.saved else "-",
+                "yes" if release.default else "-",
+                style=None if release.default else "dim yellow",
+            )
+        console.print(table)
+        default = discography.format_release_indexes(tuple(default_indexes))
+        while True:
+            response = Prompt.ask(
+                "Release numbers/ranges to include / [n]one / [q]uit",
+                default=default,
+                console=console,
+            ).strip()
+            if response.casefold() == "q":
+                raise discography.DiscographyCancelledError(
+                    "Discography planning cancelled during release selection."
+                )
+            if response.casefold() == "n":
+                return ()
+            try:
+                indexes = discography.parse_release_indexes(
+                    response,
+                    len(candidates),
+                )
+            except ValueError:
+                console.print(
+                    "Enter valid comma-separated numbers or ranges.",
+                    style="bold yellow",
+                )
+                continue
+            return tuple(candidates[index - 1].spotify_id for index in indexes)
+    finally:
+        if status is not None:
+            status.start()
 
 
 def acknowledge_slow_listening_completion(
@@ -1971,6 +2035,156 @@ def flush_requeue_for_a_dream_command(
         f"{summary.playlist_length_after} tracks"
         + (" (preview only)." if dry_run else "."),
         style="bold cyan" if dry_run else "bold green",
+    )
+
+
+def _print_discography_plan(
+    console: Console,
+    plan: discography.DiscographyPlan,
+) -> None:
+    """Render one compact discography listening plan."""
+    table = Table(title="Next discographies")
+    table.add_column("Queue")
+    table.add_column("Artist")
+    table.add_column("Releases", justify="right")
+    table.add_column("Days", justify="right")
+    for selection in plan.artists:
+        table.add_row(
+            discography.QUEUE_LABELS[selection.source_queue],
+            selection.name,
+            str(selection.release_count),
+            f"{selection.days:g}",
+        )
+    console.print(table)
+    if not plan.artists:
+        console.print("No artists with selected releases were found.", style="yellow")
+        return
+    summary = (
+        f"Total: {plan.total_releases} releases over {plan.days:g} days. "
+        f"Next queue: {discography.QUEUE_LABELS[plan.next_queue]}."
+    )
+    console.print(summary, style="bold cyan")
+    if plan.open_slots:
+        console.print(
+            f"No remaining artist fit the final {plan.open_slots} release "
+            "slots; they remain open.",
+            style="yellow",
+        )
+
+
+@app.command(name="plan-discographies")
+def plan_discographies_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Build the interactive plan without removing playlist markers.",
+    ),
+) -> None:
+    """Choose the next round-week discographies and clear their queue markers."""
+    console = Console()
+    configuration = Settings()
+    try:
+        playlist_ids = discography.parse_playlist_ids(
+            configuration.discography_newfoundland_playlist,
+            configuration.discography_memory_lane_playlist,
+            configuration.discography_requeue_playlist,
+        )
+    except discography.DiscographyConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        console.print(line, style="cyan", markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    status_ref: Status | None = None
+    try:
+        with console.status("Planning the next discography batch") as status:
+            status_ref = status
+            plan = discography.build_discography_plan(
+                review_client(),
+                playlist_ids,
+                lambda artist, candidates: ask_discography_release_selection(
+                    console,
+                    artist,
+                    candidates,
+                    status_ref,
+                ),
+                retry_call=retry_call,
+                progress_callback=status.update,
+            )
+        _print_discography_plan(console, plan)
+        if not plan.artists or dry_run:
+            if dry_run and plan.artists:
+                console.print(
+                    "Dry run: playlists and queue-priority state were unchanged.",
+                    style="bold cyan",
+                )
+            return
+
+        action = Prompt.ask(
+            "Remove these artists from the discography queues?",
+            choices=["y", "n", "q"],
+            default="n",
+            console=console,
+        )
+        if action in {"n", "q"}:
+            console.print("Nothing was changed.", style="yellow")
+            return
+        with console.status("Removing confirmed discography artists") as status:
+            summary = discography.apply_discography_plan(
+                review_client(),
+                plan,
+                retry_call=retry_call,
+                progress_callback=status.update,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except discography.DiscographyCancelledError as exc:
+        console.print(str(exc), style="bold yellow", markup=False)
+        raise typer.Exit(code=0) from exc
+    except discography.DiscographyError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        console.print("Discography planning cancelled.", style="bold yellow")
+        raise typer.Exit(code=0) from exc
+
+    console.print(
+        f"Removed {summary.removed_artists} artists "
+        f"({summary.removed_markers} marker tracks). "
+        f"The next run starts with {discography.QUEUE_LABELS[summary.next_queue]}.",
+        style="bold green",
     )
 
 
