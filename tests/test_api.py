@@ -62,7 +62,12 @@ class FakeSpotify:
         return previous
 
     def search(
-        self, q, limit=10, offset=0, type="track", market=None  # noqa: A002
+        self,
+        q,
+        limit=10,
+        offset=0,
+        type="track",  # noqa: A002
+        market=None,
     ):
         if type == "artist":
             return {"artists": {"items": [{"id": "art1", "name": "Radiohead"}]}}
@@ -192,8 +197,14 @@ def test_library_mirror_status_reports_server_timestamps(
 
     albums = tmp_path / "albums_total_new.json"
     tracks = tmp_path / "liked_tracks_total.json"
+    scrobbles = tmp_path / "lastfmstats-man-et-arms.json"
     albums.write_text("[]")
-    monkeypatch.setattr(api, "LIBRARY_MIRROR_FILE_PATHS", (albums, tracks))
+    scrobbles.write_text("{}")
+    monkeypatch.setattr(
+        api,
+        "LIBRARY_MIRROR_FILE_PATHS",
+        (albums, tracks, scrobbles),
+    )
 
     response = client.get("/library-mirrors/status")
 
@@ -207,6 +218,9 @@ def test_library_mirror_status_reports_server_timestamps(
         "exists": False,
         "updated_at": None,
     }
+    assert files[2]["filename"] == "lastfmstats-man-et-arms.json"
+    assert files[2]["exists"] is True
+    assert datetime.fromisoformat(files[2]["updated_at"]).tzinfo is not None
 
 
 def test_artist_stats_endpoint(client: TestClient) -> None:
@@ -284,8 +298,7 @@ def test_live_lookup_connection_failure_is_reported_as_bad_gateway(
 
     assert resp.status_code == 502
     assert resp.json()["detail"] == (
-        "Spotify could not be reached after several attempts. "
-        "Please try again shortly."
+        "Spotify could not be reached after several attempts. Please try again shortly."
     )
 
 
@@ -1051,9 +1064,7 @@ def test_slow_listening_web_job_retries_a_connection_reset(
     from spotify_manager import api
 
     attempts = 0
-    retry_spotify_server_errors = (
-        api.review_album_limits.retry_spotify_server_errors
-    )
+    retry_spotify_server_errors = api.review_album_limits.retry_spotify_server_errors
 
     def retry_without_wait(*args, **kwargs):
         kwargs["sleep"] = lambda _seconds: None
@@ -1313,6 +1324,184 @@ def test_something_old_web_job_handles_all_interactive_choices(
         entry["message"] == "Calculating Golden Oldies" for entry in completed["logs"]
     )
     assert client.get("/commands/something-old-jobs").json() == []
+
+
+def test_release_check_web_job_handles_search_mapping_and_release_choice(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    artist = api.release_check.RankedArtist(
+        key="lastfm artist",
+        name="Last.fm Artist",
+        scrobbles=250,
+        rank=12,
+    )
+    first_candidate = api.release_check.SpotifyArtistCandidate(
+        spotify_id="artist-one",
+        name="Different Artist",
+        uri="spotify:artist:artist-one",
+        popularity=20,
+        followers=100,
+        search_rank=1,
+        exact_name=False,
+    )
+    selected_candidate = api.release_check.SpotifyArtistCandidate(
+        spotify_id="artist-two",
+        name="Last.fm Artist",
+        uri="spotify:artist:artist-two",
+        popularity=70,
+        followers=10_000,
+        search_rank=1,
+        exact_name=True,
+    )
+    release = api.release_check.ReleaseCandidate(
+        spotify_id="release-id",
+        uri="spotify:album:release-id",
+        name="New Album Deluxe",
+        release_type="Album",
+        release_date="2026-08-01",
+        release_date_precision="day",
+        total_tracks=10,
+        primary_artist_id="artist-two",
+        primary_artist_name="Last.fm Artist",
+    )
+    track = api.release_check.ReleaseTrack(
+        spotify_id="track-id",
+        uri="spotify:track:track-id",
+        name="Opening Track",
+        primary_artist_id="artist-two",
+        primary_artist_name="Last.fm Artist",
+        disc_number=1,
+        track_number=1,
+    )
+    result = api.release_check.ReleaseCheckResult(
+        artist=artist.name,
+        artist_rank=artist.rank,
+        artist_scrobbles=artist.scrobbles,
+        spotify_artist_id=selected_candidate.spotify_id,
+        release_id=release.spotify_id,
+        release=release.name,
+        release_type=release.release_type,
+        release_date=release.release_date,
+        first_track_id=track.spotify_id,
+        first_track=track.name,
+        linked_future_release=None,
+        wine_cellar_action="would add",
+        new_vintage_action="would add",
+        reason=None,
+        dry_run=True,
+    )
+    received: dict[str, object] = {}
+
+    def run(spotify, lastfm, playlists, **kwargs):
+        received.update(
+            spotify=spotify,
+            lastfm=lastfm,
+            playlists=playlists,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"](0, 1, "Resolving release-check artist")
+        received["search_choice"] = kwargs["artist_choice_reader"](
+            artist,
+            (first_candidate,),
+        )
+        received["artist_choice"] = kwargs["artist_choice_reader"](
+            artist,
+            (selected_candidate,),
+        )
+        received["release_choice"] = kwargs["release_choice_reader"](
+            artist,
+            release,
+            track,
+            ("Wine Cellar", "New Vintage"),
+        )
+        return api.release_check.ReleaseCheckSummary(
+            run_id="release-check-run",
+            checked_from=date(2026, 8, 1),
+            checked_through=date(2026, 8, 7),
+            artists_total=1,
+            artists_processed=1,
+            dry_run=True,
+            resumed=True,
+            paused=False,
+            history_refresh=None,
+            results=(result,),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            wine_cellar_playlist="spotify:playlist:0000000000000000000001",
+            new_vintage_playlist="spotify:playlist:0000000000000000000002",
+            lastfm_api_key="lastfm-key",
+            lastfm_username="man-et-arms",
+        ),
+    )
+    monkeypatch.setattr(api.release_check, "run_release_check", run)
+
+    started = client.post(
+        "/commands/check-new-releases",
+        params={"dry_run": "true"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    first_mapping = wait_for_release_check_status(client, job_id, {"waiting"})
+    assert first_mapping["release_check_pending_choice"]["kind"] == "artist"
+    assert first_mapping["release_check_pending_choice"]["artist_rank"] == 12
+    assert (
+        client.post(
+            f"/commands/check-new-releases-jobs/{job_id}/choice",
+            json={"choice": "search:"},
+        ).status_code
+        == 400
+    )
+    searched = client.post(
+        f"/commands/check-new-releases-jobs/{job_id}/choice",
+        json={"choice": "search:Lastfm Artist Band"},
+    )
+    assert searched.status_code == 200
+
+    second_mapping = wait_for_release_check_status(client, job_id, {"waiting"})
+    assert (
+        second_mapping["release_check_pending_choice"]["artist_candidates"][0][
+            "spotify_id"
+        ]
+        == "artist-two"
+    )
+    assert (
+        client.post(
+            f"/commands/check-new-releases-jobs/{job_id}/choice",
+            json={"choice": "artist-two"},
+        ).status_code
+        == 200
+    )
+
+    release_waiting = wait_for_release_check_status(client, job_id, {"waiting"})
+    pending = release_waiting["release_check_pending_choice"]
+    assert pending["kind"] == "release"
+    assert pending["tags"] == ["DELUXE"]
+    assert pending["destinations"] == ["Wine Cellar", "New Vintage"]
+    assert (
+        client.post(
+            f"/commands/check-new-releases-jobs/{job_id}/choice",
+            json={"choice": "add"},
+        ).status_code
+        == 200
+    )
+
+    completed = wait_for_release_check_status(client, job_id, {"completed"})
+    assert received["search_choice"] == "search:Lastfm Artist Band"
+    assert received["artist_choice"] == "artist-two"
+    assert received["release_choice"] == "add"
+    assert received["dry_run"] is True
+    assert completed["release_check_checked_through"] == "2026-08-07"
+    assert completed["release_check_resumed"] is True
+    assert completed["release_check_results"][0]["release"] == "New Album Deluxe"
+    assert client.get("/commands/check-new-releases-jobs").json() == []
 
 
 def test_requeue_for_a_dream_web_job_reports_transition_and_reconnects(
@@ -1749,6 +1938,23 @@ def wait_for_something_old_status(
             return body
         sleep(0.01)
     pytest.fail(f"Something Old job {job_id} did not reach {expected}")
+
+
+def wait_for_release_check_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one new-release check until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/check-new-releases-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"New-release check {job_id} did not reach {expected}")
 
 
 def wait_for_requeue_for_a_dream_status(

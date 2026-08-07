@@ -233,6 +233,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
     blast_position = response.text.index('id="blastCard"')
     daily_position = response.text.index('id="dailyMindRadioCard"')
     found_art_position = response.text.index('id="foundArtCard"')
+    release_check_position = response.text.index('id="releaseCheckCard"')
     new_wine_position = response.text.index('id="newWineCard"')
     slow_listening_position = response.text.index('id="slowListeningCard"')
     something_old_position = response.text.index('id="somethingOldCard"')
@@ -245,6 +246,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert (
         server_files_position
         < library_mirrors_position
+        < scrobble_history_position
         < blast_position
         < daily_position
         < found_art_position
@@ -254,14 +256,22 @@ def test_main_page_places_playlist_routines_in_expected_order(
         < something_old_position
         < requeue_position
         < palace_position
-        < scrobble_history_position
+        < release_check_position
         < artist_position
     )
+    assert "lastfmstats-man-et-arms.json" in response.text
     assert 'id="foundArtCount"' in response.text
     assert 'value="20"' in response.text
     assert 'data-action="startFoundArt"' in response.text
     assert 'basePath: "/commands/found-art"' in response.text
     assert "restoreActiveFoundArtJobs();" in response.text
+    assert 'id="releaseCheckDryRun" checked' in response.text
+    assert 'data-action="startReleaseCheck"' in response.text
+    assert 'data-action="releaseCheckSearch"' in response.text
+    assert 'data-action="releaseCheckChoice"' in response.text
+    assert '"/commands/check-new-releases-jobs/"' in response.text
+    assert "job.release_check_pending_choice" in response.text
+    assert "restoreActiveReleaseCheckJobs();" in response.text
     assert 'id="newWineDryRun" checked' in response.text
     assert 'id="newWineNoDiscovery"' in response.text
     assert 'id="refreshCache"' not in response.text

@@ -96,6 +96,8 @@ In the Space → **Settings → Variables and secrets**, add these as **Secrets*
 | `LIMIT` | From your local `.env` (an integer). |
 | `GENRE_REVEAL_PLAYLIST` | Spotify URL or id for the Genre Reveal destination playlist. |
 | `FOUND_ART_PLAYLIST` | Spotify URL or id for the Found Art destination playlist. |
+| `WINE_CELLAR_PLAYLIST` | Spotify URL or id for the Wine Cellar destination playlist. |
+| `NEW_VINTAGE_PLAYLIST` | Spotify URL or id for the New Vintage destination playlist. |
 | `LASTFM_API_KEY` | Read-only Last.fm API key used by Found Art. |
 | `LASTFM_USERNAME` | Last.fm username whose listening history feeds Found Art. |
 
@@ -114,6 +116,17 @@ uploader honors that file. A deployment package must therefore explicitly
 include `spotify_manager/files/genre_reveal_state.json` and its backup
 directory. Verify their entry counts in the uploaded HF revision before
 allowing the new container to replace the running one.
+
+### Protect release-check progress
+
+`spotify_manager/files/release_check_state.json` contains the last successful
+check date, Last.fm-to-Spotify artist mappings, processed release ids, pending
+singles, and any resumable active run. It is intentionally ignored by git.
+Before each Space deployment, preserve the newer server copy and explicitly
+include it in the deployment package. Never replace a newer server checkpoint
+with an older local file. The audit file
+`spotify_manager/files/release_check_log.jsonl` may be carried alongside it
+when a durable review trail is needed.
 
 > Why these names: `spotify_manager/settings.py` reads its fields from
 > environment variables (pydantic-settings), so `SPOTIPY_CLIENT_ID` →

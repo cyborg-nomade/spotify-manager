@@ -52,6 +52,7 @@ from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import recover_removed_albums
+from spotify_manager.routines import release_check
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
@@ -739,6 +740,198 @@ def ask_something_old_artist(
         status.start()
 
 
+def ask_release_check_artist(
+    console: Console,
+    artist: release_check.RankedArtist,
+    candidates: tuple[release_check.SpotifyArtistCandidate, ...],
+    progress: Progress,
+) -> str:
+    """Prompt for one ambiguous Last.fm-to-Spotify artist mapping."""
+    progress.stop()
+    try:
+        table = Table(
+            title=(
+                f"Map Last.fm artist #{artist.rank}: {artist.name} "
+                f"({artist.scrobbles:,} scrobbles)"
+            )
+        )
+        table.add_column("#", justify="right")
+        table.add_column("Spotify artist")
+        table.add_column("Exact")
+        table.add_column("Popularity", justify="right")
+        table.add_column("Followers", justify="right")
+        table.add_column("Spotify id")
+        if not candidates:
+            console.print(
+                f"No Spotify artists matched the current search for {artist.name}.",
+                style="bold yellow",
+            )
+        for index, candidate in enumerate(candidates, start=1):
+            table.add_row(
+                str(index),
+                candidate.name,
+                "yes" if candidate.exact_name else "no",
+                str(candidate.popularity) if candidate.popularity is not None else "?",
+                (
+                    f"{candidate.followers:,}"
+                    if candidate.followers is not None
+                    else "?"
+                ),
+                candidate.spotify_id,
+                style=None if candidate.exact_name else "dim",
+            )
+        console.print(table)
+        response = Prompt.ask(
+            "Artist number / [n]ew search / [s]kip this run / [q]uit and resume later",
+            choices=[
+                *(str(index) for index in range(1, len(candidates) + 1)),
+                "n",
+                "s",
+                "q",
+            ],
+            default="s",
+            console=console,
+        )
+        if response == "n":
+            while True:
+                search_text = Prompt.ask(
+                    "New Spotify artist search",
+                    console=console,
+                ).strip()
+                if search_text:
+                    return f"{release_check.CHOICE_SEARCH_PREFIX}{search_text}"
+                console.print("Search text cannot be empty.", style="bold yellow")
+        if response == "s":
+            return release_check.CHOICE_SKIP
+        if response == "q":
+            return release_check.CHOICE_QUIT
+        return candidates[int(response) - 1].spotify_id
+    finally:
+        progress.start()
+
+
+def ask_release_check_release(
+    console: Console,
+    artist: release_check.RankedArtist,
+    release: release_check.ReleaseCandidate,
+    track: release_check.ReleaseTrack,
+    destinations: tuple[str, ...],
+    progress: Progress,
+) -> str:
+    """Prompt immediately before adding one eligible release."""
+    progress.stop()
+    try:
+        tags = release_check.release_tags(release)
+        table = Table(title=f"Review release from #{artist.rank} {artist.name}")
+        table.add_column("Release")
+        table.add_column("Type")
+        table.add_column("Date")
+        table.add_column("First track")
+        table.add_column("Destinations")
+        table.add_row(
+            release.name,
+            " / ".join((release.release_type, *tags)),
+            release.release_date,
+            track.name,
+            ", ".join(destinations),
+            style="bold yellow" if tags else None,
+        )
+        console.print(table)
+        response = Prompt.ask(
+            "[a]dd / [s]kip permanently / [q]uit and resume later",
+            choices=["a", "s", "q"],
+            default="a",
+            console=console,
+        )
+        return {
+            "a": release_check.CHOICE_ADD,
+            "s": release_check.CHOICE_SKIP,
+            "q": release_check.CHOICE_QUIT,
+        }[response]
+    finally:
+        progress.start()
+
+
+def print_release_check_summary(
+    console: Console,
+    summary: release_check.ReleaseCheckSummary,
+) -> None:
+    """Render the release window and every discovered release decision."""
+    if summary.history_refresh is not None:
+        print_scrobble_history_summary(console, summary.history_refresh)
+
+    table = Table(
+        title=(
+            "Release check · "
+            f"{summary.checked_from.isoformat()} through "
+            f"{summary.checked_through.isoformat()}"
+        )
+    )
+    table.add_column("Artist")
+    table.add_column("Release")
+    table.add_column("Date")
+    table.add_column("First track")
+    table.add_column("Wine Cellar")
+    table.add_column("New Vintage")
+    table.add_column("Note")
+    action_styles = {
+        "added": "bold green",
+        "would add": "bold cyan",
+        "already present": "yellow",
+        "duplicate selection": "yellow",
+        "not applicable": "dim",
+    }
+    for result in summary.results:
+        note = result.reason or (
+            f"part of upcoming {result.linked_future_release}"
+            if result.linked_future_release
+            else ""
+        )
+        table.add_row(
+            f"#{result.artist_rank} {result.artist}\n{result.artist_scrobbles:,} plays",
+            f"{result.release}\n{result.release_type}",
+            result.release_date,
+            result.first_track or "-",
+            Text(
+                result.wine_cellar_action,
+                style=action_styles[result.wine_cellar_action],
+            ),
+            Text(
+                result.new_vintage_action,
+                style=action_styles[result.new_vintage_action],
+            ),
+            note,
+        )
+    console.print(table)
+
+    mode = "Dry run" if summary.dry_run else "Release check"
+    resumed = " · resumed" if summary.resumed else ""
+    console.print(
+        f"{mode}{resumed}: {summary.artists_processed}/{summary.artists_total} "
+        f"artists complete; {len(summary.results)} release decision(s).",
+        style="bold cyan" if summary.dry_run else "bold green",
+    )
+    if summary.dry_run:
+        console.print(
+            "Spotify, release decisions, and the audit log were unchanged. "
+            "Last.fm history and confirmed artist mappings were persisted.",
+            style="cyan",
+        )
+    else:
+        console.print(
+            f"Added {summary.wine_cellar_added} track(s) to Wine Cellar and "
+            f"{summary.new_vintage_added} to New Vintage.",
+            style="green",
+        )
+    if summary.paused:
+        message = (
+            "Dry run stopped; release decisions were not saved."
+            if summary.dry_run
+            else "Release check paused. Rerun the command to resume here."
+        )
+        console.print(message, style="bold yellow")
+
+
 def ask_something_old_mode(
     console: Console,
     artist: something_old.GoldenOldieArtist,
@@ -995,6 +1188,145 @@ def something_old_command(
         )
         raise typer.Exit(code=1) from exc
     print_something_old_summary(console, summary)
+
+
+@app.command(name="check-new-releases")
+def check_new_releases_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help=(
+            "Show release decisions without changing playlists; Last.fm history "
+            "and artist mappings are still persisted."
+        ),
+    ),
+) -> None:
+    """Check Last.fm's most-played artists for newly released music."""
+    console = Console()
+    configuration = Settings()
+    try:
+        playlists = release_check.ReleaseCheckPlaylists.from_references(
+            configuration.wine_cellar_playlist,
+            configuration.new_vintage_playlist,
+        )
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (
+        release_check.ReleaseCheckConfigError,
+        found_art.FoundArtConfigError,
+    ) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    lastfm_client = LastFmClient(
+        api_key,
+        username,
+        event_callback=lambda message: console.print(message, style="yellow"),
+    )
+    progress_ref: Progress | None = None
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            task = progress.add_task("Preparing release check", total=None)
+
+            def update_progress(
+                completed: int,
+                total: int,
+                status: str,
+            ) -> None:
+                progress.update(
+                    task,
+                    completed=completed,
+                    total=total or None,
+                    description=status,
+                )
+
+            summary = release_check.run_release_check(
+                client(),
+                lastfm_client,
+                playlists,
+                expected_username=username,
+                artist_choice_reader=lambda artist, candidates: (
+                    ask_release_check_artist(
+                        console,
+                        artist,
+                        candidates,
+                        progress,
+                    )
+                ),
+                release_choice_reader=lambda artist, release, track, destinations: (
+                    ask_release_check_release(
+                        console,
+                        artist,
+                        release,
+                        track,
+                        destinations,
+                        progress,
+                    )
+                ),
+                dry_run=dry_run,
+                progress_callback=update_progress,
+            )
+    except KeyboardInterrupt as exc:
+        if dry_run:
+            console.print("Dry run cancelled; nothing was changed.", style="yellow")
+        else:
+            console.print(
+                "Release check paused. Progress was saved; rerun to resume.",
+                style="bold yellow",
+            )
+        raise typer.Exit(code=0) from exc
+    except (
+        release_check.ReleaseCheckError,
+        scrobble_history.ScrobbleHistoryError,
+        LastFmError,
+    ) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        if not dry_run:
+            console.print(
+                "Completed artist and release boundaries remain saved.",
+                style="yellow",
+            )
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        if not dry_run:
+            console.print(
+                "Release-check progress was saved; rerun to resume.",
+                style="yellow",
+            )
+        raise typer.Exit(code=1) from exc
+    except RequestException as exc:
+        console.print(
+            f"Spotify connection failed: {exc}",
+            style="bold red",
+            markup=False,
+        )
+        if not dry_run:
+            console.print(
+                "Release-check progress was saved; rerun to resume.",
+                style="yellow",
+            )
+        raise typer.Exit(code=1) from exc
+    finally:
+        if progress_ref is not None:
+            progress_ref.stop()
+
+    print_release_check_summary(console, summary)
 
 
 @app.command(name="found-art")

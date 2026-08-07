@@ -117,6 +117,10 @@ update-scrobble-history *args:
 something-old *args:
     {{ cli }} something-old "$@"
 
+# Check 100+ scrobble artists for releases feeding Wine Cellar and New Vintage.
+check-new-releases *args:
+    {{ cli }} check-new-releases "$@"
+
 # Advance every New Wine track once by its selected release.
 flush-new-wine *args:
     {{ cli }} flush-new-wine "$@"

@@ -63,6 +63,7 @@ from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import palace_of_memory
+from spotify_manager.routines import release_check
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import scrobble_history
@@ -380,6 +381,58 @@ class SomethingOldChoiceRequest(BaseModel):
     choice: str
 
 
+class ReleaseCheckArtistOption(BaseModel):
+    """One Spotify artist offered for a Last.fm artist mapping."""
+
+    spotify_id: str
+    name: str
+    popularity: int | None = None
+    followers: int | None = None
+    exact_name: bool
+
+
+class ReleaseCheckPendingChoice(BaseModel):
+    """Current artist mapping or release approval exposed to the web client."""
+
+    kind: Literal["artist", "release"]
+    artist: str
+    artist_rank: int
+    artist_scrobbles: int
+    artist_candidates: list[ReleaseCheckArtistOption] = Field(default_factory=list)
+    release: str | None = None
+    release_type: str | None = None
+    release_date: str | None = None
+    first_track: str | None = None
+    destinations: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+class ReleaseCheckResultEntry(BaseModel):
+    """One release decision and its destination-playlist outcomes."""
+
+    artist: str
+    artist_rank: int
+    artist_scrobbles: int
+    spotify_artist_id: str
+    release_id: str
+    release: str
+    release_type: str
+    release_date: str
+    first_track_id: str | None = None
+    first_track: str | None = None
+    linked_future_release: str | None = None
+    wine_cellar_action: str
+    new_vintage_action: str
+    reason: str | None = None
+    dry_run: bool
+
+
+class ReleaseCheckChoiceRequest(BaseModel):
+    """One artist, custom search, release approval, skip, or quit choice."""
+
+    choice: str
+
+
 class BlastJobResult(BaseModel):
     """Pollable state for one Last.fm-based playlist job."""
 
@@ -389,6 +442,7 @@ class BlastJobResult(BaseModel):
     detail: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
+    run_id: str | None = None
     requested_count: int | None = None
     playlist_length_before: int | None = None
     playlist_length_after: int | None = None
@@ -432,6 +486,14 @@ class BlastJobResult(BaseModel):
     something_old_ranking: list[SomethingOldRankingEntry] = Field(default_factory=list)
     something_old_tracks: list[SomethingOldTrackResult] = Field(default_factory=list)
     something_old_pending_choice: SomethingOldPendingChoice | None = None
+    release_check_checked_from: str | None = None
+    release_check_checked_through: str | None = None
+    release_check_resumed: bool = False
+    release_check_paused: bool = False
+    release_check_wine_cellar_added: int | None = None
+    release_check_new_vintage_added: int | None = None
+    release_check_results: list[ReleaseCheckResultEntry] = Field(default_factory=list)
+    release_check_pending_choice: ReleaseCheckPendingChoice | None = None
     requeue_action: str | None = None
     requeue_artist: str | None = None
     requeue_source_track: str | None = None
@@ -489,6 +551,10 @@ class _SomethingOldJobCancelledError(RuntimeError):
     """Stop one Something Old web job at an interaction or retry boundary."""
 
 
+class _ReleaseCheckJobCancelledError(RuntimeError):
+    """Stop one release-check job at an interaction or retry boundary."""
+
+
 class _RequeueForADreamJobCancelledError(RuntimeError):
     """Stop one Requeue for a Dream job at an API or retry boundary."""
 
@@ -508,6 +574,7 @@ _MAX_BLAST_LOGS = 250
 LIBRARY_MIRROR_FILE_PATHS = (
     library_analysis.DEFAULT_LIVE_MIRROR_PATHS.albums_total,
     library_analysis.DEFAULT_LIVE_MIRROR_PATHS.liked_tracks_total,
+    scrobble_history.DEFAULT_SCROBBLES_PATH,
 )
 SPOTIFY_CONNECTION_FAILURE_DETAIL = (
     "Spotify connection remained unavailable after automatic retries. "
@@ -1983,6 +2050,270 @@ def _run_something_old_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _release_check_result(
+    result: release_check.ReleaseCheckResult,
+) -> ReleaseCheckResultEntry:
+    """Convert one release-check decision into its API representation."""
+    return ReleaseCheckResultEntry(
+        artist=result.artist,
+        artist_rank=result.artist_rank,
+        artist_scrobbles=result.artist_scrobbles,
+        spotify_artist_id=result.spotify_artist_id,
+        release_id=result.release_id,
+        release=result.release,
+        release_type=result.release_type,
+        release_date=result.release_date,
+        first_track_id=result.first_track_id,
+        first_track=result.first_track,
+        linked_future_release=result.linked_future_release,
+        wine_cellar_action=result.wine_cellar_action,
+        new_vintage_action=result.new_vintage_action,
+        reason=result.reason,
+        dry_run=result.dry_run,
+    )
+
+
+def _run_release_check_job(
+    job_id: str,
+    spotify: Spotify,
+    playlists: release_check.ReleaseCheckPlaylists,
+    api_key: str,
+    username: str,
+    dry_run: bool,
+) -> None:
+    """Execute one reconnectable, interactive new-release check."""
+    job = get_blast_job(job_id, command="check_new_releases")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "New-release check started"
+        _append_blast_log_locked(
+            job,
+            f"New-release check started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def wait_for_submission(
+        pending: ReleaseCheckPendingChoice,
+        detail: str,
+    ) -> str:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _ReleaseCheckJobCancelledError
+            job.submitted_choice = None
+            job.choice_event.clear()
+            job.result.release_check_pending_choice = pending
+            job.result.status = "waiting"
+            job.result.detail = detail
+            _append_blast_log_locked(job, detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _ReleaseCheckJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                job.submitted_choice = None
+                job.choice_event.clear()
+                job.result.release_check_pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying release-check choice"
+                if choice.startswith(release_check.CHOICE_SEARCH_PREFIX):
+                    logged_choice = "custom artist search"
+                else:
+                    logged_choice = choice
+                _append_blast_log_locked(
+                    job,
+                    f"Release-check choice received: {logged_choice}.",
+                )
+                return choice
+
+    def artist_choice_reader(
+        artist: release_check.RankedArtist,
+        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
+    ) -> str:
+        return wait_for_submission(
+            ReleaseCheckPendingChoice(
+                kind="artist",
+                artist=artist.name,
+                artist_rank=artist.rank,
+                artist_scrobbles=artist.scrobbles,
+                artist_candidates=[
+                    ReleaseCheckArtistOption(
+                        spotify_id=candidate.spotify_id,
+                        name=candidate.name,
+                        popularity=candidate.popularity,
+                        followers=candidate.followers,
+                        exact_name=candidate.exact_name,
+                    )
+                    for candidate in candidates
+                ],
+            ),
+            f"Choose the Spotify artist for #{artist.rank} {artist.name}.",
+        )
+
+    def release_choice_reader(
+        artist: release_check.RankedArtist,
+        release: release_check.ReleaseCandidate,
+        track: release_check.ReleaseTrack,
+        destinations: tuple[str, ...],
+    ) -> str:
+        return wait_for_submission(
+            ReleaseCheckPendingChoice(
+                kind="release",
+                artist=artist.name,
+                artist_rank=artist.rank,
+                artist_scrobbles=artist.scrobbles,
+                release=release.name,
+                release_type=release.release_type,
+                release_date=release.release_date,
+                first_track=track.name,
+                destinations=list(destinations),
+                tags=list(release_check.release_tags(release)),
+            ),
+            (
+                f"Review {release.release_type.casefold()} {release.name} "
+                f"by {artist.name}."
+            ),
+        )
+
+    def update_progress(completed: int, total: int, detail: str) -> None:
+        with _blast_jobs_lock:
+            job.result.processed = completed
+            job.result.total = total
+            job.result.detail = detail
+            _append_blast_log_locked(job, detail)
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _ReleaseCheckJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    lastfm = LastFmClient(api_key, username, event_callback=echo)
+    try:
+        summary = release_check.run_release_check(
+            spotify,
+            lastfm,
+            playlists,
+            expected_username=username,
+            artist_choice_reader=artist_choice_reader,
+            release_choice_reader=release_choice_reader,
+            dry_run=dry_run,
+            progress_callback=update_progress,
+            retry_call=retry_call,
+        )
+    except _ReleaseCheckJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = (
+                "New-release check stopped. Durable progress was preserved."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = (
+                review_album_limits.format_transient_spotify_failure(exc) + "."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except SpotifyException as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Spotify request failed: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    except (
+        release_check.ReleaseCheckError,
+        scrobble_history.ScrobbleHistoryError,
+        LastFmError,
+        RequestException,
+    ) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"New-release check failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected new-release check error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected new-release check error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [_release_check_result(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "paused" if summary.paused else "completed"
+            job.result.run_id = summary.run_id
+            job.result.processed = summary.artists_processed
+            job.result.total = summary.artists_total
+            job.result.release_check_checked_from = summary.checked_from.isoformat()
+            job.result.release_check_checked_through = (
+                summary.checked_through.isoformat()
+            )
+            job.result.release_check_resumed = summary.resumed
+            job.result.release_check_paused = summary.paused
+            job.result.release_check_wine_cellar_added = summary.wine_cellar_added
+            job.result.release_check_new_vintage_added = summary.new_vintage_added
+            job.result.release_check_results = results
+            if summary.history_refresh is not None:
+                job.result.live_scrobbles_added = (
+                    summary.history_refresh.live_scrobbles_added
+                )
+                job.result.history_scrobbles = summary.history_refresh.total_scrobbles
+            if summary.paused:
+                job.result.detail = (
+                    "New-release check paused. Rerun it to resume from the "
+                    "durable checkpoint."
+                )
+            else:
+                verb = "Would add" if dry_run else "Added"
+                job.result.detail = (
+                    f"{summary.artists_processed}/{summary.artists_total} artists "
+                    f"checked. {verb} {summary.wine_cellar_added} to Wine Cellar "
+                    f"and {summary.new_vintage_added} to New Vintage."
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.release_check_pending_choice = None
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def _run_requeue_for_a_dream_job(
     job_id: str,
     spotify: Spotify,
@@ -2696,6 +3027,54 @@ def start_something_old_job(
         target=_run_something_old_job,
         args=(job_id, spotify, playlist_id, api_key, username, dry_run),
         name=f"something-old-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_release_check_job(
+    spotify: Spotify,
+    playlists: release_check.ReleaseCheckPlaylists,
+    api_key: str,
+    username: str,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one interactive release check with reload-safe web state."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="check_new_releases",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            (
+                "New-release check queued in dry-run mode."
+                if dry_run
+                else "New-release check queued."
+            ),
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_release_check_job,
+        args=(job_id, spotify, playlists, api_key, username, dry_run),
+        name=f"release-check-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -3579,6 +3958,141 @@ def cmd_cancel_something_old_job(job_id: str) -> BlastJobResult:
         job.result.status = "cancelling"
         job.result.something_old_pending_choice = None
         job.result.detail = "Stopping Something Old"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/check-new-releases",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_check_new_releases(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start a reconnectable release check for Last.fm's top artists."""
+    configuration = Settings()
+    try:
+        playlists = release_check.ReleaseCheckPlaylists.from_references(
+            configuration.wine_cellar_playlist,
+            configuration.new_vintage_playlist,
+        )
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (
+        release_check.ReleaseCheckConfigError,
+        found_art.FoundArtConfigError,
+    ) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_release_check_job(
+        client,
+        playlists,
+        api_key,
+        username,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/check-new-releases-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_release_check_jobs() -> list[BlastJobResult]:
+    """Return active release checks for page-reload reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "check_new_releases"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/check-new-releases-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_release_check_job(job_id: str) -> BlastJobResult:
+    """Return release-check progress and any pending interaction."""
+    job = get_blast_job(job_id, command="check_new_releases")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/check-new-releases-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_release_check(
+    job_id: str,
+    request: ReleaseCheckChoiceRequest,
+) -> BlastJobResult:
+    """Submit an artist mapping, custom search, or release decision."""
+    job = get_blast_job(job_id, command="check_new_releases")
+    with _blast_jobs_lock:
+        pending = job.result.release_check_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="New-release check is not waiting for a choice",
+            )
+
+        if pending.kind == "artist":
+            allowed = {
+                release_check.CHOICE_SKIP,
+                release_check.CHOICE_QUIT,
+                *(candidate.spotify_id for candidate in pending.artist_candidates),
+            }
+            custom_search = request.choice.startswith(
+                release_check.CHOICE_SEARCH_PREFIX
+            )
+            search_text = request.choice.removeprefix(
+                release_check.CHOICE_SEARCH_PREFIX
+            ).strip()
+            if request.choice not in allowed and not (custom_search and search_text):
+                raise HTTPException(
+                    status_code=400,
+                    detail="artist mapping choice is not available",
+                )
+        elif request.choice not in {
+            release_check.CHOICE_ADD,
+            release_check.CHOICE_SKIP,
+            release_check.CHOICE_QUIT,
+        }:
+            raise HTTPException(
+                status_code=400,
+                detail="release review choice is not available",
+            )
+
+        job.submitted_choice = request.choice
+        job.result.release_check_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Release-check choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/check-new-releases-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_release_check_job(job_id: str) -> BlastJobResult:
+    """Request a clean stop at the next release-check boundary."""
+    job = get_blast_job(job_id, command="check_new_releases")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail="New-release check is not active",
+            )
+        job.result.status = "cancelling"
+        job.result.release_check_pending_choice = None
+        job.result.detail = "Stopping new-release check"
         _append_blast_log_locked(job, job.result.detail)
         job.cancel_event.set()
         job.choice_event.set()
