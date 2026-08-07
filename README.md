@@ -455,6 +455,87 @@ POST /commands/something-old-jobs/{job_id}/choice
 POST /commands/something-old-jobs/{job_id}/cancel
 ```
 
+### `check-new-releases`
+
+Checks Spotify for releases by every Last.fm artist with at least 100 all-time
+scrobbles. Before a new run, it updates the shared canonical Last.fm history and
+ranks all artists by scrobble count. Configure `WINE_CELLAR_PLAYLIST` and
+`NEW_VINTAGE_PLAYLIST` with Spotify playlist URLs, URIs, or ids.
+
+The first completed check covers January 1 of the current year through today.
+Later checks begin on the previous check date, inclusively, and use persisted
+Spotify release ids to avoid duplicates. This overlap protects releases that
+appear later on the same day. Spotify artist mappings are reused after the
+first check. When a name has multiple exact matches, or only inexact search
+results, the CLI displays popularity and follower context and saves the chosen
+mapping. Choose `n` from that prompt to enter a different Spotify search string;
+the new candidates can be searched repeatedly and do not need to match the
+Last.fm spelling. Artist mappings are also saved during dry runs.
+
+For every eligible release, its first track in Spotify track-list order is
+added to Wine Cellar. The release rules are:
+
+- Ranks 1-20: albums, EPs, live albums, deluxe editions, and standalone singles.
+- Ranks 21-50: albums, EPs, live albums, and deluxe editions. Singles enter Wine
+  Cellar only when their first track belongs to an announced future album or EP.
+- Rank 51 onward: primary-artist studio albums and EPs. Live releases, deluxe
+  editions, compilations, remasters, and reissues are excluded. Singles require
+  the same future-record evidence.
+
+Eligible albums and EPs by ranks 1-50 are also represented in New Vintage by
+their first track. Standalone singles enter New Vintage only for ranks 1-20.
+Singles outside the top 20 that cannot yet be tied to an unreleased record stay
+pending and are reconsidered during later checks, including when the original
+single is older than the new check window.
+
+Immediately before an eligible track is added, the CLI displays the artist,
+release type and date, first track, and every destination that still needs it.
+Live and deluxe releases are marked prominently. Press Enter to add, `s` to
+skip that release permanently, or `q` to stop and resume from that release
+later. No prompt is shown when the track is already present in every applicable
+destination.
+
+Inspect the complete plan without changing Spotify playlists or persisting any
+release decisions:
+
+```console
+uv run spotify-manager check-new-releases --dry-run
+just check-new-releases --dry-run
+```
+
+Unlike most dry runs in this project, this one does persist two safe inputs for
+later checks: new Last.fm scrobbles are backed up and merged into the canonical
+history, and confirmed Last.fm-to-Spotify artist mappings are saved. Playlist
+additions, permanent skips, processed-release state, and release audit events
+remain dry-run only.
+
+Then run it for real:
+
+```console
+uv run spotify-manager check-new-releases
+just check-new-releases
+```
+
+Real runs checkpoint after artist mappings and every release decision in
+`spotify_manager/files/release_check_state.json`. Quitting from an artist
+prompt, pressing Ctrl-C, or encountering an API failure leaves the active run
+ready to resume. Exact playlist actions and filtered-release reasons are kept
+in `spotify_manager/files/release_check_log.jsonl`. Track ids and normalized
+artist/title identities are both checked before additions, so existing playlist
+tracks and duplicate selections are not added twice.
+
+The web card follows the same dry-run default and exposes artist mappings,
+custom Spotify searches, and release approvals as a reconnectable background
+job. Reloading the page restores its current prompt and logs.
+
+```text
+POST /commands/check-new-releases?dry_run=true
+GET  /commands/check-new-releases-jobs
+GET  /commands/check-new-releases-jobs/{job_id}
+POST /commands/check-new-releases-jobs/{job_id}/choice
+POST /commands/check-new-releases-jobs/{job_id}/cancel
+```
+
 ### `flush-new-wine`
 
 Advances every track present at the start of a *New Wine from Old Bottles*
@@ -872,6 +953,8 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `GENRE_REVEAL_PLAYLIST` | Spotify URL or id that receives each genre playlist's first ten tracks. |
 | `FOUND_ART_PLAYLIST` | Spotify URL or id for the Found Art recommendation playlist. |
 | `NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST` | Spotify URL or id for releases being advanced track by track. |
+| `WINE_CELLAR_PLAYLIST` | Spotify URL or id receiving newly discovered release first tracks and feeding New Wine. |
+| `NEW_VINTAGE_PLAYLIST` | Spotify URL or id receiving eligible top-50 release first tracks. |
 | `SAUVIGNON_TERRE_NEUVE_PLAYLIST` | Spotify URL or id receiving the first track of completed albums and EPs. |
 | `SLOW_LISTENING_PLAYLIST` | Spotify URL or id for the two-track-per-day deep-listening rotation. |
 | `SOMETHING_OLD_NEW_PLAYLIST` | Spotify URL or id for the alternating Something Old, Something New slot. |

@@ -242,6 +242,10 @@
           <span class="server-file-name">liked_tracks_total.json</span>
           <span class="server-file-date">Checking…</span>
         </div>
+        <div class="server-file">
+          <span class="server-file-name">lastfmstats-man-et-arms.json</span>
+          <span class="server-file-date">Checking…</span>
+        </div>
       </div>
     </section>
 
@@ -256,6 +260,18 @@
         <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
       </div>
       <div class="analysis-progress" id="analysis-mirrors"></div>
+    </section>
+
+    <section class="card" id="scrobbleHistoryCard">
+      <h2>Last.fm scrobble history</h2>
+      <label class="inline">
+        <input type="checkbox" id="scrobbleHistoryDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions" style="margin-top:12px">
+        <button class="primary" data-action="startScrobbleHistory">Update scrobble history</button>
+      </div>
+      <div class="analysis-progress" id="scrobbleHistoryProgress"></div>
     </section>
 
     <section class="card" id="blastCard">
@@ -381,16 +397,17 @@
       <div class="analysis-progress" id="palaceOfMemoryProgress"></div>
     </section>
 
-    <section class="card" id="scrobbleHistoryCard">
-      <h2>Last.fm scrobble history</h2>
+    <section class="card" id="releaseCheckCard">
+      <h2>New release check</h2>
       <label class="inline">
-        <input type="checkbox" id="scrobbleHistoryDryRun" checked />
+        <input type="checkbox" id="releaseCheckDryRun" checked />
         Dry run
       </label>
       <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startScrobbleHistory">Update scrobble history</button>
+        <button class="primary" data-action="startReleaseCheck">Check releases</button>
+        <button class="danger cancel" data-action="cancelReleaseCheck" hidden title="Stop check">×</button>
       </div>
-      <div class="analysis-progress" id="scrobbleHistoryProgress"></div>
+      <div class="analysis-progress" id="releaseCheckProgress"></div>
     </section>
 
     <!-- Artist stats -->
@@ -451,6 +468,7 @@
   var newWineJob = null;
   var slowListeningJob = null;
   var somethingOldJob = null;
+  var releaseCheckJob = null;
   var requeueForADreamJob = null;
   var palaceOfMemoryJob = null;
   var scrobbleHistoryJob = null;
@@ -1346,6 +1364,185 @@
     }
   }
 
+  function renderReleaseCheckJob(job) {
+    releaseCheckJob = job;
+    var out = document.getElementById("releaseCheckProgress");
+    var start = document.querySelector('[data-action="startReleaseCheck"]');
+    var cancel = document.querySelector('[data-action="cancelReleaseCheck"]');
+    document.getElementById("releaseCheckDryRun").checked = Boolean(job.dry_run);
+
+    var results = job.release_check_results || [];
+    var wineCount = results.filter(function (item) {
+      return item.wine_cellar_action === "added" || item.wine_cellar_action === "would add";
+    }).length;
+    var vintageCount = results.filter(function (item) {
+      return item.new_vintage_action === "added" || item.new_vintage_action === "would add";
+    }).length;
+    var summary = "";
+    if (typeof job.total === "number") {
+      summary = '<div class="blast-summary">' +
+        '<div><strong>' + esc(job.processed || 0) + '/' + esc(job.total) +
+          '</strong><span>Artists</span></div>' +
+        '<div><strong>' + esc(wineCount) + '</strong><span>Wine Cellar</span></div>' +
+        '<div><strong>' + esc(vintageCount) + '</strong><span>New Vintage</span></div>' +
+        '</div>';
+    }
+    var windowSummary = "";
+    if (job.release_check_checked_from && job.release_check_checked_through) {
+      windowSummary = '<div class="playlist-dates">Release window: ' +
+        esc(job.release_check_checked_from) + ' through ' +
+        esc(job.release_check_checked_through) +
+        (job.release_check_resumed ? ' · resumed' : '') + '</div>';
+    }
+
+    var decisions = results.map(function (item) {
+      var action = item.reason || (
+        'Wine Cellar: ' + item.wine_cellar_action +
+        ' · New Vintage: ' + item.new_vintage_action
+      );
+      var linked = item.linked_future_release
+        ? ' · announced for ' + item.linked_future_release
+        : '';
+      return '<div class="blast-selection"><div class="blast-selection-title">' +
+        esc('#' + item.artist_rank + ' ' + item.artist + ' · ' + item.release) +
+        '</div><div class="blast-selection-match">' +
+        esc(item.release_date + ' · ' + item.release_type + linked) +
+        '</div><div class="blast-selection-meta">' +
+        esc((item.first_track || 'No playable first track') + ' · ' + action) +
+        '</div></div>';
+    }).join("");
+    if (decisions) {
+      decisions = '<div class="new-wine-refill"><div class="new-wine-choice-title">' +
+        'Release decisions</div>' + decisions + '</div>';
+    }
+
+    var choice = job.release_check_pending_choice;
+    var pending = "";
+    if (choice) {
+      var options = "";
+      var title = "";
+      if (choice.kind === "artist") {
+        title = 'Map #' + choice.artist_rank + ' ' + choice.artist;
+        options = (choice.artist_candidates || []).map(function (candidate) {
+          var popularity = candidate.popularity == null ? "?" : candidate.popularity;
+          var followers = candidate.followers == null
+            ? "?"
+            : Number(candidate.followers).toLocaleString();
+          return '<button class="ghost" data-action="releaseCheckChoice" data-choice="' +
+            esc(candidate.spotify_id) + '"><span class="new-wine-option-name">' +
+            esc(candidate.name) + '</span><span class="new-wine-option-meta">' +
+            esc(candidate.exact_name ? 'Exact name · ' : '') +
+            'Popularity ' + esc(popularity) + ' · ' + esc(followers) +
+            ' followers</span></button>';
+        }).join("");
+        options += '<div class="analysis-actions"><input id="releaseCheckSearch" ' +
+          'type="text" placeholder="New Spotify artist search" style="margin:0" />' +
+          '<button class="ghost" data-action="releaseCheckSearch">Search</button></div>';
+      } else {
+        title = 'Review ' + choice.release_type + ' by ' + choice.artist;
+        var tags = (choice.tags || []).length
+          ? ' · ' + choice.tags.join(' / ')
+          : '';
+        options = '<div class="blast-selection"><div class="blast-selection-title">' +
+          esc(choice.release) + '</div><div class="blast-selection-match">' +
+          esc(choice.release_date + ' · ' + choice.release_type + tags) +
+          '</div><div class="blast-selection-meta">First track: ' +
+          esc(choice.first_track) + ' · ' + esc((choice.destinations || []).join(', ')) +
+          '</div></div><div class="btns">' +
+          '<button class="primary" data-action="releaseCheckChoice" data-choice="add">Add</button>' +
+          '<button class="ghost" data-action="releaseCheckChoice" data-choice="skip">Skip permanently</button>' +
+          '</div>';
+      }
+      var artistSkip = choice.kind === "artist"
+        ? '<button class="ghost" data-action="releaseCheckChoice" data-choice="skip">Skip this run</button>'
+        : '';
+      pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
+        esc(title) + '</div><div class="blast-selection-match">' +
+        esc(choice.artist_scrobbles) + ' Last.fm scrobbles</div>' +
+        '<div class="new-wine-options">' + options + '</div><div class="btns">' +
+        artistSkip + '<button class="danger" data-action="releaseCheckChoice" ' +
+        'data-choice="quit">Quit and resume later</button></div></div>';
+    }
+
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity...</span></div>';
+    }
+
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) {
+        state += " · retry at " + retryDate.toLocaleString();
+      }
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
+      summary + windowSummary + decisions + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running...");
+      if (job.status === "waiting") {
+        start.innerHTML = '<span class="spinner"></span> Waiting...';
+      }
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollReleaseCheckJob(jobId) {
+    try {
+      var job = await api("/commands/check-new-releases-jobs/" + jobId);
+      renderReleaseCheckJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollReleaseCheckJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("New-release check finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "New-release check stopped", "ok");
+      } else {
+        showToast("New-release check " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("releaseCheckProgress"), e);
+      setBusy(document.querySelector('[data-action="startReleaseCheck"]'), false);
+      showToast("Could not read new-release progress", "err");
+    }
+  }
+
+  async function restoreActiveReleaseCheckJobs() {
+    try {
+      var jobs = await api("/commands/check-new-releases-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderReleaseCheckJob(job);
+      pollReleaseCheckJob(job.job_id);
+      showToast("Reconnected to new-release check", "ok");
+    } catch (e) {
+      if (e.status !== 401) {
+        showToast("Could not restore new-release progress", "err");
+      }
+    }
+  }
+
   function renderRequeueForADreamJob(job) {
     requeueForADreamJob = job;
     var out = document.getElementById("requeueForADreamProgress");
@@ -1818,6 +2015,89 @@
         renderError(out, e);
         setBusy(btn, false);
         showToast("Could not start Found Art", "err");
+      }
+    },
+
+    async startReleaseCheck(btn) {
+      var dryRun = document.getElementById("releaseCheckDryRun").checked;
+      var out = document.getElementById("releaseCheckProgress");
+      if (!dryRun && !confirm("Check releases and add approved tracks to Spotify?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting...");
+      try {
+        var job = await api(
+          "/commands/check-new-releases?" + q.toString(),
+          { method: "POST" }
+        );
+        renderReleaseCheckJob(job);
+        pollReleaseCheckJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "check_new_releases") {
+          await pollReleaseCheckJob(activeJobId);
+          showToast("Reconnected to new-release check", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start new-release check", "err");
+      }
+    },
+
+    async releaseCheckChoice(btn) {
+      if (!releaseCheckJob || !releaseCheckJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/check-new-releases-jobs/" +
+            releaseCheckJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice } }
+        );
+        renderReleaseCheckJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit release-check choice", "err");
+      }
+    },
+
+    async releaseCheckSearch(btn) {
+      if (!releaseCheckJob || !releaseCheckJob.job_id) return;
+      var input = document.getElementById("releaseCheckSearch");
+      var searchText = input ? input.value.trim() : "";
+      if (!searchText) {
+        showToast("Enter a Spotify artist search", "err");
+        if (input) input.focus();
+        return;
+      }
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/check-new-releases-jobs/" +
+            releaseCheckJob.job_id + "/choice",
+          { method: "POST", json: { choice: "search:" + searchText } }
+        );
+        renderReleaseCheckJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not search Spotify artists", "err");
+      }
+    },
+
+    async cancelReleaseCheck(btn) {
+      if (!releaseCheckJob || !releaseCheckJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/check-new-releases-jobs/" +
+            releaseCheckJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderReleaseCheckJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop new-release check", "err");
       }
     },
 
@@ -2419,6 +2699,7 @@
     restoreActiveBlastJobs();
     restoreActiveDailyMindRadioJobs();
     restoreActiveFoundArtJobs();
+    restoreActiveReleaseCheckJobs();
     restoreActiveNewWineJobs();
     restoreActiveSlowListeningJobs();
     restoreActiveSomethingOldJobs();
