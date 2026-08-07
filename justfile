@@ -133,6 +133,10 @@ flush-slow-listening *args:
 flush-requeue-for-a-dream *args:
     {{ cli }} flush-requeue-for-a-dream "$@"
 
+# Plan a round-week batch from the three ordered discography queues.
+plan-discographies *args:
+    {{ cli }} plan-discographies "$@"
+
 # Add five alphabetical and five historical albums to Palace of Memory.
 fill-palace-of-memory *args:
     {{ cli }} fill-palace-of-memory "$@"

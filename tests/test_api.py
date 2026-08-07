@@ -1504,6 +1504,142 @@ def test_release_check_web_job_handles_search_mapping_and_release_choice(
     assert client.get("/commands/check-new-releases-jobs").json() == []
 
 
+def test_discography_web_job_collects_releases_and_confirms_removal(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    received: dict[str, object] = {}
+    artist = api.discography.QueueArtist("artist", "Artist", "requeue")
+    studio = api.discography.CatalogRelease(
+        spotify_id="studio",
+        uri="spotify:album:studio",
+        name="Studio Album",
+        release_type="Album",
+        release_date="2020-01-01",
+        chronology_date="2020-01-01",
+        total_tracks=10,
+        identity="studio album",
+        saved=True,
+        plain=True,
+        edition_rank=0,
+        default=True,
+    )
+    live = api.discography.CatalogRelease(
+        spotify_id="live",
+        uri="spotify:album:live",
+        name="Live Album",
+        release_type="Live",
+        release_date="2021-01-01",
+        chronology_date="2021-01-01",
+        total_tracks=12,
+        identity="live album",
+        saved=False,
+        plain=True,
+        edition_rank=0,
+        default=False,
+    )
+
+    def build(_spotify, playlist_ids, release_selector, **kwargs):
+        received["playlist_ids"] = playlist_ids
+        kwargs["progress_callback"]("Loading next discography artist")
+        selected_ids = release_selector(artist, (studio, live))
+        received["selected_ids"] = selected_ids
+        selected = tuple(
+            release for release in (studio, live) if release.spotify_id in selected_ids
+        )
+        selection = api.discography.ArtistSelection(
+            spotify_id=artist.spotify_id,
+            name=artist.name,
+            source_queue=artist.queue,
+            releases=selected,
+            markers=(),
+        )
+        return api.discography.DiscographyPlan(
+            start_queue="requeue",
+            next_queue="memory_lane",
+            artists=(selection,),
+            total_releases=len(selected),
+            open_slots=(-len(selected)) % 10,
+        )
+
+    def apply(_spotify, plan, **kwargs):
+        received["applied_plan"] = plan
+        kwargs["progress_callback"]("Removing confirmed artists")
+        return api.discography.DiscographyRunSummary(
+            removed_artists=1,
+            removed_markers=2,
+            next_queue="memory_lane",
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            discography_newfoundland_playlist="nf",
+            discography_memory_lane_playlist="ml",
+            discography_requeue_playlist="rq",
+        ),
+    )
+    monkeypatch.setattr(api.discography, "build_discography_plan", build)
+    monkeypatch.setattr(api.discography, "apply_discography_plan", apply)
+
+    started = client.post(
+        "/commands/plan-discographies",
+        params={"dry_run": "false"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    waiting = wait_for_discography_status(client, job_id, {"waiting"})
+    pending = waiting["discography_pending_choice"]
+    assert pending["kind"] == "releases"
+    assert pending["default_release_ids"] == ["studio"]
+    assert pending["releases"][1]["release_type"] == "Live"
+    assert (
+        client.post(
+            f"/commands/plan-discographies-jobs/{job_id}/choice",
+            json={"choice": "select", "release_ids": ["missing"]},
+        ).status_code
+        == 400
+    )
+
+    submitted = client.post(
+        f"/commands/plan-discographies-jobs/{job_id}/choice",
+        json={"choice": "select", "release_ids": ["studio", "live"]},
+    )
+    assert submitted.status_code == 200
+
+    confirmation = wait_for_discography_status(client, job_id, {"waiting"})
+    assert confirmation["discography_pending_choice"]["kind"] == "confirm"
+    assert confirmation["discography_total_releases"] == 2
+    assert confirmation["discography_days"] == 1
+    assert confirmation["discography_start_queue"] == "The Requeue"
+    assert confirmation["discography_next_queue"] == "Memory Lane"
+    assert confirmation["discography_results"][0]["release_names"] == [
+        "Studio Album",
+        "Live Album",
+    ]
+
+    confirmed = client.post(
+        f"/commands/plan-discographies-jobs/{job_id}/choice",
+        json={"choice": "apply"},
+    )
+    assert confirmed.status_code == 200
+    completed = wait_for_discography_status(client, job_id, {"completed"})
+    assert received["selected_ids"] == ("studio", "live")
+    assert received["playlist_ids"] == {
+        "newfoundland": "nf",
+        "memory_lane": "ml",
+        "requeue": "rq",
+    }
+    assert received["applied_plan"].total_releases == 2
+    assert completed["discography_removed_artists"] == 1
+    assert completed["discography_removed_markers"] == 2
+    assert client.get("/commands/plan-discographies-jobs").json() == []
+
+
 def test_requeue_for_a_dream_web_job_reports_transition_and_reconnects(
     client: TestClient,
     monkeypatch,
@@ -1955,6 +2091,23 @@ def wait_for_release_check_status(
             return body
         sleep(0.01)
     pytest.fail(f"New-release check {job_id} did not reach {expected}")
+
+
+def wait_for_discography_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one discography job until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/plan-discographies-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Discography job {job_id} did not reach {expected}")
 
 
 def wait_for_requeue_for_a_dream_status(

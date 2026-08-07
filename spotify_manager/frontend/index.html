@@ -116,6 +116,14 @@
     color: var(--text); border: 1px solid var(--border); border-radius: 6px;
     font-size: 16px;
   }
+  .discography-release-row {
+    display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px;
+    align-items: center; padding: 9px 10px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .discography-release-row input {
+    width: 18px; height: 18px; margin: 0; accent-color: var(--green);
+  }
   .slow-listening-result.advance .blast-action { color: var(--green); }
   .slow-listening-result.complete .blast-action { color: #62c6ff; }
   .slow-listening-result.skip .blast-action { color: var(--amber); }
@@ -410,6 +418,19 @@
       <div class="analysis-progress" id="releaseCheckProgress"></div>
     </section>
 
+    <section class="card" id="discographyCard">
+      <h2>Discographies</h2>
+      <label class="inline">
+        <input type="checkbox" id="discographyDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions" style="margin-top:12px">
+        <button class="primary" data-action="startDiscography">Plan next batch</button>
+        <button class="danger cancel" data-action="cancelDiscography" hidden title="Stop routine">×</button>
+      </div>
+      <div class="analysis-progress" id="discographyProgress"></div>
+    </section>
+
     <!-- Artist stats -->
     <section class="card">
       <h2>Artist stats</h2>
@@ -469,6 +490,7 @@
   var slowListeningJob = null;
   var somethingOldJob = null;
   var releaseCheckJob = null;
+  var discographyJob = null;
   var requeueForADreamJob = null;
   var palaceOfMemoryJob = null;
   var scrobbleHistoryJob = null;
@@ -1543,6 +1565,167 @@
     }
   }
 
+  function renderDiscographyJob(job) {
+    discographyJob = job;
+    var out = document.getElementById("discographyProgress");
+    var start = document.querySelector('[data-action="startDiscography"]');
+    var cancel = document.querySelector('[data-action="cancelDiscography"]');
+    var previousChoiceKey = out.dataset.discographyChoiceKey || "";
+    var previousReleaseIds = new Set(
+      Array.prototype.slice.call(
+        out.querySelectorAll("[data-discography-release-id]:checked")
+      ).map(function (input) { return input.dataset.discographyReleaseId; })
+    );
+    document.getElementById("discographyDryRun").checked = Boolean(job.dry_run);
+
+    var summary = "";
+    if (typeof job.discography_total_releases === "number") {
+      summary = '<div class="blast-summary">' +
+        '<div><strong>' + esc((job.discography_results || []).length) +
+          '</strong><span>Artists</span></div>' +
+        '<div><strong>' + esc(job.discography_total_releases) +
+          '</strong><span>Releases</span></div>' +
+        '<div><strong>' + esc(job.discography_days) +
+          '</strong><span>Days</span></div></div>';
+    }
+    var queueSummary = "";
+    if (job.discography_start_queue) {
+      queueSummary = '<div class="playlist-dates">Starts with ' +
+        esc(job.discography_start_queue) + ' · next run ' +
+        esc(job.discography_next_queue || "-") +
+        (job.discography_open_slots
+          ? ' · ' + esc(job.discography_open_slots) + ' open slots'
+          : '') + '</div>';
+    }
+    var results = (job.discography_results || []).map(function (item) {
+      return '<div class="blast-selection"><div class="blast-selection-title">' +
+        esc(item.artist) + '</div><div class="blast-selection-match">' +
+        esc(item.queue + ' · ' + item.releases + ' releases · ' + item.days + ' days') +
+        '</div><div class="blast-selection-meta">' +
+        esc((item.release_names || []).join(' · ')) + '</div></div>';
+    }).join("");
+
+    var pending = "";
+    var choice = job.discography_pending_choice;
+    var choiceKey = "";
+    if (choice && choice.kind === "releases") {
+      var defaults = new Set(choice.default_release_ids || []);
+      choiceKey = job.job_id + ":" + (choice.artist || "") + ":" +
+        (choice.releases || []).map(function (release) {
+          return release.spotify_id;
+        }).join(",");
+      var checkedReleaseIds = previousChoiceKey === choiceKey
+        ? previousReleaseIds
+        : defaults;
+      var rows = (choice.releases || []).map(function (release) {
+        return '<label class="discography-release-row"><input type="checkbox" ' +
+          'data-discography-release-id="' + esc(release.spotify_id) + '"' +
+          (checkedReleaseIds.has(release.spotify_id) ? ' checked' : '') + ' /><span>' +
+          '<span class="new-wine-option-name">' + esc(release.name) + '</span>' +
+          '<span class="new-wine-option-meta">' + esc(release.release_type) +
+          ' · ' + esc(release.release_date) + ' · ' + esc(release.total_tracks) +
+          ' tracks' + (release.saved ? ' · saved' : '') +
+          (release.default ? ' · default' : '') + '</span></span></label>';
+      }).join("");
+      pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
+        esc(choice.artist) + ' · ' + esc(choice.queue) + '</div>' +
+        '<div class="slow-listening-order">' + rows + '</div>' +
+        '<div class="btns"><button class="primary" ' +
+          'data-action="submitDiscographyReleases">Use selected releases</button>' +
+        '<button class="ghost" data-action="discographyChoice" ' +
+          'data-choice="none">No releases</button>' +
+        '<button class="danger" data-action="discographyChoice" ' +
+          'data-choice="quit">Quit</button></div></div>';
+    } else if (choice && choice.kind === "confirm") {
+      pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
+        'Remove the planned artists from all three queues?</div>' +
+        '<div class="btns"><button class="primary" data-action="discographyChoice" ' +
+          'data-choice="apply">Remove artists</button>' +
+        '<button class="ghost" data-action="discographyChoice" ' +
+          'data-choice="keep">Keep markers</button>' +
+        '<button class="danger" data-action="discographyChoice" ' +
+          'data-choice="quit">Quit</button></div></div>';
+    }
+
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], {
+          hour: "2-digit", minute: "2-digit", second: "2-digit",
+        });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity...</span></div>';
+    }
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
+      summary + queueSummary + results + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    if (choiceKey) {
+      out.dataset.discographyChoiceKey = choiceKey;
+    } else {
+      delete out.dataset.discographyChoiceKey;
+    }
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running...");
+      if (job.status === "waiting") {
+        start.innerHTML = '<span class="spinner"></span> Waiting...';
+      }
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollDiscographyJob(jobId) {
+    try {
+      var job = await api("/commands/plan-discographies-jobs/" + jobId);
+      renderDiscographyJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollDiscographyJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Discography plan finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "Discography planning stopped", "ok");
+      } else {
+        showToast("Discography planning " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("discographyProgress"), e);
+      setBusy(document.querySelector('[data-action="startDiscography"]'), false);
+      showToast("Could not read discography progress", "err");
+    }
+  }
+
+  async function restoreActiveDiscographyJobs() {
+    try {
+      var jobs = await api("/commands/plan-discographies-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderDiscographyJob(job);
+      pollDiscographyJob(job.job_id);
+      showToast("Reconnected to discography planning", "ok");
+    } catch (e) {
+      if (e.status !== 401) {
+        showToast("Could not restore discography progress", "err");
+      }
+    }
+  }
+
   function renderRequeueForADreamJob(job) {
     requeueForADreamJob = job;
     var out = document.getElementById("requeueForADreamProgress");
@@ -2098,6 +2281,90 @@
       } catch (e) {
         btn.disabled = false;
         showToast(e.detail || "Could not stop new-release check", "err");
+      }
+    },
+
+    async startDiscography(btn) {
+      var dryRun = document.getElementById("discographyDryRun").checked;
+      var out = document.getElementById("discographyProgress");
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting...");
+      try {
+        var job = await api(
+          "/commands/plan-discographies?" + q.toString(),
+          { method: "POST" }
+        );
+        renderDiscographyJob(job);
+        pollDiscographyJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "plan_discographies") {
+          await pollDiscographyJob(activeJobId);
+          showToast("Reconnected to discography planning", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start discography planning", "err");
+      }
+    },
+
+    async submitDiscographyReleases(btn) {
+      if (!discographyJob || !discographyJob.job_id) return;
+      var selected = Array.prototype.slice.call(
+        document.querySelectorAll("[data-discography-release-id]:checked")
+      ).map(function (input) { return input.dataset.discographyReleaseId; });
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/plan-discographies-jobs/" +
+            discographyJob.job_id + "/choice",
+          {
+            method: "POST",
+            json: {
+              choice: selected.length ? "select" : "none",
+              release_ids: selected,
+            },
+          }
+        );
+        renderDiscographyJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit release selection", "err");
+      }
+    },
+
+    async discographyChoice(btn) {
+      if (!discographyJob || !discographyJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/plan-discographies-jobs/" +
+            discographyJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice } }
+        );
+        renderDiscographyJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit discography choice", "err");
+      }
+    },
+
+    async cancelDiscography(btn) {
+      if (!discographyJob || !discographyJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/plan-discographies-jobs/" +
+            discographyJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderDiscographyJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop discography planning", "err");
       }
     },
 
@@ -2700,6 +2967,7 @@
     restoreActiveDailyMindRadioJobs();
     restoreActiveFoundArtJobs();
     restoreActiveReleaseCheckJobs();
+    restoreActiveDiscographyJobs();
     restoreActiveNewWineJobs();
     restoreActiveSlowListeningJobs();
     restoreActiveSomethingOldJobs();

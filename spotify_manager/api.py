@@ -60,6 +60,7 @@ from spotify_manager.processors.total_albums_processor import update_total_album
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
+from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import palace_of_memory
@@ -433,6 +434,46 @@ class ReleaseCheckChoiceRequest(BaseModel):
     choice: str
 
 
+class DiscographyReleaseOption(BaseModel):
+    """One canonical release offered in a discography checklist."""
+
+    spotify_id: str
+    name: str
+    release_type: str
+    release_date: str
+    total_tracks: int
+    saved: bool
+    default: bool
+
+
+class DiscographyPendingChoice(BaseModel):
+    """Current release checklist or final confirmation shown by the web client."""
+
+    kind: Literal["releases", "confirm"]
+    artist: str | None = None
+    queue: str | None = None
+    releases: list[DiscographyReleaseOption] = Field(default_factory=list)
+    default_release_ids: list[str] = Field(default_factory=list)
+
+
+class DiscographyArtistResult(BaseModel):
+    """One artist selected for the next discography batch."""
+
+    spotify_id: str
+    artist: str
+    queue: str
+    releases: int
+    days: float
+    release_names: list[str] = Field(default_factory=list)
+
+
+class DiscographyChoiceRequest(BaseModel):
+    """One release checklist, final approval, or cancellation response."""
+
+    choice: str
+    release_ids: list[str] = Field(default_factory=list)
+
+
 class BlastJobResult(BaseModel):
     """Pollable state for one Last.fm-based playlist job."""
 
@@ -494,6 +535,15 @@ class BlastJobResult(BaseModel):
     release_check_new_vintage_added: int | None = None
     release_check_results: list[ReleaseCheckResultEntry] = Field(default_factory=list)
     release_check_pending_choice: ReleaseCheckPendingChoice | None = None
+    discography_start_queue: str | None = None
+    discography_next_queue: str | None = None
+    discography_total_releases: int | None = None
+    discography_days: float | None = None
+    discography_open_slots: int | None = None
+    discography_removed_artists: int | None = None
+    discography_removed_markers: int | None = None
+    discography_results: list[DiscographyArtistResult] = Field(default_factory=list)
+    discography_pending_choice: DiscographyPendingChoice | None = None
     requeue_action: str | None = None
     requeue_artist: str | None = None
     requeue_source_track: str | None = None
@@ -553,6 +603,10 @@ class _SomethingOldJobCancelledError(RuntimeError):
 
 class _ReleaseCheckJobCancelledError(RuntimeError):
     """Stop one release-check job at an interaction or retry boundary."""
+
+
+class _DiscographyJobCancelledError(RuntimeError):
+    """Stop one discography job at an interaction or retry boundary."""
 
 
 class _RequeueForADreamJobCancelledError(RuntimeError):
@@ -2314,6 +2368,255 @@ def _run_release_check_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _discography_artist_result(
+    selection: discography.ArtistSelection,
+) -> DiscographyArtistResult:
+    """Convert one planned discography artist into its API representation."""
+    return DiscographyArtistResult(
+        spotify_id=selection.spotify_id,
+        artist=selection.name,
+        queue=discography.QUEUE_LABELS[selection.source_queue],
+        releases=selection.release_count,
+        days=selection.days,
+        release_names=[release.name for release in selection.releases],
+    )
+
+
+def _run_discography_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_ids: dict[discography.QueueName, str],
+    dry_run: bool,
+) -> None:
+    """Execute one reload-safe interactive discography planning job."""
+    job = get_blast_job(job_id, command="plan_discographies")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Discography planning started"
+        _append_blast_log_locked(
+            job,
+            f"Discography planning started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def wait_for_submission(
+        pending: DiscographyPendingChoice,
+        detail: str,
+    ) -> tuple[str, tuple[str, ...]]:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _DiscographyJobCancelledError
+            job.submitted_choice = None
+            job.submitted_order = None
+            job.choice_event.clear()
+            job.result.discography_pending_choice = pending
+            job.result.status = "waiting"
+            job.result.detail = detail
+            _append_blast_log_locked(job, detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _DiscographyJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                release_ids = job.submitted_order or ()
+                job.submitted_choice = None
+                job.submitted_order = None
+                job.choice_event.clear()
+                job.result.discography_pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying discography choice"
+                _append_blast_log_locked(
+                    job,
+                    f"Discography choice received: {choice}.",
+                )
+                return choice, release_ids
+
+    def release_selector(
+        artist: discography.QueueArtist,
+        releases: tuple[discography.CatalogRelease, ...],
+    ) -> tuple[str, ...]:
+        choice, release_ids = wait_for_submission(
+            DiscographyPendingChoice(
+                kind="releases",
+                artist=artist.name,
+                queue=discography.QUEUE_LABELS[artist.queue],
+                releases=[
+                    DiscographyReleaseOption(
+                        spotify_id=release.spotify_id,
+                        name=release.name,
+                        release_type=release.release_type,
+                        release_date=release.chronology_date,
+                        total_tracks=release.total_tracks,
+                        saved=release.saved,
+                        default=release.default,
+                    )
+                    for release in releases
+                ],
+                default_release_ids=[
+                    release.spotify_id for release in releases if release.default
+                ],
+            ),
+            f"Choose the releases to count for {artist.name}.",
+        )
+        if choice == "quit":
+            raise _DiscographyJobCancelledError
+        if choice == "none":
+            return ()
+        return release_ids
+
+    def progress(detail: str) -> None:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _DiscographyJobCancelledError
+            job.result.detail = detail
+            _append_blast_log_locked(job, detail)
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _DiscographyJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        plan = discography.build_discography_plan(
+            spotify,
+            playlist_ids,
+            release_selector,
+            retry_call=retry_call,
+            progress_callback=progress,
+        )
+        with _blast_jobs_lock:
+            job.result.discography_start_queue = discography.QUEUE_LABELS[
+                plan.start_queue
+            ]
+            job.result.discography_next_queue = discography.QUEUE_LABELS[
+                plan.next_queue
+            ]
+            job.result.discography_total_releases = plan.total_releases
+            job.result.discography_days = plan.days
+            job.result.discography_open_slots = plan.open_slots
+            job.result.discography_results = [
+                _discography_artist_result(selection) for selection in plan.artists
+            ]
+
+        if not plan.artists:
+            with _blast_jobs_lock:
+                job.result.status = "completed"
+                job.result.detail = "No artists with selected releases were found."
+                _append_blast_log_locked(job, job.result.detail)
+        elif dry_run:
+            with _blast_jobs_lock:
+                job.result.status = "completed"
+                job.result.detail = (
+                    f"Dry run complete: {plan.total_releases} releases over "
+                    f"{plan.days:g} days. Playlists and state were unchanged."
+                )
+                _append_blast_log_locked(job, job.result.detail)
+        else:
+            choice, _release_ids = wait_for_submission(
+                DiscographyPendingChoice(kind="confirm"),
+                "Confirm removal of the planned artists from all three queues.",
+            )
+            if choice == "quit":
+                raise _DiscographyJobCancelledError
+            if choice == "keep":
+                with _blast_jobs_lock:
+                    job.result.status = "completed"
+                    job.result.detail = (
+                        "Discography plan complete; playlist markers and state "
+                        "were kept unchanged."
+                    )
+                    _append_blast_log_locked(job, job.result.detail)
+            else:
+                summary = discography.apply_discography_plan(
+                    spotify,
+                    plan,
+                    retry_call=retry_call,
+                    progress_callback=progress,
+                )
+                with _blast_jobs_lock:
+                    job.result.status = "completed"
+                    job.result.discography_removed_artists = summary.removed_artists
+                    job.result.discography_removed_markers = summary.removed_markers
+                    job.result.detail = (
+                        f"Removed {summary.removed_artists} artists and "
+                        f"{summary.removed_markers} marker tracks. The next run "
+                        f"starts with {discography.QUEUE_LABELS[summary.next_queue]}."
+                    )
+                    _append_blast_log_locked(job, job.result.detail)
+    except _DiscographyJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = "Discography planning stopped; nothing else changed."
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = (
+                review_album_limits.format_transient_spotify_failure(exc) + "."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except SpotifyException as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Spotify request failed: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    except (discography.DiscographyError, RequestException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Discography planning failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected discography planning error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected discography planning error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.discography_pending_choice = None
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def _run_requeue_for_a_dream_job(
     job_id: str,
     spotify: Spotify,
@@ -3075,6 +3378,52 @@ def start_release_check_job(
         target=_run_release_check_job,
         args=(job_id, spotify, playlists, api_key, username, dry_run),
         name=f"release-check-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_discography_job(
+    spotify: Spotify,
+    playlist_ids: dict[discography.QueueName, str],
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one interactive discography planner with reload-safe state."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="plan_discographies",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            (
+                "Discography planning queued in dry-run mode."
+                if dry_run
+                else "Discography planning queued."
+            ),
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_discography_job,
+        args=(job_id, spotify, playlist_ids, dry_run),
+        name=f"discography-plan-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -4093,6 +4442,126 @@ def cmd_cancel_release_check_job(job_id: str) -> BlastJobResult:
         job.result.status = "cancelling"
         job.result.release_check_pending_choice = None
         job.result.detail = "Stopping new-release check"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/plan-discographies",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_plan_discographies(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start a reload-safe interactive discography planning job."""
+    configuration = Settings()
+    try:
+        playlist_ids = discography.parse_playlist_ids(
+            configuration.discography_newfoundland_playlist,
+            configuration.discography_memory_lane_playlist,
+            configuration.discography_requeue_playlist,
+        )
+    except discography.DiscographyConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_discography_job(client, playlist_ids, dry_run=dry_run)
+
+
+@app.get(
+    "/commands/plan-discographies-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_discography_jobs() -> list[BlastJobResult]:
+    """Return active discography jobs for page-reload reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "plan_discographies"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/plan-discographies-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_discography_job(job_id: str) -> BlastJobResult:
+    """Return discography progress and its current interaction."""
+    job = get_blast_job(job_id, command="plan_discographies")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/plan-discographies-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_discography(
+    job_id: str,
+    request: DiscographyChoiceRequest,
+) -> BlastJobResult:
+    """Submit a release checklist or final marker-removal decision."""
+    job = get_blast_job(job_id, command="plan_discographies")
+    with _blast_jobs_lock:
+        pending = job.result.discography_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Discography job is not waiting for a choice",
+            )
+
+        if pending.kind == "releases":
+            if request.choice not in {"select", "none", "quit"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail="release checklist choice is not available",
+                )
+            available = {release.spotify_id for release in pending.releases}
+            selected = set(request.release_ids)
+            if request.choice == "select" and (
+                not request.release_ids
+                or len(selected) != len(request.release_ids)
+                or not selected.issubset(available)
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="selected releases are not available",
+                )
+        elif request.choice not in {"apply", "keep", "quit"}:
+            raise HTTPException(
+                status_code=400,
+                detail="final discography choice is not available",
+            )
+
+        job.submitted_choice = request.choice
+        job.submitted_order = tuple(request.release_ids)
+        job.result.discography_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Discography choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/plan-discographies-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_discography_job(job_id: str) -> BlastJobResult:
+    """Request a clean stop at the next discography boundary."""
+    job = get_blast_job(job_id, command="plan_discographies")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail="Discography job is not active",
+            )
+        job.result.status = "cancelling"
+        job.result.discography_pending_choice = None
+        job.result.detail = "Stopping discography planning"
         _append_blast_log_locked(job, job.result.detail)
         job.cancel_event.set()
         job.choice_event.set()

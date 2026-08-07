@@ -234,6 +234,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
     daily_position = response.text.index('id="dailyMindRadioCard"')
     found_art_position = response.text.index('id="foundArtCard"')
     release_check_position = response.text.index('id="releaseCheckCard"')
+    discography_position = response.text.index('id="discographyCard"')
     new_wine_position = response.text.index('id="newWineCard"')
     slow_listening_position = response.text.index('id="slowListeningCard"')
     something_old_position = response.text.index('id="somethingOldCard"')
@@ -257,6 +258,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
         < requeue_position
         < palace_position
         < release_check_position
+        < discography_position
         < artist_position
     )
     assert "lastfmstats-man-et-arms.json" in response.text
@@ -272,6 +274,15 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert '"/commands/check-new-releases-jobs/"' in response.text
     assert "job.release_check_pending_choice" in response.text
     assert "restoreActiveReleaseCheckJobs();" in response.text
+    assert 'id="discographyDryRun" checked' in response.text
+    assert 'data-action="startDiscography"' in response.text
+    assert 'data-action="submitDiscographyReleases"' in response.text
+    assert 'data-action="discographyChoice"' in response.text
+    assert '"/commands/plan-discographies-jobs/"' in response.text
+    assert "job.discography_pending_choice" in response.text
+    assert "previousReleaseIds" in response.text
+    assert "previousChoiceKey === choiceKey" in response.text
+    assert "restoreActiveDiscographyJobs();" in response.text
     assert 'id="newWineDryRun" checked' in response.text
     assert 'id="newWineNoDiscovery"' in response.text
     assert 'id="refreshCache"' not in response.text
