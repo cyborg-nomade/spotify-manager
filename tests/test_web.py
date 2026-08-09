@@ -356,3 +356,75 @@ def test_main_page_hides_legacy_library_and_command_cards(
     assert 'data-action="analysis" data-mode="mirrors"' in response.text
     assert '<button class="ghost" data-action="cmd"' not in response.text
     assert "restoreActiveAnalysisJobs();" in response.text
+
+
+def test_main_page_uses_grouped_signal_rack_layout(
+    client: TestClient,
+) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert '<main class="cockpit-grid">' in response.text
+    assert 'class="card system-card" id="serverFilesCard"' in response.text
+    assert 'id="libraryMirrorsCard" aria-label="Live library mirrors"' in (
+        response.text
+    )
+    assert 'id="scrobbleHistoryCard" aria-label="Last.fm scrobble history"' in (
+        response.text
+    )
+    assert 'id="libraryMirrorFilesStatus"' in response.text
+    assert 'id="scrobbleHistoryFileStatus"' in response.text
+    assert 'id="serverFilesSummary"' in response.text
+    assert '<span class="deck-label">Signal rack</span>' in response.text
+    assert "<h2>Data signal board</h2>" in response.text
+    assert 'data-server-file-date="albums_total_new.json"' in response.text
+    assert 'data-server-file-date="liked_tracks_total.json"' in response.text
+    assert 'data-server-file-date="lastfmstats-man-et-arms.json"' in response.text
+    assert 'class="macro-module recovery-module"' in response.text
+    assert 'class="macro-module discovery-module"' in response.text
+    assert 'class="macro-module listening-module"' in response.text
+    assert 'class="macro-module albums-module"' in response.text
+    assert 'class="macro-module lookup-module"' in response.text
+    assert 'class="card independent-module" id="releaseCheckCard"' in response.text
+    assert 'class="card independent-module" id="discographyCard"' in response.text
+    assert "@media (min-width: 1120px)" in response.text
+    assert "@media (min-width: 760px) and (max-width: 1119px)" in response.text
+    assert "justify-content: flex-end; column-gap: 4px; row-gap: 5px" in (
+        response.text
+    )
+    assert "#blastCard .mode-switch { width: 112px; }" in response.text
+    assert ".cockpit-grid { grid-template-columns: repeat(12" in response.text
+    assert "background: linear-gradient(165deg" in response.text
+    assert "--control-unit: 64px" in response.text
+    assert ".analysis-actions:has(.cancel:not([hidden]))" in response.text
+    assert "max-width: 100%; margin-left: auto" in response.text
+    assert "html { font-size: 20px; }" in response.text
+    assert ".macro-grid { display: grid; align-content: start" in response.text
+    assert "function enhanceControlPanels()" in response.text
+    assert "function createTerminalTrigger(scope)" in response.text
+    assert 'class="card blank-console-card" aria-hidden="true"' in response.text
+    assert 'strip.appendChild(terminal);\n        strip.appendChild(command);' in (
+        response.text
+    )
+    assert (
+        'command.insertBefore(\n'
+        "            terminal,\n"
+        '            command.querySelector(".analysis-actions")'
+    ) in response.text
+    assert 'settings.id = "palaceSettings"' in response.text
+    assert 'settingsTrigger.className = "settings-trigger"' in response.text
+    assert '#blastCard .panel-strip > h2 { flex-basis: 100%' in response.text
+    assert '>Check</button>' in response.text
+    assert 'trigger.innerHTML = \'<span aria-hidden="true">&gt;_</span>\';' in (
+        response.text
+    )
+    assert ".card:has(.terminal-trigger:hover) .analysis-log" in response.text
+    assert "display: none; max-height: 220px" in response.text
+    assert 'id="artistStatsCard"' in response.text
+    assert 'id="albumEvaluationCard"' in response.text
+    assert 'document.querySelectorAll("[data-server-file-date]")' in response.text
+    assert "var starts = document.querySelectorAll" in response.text
+    assert (
+        'showToast("Scrobble history update finished", "ok");\n'
+        "        loadServerFilesStatus();"
+    ) in response.text
