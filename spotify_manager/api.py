@@ -406,6 +406,7 @@ class ReleaseCheckPendingChoice(BaseModel):
     first_track: str | None = None
     destinations: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    unattached_single: bool = False
 
 
 class ReleaseCheckResultEntry(BaseModel):
@@ -2217,6 +2218,7 @@ def _run_release_check_job(
         release: release_check.ReleaseCandidate,
         track: release_check.ReleaseTrack,
         destinations: tuple[str, ...],
+        unattached_single: bool,
     ) -> str:
         return wait_for_submission(
             ReleaseCheckPendingChoice(
@@ -2230,6 +2232,7 @@ def _run_release_check_job(
                 first_track=track.name,
                 destinations=list(destinations),
                 tags=list(release_check.release_tags(release)),
+                unattached_single=unattached_single,
             ),
             (
                 f"Review {release.release_type.casefold()} {release.name} "
@@ -4394,6 +4397,7 @@ def cmd_choose_release_check(
         if pending.kind == "artist":
             allowed = {
                 release_check.CHOICE_SKIP,
+                release_check.CHOICE_SKIP_ARTIST,
                 release_check.CHOICE_QUIT,
                 *(candidate.spotify_id for candidate in pending.artist_candidates),
             }
@@ -4410,9 +4414,13 @@ def cmd_choose_release_check(
                 )
         elif request.choice not in {
             release_check.CHOICE_ADD,
+            release_check.CHOICE_PENDING,
             release_check.CHOICE_SKIP,
             release_check.CHOICE_QUIT,
-        }:
+        } or (
+            request.choice == release_check.CHOICE_PENDING
+            and not pending.unattached_single
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="release review choice is not available",

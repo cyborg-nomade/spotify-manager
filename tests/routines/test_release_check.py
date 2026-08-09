@@ -497,14 +497,22 @@ def test_release_prompt_can_permanently_skip_an_eligible_release(
     log_path = tmp_path / "log.jsonl"
     prompts: list[tuple[str, ...]] = []
 
+    def choose_release(
+        _artist: release_check.RankedArtist,
+        _release: release_check.ReleaseCandidate,
+        _track: release_check.ReleaseTrack,
+        destinations: tuple[str, ...],
+        _unattached: bool,
+    ) -> str:
+        prompts.append(destinations)
+        return release_check.CHOICE_SKIP
+
     summary = release_check.run_release_check(
         spotify,
         object(),
         release_check.ReleaseCheckPlaylists("wine", "vintage"),
         expected_username="man-et-arms",
-        release_choice_reader=lambda _artist, _release, _track, destinations: (
-            prompts.append(destinations) or release_check.CHOICE_SKIP
-        ),
+        release_choice_reader=choose_release,
         state_path=state_path,
         log_path=log_path,
         now=datetime(2026, 8, 6, tzinfo=UTC),
@@ -515,6 +523,104 @@ def test_release_prompt_can_permanently_skip_an_eligible_release(
     assert summary.results[0].reason == "skipped by user"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["processed_releases"]["deluxe"]["reason"] == "skipped by user"
+
+
+def test_unattached_single_can_be_added_to_wine_cellar(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artist = release_check.RankedArtist("later", "Later Artist", 100, 51)
+    patch_history_and_ranking(monkeypatch, (artist,))
+    spotify = FakeSpotify()
+    spotify.artist_results = {"Later Artist": [raw_artist("later-id", "Later Artist")]}
+    spotify.catalogs = {
+        "later-id": [
+            raw_release(
+                "standalone-single",
+                "Standalone Song",
+                "later-id",
+                "Later Artist",
+                "2026-08-05",
+                album_type="single",
+                total_tracks=1,
+            )
+        ]
+    }
+    spotify.release_tracks = {
+        "standalone-single": [
+            raw_track("standalone-track", "Standalone Song", "later-id", "Later Artist")
+        ]
+    }
+    state_path = tmp_path / "state.json"
+    prompts: list[tuple[tuple[str, ...], bool]] = []
+
+    summary = release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        release_choice_reader=(
+            lambda _artist, _release, _track, destinations, unattached: (
+                prompts.append((destinations, unattached)) or release_check.CHOICE_ADD
+            )
+        ),
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 8, 6, tzinfo=UTC),
+    )
+
+    assert prompts == [(("Wine Cellar",), True)]
+    assert summary.results[0].wine_cellar_action == "added"
+    assert summary.results[0].new_vintage_action == "not applicable"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert "standalone-single" in state["processed_releases"]
+    assert state["pending_singles"] == {}
+
+
+def test_permanent_artist_skip_persists_during_dry_run_and_avoids_search(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artist = release_check.RankedArtist("missing", "Missing Artist", 100, 51)
+    patch_history_and_ranking(monkeypatch, (artist,))
+    spotify = FakeSpotify()
+    state_path = tmp_path / "state.json"
+
+    first = release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        artist_choice_reader=lambda _artist, _candidates: (
+            release_check.CHOICE_SKIP_ARTIST
+        ),
+        dry_run=True,
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 8, 6, tzinfo=UTC),
+    )
+
+    assert first.artists_processed == 1
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["skipped_artists"]["missing"]["artist"] == "Missing Artist"
+    search_calls = list(spotify.search_calls)
+
+    second = release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        artist_choice_reader=lambda *_args: pytest.fail(
+            "permanently skipped artist should not be mapped again"
+        ),
+        dry_run=True,
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 8, 7, tzinfo=UTC),
+    )
+
+    assert second.artists_processed == 1
+    assert spotify.search_calls == search_calls
 
 
 def test_unconfirmed_single_is_reconsidered_when_future_album_appears(
@@ -553,9 +659,7 @@ def test_unconfirmed_single_is_reconsidered_when_future_album_appears(
         now=datetime(2026, 8, 6, tzinfo=UTC),
     )
 
-    assert first.results[0].reason == (
-        "single is not yet tied to an unreleased album or EP"
-    )
+    assert first.results[0].reason == "single kept pending for a future album or EP"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert "later-single" in state["pending_singles"]
     assert "later-single" not in state["processed_releases"]
