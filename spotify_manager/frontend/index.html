@@ -7,72 +7,141 @@
 <title>Spotify Manager</title>
 <style>
   :root {
-    --bg: #121212;
-    --surface: #1e1e1e;
-    --surface-2: #282828;
-    --border: #333;
-    --text: #f2f2f2;
-    --muted: #a7a7a7;
-    --green: #1db954;
-    --green-press: #169c46;
+    --bg: #090b0a;
+    --surface: #171b18;
+    --surface-2: #232923;
+    --surface-deep: #0d110e;
+    --inlay: #101611;
+    --border: #384038;
+    --border-strong: #596258;
+    --text: #f0f3ed;
+    --muted: #a9b0a5;
+    --green: #34c76b;
+    --green-press: #27a958;
+    --lime: #96c85a;
+    --yellow: #d8b84a;
     --red: #e0245e;
-    --amber: #e0a800;
-    --radius: 8px;
+    --amber: #c99431;
+    --key-red: #b83b3c;
+    --key-ivory: #c8cbc2;
+    --radius: 5px;
+    --control-unit: 64px;
+    --control-half: 32px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { font-size: 20px; }
   html, body { margin: 0; padding: 0; }
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.45;
+    font-family: "Bank Gothic", "Eurostile", "Microgramma D Extended", "DIN Condensed", "Avenir Next Condensed", "Arial Narrow", ui-monospace, monospace;
+    line-height: 1.25;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 24px) env(safe-area-inset-left);
     -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 640px; margin: 0 auto; padding: 16px; }
-  header { display: flex; align-items: center; gap: 10px; padding: 8px 4px 16px; }
-  header .dot { width: 26px; height: 26px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
-  header h1 { font-size: 1.15rem; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .wrap { width: 100%; max-width: 1380px; margin: 0 auto; padding: 10px 12px 18px; }
+  header {
+    display: flex; align-items: center; gap: 9px; padding: 5px 3px 9px;
+    border-bottom: 1px solid var(--border); margin-bottom: 7px;
+  }
+  header .dot {
+    width: 26px; height: 26px; border-radius: 50%; background: var(--green);
+    border: 6px solid #17301d; box-shadow: 0 0 0 1px #4d5b4e, 0 0 12px rgba(52,199,107,.26); flex: 0 0 auto;
+  }
+  header h1 { font-size: 1.15rem; margin: 0; font-weight: 700; letter-spacing: 0; }
+  header h1, header .deck-label, h2, h3, button, label, .macro-header, .source-tag {
+    font-variant-caps: all-small-caps;
+  }
+  header .deck-label {
+    color: var(--muted); font-size: .66rem; text-transform: uppercase;
+    letter-spacing: 0; padding-left: 10px; border-left: 1px solid var(--border);
+  }
   header .status { margin-left: auto; font-size: .72rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
   header .status .pill { width: 8px; height: 8px; border-radius: 50%; background: #666; }
   header .status.ok .pill { background: var(--green); }
   header .status.err .pill { background: var(--red); }
 
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
-  .card h2 { font-size: .82rem; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cockpit-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .card {
+    --panel-accent: var(--green);
+    position: relative; min-width: 0; overflow: hidden; background: var(--surface);
+    border: 1px solid var(--border-strong); border-left: 3px solid var(--panel-accent);
+    border-radius: var(--radius); padding: 8px 10px;
+    box-shadow: inset 0 0 0 2px #101310, 0 5px 15px rgba(0,0,0,.26);
+  }
+  .card::before, .card::after {
+    content: ""; position: absolute; width: 7px; height: 7px; border-radius: 50%;
+    border: 1px solid #657065; background: #2f352f; box-shadow: inset 0 0 0 1px #171b17;
+  }
+  .card::before { top: 6px; left: 6px; }
+  .card::after { right: 6px; bottom: 6px; }
+  #blastCard, #dailyMindRadioCard, #foundArtCard, #genreRevealCard { --panel-accent: var(--lime); }
+  #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
+  #requeueForADreamCard, #palaceOfMemoryCard { --panel-accent: var(--amber); }
+  #releaseCheckCard, #discographyCard { --panel-accent: var(--green); }
+  #artistStatsCard, #albumEvaluationCard { --panel-accent: #73856a; }
+  .card h2 {
+    display: flex; align-items: center; gap: 8px; font-size: .8rem;
+    text-transform: uppercase; letter-spacing: 0; color: var(--text);
+    margin: 0 0 7px; font-weight: 600;
+  }
+  .card h2::before {
+    content: ""; width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%;
+    background: var(--panel-accent); box-shadow: 0 0 0 3px #242b22, 0 0 8px color-mix(in srgb, var(--panel-accent) 50%, transparent);
+  }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
   .row > * { flex: 1 1 auto; }
 
-  label { display: block; font-size: .78rem; color: var(--muted); margin: 10px 0 4px; }
+  label { display: block; font-size: .78rem; color: var(--muted); margin: 6px 0 2px; }
   input[type=text], input[type=password], input[type=number] {
-    width: 100%; background: var(--surface-2); border: 1px solid var(--border);
-    color: var(--text); border-radius: 10px; padding: 13px 12px; font-size: 16px; outline: none;
+    width: 100%; background: var(--inlay); border: 1px solid #3d483c;
+    color: var(--text); border-radius: 4px; padding: 5px 7px; font-size: 20px; outline: none;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.38), 0 1px 0 #303830;
   }
   input:focus { border-color: var(--green); }
-  .inline { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: .85rem; color: var(--muted); }
-  .inline input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--green); }
+  .inline { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: .85rem; color: var(--muted); }
+  .inline input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--green); }
 
   button {
-    appearance: none; border: none; border-radius: 999px; padding: 13px 16px;
-    font-size: .95rem; font-weight: 600; cursor: pointer; color: #fff; background: var(--surface-2);
-    transition: transform .05s ease, background .15s ease; width: 100%;
+    appearance: none; border: 1px solid #4a5549; border-radius: 4px; padding: 3px 5px;
+    font-size: .82rem; font-weight: 700; cursor: pointer; color: #161917;
+    background: linear-gradient(180deg, #c2c6bd 0%, #8b9188 58%, #747a73 100%);
+    transition: transform .05s ease, background .15s ease; width: auto; min-height: 28px;
+    box-shadow: inset 0 1px 0 #eef0e9, inset 0 -1px 0 #62675f, 0 2px 0 #363a36, 0 3px 5px rgba(0,0,0,.28);
   }
   button:active { transform: scale(.98); }
-  button.primary { background: var(--green); color: #04160b; }
+  button.primary {
+    border-color: #426c4c; color: #07120a;
+    background: linear-gradient(180deg, #9bc99d 0%, #5c9d6d 55%, #3e7e54 100%);
+    box-shadow: inset 0 1px 0 #c4e0c5, inset 0 -1px 0 #2d6642, 0 2px 0 #1b3f29, 0 3px 5px rgba(0,0,0,.3);
+  }
   button.primary:active { background: var(--green-press); }
-  button.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
-  button.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+  button.ghost {
+    color: #161917; border-color: #686c66;
+    background: linear-gradient(180deg, #b5b8b0 0%, #7f847c 100%);
+  }
+  button.danger {
+    color: #fff1eb; border-color: #762b2d;
+    background: linear-gradient(180deg, #d15a58 0%, var(--key-red) 60%, #87282b 100%);
+    box-shadow: inset 0 1px 0 #ea8783, inset 0 -1px 0 #6b1f22, 0 2px 0 #4d181a;
+  }
   button[disabled] { opacity: .5; cursor: not-allowed; }
+  #pwBtn { width: 100%; }
   [hidden] { display: none !important; }
-  .btns { display: grid; gap: 10px; margin-top: 12px; }
+  .btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+  .btns button { width: var(--control-unit); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .mode-switch {
     display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px;
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px;
+    background: var(--inlay); border: 1px solid #3f493e; border-radius: 4px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.36);
   }
-  .mode-switch button { padding: 9px 10px; border-radius: 5px; background: transparent; color: var(--muted); }
-  .mode-switch button.active { background: var(--green); color: #04160b; }
-  .blast-control { margin-top: 12px; }
+  .mode-switch button { width: 100%; padding: 3px 5px; border: 0; border-radius: 3px; background: transparent; color: var(--muted); box-shadow: none; }
+  .mode-switch button.active { background: var(--yellow); color: #171203; box-shadow: inset 0 1px 0 #ead477, 0 1px 4px rgba(0,0,0,.32); }
+  #blastCard .mode-switch {
+    width: calc(var(--control-unit) * 2); max-width: 100%; margin-left: auto;
+  }
+  .blast-control { margin-top: 7px; }
   .blast-summary {
     display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 12px;
     border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
@@ -102,7 +171,7 @@
   .new-wine-controls button { border-radius: 6px; padding: 10px 8px; font-size: .78rem; }
   .new-wine-result.drop .blast-action { color: var(--red); }
   .new-wine-result.advance .blast-action { color: var(--green); }
-  .new-wine-result.sauvignon .blast-action { color: #62c6ff; }
+  .new-wine-result.sauvignon .blast-action { color: var(--lime); }
   .new-wine-result.skip .blast-action { color: var(--amber); }
   .new-wine-refill { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
   .slow-listening-order { display: grid; gap: 7px; }
@@ -125,7 +194,7 @@
     width: 18px; height: 18px; margin: 0; accent-color: var(--green);
   }
   .slow-listening-result.advance .blast-action { color: var(--green); }
-  .slow-listening-result.complete .blast-action { color: #62c6ff; }
+  .slow-listening-result.complete .blast-action { color: var(--lime); }
   .slow-listening-result.skip .blast-action { color: var(--amber); }
 
   .result { margin-top: 14px; display: none; }
@@ -134,9 +203,9 @@
   .badge.keep { background: rgba(29,185,84,.16); color: var(--green); }
   .badge.remove { background: rgba(224,36,94,.16); color: var(--red); }
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
-  .stat { background: var(--surface-2); border-radius: 10px; padding: 12px; text-align: center; }
+  .stat { background: var(--surface-2); border-radius: 6px; padding: 12px; text-align: center; }
   .stat .n { font-size: 1.5rem; font-weight: 800; }
-  .stat .l { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .stat .l { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0; }
   .kv { font-size: .9rem; margin: 4px 0; }
   .kv b { color: var(--muted); font-weight: 500; }
 
@@ -149,18 +218,25 @@
   .track.liked .tick { color: var(--green); }
   .track.unliked { color: var(--muted); }
 
-  details.commands summary { cursor: pointer; list-style: none; font-size: .82rem; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); font-weight: 600; padding: 2px 0; }
+  details.commands summary { cursor: pointer; list-style: none; font-size: .82rem; text-transform: uppercase; letter-spacing: 0; color: var(--muted); font-weight: 600; padding: 2px 0; }
   details.commands summary::-webkit-details-marker { display: none; }
   details.commands summary::after { content: " ▾"; }
   details.commands[open] summary::after { content: " ▴"; }
   .cmd-note { font-size: .74rem; color: var(--muted); margin: 8px 0 4px; }
 
-  .analysis-row { padding: 12px 0; border-top: 1px solid var(--border); }
+  .analysis-row { padding: 7px 0; border-top: 1px solid var(--border); }
   .analysis-row:first-of-type { border-top: 0; padding-top: 0; }
-  .analysis-title { font-size: .9rem; font-weight: 700; margin-bottom: 8px; }
-  .analysis-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-  .analysis-actions .cancel { width: 48px; padding: 10px; }
-  .analysis-progress { display: none; margin-top: 10px; }
+  .analysis-title { font-size: .9rem; font-weight: 700; margin-bottom: 5px; }
+  .analysis-actions { display: grid; grid-template-columns: var(--control-unit); justify-content: end; gap: 5px; }
+  .analysis-actions > .primary { width: var(--control-unit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .analysis-actions .cancel { width: var(--control-half); min-width: var(--control-half); padding: 3px; }
+  .analysis-actions:has(.cancel:not([hidden])) {
+    grid-template-columns: var(--control-unit) var(--control-half);
+  }
+  .analysis-actions:has(input) { grid-template-columns: minmax(0, 1fr) var(--control-unit); width: 100%; }
+  .analysis-actions:has(input) button { width: var(--control-unit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .analysis-actions[style] { margin-top: 6px !important; }
+  .analysis-progress { display: none; margin-top: 6px; }
   .analysis-progress.show { display: block; }
   .analysis-state { color: var(--muted); font-size: .78rem; margin-bottom: 8px; min-height: 1.2em; }
   .resource-progress { display: grid; grid-template-columns: 104px 1fr 64px; gap: 8px; align-items: center; margin: 7px 0; }
@@ -168,24 +244,232 @@
   .resource-progress .count { text-align: right; font-variant-numeric: tabular-nums; }
   .resource-progress .meter { margin: 0; }
   .analysis-log {
-    max-height: 220px; overflow-y: auto; margin-top: 12px; padding: 9px 10px;
-    border: 1px solid var(--border); border-radius: 6px; background: #101010;
-    color: #d7d7d7; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    display: none; max-height: 220px; overflow-y: auto; margin-top: 7px; padding: 9px 10px;
+    border: 1px solid #3f493e; border-radius: 4px; background: #0a0e0b;
+    color: #dce6d9; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: .7rem; line-height: 1.45;
+    box-shadow: inset 0 3px 9px rgba(0,0,0,.5);
   }
   .analysis-log-line { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 8px; padding: 2px 0; }
   .analysis-log-time { color: var(--muted); font-variant-numeric: tabular-nums; }
   .analysis-log-message { overflow-wrap: anywhere; }
-  .server-files { border-top: 1px solid var(--border); }
-  .server-file {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px;
-    align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border);
+  .system-card { grid-column: 1 / -1; --panel-accent: var(--yellow); padding: 0; }
+  .system-card::after { top: 6px; bottom: auto; }
+  .system-card-heading {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 8px 20px; border-bottom: 1px solid #424c41;
+    background: var(--surface-deep);
+    box-shadow: inset 0 -3px 8px rgba(0,0,0,.35);
   }
-  .server-file-name { font-size: .8rem; font-weight: 700; overflow-wrap: anywhere; }
-  .server-file-date { color: var(--muted); font-size: .72rem; text-align: right; }
+  .system-card-heading h2 { margin: 0; color: var(--text); }
+  .system-summary {
+    color: var(--yellow); font-size: .7rem; font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .signal-file-list { background: #090c09; }
+  .signal-file-group + .signal-file-group { border-top: 1px solid #414a40; }
+  .signal-file-row {
+    display: grid; grid-template-columns: minmax(250px, 1fr) auto minmax(330px, auto);
+    align-items: center; gap: 10px; min-height: 46px; padding: 5px 10px;
+    border-bottom: 1px solid #293129; background: var(--inlay);
+    box-shadow: inset 0 3px 9px rgba(0,0,0,.38);
+  }
+  .signal-file-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .signal-file-name > span:nth-child(2) {
+    min-width: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .74rem;
+  }
+  .signal-file-name .source-tag { margin-left: auto; }
+  .signal-file-command {
+    display: grid; grid-template-columns: calc(var(--control-unit) * 2) var(--control-half) auto; justify-content: end;
+    align-items: center; gap: 7px;
+  }
+  .signal-file-command .mode-switch { width: calc(var(--control-unit) * 2); }
+  .signal-file-command .analysis-actions { min-width: 0; }
+  .signal-file-command .inline { margin: 0; justify-self: end; }
+  .source-light { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
+  .source-light { box-shadow: 0 0 0 3px #203024, 0 0 8px rgba(52,199,107,.28); }
+  .source-light.lastfm { background: var(--yellow); box-shadow: 0 0 0 3px #342e19, 0 0 8px rgba(216,184,74,.24); }
+  .source-tag {
+    color: var(--yellow); font-size: .66rem; text-transform: uppercase;
+    letter-spacing: 0;
+  }
+  .server-file-date {
+    display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px;
+    border: 1px solid #41604a; border-radius: 999px; background: #142019;
+    color: #91d6a5; font-size: .68rem; text-align: right;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.35);
+  }
+  #scrobbleHistoryFileStatus .server-file-date { border-color: #66582d; background: #241f11; color: #e2c96d; }
+  .server-file-date.missing { border-color: #6d3b4b; background: #2a171d; color: #ef8fac; }
   .server-files-error { color: var(--red); font-size: .78rem; }
+  .signal-file-group > .analysis-progress { margin: 0; padding: 10px 16px 14px; background: #0d110e; }
+
+  .macro-module {
+    min-width: 0; padding: 5px; border: 1px solid #3f473f; border-radius: var(--radius);
+    background: #0b0e0c; box-shadow: inset 0 0 0 2px #060806, 0 6px 16px rgba(0,0,0,.25);
+  }
+  .macro-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 28px; padding: 1px 5px 4px; color: var(--muted);
+  }
+  .macro-header h2 { margin: 0; font-size: .75rem; font-weight: 600; color: var(--text); }
+  .macro-header span { font-size: .65rem; color: var(--yellow); text-transform: uppercase; }
+  .macro-grid { display: grid; align-content: start; align-items: start; gap: 5px; }
+  .recovery-grid, .discovery-grid, .listening-grid, .albums-grid, .lookup-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .recovery-grid {
+    min-height: calc(100% - 28px);
+    grid-template-rows: auto auto minmax(24px, 1fr);
+  }
+  .blank-console-card { min-height: 24px; height: 100%; }
+  .panel-strip {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+    min-width: 0; min-height: 34px;
+  }
+  .panel-strip > h2 {
+    flex: 1 1 150px; min-width: 120px; margin: 0; padding-right: 4px;
+    overflow-wrap: anywhere;
+  }
+  .panel-strip > .inline, .panel-strip > .btns,
+  .panel-strip > .analysis-actions, .panel-strip > .blast-control {
+    margin: 0 !important; flex: 0 0 auto;
+  }
+  .panel-strip > .blast-control {
+    display: flex; align-items: center; gap: 5px;
+  }
+  .panel-strip > .blast-control label { margin: 0; white-space: nowrap; }
+  .panel-strip > .blast-control input { width: 70px; }
+  .panel-strip > label:not(.inline) {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .panel-strip > input {
+    flex: 1 1 170px; width: auto; min-width: 120px; max-width: 280px;
+  }
+  .panel-strip > .analysis-actions:has(input) {
+    flex: 1 1 220px; width: min(280px, 100%); max-width: 300px;
+  }
+  .macro-grid .card, .independent-module {
+    padding-left: 18px; padding-right: 18px;
+  }
+  .macro-grid .card::before, .macro-grid .card::after,
+  .independent-module::before, .independent-module::after {
+    width: 5px; height: 5px; top: 50%; bottom: auto;
+    transform: translateY(-50%);
+  }
+  .macro-grid .card::before, .independent-module::before { left: 5px; }
+  .macro-grid .card::after, .independent-module::after { right: 5px; }
+  #blastCard .panel-strip > h2 { flex-basis: 100%; min-width: 100%; }
+  .settings-trigger {
+    flex: 0 0 var(--control-half); width: var(--control-half); min-width: var(--control-half);
+    height: 28px; padding: 2px; color: #1b1d1a;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .palace-settings {
+    display: none; align-items: center; flex-wrap: wrap; gap: 6px;
+    min-width: 0; margin-top: 6px; padding-top: 6px;
+    border-top: 1px solid rgba(220,225,216,.18);
+  }
+  .palace-settings > label {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .palace-settings > input { flex: 1 1 180px; width: auto; min-width: 140px; }
+  .palace-settings > .analysis-actions { flex: 1 1 220px; max-width: 300px; }
+  #palaceOfMemoryCard:has(.settings-trigger:hover) .palace-settings,
+  #palaceOfMemoryCard:has(.settings-trigger:focus-visible) .palace-settings,
+  #palaceOfMemoryCard.settings-open .palace-settings {
+    display: flex;
+  }
+  .settings-trigger[aria-pressed="true"] {
+    color: #f9ebe3; border-color: #762b2d;
+    background: linear-gradient(180deg, #d15a58 0%, var(--key-red) 60%, #87282b 100%);
+  }
+  .panel-strip + .analysis-progress.show, .panel-strip + .result.show {
+    border-top: 1px solid rgba(220,225,216,.18); padding-top: 6px;
+  }
+  .terminal-trigger {
+    flex: 0 0 var(--control-half); width: var(--control-half); min-width: var(--control-half);
+    height: 28px; padding: 2px; color: #bcdbc2; border-color: #405347;
+    background: linear-gradient(180deg, #28302b 0%, #141916 100%);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .66rem; line-height: 1; box-shadow: inset 0 1px 0 #465149, 0 2px 0 #080b09;
+  }
+  .terminal-trigger[aria-pressed="true"] { color: #101711; background: var(--green); }
+  .card:has(.terminal-trigger:hover) .analysis-log,
+  .card:has(.terminal-trigger:focus-visible) .analysis-log,
+  .card.terminal-open .analysis-log,
+  .signal-file-group:has(.terminal-trigger:hover) .analysis-log,
+  .signal-file-group:has(.terminal-trigger:focus-visible) .analysis-log,
+  .signal-file-group.terminal-open .analysis-log {
+    display: block;
+  }
+  .macro-grid .card, .independent-module {
+    background: linear-gradient(165deg, #4b504c 0%, #2b302d 32%, #1b201d 70%, #343a35 100%);
+  }
+  .discovery-module .card {
+    background: linear-gradient(165deg, #505449 0%, #30342c 34%, #1d211b 70%, #383d32 100%);
+  }
+  .listening-module .card {
+    background: linear-gradient(165deg, #555045 0%, #312e28 34%, #1e1b18 70%, #3d3931 100%);
+  }
+  .albums-module .card {
+    background: linear-gradient(165deg, #514b43 0%, #302c27 34%, #1c1a17 70%, #39342e 100%);
+  }
+  .lookup-module .card {
+    background: linear-gradient(165deg, #4b504c 0%, #2c302d 35%, #1d211e 70%, #363b37 100%);
+  }
+  .independent-module {
+    background: linear-gradient(165deg, #4b524c 0%, #2b312c 35%, #1b211d 70%, #343c36 100%);
+  }
   .meter > span.indeterminate { width: 32%; animation: scan 1.2s ease-in-out infinite alternate; }
   @keyframes scan { from { transform: translateX(-20%); } to { transform: translateX(230%); } }
+  @media (min-width: 760px) {
+    .cockpit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .system-card { grid-column: 1 / -1; }
+    .independent-module { min-height: 100%; }
+  }
+  @media (min-width: 760px) and (max-width: 1119px) {
+    .macro-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (min-width: 1120px) {
+    .cockpit-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+    .recovery-module { grid-column: span 5; }
+    .discovery-module { grid-column: span 7; }
+    .listening-module, .albums-module { grid-column: span 6; }
+    .independent-module { grid-column: span 6; }
+    .lookup-module { grid-column: span 12; }
+  }
+  @media (max-width: 980px) {
+    .signal-file-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .signal-file-command { grid-column: 1 / -1; grid-template-columns: minmax(160px, 1fr) var(--control-half) auto; }
+  }
+  @media (max-width: 759px) {
+    .wrap { padding: 14px; }
+    header .deck-label { display: none; }
+    .macro-grid { grid-template-columns: minmax(0, 1fr); }
+    .signal-file-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .signal-file-command { grid-column: auto; grid-template-columns: minmax(0, 1fr) auto; }
+    .signal-file-command .mode-switch { grid-column: 1 / -1; }
+    .signal-file-command:has(.inline) { grid-template-columns: minmax(0, 1fr) var(--control-half) auto; }
+    .signal-file-command .mode-switch { width: 100%; }
+    .signal-file-command .inline { justify-self: start; }
+    .panel-strip {
+      justify-content: flex-end; column-gap: 4px; row-gap: 5px;
+    }
+    .panel-strip > h2 { flex-basis: 100%; }
+    .panel-strip > .inline { gap: 4px; }
+    .palace-settings { justify-content: flex-end; }
+    #blastCard .mode-switch { width: 112px; }
+    #blastCard .blast-control label {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    #blastCard .blast-control input { width: 56px; }
+  }
   @media (max-width: 380px) {
     .resource-progress { grid-template-columns: 88px 1fr 52px; }
     .analysis-log-line { grid-template-columns: 58px minmax(0, 1fr); gap: 6px; }
@@ -236,57 +520,77 @@
     <header>
       <div class="dot"></div>
       <h1>Spotify Manager</h1>
+      <span class="deck-label">Signal rack</span>
       <div class="status" id="health"><span class="pill"></span><span id="healthTxt">checking…</span></div>
     </header>
 
-    <section class="card" id="serverFilesCard">
-      <h2>Server files</h2>
-      <div class="server-files" id="serverFilesStatus">
-        <div class="server-file">
-          <span class="server-file-name">albums_total_new.json</span>
-          <span class="server-file-date">Checking…</span>
-        </div>
-        <div class="server-file">
-          <span class="server-file-name">liked_tracks_total.json</span>
-          <span class="server-file-date">Checking…</span>
-        </div>
-        <div class="server-file">
-          <span class="server-file-name">lastfmstats-man-et-arms.json</span>
-          <span class="server-file-date">Checking…</span>
-        </div>
+    <main class="cockpit-grid">
+    <section class="card system-card" id="serverFilesCard">
+      <div class="system-card-heading">
+        <h2>Data signal board</h2>
+        <span class="system-summary" id="serverFilesSummary">Checking 3 sources…</span>
+      </div>
+      <div class="signal-file-list">
+        <section class="signal-file-group" id="libraryMirrorsCard" aria-label="Live library mirrors">
+          <div id="libraryMirrorFilesStatus">
+            <div class="signal-file-row">
+              <div class="signal-file-name"><span class="source-light"></span><span>albums_total_new.json</span><span class="source-tag">Spotify</span></div>
+              <span class="server-file-date" data-server-file-date="albums_total_new.json">Checking…</span>
+              <div class="signal-file-command">
+                <div class="mode-switch" role="group" aria-label="Saved albums refresh mode">
+                  <button class="active" data-action="mirrorMode" data-mirror-mode="incremental" aria-pressed="true">Recent</button>
+                  <button data-action="mirrorMode" data-mirror-mode="full" aria-pressed="false">Full</button>
+                </div>
+                <div class="analysis-actions">
+                  <button class="primary" data-action="analysis" data-mode="mirrors">Sync</button>
+                  <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="signal-file-row">
+              <div class="signal-file-name"><span class="source-light"></span><span>liked_tracks_total.json</span><span class="source-tag">Spotify</span></div>
+              <span class="server-file-date" data-server-file-date="liked_tracks_total.json">Checking…</span>
+              <div class="signal-file-command">
+                <div class="mode-switch" role="group" aria-label="Liked tracks refresh mode">
+                  <button class="active" data-action="mirrorMode" data-mirror-mode="incremental" aria-pressed="true">Recent</button>
+                  <button data-action="mirrorMode" data-mirror-mode="full" aria-pressed="false">Full</button>
+                </div>
+                <div class="analysis-actions">
+                  <button class="primary" data-action="analysis" data-mode="mirrors">Sync</button>
+                  <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="analysis-progress" id="analysis-mirrors"></div>
+        </section>
+
+        <section class="signal-file-group" id="scrobbleHistoryCard" aria-label="Last.fm scrobble history">
+          <div id="scrobbleHistoryFileStatus">
+            <div class="signal-file-row">
+              <div class="signal-file-name"><span class="source-light lastfm"></span><span>lastfmstats-man-et-arms.json</span><span class="source-tag">Last.fm</span></div>
+              <span class="server-file-date" data-server-file-date="lastfmstats-man-et-arms.json">Checking…</span>
+              <div class="signal-file-command">
+                <label class="inline"><input type="checkbox" id="scrobbleHistoryDryRun" checked />Dry run</label>
+                <div class="analysis-actions">
+                  <button class="primary" data-action="startScrobbleHistory">Sync</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="analysis-progress" id="scrobbleHistoryProgress"></div>
+        </section>
       </div>
     </section>
 
-    <section class="card" id="libraryMirrorsCard">
-      <h2>Live library mirrors</h2>
-      <div class="mode-switch" role="group" aria-label="Liked tracks refresh mode">
-        <button class="active" data-action="mirrorMode" data-mirror-mode="incremental" aria-pressed="true">Recent additions</button>
-        <button data-action="mirrorMode" data-mirror-mode="full" aria-pressed="false">Full rebuild</button>
-      </div>
-      <div class="analysis-actions">
-        <button class="primary" data-action="analysis" data-mode="mirrors">Update from Spotify</button>
-        <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
-      </div>
-      <div class="analysis-progress" id="analysis-mirrors"></div>
-    </section>
-
-    <section class="card" id="scrobbleHistoryCard">
-      <h2>Last.fm scrobble history</h2>
-      <label class="inline">
-        <input type="checkbox" id="scrobbleHistoryDryRun" checked />
-        Dry run
-      </label>
-      <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startScrobbleHistory">Update scrobble history</button>
-      </div>
-      <div class="analysis-progress" id="scrobbleHistoryProgress"></div>
-    </section>
-
+    <section class="macro-module recovery-module" aria-labelledby="recoveryModuleTitle">
+      <header class="macro-header"><h2 id="recoveryModuleTitle">Recovery tracks</h2><span>Archive signal</span></header>
+      <div class="macro-grid recovery-grid">
     <section class="card" id="blastCard">
       <h2>A blast from the past</h2>
       <div class="mode-switch" role="group" aria-label="Playlist target mode">
         <button class="active" data-action="blastMode" data-blast-mode="count" aria-pressed="true">Count</button>
-        <button data-action="blastMode" data-blast-mode="maximum" aria-pressed="false">Playlist cap</button>
+        <button data-action="blastMode" data-blast-mode="maximum" aria-pressed="false">Cap</button>
       </div>
       <div class="blast-control" id="blastCountControl">
         <label for="blastCount">Tracks to process</label>
@@ -297,7 +601,7 @@
         <input id="blastMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
       </div>
       <div class="btns">
-        <button class="primary" data-action="startBlast">Add tracks</button>
+        <button class="primary" data-action="startBlast">Run</button>
       </div>
       <div class="analysis-progress" id="blastProgress"></div>
     </section>
@@ -305,11 +609,18 @@
     <section class="card" id="dailyMindRadioCard">
       <h2>Daily mind radio</h2>
       <div class="btns">
-        <button class="primary" data-action="startDailyMindRadio">Add anniversary tracks</button>
+        <button class="primary" data-action="startDailyMindRadio">Run</button>
       </div>
       <div class="analysis-progress" id="dailyMindRadioProgress"></div>
     </section>
 
+    <section class="card blank-console-card" aria-hidden="true"></section>
+      </div>
+    </section>
+
+    <section class="macro-module discovery-module" aria-labelledby="discoveryModuleTitle">
+      <header class="macro-header"><h2 id="discoveryModuleTitle">Discovery tracks</h2><span>New signal</span></header>
+      <div class="macro-grid discovery-grid">
     <section class="card" id="foundArtCard">
       <h2>Found Art</h2>
       <div class="blast-control">
@@ -317,7 +628,7 @@
         <input id="foundArtCount" type="number" min="1" step="1" value="20" inputmode="numeric" />
       </div>
       <div class="btns">
-        <button class="primary" data-action="startFoundArt">Add recommendations</button>
+        <button class="primary" data-action="startFoundArt">Run</button>
       </div>
       <div class="analysis-progress" id="foundArtProgress"></div>
     </section>
@@ -325,7 +636,7 @@
     <section class="card" id="genreRevealCard">
       <h2>Genre reveal</h2>
       <div class="btns">
-        <button class="primary" data-action="openGenreReveal">Open genre route</button>
+        <button class="primary" data-action="openGenreReveal">Open</button>
       </div>
     </section>
 
@@ -340,12 +651,17 @@
         No discovery
       </label>
       <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startNewWine">Review releases</button>
+        <button class="primary" data-action="startNewWine">Run</button>
         <button class="danger cancel" data-action="cancelNewWine" hidden title="Stop flush">×</button>
       </div>
       <div class="analysis-progress" id="newWineProgress"></div>
     </section>
+      </div>
+    </section>
 
+    <section class="macro-module listening-module" aria-labelledby="listeningModuleTitle">
+      <header class="macro-header"><h2 id="listeningModuleTitle">Deep listening</h2><span>Focused signal</span></header>
+      <div class="macro-grid listening-grid">
     <section class="card" id="slowListeningCard">
       <h2>Slow listening</h2>
       <label class="inline">
@@ -353,7 +669,7 @@
         Dry run
       </label>
       <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startSlowListening">Review next tracks</button>
+        <button class="primary" data-action="startSlowListening">Run</button>
         <button class="danger cancel" data-action="cancelSlowListening" hidden title="Stop flush">×</button>
       </div>
       <div class="analysis-progress" id="slowListeningProgress"></div>
@@ -366,12 +682,17 @@
         Dry run
       </label>
       <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startSomethingOld">Fill Something Old</button>
+        <button class="primary" data-action="startSomethingOld">Run</button>
         <button class="danger cancel" data-action="cancelSomethingOld" hidden title="Stop routine">×</button>
       </div>
       <div class="analysis-progress" id="somethingOldProgress"></div>
     </section>
+      </div>
+    </section>
 
+    <section class="macro-module albums-module" aria-labelledby="albumsModuleTitle">
+      <header class="macro-header"><h2 id="albumsModuleTitle">Album cycles</h2><span>Release signal</span></header>
+      <div class="macro-grid albums-grid">
     <section class="card" id="requeueForADreamCard">
       <h2>Requeue for a dream</h2>
       <label class="inline">
@@ -379,7 +700,7 @@
         Dry run
       </label>
       <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startRequeueForADream">Advance first artist</button>
+        <button class="primary" data-action="startRequeueForADream">Run</button>
         <button class="danger cancel" data-action="cancelRequeueForADream" hidden title="Stop routine">×</button>
       </div>
       <div class="analysis-progress" id="requeueForADreamProgress"></div>
@@ -392,60 +713,65 @@
         Dry run
       </label>
       <label for="palaceAlphabeticalStart">Alphabetical start (optional)</label>
-      <input id="palaceAlphabeticalStart" type="text" placeholder="Position, Spotify album, or Artist - Album" />
+      <input id="palaceAlphabeticalStart" type="text" placeholder="Start position or album" />
       <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startPalaceOfMemory">Fill Palace of Memory</button>
+        <button class="primary" data-action="startPalaceOfMemory">Run</button>
         <button class="danger cancel" data-action="cancelPalaceOfMemory" hidden title="Stop routine">×</button>
       </div>
       <label for="palaceAlphabeticalCursor">Set next alphabetical position</label>
       <div class="analysis-actions">
         <input id="palaceAlphabeticalCursor" type="number" min="1" step="1" inputmode="numeric" placeholder="1-based position" style="margin:0" />
-        <button class="ghost" data-action="setPalaceOfMemoryCursor">Set cursor</button>
+        <button class="ghost" data-action="setPalaceOfMemoryCursor">Set</button>
       </div>
       <div class="analysis-progress" id="palaceOfMemoryProgress"></div>
     </section>
+      </div>
+    </section>
 
-    <section class="card" id="releaseCheckCard">
+    <section class="card independent-module" id="releaseCheckCard">
       <h2>New release check</h2>
       <label class="inline">
         <input type="checkbox" id="releaseCheckDryRun" checked />
         Dry run
       </label>
       <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startReleaseCheck">Check releases</button>
+        <button class="primary" data-action="startReleaseCheck">Run</button>
         <button class="danger cancel" data-action="cancelReleaseCheck" hidden title="Stop check">×</button>
       </div>
       <div class="analysis-progress" id="releaseCheckProgress"></div>
     </section>
 
-    <section class="card" id="discographyCard">
+    <section class="card independent-module" id="discographyCard">
       <h2>Discographies</h2>
       <label class="inline">
         <input type="checkbox" id="discographyDryRun" checked />
         Dry run
       </label>
       <div class="analysis-actions" style="margin-top:12px">
-        <button class="primary" data-action="startDiscography">Plan next batch</button>
+        <button class="primary" data-action="startDiscography">Plan</button>
         <button class="danger cancel" data-action="cancelDiscography" hidden title="Stop routine">×</button>
       </div>
       <div class="analysis-progress" id="discographyProgress"></div>
     </section>
 
+    <section class="macro-module lookup-module" aria-labelledby="lookupModuleTitle">
+      <header class="macro-header"><h2 id="lookupModuleTitle">Library instruments</h2><span>Live lookup</span></header>
+      <div class="macro-grid lookup-grid">
     <!-- Artist stats -->
-    <section class="card">
+    <section class="card" id="artistStatsCard">
       <h2>Artist stats</h2>
       <label for="artistName">Artist name</label>
       <input id="artistName" type="text" placeholder="e.g. Radiohead" enterkeyhint="search" />
       <label for="artistId">…or Spotify artist ID (optional)</label>
-      <input id="artistId" type="text" placeholder="e.g. 4Z8W4fKeB5YxbusRsdQVPb" />
+      <input id="artistId" type="text" placeholder="Spotify artist ID" />
       <div class="btns">
-        <button class="primary" data-action="artistStats">Get stats</button>
+        <button class="primary" data-action="artistStats">Check</button>
       </div>
       <div class="result" id="artistResult"></div>
     </section>
 
     <!-- Album evaluation -->
-    <section class="card">
+    <section class="card" id="albumEvaluationCard">
       <h2>Album evaluation (keep / remove)</h2>
       <label for="albumName">Album name</label>
       <input id="albumName" type="text" placeholder="e.g. In Rainbows" enterkeyhint="search" />
@@ -456,10 +782,13 @@
       <label for="threshold">Keep threshold (liked ratio)</label>
       <input id="threshold" type="number" min="0" max="1" step="0.05" value="0.5" />
       <div class="btns">
-        <button class="primary" data-action="albumEval">Evaluate album</button>
+        <button class="primary" data-action="albumEval">Check</button>
       </div>
       <div class="result" id="albumResult"></div>
     </section>
+      </div>
+    </section>
+    </main>
 
     <div class="foot">
       <button class="ghost" id="logout" style="max-width:160px;margin:0 auto;">Sign out</button>
@@ -548,12 +877,142 @@
     if (!btn) return;
     if (busy) {
       btn.dataset.label = btn.innerHTML;
-      btn.innerHTML = '<span class="spinner"></span> ' + (label || "Working…");
+      btn.dataset.title = btn.getAttribute("title") || "";
+      btn.dataset.ariaLabel = btn.getAttribute("aria-label") || "";
+      btn.innerHTML = '<span class="spinner"></span>';
+      btn.title = label || "Working…";
+      btn.setAttribute("aria-label", label || "Working…");
       btn.disabled = true;
     } else {
       btn.innerHTML = btn.dataset.label || btn.innerHTML;
+      btn.title = btn.dataset.title || "";
+      if (btn.dataset.ariaLabel) {
+        btn.setAttribute("aria-label", btn.dataset.ariaLabel);
+      } else {
+        btn.removeAttribute("aria-label");
+      }
       btn.disabled = false;
     }
+  }
+
+  function createTerminalTrigger(scope) {
+    var trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "terminal-trigger";
+    trigger.title = "Show terminal log";
+    trigger.setAttribute("aria-label", "Show terminal log");
+    trigger.setAttribute("aria-pressed", "false");
+    trigger.innerHTML = '<span aria-hidden="true">&gt;_</span>';
+    trigger.addEventListener("click", function () {
+      var open = !scope.classList.contains("terminal-open");
+      scope.classList.toggle("terminal-open", open);
+      scope.querySelectorAll(".terminal-trigger").forEach(function (item) {
+        item.setAttribute("aria-pressed", open ? "true" : "false");
+        item.title = open ? "Hide terminal log" : "Show terminal log";
+        item.setAttribute(
+          "aria-label",
+          open ? "Hide terminal log" : "Show terminal log"
+        );
+      });
+    });
+    return trigger;
+  }
+
+  function enhanceControlPanels() {
+    document.querySelectorAll("label[for]").forEach(function (label) {
+      var input = document.getElementById(label.htmlFor);
+      if (input && !input.title) input.title = label.textContent.trim();
+    });
+
+    document.querySelectorAll(
+      ".macro-grid > .card:not(.blank-console-card), .independent-module"
+    ).forEach(function (card) {
+      if (card.querySelector(":scope > .panel-strip")) return;
+      var strip = document.createElement("div");
+      strip.className = "panel-strip";
+      Array.from(card.children).forEach(function (child) {
+        if (
+          !child.classList.contains("analysis-progress") &&
+          !child.classList.contains("result")
+        ) {
+          strip.appendChild(child);
+        }
+      });
+      card.insertBefore(strip, card.firstChild);
+      if (card.querySelector(":scope > .analysis-progress")) {
+        strip.appendChild(createTerminalTrigger(card));
+      }
+    });
+
+    var palace = document.getElementById("palaceOfMemoryCard");
+    var palaceStrip = palace && palace.querySelector(":scope > .panel-strip");
+    if (palaceStrip && !palaceStrip.querySelector(".settings-trigger")) {
+      var settingsTrigger = document.createElement("button");
+      settingsTrigger.type = "button";
+      settingsTrigger.className = "settings-trigger";
+      settingsTrigger.title = "Show cursor controls";
+      settingsTrigger.setAttribute("aria-label", "Show cursor controls");
+      settingsTrigger.setAttribute("aria-controls", "palaceSettings");
+      settingsTrigger.setAttribute("aria-pressed", "false");
+      settingsTrigger.innerHTML = '<span aria-hidden="true">⚙</span>';
+      var settings = document.createElement("div");
+      settings.id = "palaceSettings";
+      settings.className = "palace-settings";
+      var startInput = document.getElementById("palaceAlphabeticalStart");
+      var cursorInput = document.getElementById("palaceAlphabeticalCursor");
+      [
+        palaceStrip.querySelector('label[for="palaceAlphabeticalStart"]'),
+        startInput,
+        palaceStrip.querySelector('label[for="palaceAlphabeticalCursor"]'),
+        cursorInput && cursorInput.closest(".analysis-actions"),
+      ].forEach(function (item) {
+        if (item) settings.appendChild(item);
+      });
+      settingsTrigger.addEventListener("click", function () {
+        var open = !palace.classList.contains("settings-open");
+        palace.classList.toggle("settings-open", open);
+        settingsTrigger.setAttribute("aria-pressed", open ? "true" : "false");
+        settingsTrigger.title = open ? "Hide cursor controls" : "Show cursor controls";
+        settingsTrigger.setAttribute(
+          "aria-label",
+          open ? "Hide cursor controls" : "Show cursor controls"
+        );
+      });
+      palaceStrip.insertBefore(
+        settingsTrigger,
+        palaceStrip.querySelector(".terminal-trigger")
+      );
+      palace.insertBefore(
+        settings,
+        palace.querySelector(":scope > .analysis-progress")
+      );
+    }
+
+    document.querySelectorAll(".panel-strip").forEach(function (strip) {
+      var terminal = strip.querySelector(":scope > .terminal-trigger");
+      var command = Array.from(strip.children).find(function (child) {
+        return (
+          child.classList.contains("btns") ||
+          child.classList.contains("analysis-actions")
+        );
+      });
+      if (terminal && command) {
+        strip.appendChild(terminal);
+        strip.appendChild(command);
+      }
+    });
+
+    document.querySelectorAll(".signal-file-group").forEach(function (group) {
+      group.querySelectorAll(".signal-file-command").forEach(function (command) {
+        if (!command.querySelector(".terminal-trigger")) {
+          var terminal = createTerminalTrigger(group);
+          command.insertBefore(
+            terminal,
+            command.querySelector(".analysis-actions")
+          );
+        }
+      });
+    });
   }
 
   function renderResult(el, html) {
@@ -565,27 +1024,37 @@
   }
 
   function renderServerFilesStatus(data) {
-    var out = document.getElementById("serverFilesStatus");
     var files = (data && data.files) || [];
-    out.innerHTML = files.map(function (file) {
+    files.forEach(function (file) {
+      var date = document.querySelector(
+        '[data-server-file-date="' + file.filename + '"]'
+      );
+      if (!date) return;
       var label = "Missing";
+      date.className = "server-file-date missing";
       if (file.exists && file.updated_at) {
         var updated = new Date(file.updated_at);
-        label = isNaN(updated.getTime()) ? file.updated_at : updated.toLocaleString();
+        label = isNaN(updated.getTime())
+          ? file.updated_at
+          : updated.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+        date.className = "server-file-date";
       }
-      return '<div class="server-file">' +
-        '<span class="server-file-name">' + esc(file.filename) + '</span>' +
-        '<span class="server-file-date">' + esc(label) + '</span></div>';
-    }).join("");
+      date.textContent = label;
+    });
+    var available = files.filter(function (file) { return file.exists; }).length;
+    document.getElementById("serverFilesSummary").textContent =
+      available + " / " + files.length + " sources available";
   }
 
   async function loadServerFilesStatus() {
-    var out = document.getElementById("serverFilesStatus");
     try {
       renderServerFilesStatus(await api("/library-mirrors/status"));
     } catch (e) {
-      out.innerHTML = '<div class="server-files-error">✕ ' +
-        esc(e.detail || "Could not read server file dates") + '</div>';
+      document.querySelectorAll("[data-server-file-date]").forEach(function (date) {
+        date.className = "server-file-date missing";
+        date.textContent = "Unavailable";
+      });
+      document.getElementById("serverFilesSummary").textContent = "Status unavailable";
     }
   }
 
@@ -603,8 +1072,8 @@
 
   function renderAnalysisJob(mode, job) {
     var out = document.getElementById("analysis-" + mode);
-    var start = document.querySelector('[data-action="analysis"][data-mode="' + mode + '"]');
-    var cancel = document.querySelector('[data-action="cancelAnalysis"][data-mode="' + mode + '"]');
+    var starts = document.querySelectorAll('[data-action="analysis"][data-mode="' + mode + '"]');
+    var cancels = document.querySelectorAll('[data-action="cancelAnalysis"][data-mode="' + mode + '"]');
     var labels = { albums: "Albums", tracks: "Tracks", artists: "Artists" };
     var rows = ["albums", "tracks", "artists"].filter(function (name) {
       return job.resources && Object.prototype.hasOwnProperty.call(job.resources, name);
@@ -654,10 +1123,14 @@
         item.disabled = active;
       });
     }
-    cancel.hidden = !active;
-    cancel.disabled = job.status === "cancelling";
-    if (active && !start.disabled) setBusy(start, true, "Running…");
-    if (!active) setBusy(start, false);
+    cancels.forEach(function (cancel) {
+      cancel.hidden = !active;
+      cancel.disabled = job.status === "cancelling";
+    });
+    starts.forEach(function (start) {
+      if (active && !start.disabled) setBusy(start, true, "Running…");
+      if (!active) setBusy(start, false);
+    });
   }
 
   async function pollAnalysis(mode, jobId) {
@@ -675,9 +1148,10 @@
       }
     } catch (e) {
       var out = document.getElementById("analysis-" + mode);
-      var start = document.querySelector('[data-action="analysis"][data-mode="' + mode + '"]');
       renderError(out, e);
-      setBusy(start, false);
+      document.querySelectorAll('[data-action="analysis"][data-mode="' + mode + '"]').forEach(function (start) {
+        setBusy(start, false);
+      });
       showToast("Could not read analysis progress", "err");
     }
   }
@@ -2073,6 +2547,7 @@
         setTimeout(function () { pollScrobbleHistoryJob(jobId); }, 1500);
       } else if (job.status === "completed") {
         showToast("Scrobble history update finished", "ok");
+        loadServerFilesStatus();
       } else {
         showToast("Scrobble history update " + job.status, "err");
       }
@@ -2910,6 +3385,8 @@
       setBusy(btn, false);
     },
   };
+
+  enhanceControlPanels();
 
   document.getElementById("app").addEventListener("click", function (ev) {
     var btn = ev.target.closest("[data-action]");

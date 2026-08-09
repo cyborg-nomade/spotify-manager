@@ -293,6 +293,17 @@ def _append_log(summary: ScrobbleHistorySummary, path: Path) -> None:
         ) from exc
 
 
+def _mark_export_checked(path: Path, checked_at: datetime) -> None:
+    """Record a successful live check without rewriting unchanged history."""
+    try:
+        current = path.stat()
+        os.utime(path, (current.st_atime, checked_at.timestamp()))
+    except OSError as exc:
+        raise ScrobbleHistoryError(
+            f"Could not update the Last.fm history check time: {path}"
+        ) from exc
+
+
 def refresh_scrobble_history(
     lastfm: LastFmReader,
     *,
@@ -389,5 +400,8 @@ def refresh_scrobble_history(
         backup_path=backup_path,
     )
     if not dry_run:
+        _mark_export_checked(export_path, checked_at)
+        if not changed and progress_callback is not None:
+            progress_callback("History already current; recorded successful check time")
         _append_log(summary, log_path)
     return summary

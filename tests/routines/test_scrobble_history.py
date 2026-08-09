@@ -137,6 +137,38 @@ def test_real_refresh_backs_up_then_atomically_replaces_export(tmp_path: Path) -
     assert audit["persisted"] is True
 
 
+def test_current_refresh_records_successful_check_time_without_rewrite(
+    tmp_path: Path,
+) -> None:
+    export_path = tmp_path / "lastfm.json"
+    original = write_export(export_path)
+    backup_dir = tmp_path / "backups"
+    log_path = tmp_path / "update.jsonl"
+    checked_at = datetime(2026, 8, 5, 14, 30, tzinfo=UTC)
+    progress: list[str] = []
+
+    summary = scrobble_history.refresh_scrobble_history(
+        FakeLastFm(
+            (LastFmRecentTrack("Known Artist", "Known Track", "Known Album", 1),)
+        ),
+        expected_username="man-et-arms",
+        export_path=export_path,
+        legacy_delta_path=None,
+        backup_dir=backup_dir,
+        log_path=log_path,
+        now=checked_at,
+        progress_callback=progress.append,
+    )
+
+    assert summary.persisted is False
+    assert summary.live_scrobbles_added == 0
+    assert export_path.read_bytes() == original
+    assert export_path.stat().st_mtime == pytest.approx(checked_at.timestamp())
+    assert not backup_dir.exists()
+    assert "History already current; recorded successful check time" in progress
+    assert log_path.exists()
+
+
 def test_refresh_recovers_inline_fallback_before_replacing_lfs_pointer(
     tmp_path: Path,
 ) -> None:
