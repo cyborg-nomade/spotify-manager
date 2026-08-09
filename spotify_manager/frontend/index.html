@@ -1939,18 +1939,23 @@
         var tags = (choice.tags || []).length
           ? ' · ' + choice.tags.join(' / ')
           : '';
+        var releaseButtons = choice.unattached_single
+          ? '<button class="primary" data-action="releaseCheckChoice" data-choice="add">Add to Wine Cellar</button>' +
+            '<button class="ghost" data-action="releaseCheckChoice" data-choice="pending">Keep pending</button>' +
+            '<button class="ghost" data-action="releaseCheckChoice" data-choice="skip">Skip permanently</button>'
+          : '<button class="primary" data-action="releaseCheckChoice" data-choice="add">Add</button>' +
+            '<button class="ghost" data-action="releaseCheckChoice" data-choice="skip">Skip permanently</button>';
         options = '<div class="blast-selection"><div class="blast-selection-title">' +
           esc(choice.release) + '</div><div class="blast-selection-match">' +
           esc(choice.release_date + ' · ' + choice.release_type + tags) +
           '</div><div class="blast-selection-meta">First track: ' +
           esc(choice.first_track) + ' · ' + esc((choice.destinations || []).join(', ')) +
-          '</div></div><div class="btns">' +
-          '<button class="primary" data-action="releaseCheckChoice" data-choice="add">Add</button>' +
-          '<button class="ghost" data-action="releaseCheckChoice" data-choice="skip">Skip permanently</button>' +
-          '</div>';
+          (choice.unattached_single ? ' · not tied to an announced album or EP' : '') +
+          '</div></div><div class="btns">' + releaseButtons + '</div>';
       }
       var artistSkip = choice.kind === "artist"
-        ? '<button class="ghost" data-action="releaseCheckChoice" data-choice="skip">Skip this run</button>'
+        ? '<button class="ghost" data-action="releaseCheckChoice" data-choice="skip">Skip this run</button>' +
+          '<button class="ghost" data-action="releaseCheckChoice" data-choice="skip-artist">Skip permanently</button>'
         : '';
       pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
         esc(title) + '</div><div class="blast-selection-match">' +

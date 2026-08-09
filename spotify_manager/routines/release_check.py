@@ -37,7 +37,9 @@ ARTIST_SEARCH_LIMIT = 10
 ARTIST_RELEASE_PAGE_LIMIT = 10
 RELEASE_TRACK_PAGE_LIMIT = 50
 CHOICE_ADD = "add"
+CHOICE_PENDING = "pending"
 CHOICE_SKIP = "skip"
+CHOICE_SKIP_ARTIST = "skip-artist"
 CHOICE_QUIT = "quit"
 CHOICE_SEARCH_PREFIX = "search:"
 
@@ -244,7 +246,7 @@ ArtistChoiceReader = Callable[
     str,
 ]
 ReleaseChoiceReader = Callable[
-    [RankedArtist, ReleaseCandidate, ReleaseTrack, tuple[str, ...]],
+    [RankedArtist, ReleaseCandidate, ReleaseTrack, tuple[str, ...], bool],
     str,
 ]
 
@@ -416,7 +418,7 @@ def resolve_spotify_artist(
                 f"Spotify artist mapping is ambiguous for {artist.name}."
             )
         choice = choice_reader(artist, choices)
-        if choice in {CHOICE_SKIP, CHOICE_QUIT}:
+        if choice in {CHOICE_SKIP, CHOICE_SKIP_ARTIST, CHOICE_QUIT}:
             return choice
         if choice.startswith(CHOICE_SEARCH_PREFIX):
             requested_search = choice.removeprefix(CHOICE_SEARCH_PREFIX).strip()
@@ -695,6 +697,7 @@ def _default_state() -> dict[str, Any]:
         "last_successful_check_at": None,
         "last_checked_through": None,
         "artist_mappings": {},
+        "skipped_artists": {},
         "processed_releases": {},
         "pending_singles": {},
         "active_run": None,
@@ -709,10 +712,14 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ReleaseCheckStateError(f"Release-check state is invalid: {path}") from exc
+    if isinstance(raw, dict):
+        # Version 1 state predates durable artist skips.
+        raw.setdefault("skipped_artists", {})
     if (
         not isinstance(raw, dict)
         or raw.get("version") != STATE_VERSION
         or not isinstance(raw.get("artist_mappings"), dict)
+        or not isinstance(raw.get("skipped_artists"), dict)
         or not isinstance(raw.get("processed_releases"), dict)
         or not isinstance(raw.get("pending_singles"), dict)
         or (
@@ -1138,9 +1145,11 @@ def run_release_check(
         raise ReleaseCheckStateError("The active release-check progress is invalid.")
     completed = {str(key) for key in raw_completed}
     mappings = state["artist_mappings"]
+    skipped_artists = state["skipped_artists"]
     processed_releases = state["processed_releases"]
     pending_singles = state["pending_singles"]
     assert isinstance(mappings, dict)
+    assert isinstance(skipped_artists, dict)
     assert isinstance(processed_releases, dict)
     assert isinstance(pending_singles, dict)
 
@@ -1164,6 +1173,18 @@ def run_release_check(
 
     for artist in artists:
         if artist.key in completed:
+            continue
+        if artist.key in skipped_artists:
+            completed.add(artist.key)
+            active["completed_artist_keys"] = sorted(completed)
+            if not dry_run:
+                save_state(state, state_path)
+            if progress_callback is not None:
+                progress_callback(
+                    len(completed),
+                    len(artists),
+                    f"#{artist.rank} {artist.name}: permanently skipped",
+                )
             continue
         if progress_callback is not None:
             progress_callback(
@@ -1195,6 +1216,30 @@ def run_release_check(
                     history_refresh=history_refresh,
                     results=results,
                 )
+            if resolved == CHOICE_SKIP_ARTIST:
+                skip_record = {
+                    "artist": artist.name,
+                    "rank": artist.rank,
+                    "scrobbles": artist.scrobbles,
+                    "skipped_at": generated_at.isoformat(),
+                }
+                skipped_artists[artist.key] = skip_record
+                completed.add(artist.key)
+                active["completed_artist_keys"] = sorted(completed)
+                if dry_run:
+                    persisted_skips = persisted_state["skipped_artists"]
+                    assert isinstance(persisted_skips, dict)
+                    persisted_skips[artist.key] = skip_record
+                    save_state(persisted_state, state_path)
+                else:
+                    append_event(
+                        log_path,
+                        run_id,
+                        "artist_permanently_skipped",
+                        artist=artist.name,
+                    )
+                    save_state(state, state_path)
+                continue
             if resolved in {None, CHOICE_SKIP}:
                 completed.add(artist.key)
                 active["completed_artist_keys"] = sorted(completed)
@@ -1321,6 +1366,7 @@ def run_release_check(
             track: ReleaseTrack | None = pending.first_track if pending else None
             linked_future: ReleaseCandidate | None = None
             reason: str | None = None
+            unattached_single = False
             if release.release_type == "Single":
                 if track is None:
                     first_tracks = load_release_tracks(
@@ -1351,13 +1397,7 @@ def run_release_check(
                         if released_record is not None:
                             reason = "containing album or EP has already been released"
                         else:
-                            reason = (
-                                "single is not yet tied to an unreleased album or EP"
-                            )
-                            _store_pending(
-                                state,
-                                PendingSingle(artist.key, release, track),
-                            )
+                            unattached_single = True
             else:
                 reason = release_scope_reason(release, artist.rank)
                 if reason is None:
@@ -1371,10 +1411,7 @@ def run_release_check(
                     if track is None:
                         reason = "release has no playable first track"
 
-            terminal = not (
-                release.release_type == "Single"
-                and reason == "single is not yet tied to an unreleased album or EP"
-            )
+            terminal = True
             if reason is not None:
                 result = _result(
                     artist,
@@ -1398,13 +1435,16 @@ def run_release_check(
                 ):
                     destinations.append("New Vintage")
 
-                choice = CHOICE_ADD
+                choice = (
+                    CHOICE_PENDING if unattached_single and destinations else CHOICE_ADD
+                )
                 if destinations and release_choice_reader is not None:
                     choice = release_choice_reader(
                         artist,
                         release,
                         track,
                         tuple(destinations),
+                        unattached_single,
                     )
                 if choice == CHOICE_QUIT:
                     if not dry_run:
@@ -1427,8 +1467,41 @@ def run_release_check(
                         history_refresh=history_refresh,
                         results=results,
                     )
-                if choice not in {CHOICE_ADD, CHOICE_SKIP}:
+                if choice == CHOICE_PENDING and not unattached_single:
+                    raise ReleaseCheckError(
+                        "Only an unattached single can remain pending."
+                    )
+                if choice not in {CHOICE_ADD, CHOICE_PENDING, CHOICE_SKIP}:
                     raise ReleaseCheckError("The release review choice is invalid.")
+                if choice == CHOICE_PENDING:
+                    _store_pending(
+                        state,
+                        PendingSingle(artist.key, release, track),
+                    )
+                    terminal = False
+                    result = _result(
+                        artist,
+                        spotify_artist,
+                        release,
+                        track=track,
+                        reason="single kept pending for a future album or EP",
+                        dry_run=dry_run,
+                    )
+                    results.append(result)
+                    _record_result(
+                        state,
+                        result,
+                        generated_at,
+                        run_id,
+                        log_path,
+                        state_path,
+                        dry_run,
+                        terminal=False,
+                    )
+                    active["pending_release_id"] = None
+                    if not dry_run:
+                        save_state(state, state_path)
+                    continue
                 if choice == CHOICE_SKIP:
                     result = _result(
                         artist,
@@ -1538,9 +1611,11 @@ def run_release_check(
 
 __all__ = [
     "CHOICE_ADD",
+    "CHOICE_PENDING",
     "CHOICE_QUIT",
     "CHOICE_SEARCH_PREFIX",
     "CHOICE_SKIP",
+    "CHOICE_SKIP_ARTIST",
     "ReleaseCheckConfigError",
     "ReleaseCheckError",
     "ReleaseCheckPlaylists",

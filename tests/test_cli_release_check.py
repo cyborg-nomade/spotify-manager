@@ -85,6 +85,7 @@ def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
             release,
             track,
             ("Wine Cellar", "New Vintage"),
+            False,
         )
         return main.release_check.ReleaseCheckSummary(
             run_id="run",
@@ -132,4 +133,4 @@ def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
     assert "New Album" in cli_result.output
     assert "would add" in cli_result.output
     assert "Last.fm history" in cli_result.output
-    assert "confirmed artist mappings were persisted" in cli_result.output
+    assert "permanent artist skips were persisted" in cli_result.output

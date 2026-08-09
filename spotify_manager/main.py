@@ -846,11 +846,15 @@ def ask_release_check_artist(
             )
         console.print(table)
         response = Prompt.ask(
-            "Artist number / [n]ew search / [s]kip this run / [q]uit and resume later",
+            (
+                "Artist number / [n]ew search / [s]kip this run / "
+                "[p]ermanently skip / [q]uit and resume later"
+            ),
             choices=[
                 *(str(index) for index in range(1, len(candidates) + 1)),
                 "n",
                 "s",
+                "p",
                 "q",
             ],
             default="s",
@@ -867,6 +871,8 @@ def ask_release_check_artist(
                 console.print("Search text cannot be empty.", style="bold yellow")
         if response == "s":
             return release_check.CHOICE_SKIP
+        if response == "p":
+            return release_check.CHOICE_SKIP_ARTIST
         if response == "q":
             return release_check.CHOICE_QUIT
         return candidates[int(response) - 1].spotify_id
@@ -880,6 +886,7 @@ def ask_release_check_release(
     release: release_check.ReleaseCandidate,
     track: release_check.ReleaseTrack,
     destinations: tuple[str, ...],
+    unattached_single: bool,
     progress: Progress,
 ) -> str:
     """Prompt immediately before adding one eligible release."""
@@ -901,14 +908,20 @@ def ask_release_check_release(
             style="bold yellow" if tags else None,
         )
         console.print(table)
-        response = Prompt.ask(
-            "[a]dd / [s]kip permanently / [q]uit and resume later",
-            choices=["a", "s", "q"],
-            default="a",
-            console=console,
-        )
+        prompt = "[a]dd / [s]kip permanently / [q]uit and resume later"
+        choices = ["a", "s", "q"]
+        default = "a"
+        if unattached_single:
+            prompt = (
+                "[a]dd to Wine Cellar / keep [p]ending / "
+                "[s]kip permanently / [q]uit and resume later"
+            )
+            choices.insert(1, "p")
+            default = "p"
+        response = Prompt.ask(prompt, choices=choices, default=default, console=console)
         return {
             "a": release_check.CHOICE_ADD,
+            "p": release_check.CHOICE_PENDING,
             "s": release_check.CHOICE_SKIP,
             "q": release_check.CHOICE_QUIT,
         }[response]
@@ -978,7 +991,8 @@ def print_release_check_summary(
     if summary.dry_run:
         console.print(
             "Spotify, release decisions, and the audit log were unchanged. "
-            "Last.fm history and confirmed artist mappings were persisted.",
+            "Last.fm history, artist mappings, and permanent artist skips "
+            "were persisted.",
             style="cyan",
         )
     else:
@@ -1261,7 +1275,7 @@ def check_new_releases_command(
         "--dry-run",
         help=(
             "Show release decisions without changing playlists; Last.fm history "
-            "and artist mappings are still persisted."
+            "and artist mapping choices are still persisted."
         ),
     ),
 ) -> None:
@@ -1315,6 +1329,23 @@ def check_new_releases_command(
                     description=status,
                 )
 
+            def choose_release(
+                artist: release_check.RankedArtist,
+                release: release_check.ReleaseCandidate,
+                track: release_check.ReleaseTrack,
+                destinations: tuple[str, ...],
+                unattached: bool,
+            ) -> str:
+                return ask_release_check_release(
+                    console,
+                    artist,
+                    release,
+                    track,
+                    destinations,
+                    unattached,
+                    progress,
+                )
+
             summary = release_check.run_release_check(
                 client(),
                 lastfm_client,
@@ -1328,16 +1359,7 @@ def check_new_releases_command(
                         progress,
                     )
                 ),
-                release_choice_reader=lambda artist, release, track, destinations: (
-                    ask_release_check_release(
-                        console,
-                        artist,
-                        release,
-                        track,
-                        destinations,
-                        progress,
-                    )
-                ),
+                release_choice_reader=choose_release,
                 dry_run=dry_run,
                 progress_callback=update_progress,
             )

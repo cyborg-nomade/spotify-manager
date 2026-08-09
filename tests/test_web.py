@@ -389,9 +389,7 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert 'class="card independent-module" id="discographyCard"' in response.text
     assert "@media (min-width: 1120px)" in response.text
     assert "@media (min-width: 760px) and (max-width: 1119px)" in response.text
-    assert "justify-content: flex-end; column-gap: 4px; row-gap: 5px" in (
-        response.text
-    )
+    assert "justify-content: flex-end; column-gap: 4px; row-gap: 5px" in (response.text)
     assert "#blastCard .mode-switch { width: 112px; }" in response.text
     assert ".cockpit-grid { grid-template-columns: repeat(12" in response.text
     assert "background: linear-gradient(165deg" in response.text
@@ -403,19 +401,19 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert "function enhanceControlPanels()" in response.text
     assert "function createTerminalTrigger(scope)" in response.text
     assert 'class="card blank-console-card" aria-hidden="true"' in response.text
-    assert 'strip.appendChild(terminal);\n        strip.appendChild(command);' in (
+    assert "strip.appendChild(terminal);\n        strip.appendChild(command);" in (
         response.text
     )
     assert (
-        'command.insertBefore(\n'
+        "command.insertBefore(\n"
         "            terminal,\n"
         '            command.querySelector(".analysis-actions")'
     ) in response.text
     assert 'settings.id = "palaceSettings"' in response.text
     assert 'settingsTrigger.className = "settings-trigger"' in response.text
-    assert '#blastCard .panel-strip > h2 { flex-basis: 100%' in response.text
-    assert '>Check</button>' in response.text
-    assert 'trigger.innerHTML = \'<span aria-hidden="true">&gt;_</span>\';' in (
+    assert "#blastCard .panel-strip > h2 { flex-basis: 100%" in response.text
+    assert ">Check</button>" in response.text
+    assert "trigger.innerHTML = '<span aria-hidden=\"true\">&gt;_</span>';" in (
         response.text
     )
     assert ".card:has(.terminal-trigger:hover) .analysis-log" in response.text
@@ -428,3 +426,6 @@ def test_main_page_uses_grouped_signal_rack_layout(
         'showToast("Scrobble history update finished", "ok");\n'
         "        loadServerFilesStatus();"
     ) in response.text
+    assert 'data-choice="skip-artist">Skip permanently</button>' in response.text
+    assert 'data-choice="pending">Keep pending</button>' in response.text
+    assert "choice.unattached_single" in response.text

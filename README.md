@@ -470,7 +470,10 @@ first check. When a name has multiple exact matches, or only inexact search
 results, the CLI displays popularity and follower context and saves the chosen
 mapping. Choose `n` from that prompt to enter a different Spotify search string;
 the new candidates can be searched repeatedly and do not need to match the
-Last.fm spelling. Artist mappings are also saved during dry runs.
+Last.fm spelling. Choose `p` to permanently skip an artist that has no useful
+Spotify mapping; durable skips live under `skipped_artists` in
+`spotify_manager/files/release_check_state.json`, where they can also be removed
+manually. Artist mappings and permanent artist skips are saved during dry runs.
 
 For every eligible release, its first track in Spotify track-list order is
 added to Wine Cellar. The release rules are:
@@ -484,9 +487,11 @@ added to Wine Cellar. The release rules are:
 
 Eligible albums and EPs by ranks 1-50 are also represented in New Vintage by
 their first track. Standalone singles enter New Vintage only for ranks 1-20.
-Singles outside the top 20 that cannot yet be tied to an unreleased record stay
-pending and are reconsidered during later checks, including when the original
-single is older than the new check window.
+Singles outside the top 20 that cannot yet be tied to an unreleased record are
+presented for review. They can be added to Wine Cellar immediately, kept pending
+for reconsideration during later checks, skipped permanently, or left at the
+current prompt by quitting. Keeping one pending remains the cautious default and
+works even when the original single is older than the new check window.
 
 Immediately before an eligible track is added, the CLI displays the artist,
 release type and date, first track, and every destination that still needs it.
@@ -503,11 +508,11 @@ uv run spotify-manager check-new-releases --dry-run
 just check-new-releases --dry-run
 ```
 
-Unlike most dry runs in this project, this one does persist two safe inputs for
-later checks: new Last.fm scrobbles are backed up and merged into the canonical
-history, and confirmed Last.fm-to-Spotify artist mappings are saved. Playlist
-additions, permanent skips, processed-release state, and release audit events
-remain dry-run only.
+Unlike most dry runs in this project, this one does persist safe inputs for later
+checks: new Last.fm scrobbles are backed up and merged into the canonical history,
+confirmed Last.fm-to-Spotify artist mappings are saved, and permanent artist skips
+are recorded. Playlist additions, permanent release skips, processed-release
+state, and release audit events remain dry-run only.
 
 Then run it for real:
 

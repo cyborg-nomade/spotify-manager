@@ -1416,6 +1416,7 @@ def test_release_check_web_job_handles_search_mapping_and_release_choice(
             release,
             track,
             ("Wine Cellar", "New Vintage"),
+            False,
         )
         return api.release_check.ReleaseCheckSummary(
             run_id="release-check-run",
@@ -1485,6 +1486,7 @@ def test_release_check_web_job_handles_search_mapping_and_release_choice(
     assert pending["kind"] == "release"
     assert pending["tags"] == ["DELUXE"]
     assert pending["destinations"] == ["Wine Cellar", "New Vintage"]
+    assert pending["unattached_single"] is False
     assert (
         client.post(
             f"/commands/check-new-releases-jobs/{job_id}/choice",
