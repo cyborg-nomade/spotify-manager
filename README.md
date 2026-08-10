@@ -545,6 +545,66 @@ POST /commands/check-new-releases-jobs/{job_id}/choice
 POST /commands/check-new-releases-jobs/{job_id}/cancel
 ```
 
+### `flush-new-kids`
+
+Fills *New Kids on the Block* to 10 tracks from the top of *The Queue 2*,
+then advances every artist represented at the start of the run exactly once.
+Configure `NEW_KIDS_ON_THE_BLOCK_PLAYLIST`, `THE_QUEUE_2_PLAYLIST`,
+`GREAT_DISCOVERIES_2026_PLAYLIST`, `UNLUCKY_ONES_PLAYLIST`, and
+`DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST` with Spotify URLs, URIs, or ids. A Queue 2
+marker is removed only after its track has been added successfully to New Kids.
+
+Within a selected release, tracks follow Spotify disc and track order and must
+credit the reviewed artist first. Three consecutive live-unliked tracks jump to
+the first later liked track, when one exists; otherwise the release ends. At a
+release boundary, the CLI applies the usual live 50% rule and saves or unsaves
+the release accordingly, then prompts for the next release. Spotify album
+popularity ranks the choices, with the artist's top-track albums as a fallback.
+Albums and EPs are offered first; only after that tier is exhausted are singles,
+live releases, and compilations offered in that order.
+
+After four selected releases, the entire canonical primary-artist discography
+is checked live. Artists with at least one liked track reach the current year's
+*Great Discoveries* and *Newfoundland* when they have at least 18 liked tracks,
+3 saved releases, every release saved, or every track liked. Other artists with
+likes are added to *Unlucky Ones* using their most popular liked track and then
+unfollowed. Artists with no liked tracks are simply unfollowed. The promotion
+marker is the first primary-artist track of the earliest eligible release.
+
+Preview the run without changing Spotify or durable progress:
+
+```console
+uv run spotify-manager flush-new-kids --dry-run
+just flush-new-kids --dry-run
+```
+
+Apply it:
+
+```console
+uv run spotify-manager flush-new-kids
+just flush-new-kids
+```
+
+Real runs checkpoint each artist in `spotify_manager/files/new_kids_state.json`
+and resume the same playlist snapshot after interruption. Decisions and
+mutations are appended to `spotify_manager/files/new_kids_log.jsonl`. Beginning
+in 2027, the routine creates `Great Discoveries YEAR` automatically and stores
+its id in the state file. Spotify's API cannot place playlists in folders, so a
+new yearly playlist must be moved into the desired folder manually.
+
+The web card appears in *Discovery Tracks* immediately above New Wine. It
+defaults to dry-run mode, renders popularity and fallback ranking in each
+release choice, retains live logs behind the terminal control, and reconnects
+to an active run after a page reload:
+
+```text
+POST /commands/flush-new-kids?dry_run=true
+GET  /commands/flush-new-kids-jobs
+GET  /commands/flush-new-kids-jobs/{job_id}
+POST /commands/flush-new-kids-jobs/{job_id}/choice
+POST /commands/flush-new-kids-jobs/{job_id}/cancel
+```
+
 ### `flush-new-wine`
 
 Advances every track present at the start of a *New Wine from Old Bottles*
@@ -1008,6 +1068,10 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `THE_QUEUE_PLAYLIST` | Spotify URL or id for the 1-5 liked-track queue. |
 | `THE_QUEUE_2_PLAYLIST` | Spotify URL or id for the 6-17 liked-track queue. |
 | `THE_QUEUE_3_PLAYLIST` | Spotify URL or id for the 18+ liked-track queue. |
+| `NEW_KIDS_ON_THE_BLOCK_PLAYLIST` | Spotify URL or id for the four-release artist discovery rotation. |
+| `GREAT_DISCOVERIES_2026_PLAYLIST` | Spotify URL or id seeding the yearly Great Discoveries destinations. |
+| `UNLUCKY_ONES_PLAYLIST` | Spotify URL or id receiving the most popular liked track from unsuccessful artist reviews. |
+| `DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST` | Spotify URL or id receiving qualifying completed New Kids artists. |
 | `BLAST_FROM_THE_PAST_PLAYLIST` | Spotify URL or id for Friday Routine recovery tracks. |
 | `DAILY_MIND_RADIO_PLAYLIST` | Spotify URL or id for anniversary recovery tracks. |
 | `GENRE_REVEAL_PLAYLIST` | Spotify URL or id that receives each genre playlist's first ten tracks. |

@@ -694,6 +694,145 @@ def test_found_art_endpoint_runs_background_job_with_requested_count(
     )
 
 
+def test_new_kids_web_job_waits_for_and_applies_release_choice(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    release = api.new_kids.RankedRelease(
+        spotify_id="release",
+        uri="spotify:album:release",
+        name="Ranked Album",
+        release_type="Album",
+        release_date="2024-01-01",
+        total_tracks=9,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        popularity=73,
+        top_track_rank=2,
+        tier=0,
+        identity="ranked album",
+        saved=True,
+        plain=True,
+    )
+    received: dict[str, object] = {}
+
+    def flush(
+        spotify,
+        new_playlist_id,
+        queue_playlist_id,
+        great_playlist_id,
+        unlucky_playlist_id,
+        newfoundland_playlist_id,
+        **kwargs,
+    ):
+        received.update(
+            spotify_type=type(spotify).__name__,
+            new_playlist_id=new_playlist_id,
+            queue_playlist_id=queue_playlist_id,
+            great_playlist_id=great_playlist_id,
+            unlucky_playlist_id=unlucky_playlist_id,
+            newfoundland_playlist_id=newfoundland_playlist_id,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"](0, 1, "Reviewing Artist")
+        choice = kwargs["choice_reader"]("Artist", (release,))
+        received["choice"] = choice
+        kwargs["echo"](f"Selected {choice}")
+        return api.new_kids.FlushSummary(
+            results=(
+                api.new_kids.FlushResult(
+                    artist="Artist",
+                    source_track="Current Track",
+                    source_release="Current Album",
+                    current_liked=True,
+                    consecutive_unliked=0,
+                    action="next release",
+                    target_track="Opening Track",
+                    target_release="Ranked Album",
+                    release_number=2,
+                    album_decision="keep",
+                    album_liked_tracks=6,
+                    album_total_tracks=9,
+                    dry_run=kwargs["dry_run"],
+                ),
+            ),
+            prefill=(api.new_kids.FillResult("Queue Artist", "Marker", "moved"),),
+            postfill=(),
+            playlist_length_before=9,
+            playlist_length_after=10,
+            paused=False,
+            resumed=True,
+            dry_run=kwargs["dry_run"],
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            new_kids_on_the_block_playlist="spotify:playlist:newkids",
+            the_queue_2_playlist="spotify:playlist:queue2",
+            great_discoveries_2026_playlist="spotify:playlist:great",
+            unlucky_ones_playlist="spotify:playlist:unlucky",
+            discography_newfoundland_playlist="spotify:playlist:newfoundland",
+        ),
+    )
+    monkeypatch.setattr(api.new_kids, "flush_new_kids", flush)
+
+    started = client.post(
+        "/commands/flush-new-kids",
+        params={"dry_run": "true"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    waiting = wait_for_new_kids_status(client, job_id, {"waiting"})
+    assert waiting["dry_run"] is True
+    assert waiting["new_kids_pending_choice"]["artist"] == "Artist"
+    assert waiting["new_kids_pending_choice"]["releases"] == [
+        {
+            "spotify_id": "release",
+            "name": "Ranked Album",
+            "release_type": "Album",
+            "release_date": "2024-01-01",
+            "total_tracks": 9,
+            "popularity": 73,
+            "top_track_rank": 2,
+            "saved": True,
+        }
+    ]
+    assert [
+        job["job_id"] for job in client.get("/commands/flush-new-kids-jobs").json()
+    ] == [job_id]
+
+    choice = client.post(
+        f"/commands/flush-new-kids-jobs/{job_id}/choice",
+        json={"choice": "release"},
+    )
+
+    assert choice.status_code == 200
+    completed = wait_for_new_kids_status(client, job_id, {"completed"})
+    assert received == {
+        "spotify_type": "FakeSpotify",
+        "new_playlist_id": "newkids",
+        "queue_playlist_id": "queue2",
+        "great_playlist_id": "great",
+        "unlucky_playlist_id": "unlucky",
+        "newfoundland_playlist_id": "newfoundland",
+        "dry_run": True,
+        "choice": "release",
+    }
+    assert completed["processed"] == 1
+    assert completed["playlist_length_before"] == 9
+    assert completed["playlist_length_after"] == 10
+    assert completed["new_kids_resumed"] is True
+    assert completed["new_kids_results"][0]["target_track"] == "Opening Track"
+    assert completed["new_kids_prefill"][0]["artist"] == "Queue Artist"
+    assert any(entry["message"] == "Selected release" for entry in completed["logs"])
+    assert client.get("/commands/flush-new-kids-jobs").json() == []
+
+
 def test_new_wine_web_job_waits_for_and_applies_release_choice(
     client: TestClient,
     monkeypatch,
@@ -2071,6 +2210,23 @@ def wait_for_new_wine_status(
             return body
         sleep(0.01)
     pytest.fail(f"New Wine job {job_id} did not reach {expected}")
+
+
+def wait_for_new_kids_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one New Kids job until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/flush-new-kids-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"New Kids job {job_id} did not reach {expected}")
 
 
 def wait_for_slow_listening_status(
