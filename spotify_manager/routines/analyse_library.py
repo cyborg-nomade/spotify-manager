@@ -6,6 +6,7 @@ from collections.abc import Callable
 from collections.abc import Sequence
 from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import replace
 from datetime import UTC
 from datetime import datetime
 from functools import partial
@@ -686,6 +687,114 @@ def finalize_live_mirrors(
     )
 
 
+def live_mirror_resource_paths(
+    paths: LibraryAnalysisPaths,
+    resource: ResourceName,
+) -> LibraryAnalysisPaths:
+    """Give each canonical resource an independent resumable workspace."""
+    workspace = paths.checkpoint.parent / resource
+    return replace(
+        paths,
+        checkpoint=workspace / "checkpoint.json",
+        staging_dir=workspace / "staging",
+    )
+
+
+def _live_resource_config(
+    paths: LibraryAnalysisPaths,
+    resource: ResourceName,
+) -> tuple[Path, type[LibraryModel], Callable[[LibraryModel], object]]:
+    """Return the output path, model, and ordering key for one live mirror."""
+    if resource == "albums":
+        return paths.albums_total, YourLibraryAlbum, album_sort_key
+    if resource == "tracks":
+        return paths.liked_tracks_total, YourLibraryTrack, track_sort_key
+    return paths.artists_total, YourLibraryArtist, artist_sort_key
+
+
+def finalize_live_mirror_resource(
+    resource: ResourceName,
+    models: list[LibraryModel],
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+) -> LibrarySyncSummary:
+    """Atomically publish exactly one canonical mirror with an undo snapshot."""
+    target, model_type, sort_key = _live_resource_config(paths, resource)
+    current = sorted(deduplicate_models(models), key=sort_key)
+
+    if checkpoint["status"] != "finalizing":
+        previous = load_model_list(target, model_type)
+        summary = resource_summary(
+            resource,
+            "live_api",
+            previous,
+            current,
+            int(checkpoint["resources"][resource].get("skipped", 0)),
+        )
+        backup_dir = paths.backups_dir / str(checkpoint["run_id"])
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_name = f"{resource}.before.json"
+        existed = target.exists()
+        if existed:
+            shutil.copy2(target, backup_dir / backup_name)
+        added, removed = model_diff(previous, current)
+        manifest = {
+            "version": 1,
+            "run_id": str(checkpoint["run_id"]),
+            "mode": paths.mode,
+            "created_at": utc_now(),
+            "targets": {
+                resource: {
+                    "target_name": target.name,
+                    "existed": existed,
+                    "backup_file": backup_name if existed else None,
+                }
+            },
+            "changes": {
+                resource: {
+                    "added": [item.model_dump() for item in added],
+                    "removed": [item.model_dump() for item in removed],
+                }
+            },
+            "summaries": [asdict(summary)],
+        }
+        write_json_atomic(backup_dir / "manifest.json", manifest)
+        append_event(
+            paths,
+            str(checkpoint["run_id"]),
+            "backup_created",
+            backup_dir=str(backup_dir),
+            resource=resource,
+        )
+        checkpoint["status"] = "finalizing"
+        checkpoint["backup_dir"] = str(backup_dir)
+        write_json_atomic(paths.checkpoint, checkpoint)
+    else:
+        backup_dir = Path(str(checkpoint["backup_dir"]))
+        manifest = load_json(backup_dir / "manifest.json")
+        if not isinstance(manifest, dict):
+            raise LibrarySyncError("The live-mirror backup manifest is invalid.")
+        summary = ResourceSyncSummary(**manifest["summaries"][0])
+
+    write_models(target, current)
+    checkpoint["status"] = "complete"
+    checkpoint["completed_at"] = utc_now()
+    write_json_atomic(paths.checkpoint, checkpoint)
+    append_event(
+        paths,
+        str(checkpoint["run_id"]),
+        "run_completed",
+        backup_dir=str(backup_dir),
+        summaries=[asdict(summary)],
+    )
+    return LibrarySyncSummary(
+        run_id=str(checkpoint["run_id"]),
+        mode=paths.mode,
+        backup_dir=str(backup_dir),
+        resources=(summary,),
+    )
+
+
 def export_fingerprint(path: Path) -> dict[str, int]:
     """Return enough metadata to detect an export replaced between resumes."""
     try:
@@ -1250,6 +1359,67 @@ def seed_incremental_offset_resource(
         )
 
 
+def seed_incremental_artists(
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    echo: Echo,
+    progress_callback: ProgressCallback | None,
+) -> None:
+    """Seed artist staging before one complete merge-only cursor scan."""
+    state = checkpoint["resources"]["artists"]
+    if state["status"] != "pending":
+        return
+
+    existing = load_model_list(paths.artists_total, YourLibraryArtist)
+    append_models_jsonl(paths.stage("artists"), existing)
+    state["status"] = "scanning"
+    state["total"] = len(existing)
+    write_json_atomic(paths.checkpoint, checkpoint)
+    append_event(
+        paths,
+        str(checkpoint["run_id"]),
+        "incremental_artists_seeded",
+        count=len(existing),
+    )
+    echo(
+        "Artists: checking live follows against "
+        f"{len(existing)} stored entries. Unfollowed artists remain until a "
+        "full rebuild."
+    )
+    if progress_callback:
+        progress_callback(
+            "artists",
+            len(existing),
+            len(existing),
+            "Checking live follows",
+        )
+
+
+def complete_incremental_artists(
+    paths: LibraryAnalysisPaths,
+    checkpoint: dict[str, Any],
+    progress_callback: ProgressCallback | None,
+) -> None:
+    """Mark a merge-only artist scan complete without additional rescans."""
+    state = checkpoint["resources"]["artists"]
+    count = len(
+        deduplicate_models(load_models_jsonl(paths.stage("artists"), YourLibraryArtist))
+    )
+    if state["status"] != "complete":
+        state["status"] = "complete"
+        write_json_atomic(paths.checkpoint, checkpoint)
+        append_event(
+            paths,
+            str(checkpoint["run_id"]),
+            "resource_completed",
+            resource="artists",
+            count=count,
+            skipped=state["skipped"],
+        )
+    if progress_callback:
+        progress_callback("artists", count, count, "Complete")
+
+
 def sync_initial_artists(
     sp: Spotify,
     paths: LibraryAnalysisPaths,
@@ -1623,6 +1793,144 @@ def refresh_live_library_mirrors_routine(
         raise LibrarySyncError(f"Live mirror refresh failed: {exc}") from exc
 
 
+def refresh_live_library_resource_routine(
+    sp: Spotify,
+    resource: ResourceName,
+    echo: Echo = print,
+    progress_callback: ProgressCallback | None = None,
+    retry_wait: RetryWait | None = None,
+    cancel_check: CancelCheck | None = None,
+    paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
+    sleep: Sleep = default_sleep,
+    retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
+    retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
+    full_rebuild: bool = False,
+) -> LibrarySyncSummary:
+    """Refresh one canonical library mirror without reading or publishing others."""
+    if paths.mode != "mirrors":
+        raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
+    scoped_paths = live_mirror_resource_paths(paths, resource)
+    rebuild = full_rebuild
+    refresh_mode: MirrorRefreshMode = "full" if rebuild else "incremental"
+    checkpoint = load_or_create_checkpoint(scoped_paths, refresh_mode)
+    try:
+        if checkpoint["status"] == "finalizing":
+            _target, model_type, _sort_key = _live_resource_config(
+                scoped_paths,
+                resource,
+            )
+            return finalize_live_mirror_resource(
+                resource,
+                load_models_jsonl(scoped_paths.stage(resource), model_type),
+                scoped_paths,
+                checkpoint,
+            )
+
+        if resource in {"albums", "tracks"}:
+            offset_resource: Literal["albums", "tracks"] = resource
+            if rebuild:
+                sync_initial_offset_resource(
+                    sp,
+                    offset_resource,
+                    scoped_paths,
+                    checkpoint,
+                    echo,
+                    progress_callback,
+                    retry_wait,
+                    cancel_check,
+                    sleep,
+                    retry_base_seconds,
+                    retry_max_seconds,
+                )
+            else:
+                seed_incremental_offset_resource(
+                    offset_resource,
+                    scoped_paths,
+                    checkpoint,
+                    echo,
+                    progress_callback,
+                )
+            reconcile_offset_resource(
+                sp,
+                offset_resource,
+                scoped_paths,
+                checkpoint,
+                echo,
+                progress_callback,
+                retry_wait,
+                cancel_check,
+                sleep,
+                retry_base_seconds,
+                retry_max_seconds,
+            )
+            model_type = YourLibraryAlbum if resource == "albums" else YourLibraryTrack
+        else:
+            if not rebuild:
+                seed_incremental_artists(
+                    scoped_paths,
+                    checkpoint,
+                    echo,
+                    progress_callback,
+                )
+            sync_initial_artists(
+                sp,
+                scoped_paths,
+                checkpoint,
+                echo,
+                progress_callback,
+                retry_wait,
+                cancel_check,
+                sleep,
+                retry_base_seconds,
+                retry_max_seconds,
+            )
+            if rebuild:
+                reconcile_artists(
+                    sp,
+                    scoped_paths,
+                    checkpoint,
+                    echo,
+                    progress_callback,
+                    retry_wait,
+                    cancel_check,
+                    sleep,
+                    retry_base_seconds,
+                    retry_max_seconds,
+                )
+            else:
+                complete_incremental_artists(
+                    scoped_paths,
+                    checkpoint,
+                    progress_callback,
+                )
+            model_type = YourLibraryArtist
+
+        return finalize_live_mirror_resource(
+            resource,
+            load_models_jsonl(scoped_paths.stage(resource), model_type),
+            scoped_paths,
+            checkpoint,
+        )
+    except LibraryAnalysisCancelledError, SpotifyRateLimitError:
+        append_event(scoped_paths, str(checkpoint["run_id"]), "run_paused")
+        raise
+    except KeyboardInterrupt:
+        append_event(scoped_paths, str(checkpoint["run_id"]), "run_paused")
+        raise
+    except LibrarySyncError:
+        append_event(scoped_paths, str(checkpoint["run_id"]), "run_failed")
+        raise
+    except Exception as exc:
+        append_event(
+            scoped_paths,
+            str(checkpoint["run_id"]),
+            "run_failed",
+            error=type(exc).__name__,
+            detail=str(exc),
+        )
+        raise LibrarySyncError(f"Live {resource} mirror refresh failed: {exc}") from exc
+
+
 def restore_library_sync(
     run_id: str,
     paths: LibraryAnalysisPaths | None = None,
@@ -1696,5 +2004,6 @@ __all__ = [
     "analyse_library_async_routine",
     "analyse_library_sync_routine",
     "refresh_live_library_mirrors_routine",
+    "refresh_live_library_resource_routine",
     "restore_library_sync",
 ]

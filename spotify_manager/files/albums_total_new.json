@@ -1395,6 +1395,11 @@
     "uri": "spotify:album:2eia0myWFgoHuttJytCxgX"
   },
   {
+    "artist": "Beautiful Bodies",
+    "album": "Battles",
+    "uri": "spotify:album:7mYRLbEp6R5P5iYadPENUy"
+  },
+  {
     "artist": "Beyoncé",
     "album": "B'Day",
     "uri": "spotify:album:77eZ5eMEh3U0KWricrbevO"
@@ -15940,6 +15945,11 @@
     "uri": "spotify:album:6GfoBh7p2LS5fMbYYMjj5b"
   },
   {
+    "artist": "Raul Seixas",
+    "album": "A Pedra Do Gênesis",
+    "uri": "spotify:album:49KY9OdFPYo1qhbnWMUkNd"
+  },
+  {
     "artist": "El Efecto",
     "album": "Pedras e Sonhos",
     "uri": "spotify:album:5G0U6nzllJdCKs3e8mCEYD"
@@ -17615,6 +17625,11 @@
     "uri": "spotify:album:6mo1n5cRP3rmTKMnBuDZsL"
   },
   {
+    "artist": "Linkin Park",
+    "album": "Somewhere I Belong - Unshatter Film Soundtrack (Live in São Paulo)",
+    "uri": "spotify:album:4v0DrbTVFhUftEG8PHkKEY"
+  },
+  {
     "artist": "Streetlight Manifesto",
     "album": "Somewhere in the Between",
     "uri": "spotify:album:0uecz2X2V83TuxOwJv7mgg"
@@ -18810,6 +18825,11 @@
     "uri": "spotify:album:21jcfj6EhX2Nl8BZpZysLi"
   },
   {
+    "artist": "Raul Seixas",
+    "album": "Uah-Bap-Lu-Bap-Lah-Bein-Bum",
+    "uri": "spotify:album:2bu9Le96isfDbrNrGKhYKC"
+  },
+  {
     "artist": "Lana Del Rey",
     "album": "Ultraviolence (Deluxe)",
     "uri": "spotify:album:1ORxRsK3MrSLvh7VQTF01F"
@@ -19608,6 +19628,11 @@
     "artist": "Deftones",
     "album": "White Pony",
     "uri": "spotify:album:5LEXck3kfixFaA3CqVE7bC"
+  },
+  {
+    "artist": "Disney",
+    "album": "A Whole New Sound",
+    "uri": "spotify:album:4rKpyXuKGtcZvaHFIXgjLP"
   },
   {
     "artist": "Tocanna",

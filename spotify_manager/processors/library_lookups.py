@@ -5,8 +5,11 @@ counterparts resolve names through Spotify and read Saved Albums and Liked
 Songs status directly from the API.
 """
 
+import re
 from collections.abc import Callable
 from math import floor
+from typing import Literal
+from urllib.parse import urlparse
 
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
@@ -26,6 +29,39 @@ SPOTIFY_SEARCH_LIMIT = 10
 SPOTIFY_ARTIST_ALBUM_PAGE_SIZE = 50
 SPOTIFY_ALBUM_BATCH_SIZE = 20
 SPOTIFY_CONTAINS_BATCH_SIZE = 20
+SPOTIFY_ID_PATTERN = re.compile(r"^[A-Za-z0-9]{22}$")
+
+
+def parse_spotify_lookup_reference(
+    reference: str,
+    resource: Literal["artist", "album"],
+) -> tuple[str | None, str | None]:
+    """Parse a Spotify name, id, URI, or share URL into lookup arguments."""
+    value = reference.strip()
+    if not value:
+        raise ValueError(f"provide an {resource} name, ID, or Spotify link")
+
+    uri_prefix = f"spotify:{resource}:"
+    if value.casefold().startswith(uri_prefix):
+        spotify_id = value[len(uri_prefix) :].strip()
+        if SPOTIFY_ID_PATTERN.fullmatch(spotify_id):
+            return None, spotify_id
+        raise ValueError(f"invalid Spotify {resource} URI")
+
+    parsed = urlparse(value)
+    if parsed.netloc.casefold() in {"open.spotify.com", "www.open.spotify.com"}:
+        parts = [part for part in parsed.path.split("/") if part]
+        if parts and parts[0].casefold().startswith("intl-"):
+            parts = parts[1:]
+        if len(parts) >= 2 and parts[0].casefold() == resource:
+            spotify_id = parts[1]
+            if SPOTIFY_ID_PATTERN.fullmatch(spotify_id):
+                return None, spotify_id
+        raise ValueError(f"provide a Spotify {resource} share link")
+
+    if SPOTIFY_ID_PATTERN.fullmatch(value):
+        return None, value
+    return value, None
 
 
 class ArtistNotFoundError(LookupError):

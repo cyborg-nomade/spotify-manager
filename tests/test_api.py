@@ -197,13 +197,15 @@ def test_library_mirror_status_reports_server_timestamps(
 
     albums = tmp_path / "albums_total_new.json"
     tracks = tmp_path / "liked_tracks_total.json"
+    artists = tmp_path / "artists_total.json"
     scrobbles = tmp_path / "lastfmstats-man-et-arms.json"
     albums.write_text("[]")
+    artists.write_text("[]")
     scrobbles.write_text("{}")
     monkeypatch.setattr(
         api,
         "LIBRARY_MIRROR_FILE_PATHS",
-        (albums, tracks, scrobbles),
+        (albums, tracks, artists, scrobbles),
     )
 
     response = client.get("/library-mirrors/status")
@@ -218,9 +220,12 @@ def test_library_mirror_status_reports_server_timestamps(
         "exists": False,
         "updated_at": None,
     }
-    assert files[2]["filename"] == "lastfmstats-man-et-arms.json"
+    assert files[2]["filename"] == "artists_total.json"
     assert files[2]["exists"] is True
     assert datetime.fromisoformat(files[2]["updated_at"]).tzinfo is not None
+    assert files[3]["filename"] == "lastfmstats-man-et-arms.json"
+    assert files[3]["exists"] is True
+    assert datetime.fromisoformat(files[3]["updated_at"]).tzinfo is not None
 
 
 def test_artist_stats_endpoint(client: TestClient) -> None:
@@ -244,6 +249,18 @@ def test_artist_stats_requires_an_argument(client: TestClient) -> None:
     assert client.get("/artists/stats").status_code == 400
 
 
+def test_artist_stats_accepts_spotify_share_link(client: TestClient) -> None:
+    artist_id = "4Z8W4fKeB5YxbusRsdQVPb"
+
+    resp = client.get(
+        "/artists/stats",
+        params={"reference": f"https://open.spotify.com/artist/{artist_id}?si=test"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["artist_id"] == artist_id
+
+
 def test_album_evaluation_endpoint(client: TestClient) -> None:
     def fail_if_export_is_loaded():
         raise AssertionError("live album evaluation must not load YourLibrary.json")
@@ -261,6 +278,18 @@ def test_album_evaluation_endpoint(client: TestClient) -> None:
     assert body["liked_tracks"] == 2
     assert body["source"] == "spotify-live"
     assert body["from_cache"] is False
+
+
+def test_album_evaluation_accepts_spotify_share_link(client: TestClient) -> None:
+    album_id = "6dVIqQ8qmQ5GBnJ9shOYGE"
+
+    resp = client.get(
+        "/albums/evaluation",
+        params={"reference": f"https://open.spotify.com/album/{album_id}?si=test"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["album_id"] == album_id
 
 
 def test_album_evaluation_not_found(client: TestClient) -> None:
@@ -2274,6 +2303,56 @@ def test_live_mirror_refresh_endpoint_skips_artist_progress(
     assert len(calls) == 1
     assert isinstance(calls[0][0], FakeSpotify)
     assert calls[0][1] is full_rebuild
+
+
+@pytest.mark.parametrize(
+    ("resource", "requested_full", "expected_full"),
+    [
+        ("albums", False, False),
+        ("tracks", True, True),
+        ("artists", False, False),
+        ("artists", True, True),
+    ],
+)
+def test_independent_live_mirror_refresh_endpoint(
+    client: TestClient,
+    monkeypatch,
+    resource: str,
+    requested_full: bool,
+    expected_full: bool,
+) -> None:
+    from spotify_manager import api
+
+    calls = []
+
+    def complete_resource(spotify, selected_resource, **kwargs):
+        calls.append((spotify, selected_resource, kwargs["full_rebuild"]))
+        kwargs["progress_callback"](selected_resource, 2, 2, "Complete")
+        return api.library_analysis.LibrarySyncSummary(
+            run_id="run-1",
+            mode="mirrors",
+            backup_dir="/tmp/mirrors/run-1",
+            resources=(),
+        )
+
+    monkeypatch.setattr(
+        api.library_analysis,
+        "refresh_live_library_resource_routine",
+        complete_resource,
+    )
+
+    response = client.post(
+        f"/commands/refresh-library-mirrors/{resource}",
+        params={"full_rebuild": str(requested_full).lower()},
+    )
+
+    assert response.status_code == 202
+    body = wait_for_job_status(client, response.json()["job_id"], {"completed"})
+    assert body["command"] == f"refresh_library_mirror_{resource}"
+    assert body["mirror_resource"] == resource
+    assert set(body["resources"]) == {resource}
+    assert body["full_rebuild"] is expected_full
+    assert calls[0][1:] == (resource, expected_full)
 
 
 @pytest.mark.parametrize(

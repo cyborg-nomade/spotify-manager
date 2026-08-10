@@ -89,12 +89,15 @@ credential set and retry immediately, or `q` to stop cleanly. Rerunning the
 command resumes from its checkpoint. Both analysis modes keep JSON-lines audit
 logs and an undo manifest under `spotify_manager/files/`.
 
-The web app's **Live library mirrors** card defaults to **Recent additions**.
-That mode merges unseen albums and tracks from the newest API pages into
-`albums_total_new.json` and `liked_tracks_total.json`, intentionally retaining
-older entries. Use **Full rebuild** occasionally to scan both collections in
-full and remove albums or tracks that have since been unsaved or unliked. Both
-modes are checkpointed and keep the same backup and audit trail.
+The web app's **Data signal board** refreshes `albums_total_new.json`,
+`liked_tracks_total.json`, and `artists_total.json` independently. Albums and
+tracks default to **Recent**, which merges unseen entries while intentionally
+retaining older entries. Artist refreshes must still traverse Spotify's
+cursor-based collection once because it exposes no reliable recent edge, but
+Recent avoids the additional reconciliation passes. Use **Full** occasionally to
+remove albums, tracks, or artists that have since been unsaved, unliked, or
+unfollowed. Every file has its own checkpoint, progress log, backup, and cancel
+control.
 
 ### `restore-library-sync`
 
@@ -114,6 +117,7 @@ cancel action available while a retry is waiting:
 ```text
 POST /commands/analyse-library-async
 POST /commands/analyse-library-sync
+POST /commands/refresh-library-mirrors/{albums|tracks|artists}
 GET  /commands/library-analysis-jobs
 GET  /commands/library-analysis-jobs/{job_id}
 POST /commands/library-analysis-jobs/{job_id}/cancel
@@ -926,6 +930,10 @@ Spotify track list and live Liked Songs status. Use an exact Spotify name or
 uv run spotify-manager album-decision "Kind of Blue" --artist "Miles Davis" --threshold 0.5
 just album-decision "Kind of Blue" --artist "Miles Davis" --threshold 0.5
 ```
+
+The web **Library instruments** accept a name, raw Spotify id, Spotify URI, or
+Spotify share link in one field. Album evaluation keeps its threshold control;
+when a name is ambiguous, paste the share link for the intended album.
 
 ### `review-album-limits`
 
