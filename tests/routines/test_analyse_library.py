@@ -276,9 +276,7 @@ def test_live_mirror_refresh_publishes_only_canonical_albums_and_tracks(
 ) -> None:
     paths = paths_for(tmp_path, "mirrors")
     paths.albums_total.write_text(json.dumps([album("old-album").model_dump()]))
-    paths.liked_tracks_total.write_text(
-        json.dumps([track("old-track").model_dump()])
-    )
+    paths.liked_tracks_total.write_text(json.dumps([track("old-track").model_dump()]))
     spotify = FakeSpotify(
         albums=[album("new-album")],
         tracks=[track("new-track")],
@@ -374,6 +372,92 @@ def test_live_mirror_incremental_resources_merge_additions_without_removing(
     events = [json.loads(line) for line in paths.event_log.read_text().splitlines()]
     assert any(item["event"] == "incremental_albums_seeded" for item in events)
     assert any(item["event"] == "incremental_tracks_seeded" for item in events)
+
+
+def test_independent_album_mirror_refresh_does_not_touch_other_files(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    paths.albums_total.write_text(json.dumps([album("old-album").model_dump()]))
+    paths.liked_tracks_total.write_text(json.dumps([track("keep-track").model_dump()]))
+    paths.artists_total.write_text(json.dumps([artist("keep-artist").model_dump()]))
+    spotify = FakeSpotify(
+        albums=[album("new-album")],
+        tracks=[track("must-not-be-read")],
+        artists=[artist("must-not-be-read")],
+    )
+
+    summary = analyse_library.refresh_live_library_resource_routine(
+        spotify,
+        "albums",
+        paths=paths,
+        full_rebuild=True,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+    )
+
+    assert ids(paths.albums_total) == ["new-album"]
+    assert ids(paths.liked_tracks_total) == ["keep-track"]
+    assert ids(paths.artists_total) == ["keep-artist"]
+    assert spotify.track_calls == []
+    assert spotify.artist_calls == []
+    assert [item.resource for item in summary.resources] == ["albums"]
+    assert (paths.checkpoint.parent / "albums" / "checkpoint.json").exists()
+
+
+def test_independent_recent_artist_refresh_merges_and_retains_stored_artists(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    paths.albums_total.write_text(json.dumps([album("keep-album").model_dump()]))
+    paths.liked_tracks_total.write_text(json.dumps([track("keep-track").model_dump()]))
+    paths.artists_total.write_text(json.dumps([artist("old-artist").model_dump()]))
+    spotify = FakeSpotify(artists=[artist("one"), artist("two")])
+
+    summary = analyse_library.refresh_live_library_resource_routine(
+        spotify,
+        "artists",
+        paths=paths,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+    )
+
+    assert ids(paths.albums_total) == ["keep-album"]
+    assert ids(paths.liked_tracks_total) == ["keep-track"]
+    assert set(ids(paths.artists_total)) == {"old-artist", "one", "two"}
+    assert spotify.album_calls == []
+    assert spotify.track_calls == []
+    assert spotify.artist_calls
+    assert spotify.artist_calls == [None]
+    assert [item.resource for item in summary.resources] == ["artists"]
+    backup = Path(summary.backup_dir)
+    assert (backup / "artists.before.json").exists()
+
+
+def test_independent_full_artist_refresh_removes_unfollowed_artists(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    paths.albums_total.write_text(json.dumps([album("keep-album").model_dump()]))
+    paths.liked_tracks_total.write_text(json.dumps([track("keep-track").model_dump()]))
+    paths.artists_total.write_text(json.dumps([artist("old-artist").model_dump()]))
+    spotify = FakeSpotify(artists=[artist("one"), artist("two")])
+
+    analyse_library.refresh_live_library_resource_routine(
+        spotify,
+        "artists",
+        paths=paths,
+        full_rebuild=True,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+    )
+
+    assert ids(paths.albums_total) == ["keep-album"]
+    assert ids(paths.liked_tracks_total) == ["keep-track"]
+    assert set(ids(paths.artists_total)) == {"one", "two"}
+    assert spotify.album_calls == []
+    assert spotify.track_calls == []
+    assert len(spotify.artist_calls) == 3
 
 
 def test_live_analysis_retries_only_server_errors_with_exponential_delays(

@@ -106,7 +106,9 @@
     appearance: none; border: 1px solid #4a5549; border-radius: 4px; padding: 3px 5px;
     font-size: .82rem; font-weight: 700; cursor: pointer; color: #161917;
     background: linear-gradient(180deg, #c2c6bd 0%, #8b9188 58%, #747a73 100%);
-    transition: transform .05s ease, background .15s ease; width: auto; min-height: 28px;
+    transition: transform .05s ease, background .15s ease;
+    width: auto; max-width: 100%; min-height: 28px;
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.1;
     box-shadow: inset 0 1px 0 #eef0e9, inset 0 -1px 0 #62675f, 0 2px 0 #363a36, 0 3px 5px rgba(0,0,0,.28);
   }
   button:active { transform: scale(.98); }
@@ -128,15 +130,24 @@
   button[disabled] { opacity: .5; cursor: not-allowed; }
   #pwBtn { width: 100%; }
   [hidden] { display: none !important; }
-  .btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
-  .btns button { width: var(--control-unit); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btns {
+    display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: stretch;
+    gap: 6px; margin-top: 6px;
+  }
+  .btns button {
+    flex: 0 1 auto; width: auto; min-width: var(--control-unit); max-width: 100%;
+  }
 
   .mode-switch {
     display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px;
     background: var(--inlay); border: 1px solid #3f493e; border-radius: 4px;
     box-shadow: inset 0 2px 6px rgba(0,0,0,.36);
   }
-  .mode-switch button { width: 100%; padding: 3px 5px; border: 0; border-radius: 3px; background: transparent; color: var(--muted); box-shadow: none; }
+  .mode-switch button {
+    width: 100%; padding: 3px 5px; border: 0; border-radius: 3px;
+    background: transparent; color: var(--muted); box-shadow: none;
+    white-space: nowrap; overflow-wrap: normal; word-break: normal;
+  }
   .mode-switch button.active { background: var(--yellow); color: #171203; box-shadow: inset 0 1px 0 #ead477, 0 1px 4px rgba(0,0,0,.32); }
   #blastCard .mode-switch {
     width: calc(var(--control-unit) * 2); max-width: 100%; margin-left: auto;
@@ -227,14 +238,15 @@
   .analysis-row { padding: 7px 0; border-top: 1px solid var(--border); }
   .analysis-row:first-of-type { border-top: 0; padding-top: 0; }
   .analysis-title { font-size: .9rem; font-weight: 700; margin-bottom: 5px; }
-  .analysis-actions { display: grid; grid-template-columns: var(--control-unit); justify-content: end; gap: 5px; }
-  .analysis-actions > .primary { width: var(--control-unit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .analysis-actions .cancel { width: var(--control-half); min-width: var(--control-half); padding: 3px; }
-  .analysis-actions:has(.cancel:not([hidden])) {
-    grid-template-columns: var(--control-unit) var(--control-half);
+  .analysis-actions {
+    display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center;
+    gap: 5px;
   }
-  .analysis-actions:has(input) { grid-template-columns: minmax(0, 1fr) var(--control-unit); width: 100%; }
-  .analysis-actions:has(input) button { width: var(--control-unit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .analysis-actions > .primary { width: auto; min-width: var(--control-unit); }
+  .analysis-actions .cancel { width: var(--control-half); min-width: var(--control-half); padding: 3px; }
+  .analysis-actions:has(input) { width: 100%; }
+  .analysis-actions:has(input) input { flex: 1 1 150px; min-width: 0; }
+  .analysis-actions:has(input) button { flex: 0 1 auto; width: auto; min-width: var(--control-unit); }
   .analysis-actions[style] { margin-top: 6px !important; }
   .analysis-progress { display: none; margin-top: 6px; }
   .analysis-progress.show { display: block; }
@@ -268,6 +280,7 @@
   }
   .signal-file-list { background: #090c09; }
   .signal-file-group + .signal-file-group { border-top: 1px solid #414a40; }
+  #libraryMirrorsCard + .signal-file-group { border-top: 1px solid #414a40; }
   .signal-file-row {
     display: grid; grid-template-columns: minmax(250px, 1fr) auto minmax(330px, auto);
     align-items: center; gap: 10px; min-height: 46px; padding: 5px 10px;
@@ -528,42 +541,64 @@
     <section class="card system-card" id="serverFilesCard">
       <div class="system-card-heading">
         <h2>Data signal board</h2>
-        <span class="system-summary" id="serverFilesSummary">Checking 3 sources…</span>
+        <span class="system-summary" id="serverFilesSummary">Checking 4 sources…</span>
       </div>
       <div class="signal-file-list">
-        <section class="signal-file-group" id="libraryMirrorsCard" aria-label="Live library mirrors">
+        <div id="libraryMirrorsCard" aria-label="Live library mirrors">
           <div id="libraryMirrorFilesStatus">
+            <section class="signal-file-group" data-mirror-resource="albums">
             <div class="signal-file-row">
               <div class="signal-file-name"><span class="source-light"></span><span>albums_total_new.json</span><span class="source-tag">Spotify</span></div>
               <span class="server-file-date" data-server-file-date="albums_total_new.json">Checking…</span>
               <div class="signal-file-command">
                 <div class="mode-switch" role="group" aria-label="Saved albums refresh mode">
-                  <button class="active" data-action="mirrorMode" data-mirror-mode="incremental" aria-pressed="true">Recent</button>
-                  <button data-action="mirrorMode" data-mirror-mode="full" aria-pressed="false">Full</button>
+                  <button class="active" data-action="mirrorMode" data-resource="albums" data-mirror-mode="incremental" aria-pressed="true">Recent</button>
+                  <button data-action="mirrorMode" data-resource="albums" data-mirror-mode="full" aria-pressed="false">Full</button>
                 </div>
                 <div class="analysis-actions">
-                  <button class="primary" data-action="analysis" data-mode="mirrors">Sync</button>
-                  <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
+                  <button class="primary" data-action="analysis" data-mode="mirror-albums" data-resource="albums">Sync</button>
+                  <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirror-albums" hidden title="Stop refresh">×</button>
                 </div>
               </div>
             </div>
+            <div class="analysis-progress" id="analysis-mirror-albums"></div>
+            </section>
+            <section class="signal-file-group" data-mirror-resource="tracks">
             <div class="signal-file-row">
               <div class="signal-file-name"><span class="source-light"></span><span>liked_tracks_total.json</span><span class="source-tag">Spotify</span></div>
               <span class="server-file-date" data-server-file-date="liked_tracks_total.json">Checking…</span>
               <div class="signal-file-command">
                 <div class="mode-switch" role="group" aria-label="Liked tracks refresh mode">
-                  <button class="active" data-action="mirrorMode" data-mirror-mode="incremental" aria-pressed="true">Recent</button>
-                  <button data-action="mirrorMode" data-mirror-mode="full" aria-pressed="false">Full</button>
+                  <button class="active" data-action="mirrorMode" data-resource="tracks" data-mirror-mode="incremental" aria-pressed="true">Recent</button>
+                  <button data-action="mirrorMode" data-resource="tracks" data-mirror-mode="full" aria-pressed="false">Full</button>
                 </div>
                 <div class="analysis-actions">
-                  <button class="primary" data-action="analysis" data-mode="mirrors">Sync</button>
-                  <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirrors" hidden title="Stop refresh">×</button>
+                  <button class="primary" data-action="analysis" data-mode="mirror-tracks" data-resource="tracks">Sync</button>
+                  <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirror-tracks" hidden title="Stop refresh">×</button>
                 </div>
               </div>
             </div>
+            <div class="analysis-progress" id="analysis-mirror-tracks"></div>
+            </section>
+            <section class="signal-file-group" data-mirror-resource="artists">
+            <div class="signal-file-row">
+              <div class="signal-file-name"><span class="source-light"></span><span>artists_total.json</span><span class="source-tag">Spotify</span></div>
+              <span class="server-file-date" data-server-file-date="artists_total.json">Checking…</span>
+              <div class="signal-file-command">
+                <div class="mode-switch" role="group" aria-label="Followed artists refresh mode">
+                  <button class="active" data-action="mirrorMode" data-resource="artists" data-mirror-mode="incremental" aria-pressed="true">Recent</button>
+                  <button data-action="mirrorMode" data-resource="artists" data-mirror-mode="full" aria-pressed="false">Full</button>
+                </div>
+                <div class="analysis-actions">
+                  <button class="primary" data-action="analysis" data-mode="mirror-artists" data-resource="artists">Sync</button>
+                  <button class="danger cancel" data-action="cancelAnalysis" data-mode="mirror-artists" hidden title="Stop refresh">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="analysis-progress" id="analysis-mirror-artists"></div>
+            </section>
           </div>
-          <div class="analysis-progress" id="analysis-mirrors"></div>
-        </section>
+        </div>
 
         <section class="signal-file-group" id="scrobbleHistoryCard" aria-label="Last.fm scrobble history">
           <div id="scrobbleHistoryFileStatus">
@@ -760,10 +795,8 @@
     <!-- Artist stats -->
     <section class="card" id="artistStatsCard">
       <h2>Artist stats</h2>
-      <label for="artistName">Artist name</label>
-      <input id="artistName" type="text" placeholder="e.g. Radiohead" enterkeyhint="search" />
-      <label for="artistId">…or Spotify artist ID (optional)</label>
-      <input id="artistId" type="text" placeholder="Spotify artist ID" />
+      <label for="artistReference">Artist</label>
+      <input id="artistReference" type="text" placeholder="Name, ID, or Spotify link" enterkeyhint="search" />
       <div class="btns">
         <button class="primary" data-action="artistStats">Check</button>
       </div>
@@ -773,12 +806,8 @@
     <!-- Album evaluation -->
     <section class="card" id="albumEvaluationCard">
       <h2>Album evaluation (keep / remove)</h2>
-      <label for="albumName">Album name</label>
-      <input id="albumName" type="text" placeholder="e.g. In Rainbows" enterkeyhint="search" />
-      <label for="albumArtist">Artist (to disambiguate, optional)</label>
-      <input id="albumArtist" type="text" placeholder="e.g. Radiohead" />
-      <label for="albumId">…or Spotify album ID (optional)</label>
-      <input id="albumId" type="text" placeholder="album id" />
+      <label for="albumReference">Album</label>
+      <input id="albumReference" type="text" placeholder="Name, ID, or Spotify link" enterkeyhint="search" />
       <label for="threshold">Keep threshold (liked ratio)</label>
       <input id="threshold" type="number" min="0" max="1" step="0.05" value="0.5" />
       <div class="btns">
@@ -1062,8 +1091,10 @@
     return ["queued", "running", "waiting", "cancelling"].indexOf(status) !== -1;
   }
 
-  function setMirrorMode(mode) {
-    document.querySelectorAll('[data-action="mirrorMode"]').forEach(function (item) {
+  function setMirrorMode(resource, mode) {
+    document.querySelectorAll(
+      '[data-action="mirrorMode"][data-resource="' + resource + '"]'
+    ).forEach(function (item) {
       var active = item.dataset.mirrorMode === mode;
       item.classList.toggle("active", active);
       item.setAttribute("aria-pressed", active ? "true" : "false");
@@ -1117,9 +1148,12 @@
     if (log) log.scrollTop = log.scrollHeight;
     out.classList.add("show");
     var active = isAnalysisActive(job.status);
-    if (mode === "mirrors") {
-      setMirrorMode(job.full_rebuild ? "full" : "incremental");
-      document.querySelectorAll('[data-action="mirrorMode"]').forEach(function (item) {
+    if (mode.indexOf("mirror-") === 0) {
+      var mirrorResource = job.mirror_resource || mode.replace("mirror-", "");
+      setMirrorMode(mirrorResource, job.full_rebuild ? "full" : "incremental");
+      document.querySelectorAll(
+        '[data-action="mirrorMode"][data-resource="' + mirrorResource + '"]'
+      ).forEach(function (item) {
         item.disabled = active;
       });
     }
@@ -1142,7 +1176,7 @@
         setTimeout(function () { pollAnalysis(mode, jobId); }, 1500);
       } else if (job.status === "completed") {
         showToast("Analysis finished", "ok");
-        if (mode === "mirrors") loadServerFilesStatus();
+        if (mode.indexOf("mirror-") === 0) loadServerFilesStatus();
       } else if (job.status !== "cancelled" && job.status !== "paused") {
         showToast("Analysis " + job.status, "err");
       }
@@ -1160,7 +1194,7 @@
     try {
       var jobs = await api("/commands/library-analysis-jobs");
       jobs.forEach(function (job) {
-        var mode = job.command === "refresh_library_mirrors" ? "mirrors" : null;
+        var mode = job.mirror_resource ? "mirror-" + job.mirror_resource : null;
         if (!mode) return;
         analysisJobs[mode] = job;
         renderAnalysisJob(mode, job);
@@ -2581,7 +2615,7 @@
   // ---- Actions -----------------------------------------------------------
   var actions = {
     mirrorMode(btn) {
-      setMirrorMode(btn.dataset.mirrorMode);
+      setMirrorMode(btn.dataset.resource, btn.dataset.mirrorMode);
     },
 
     blastMode(btn) {
@@ -3219,13 +3253,11 @@
     },
 
     async artistStats(btn) {
-      var name = document.getElementById("artistName").value.trim();
-      var id = document.getElementById("artistId").value.trim();
+      var reference = document.getElementById("artistReference").value.trim();
       var out = document.getElementById("artistResult");
-      if (!name && !id) { showToast("Enter an artist name or ID", "err"); return; }
+      if (!reference) { showToast("Enter an artist name, ID, or link", "err"); return; }
       var q = new URLSearchParams();
-      if (name) q.set("name", name);
-      if (id) q.set("artist_id", id);
+      q.set("reference", reference);
       setBusy(btn, true);
       try {
         var d = await api("/artists/stats?" + q.toString());
@@ -3253,16 +3285,12 @@
     },
 
     async albumEval(btn) {
-      var name = document.getElementById("albumName").value.trim();
-      var artist = document.getElementById("albumArtist").value.trim();
-      var id = document.getElementById("albumId").value.trim();
+      var reference = document.getElementById("albumReference").value.trim();
       var threshold = document.getElementById("threshold").value;
       var out = document.getElementById("albumResult");
-      if (!name && !id) { showToast("Enter an album name or ID", "err"); return; }
+      if (!reference) { showToast("Enter an album name, ID, or link", "err"); return; }
       var q = new URLSearchParams();
-      if (name) q.set("name", name);
-      if (id) q.set("album_id", id);
-      if (artist) q.set("artist", artist);
+      q.set("reference", reference);
       if (threshold) q.set("threshold", threshold);
       setBusy(btn, true, "Evaluating…");
       try {
@@ -3322,14 +3350,17 @@
 
     async analysis(btn) {
       var mode = btn.dataset.mode;
+      var resource = btn.dataset.resource;
       var out = document.getElementById("analysis-" + mode);
       setBusy(btn, true, "Starting…");
       try {
-        var endpoint = mode === "mirrors"
-          ? "/commands/refresh-library-mirrors"
+        var endpoint = resource
+          ? "/commands/refresh-library-mirrors/" + resource
           : "/commands/analyse-library-" + mode;
-        if (mode === "mirrors") {
-          var mirrorMode = document.querySelector('[data-action="mirrorMode"].active');
+        if (resource) {
+          var mirrorMode = document.querySelector(
+            '[data-action="mirrorMode"][data-resource="' + resource + '"].active'
+          );
           if (mirrorMode && mirrorMode.dataset.mirrorMode === "full") {
             endpoint += "?full_rebuild=true";
           }
@@ -3401,10 +3432,10 @@
   });
 
   // Enter-to-submit on the two main inputs
-  document.getElementById("artistName").addEventListener("keydown", function (e) {
+  document.getElementById("artistReference").addEventListener("keydown", function (e) {
     if (e.key === "Enter") actions.artistStats(document.querySelector('[data-action="artistStats"]'));
   });
-  document.getElementById("albumName").addEventListener("keydown", function (e) {
+  document.getElementById("albumReference").addEventListener("keydown", function (e) {
     if (e.key === "Enter") actions.albumEval(document.querySelector('[data-action="albumEval"]'));
   });
 

@@ -14,6 +14,7 @@ from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import evaluate_album_live
 from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.library_lookups import get_live_artist_library_stats
+from spotify_manager.processors.library_lookups import parse_spotify_lookup_reference
 from spotify_manager.processors.library_lookups import required_liked_tracks
 
 
@@ -58,6 +59,35 @@ class FakeSpotify:
     def album_tracks(self, album_id, limit=50, offset=0):
         self.requested.append(album_id)
         return {"items": self._tracks_by_album.get(album_id, []), "next": None}
+
+
+@pytest.mark.parametrize(
+    ("reference", "resource", "expected"),
+    [
+        ("Radiohead", "artist", ("Radiohead", None)),
+        ("4Z8W4fKeB5YxbusRsdQVPb", "artist", (None, "4Z8W4fKeB5YxbusRsdQVPb")),
+        (
+            "spotify:album:6dVIqQ8qmQ5GBnJ9shOYGE",
+            "album",
+            (None, "6dVIqQ8qmQ5GBnJ9shOYGE"),
+        ),
+        (
+            "https://open.spotify.com/intl-de/artist/4Z8W4fKeB5YxbusRsdQVPb?si=test",
+            "artist",
+            (None, "4Z8W4fKeB5YxbusRsdQVPb"),
+        ),
+    ],
+)
+def test_parse_spotify_lookup_reference(reference, resource, expected) -> None:
+    assert parse_spotify_lookup_reference(reference, resource) == expected
+
+
+def test_parse_spotify_lookup_reference_rejects_wrong_share_link_type() -> None:
+    with pytest.raises(ValueError, match="album share link"):
+        parse_spotify_lookup_reference(
+            "https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb",
+            "album",
+        )
 
 
 class LiveFakeSpotify:
@@ -130,7 +160,12 @@ class LiveFakeSpotify:
         }
 
     def search(
-        self, q, limit=10, offset=0, type="track", market=None  # noqa: A002
+        self,
+        q,
+        limit=10,
+        offset=0,
+        type="track",  # noqa: A002
+        market=None,
     ):
         if type == "artist":
             return {"artists": {"items": self.artist_search}}

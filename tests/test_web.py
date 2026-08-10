@@ -330,12 +330,16 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "job.history_backup_path" in response.text
     assert "restoreActiveScrobbleHistoryJobs();" in response.text
     assert 'data-action="openGenreReveal"' in response.text
-    assert 'data-mode="mirrors"' in response.text
+    assert 'data-mode="mirror-albums"' in response.text
+    assert 'data-mode="mirror-tracks"' in response.text
+    assert 'data-mode="mirror-artists"' in response.text
+    assert 'data-resource="artists" data-mirror-mode="incremental"' in response.text
+    assert 'data-resource="artists" data-mirror-mode="full"' in response.text
     assert 'data-mirror-mode="incremental"' in response.text
     assert 'data-mirror-mode="full"' in response.text
-    assert 'setMirrorMode(job.full_rebuild ? "full" : "incremental")' in response.text
+    assert "setMirrorMode(mirrorResource, job.full_rebuild" in response.text
     assert 'endpoint += "?full_rebuild=true"' in response.text
-    assert '"/commands/refresh-library-mirrors"' in response.text
+    assert '"/commands/refresh-library-mirrors/" + resource' in response.text
     assert 'api("/library-mirrors/status")' in response.text
     assert "loadServerFilesStatus();" in response.text
 
@@ -353,7 +357,9 @@ def test_main_page_hides_legacy_library_and_command_cards(
     assert 'data-action="refreshLibrary"' not in response.text
     assert 'data-action="analysis" data-mode="async"' not in response.text
     assert 'data-action="analysis" data-mode="sync"' not in response.text
-    assert 'data-action="analysis" data-mode="mirrors"' in response.text
+    assert 'data-action="analysis" data-mode="mirror-albums"' in response.text
+    assert 'data-action="analysis" data-mode="mirror-tracks"' in response.text
+    assert 'data-action="analysis" data-mode="mirror-artists"' in response.text
     assert '<button class="ghost" data-action="cmd"' not in response.text
     assert "restoreActiveAnalysisJobs();" in response.text
 
@@ -379,6 +385,7 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert "<h2>Data signal board</h2>" in response.text
     assert 'data-server-file-date="albums_total_new.json"' in response.text
     assert 'data-server-file-date="liked_tracks_total.json"' in response.text
+    assert 'data-server-file-date="artists_total.json"' in response.text
     assert 'data-server-file-date="lastfmstats-man-et-arms.json"' in response.text
     assert 'class="macro-module recovery-module"' in response.text
     assert 'class="macro-module discovery-module"' in response.text
@@ -394,8 +401,10 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert ".cockpit-grid { grid-template-columns: repeat(12" in response.text
     assert "background: linear-gradient(165deg" in response.text
     assert "--control-unit: 64px" in response.text
-    assert ".analysis-actions:has(.cancel:not([hidden]))" in response.text
     assert "max-width: 100%; margin-left: auto" in response.text
+    assert "white-space: normal; overflow-wrap: anywhere" in response.text
+    assert "display: flex; flex-wrap: wrap; justify-content: flex-end" in response.text
+    assert "text-overflow: ellipsis" not in response.text
     assert "html { font-size: 20px; }" in response.text
     assert ".macro-grid { display: grid; align-content: start" in response.text
     assert "function enhanceControlPanels()" in response.text
@@ -420,6 +429,14 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert "display: none; max-height: 220px" in response.text
     assert 'id="artistStatsCard"' in response.text
     assert 'id="albumEvaluationCard"' in response.text
+    assert 'id="artistReference"' in response.text
+    assert 'id="albumReference"' in response.text
+    assert 'id="artistName"' not in response.text
+    assert 'id="artistId"' not in response.text
+    assert 'id="albumName"' not in response.text
+    assert 'id="albumArtist"' not in response.text
+    assert 'id="albumId"' not in response.text
+    assert 'q.set("reference", reference)' in response.text
     assert 'document.querySelectorAll("[data-server-file-date]")' in response.text
     assert "var starts = document.querySelectorAll" in response.text
     assert (

@@ -56,6 +56,7 @@ from spotify_manager.processors.library_lookups import ArtistNotFoundError
 from spotify_manager.processors.library_lookups import SpotifyLookupResponseError
 from spotify_manager.processors.library_lookups import evaluate_album_live
 from spotify_manager.processors.library_lookups import get_live_artist_library_stats
+from spotify_manager.processors.library_lookups import parse_spotify_lookup_reference
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
@@ -136,6 +137,7 @@ class AnalysisJobResult(BaseModel):
     run_id: str | None = None
     backup_dir: str | None = None
     full_rebuild: bool = False
+    mirror_resource: library_analysis.ResourceName | None = None
     resources: dict[str, AnalysisResourceProgress]
     logs: list[AnalysisJobLog] = Field(default_factory=list)
 
@@ -629,6 +631,7 @@ _MAX_BLAST_LOGS = 250
 LIBRARY_MIRROR_FILE_PATHS = (
     library_analysis.DEFAULT_LIVE_MIRROR_PATHS.albums_total,
     library_analysis.DEFAULT_LIVE_MIRROR_PATHS.liked_tracks_total,
+    library_analysis.DEFAULT_LIVE_MIRROR_PATHS.artists_total,
     scrobble_history.DEFAULT_SCROBBLES_PATH,
 )
 SPOTIFY_CONNECTION_FAILURE_DETAIL = (
@@ -742,6 +745,7 @@ def _run_analysis_job(
     mode: library_analysis.AnalysisMode,
     spotify: Spotify | None,
     full_rebuild: bool = False,
+    mirror_resource: library_analysis.ResourceName | None = None,
 ) -> None:
     """Execute one analysis worker and translate outcomes into job state."""
     job = get_analysis_job(job_id)
@@ -833,13 +837,27 @@ def _run_analysis_job(
                 retry_wait=retry_wait,
                 cancel_check=job.cancel_event.is_set,
             )
-        else:
+        elif mirror_resource is None:
             if spotify is None:
                 raise library_analysis.LibrarySyncError(
                     "A Spotify client is required for live mirror refresh."
                 )
             summary = library_analysis.refresh_live_library_mirrors_routine(
                 spotify,
+                echo=echo,
+                progress_callback=progress_callback,
+                retry_wait=retry_wait,
+                cancel_check=job.cancel_event.is_set,
+                full_rebuild=full_rebuild,
+            )
+        else:
+            if spotify is None:
+                raise library_analysis.LibrarySyncError(
+                    "A Spotify client is required for live mirror refresh."
+                )
+            summary = library_analysis.refresh_live_library_resource_routine(
+                spotify,
+                mirror_resource,
                 echo=echo,
                 progress_callback=progress_callback,
                 retry_wait=retry_wait,
@@ -900,10 +918,26 @@ def start_analysis_job(
     mode: library_analysis.AnalysisMode,
     spotify: Spotify | None = None,
     full_rebuild: bool = False,
+    mirror_resource: library_analysis.ResourceName | None = None,
 ) -> AnalysisJobResult:
     """Start one background analysis, rejecting duplicate active modes."""
-    command = (
-        "refresh_library_mirrors" if mode == "mirrors" else f"analyse_library_{mode}"
+    if mode == "mirrors" and mirror_resource is not None:
+        command = f"refresh_library_mirror_{mirror_resource}"
+    else:
+        command = (
+            "refresh_library_mirrors"
+            if mode == "mirrors"
+            else f"analyse_library_{mode}"
+        )
+    is_full_rebuild = mode == "mirrors" and full_rebuild
+    resources = (
+        (mirror_resource,)
+        if mirror_resource is not None
+        else (
+            ("albums", "tracks")
+            if mode == "mirrors"
+            else ("albums", "tracks", "artists")
+        )
     )
     with _analysis_jobs_lock:
         for existing in _analysis_jobs.values():
@@ -923,14 +957,10 @@ def start_analysis_job(
             result=AnalysisJobResult(
                 job_id=job_id,
                 command=command,
-                full_rebuild=full_rebuild if mode == "mirrors" else False,
+                full_rebuild=is_full_rebuild,
+                mirror_resource=mirror_resource,
                 resources={
-                    resource: AnalysisResourceProgress()
-                    for resource in (
-                        ("albums", "tracks")
-                        if mode == "mirrors"
-                        else ("albums", "tracks", "artists")
-                    )
+                    resource: AnalysisResourceProgress() for resource in resources
                 },
             ),
             cancel_event=Event(),
@@ -941,7 +971,7 @@ def start_analysis_job(
 
     Thread(
         target=_run_analysis_job,
-        args=(job_id, mode, spotify, full_rebuild),
+        args=(job_id, mode, spotify, full_rebuild, mirror_resource),
         name=f"library-analysis-{mode}-{job_id[:8]}",
         daemon=True,
     ).start()
@@ -3675,12 +3705,21 @@ def refresh_library() -> CommandResult:
 @app.get("/artists/stats", response_model=ArtistLibraryStats)
 def artist_stats(
     client: ClientDep,
+    reference: Annotated[str | None, Query()] = None,
     name: Annotated[str | None, Query()] = None,
     artist_id: Annotated[str | None, Query()] = None,
 ) -> ArtistLibraryStats:
     """Return live Liked Songs and Saved Albums counts for one artist."""
+    if reference is not None:
+        try:
+            name, artist_id = parse_spotify_lookup_reference(reference, "artist")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not name and not artist_id:
-        raise HTTPException(status_code=400, detail="provide name or artist_id")
+        raise HTTPException(
+            status_code=400,
+            detail="provide an artist name, ID, or Spotify link",
+        )
     try:
         return get_live_artist_library_stats(
             client,
@@ -3700,14 +3739,23 @@ def artist_stats(
 @app.get("/albums/evaluation", response_model=AlbumEvaluation)
 def album_evaluation(
     client: ClientDep,
+    reference: Annotated[str | None, Query()] = None,
     name: Annotated[str | None, Query()] = None,
     album_id: Annotated[str | None, Query()] = None,
     artist: Annotated[str | None, Query()] = None,
     threshold: float = 0.5,
 ) -> AlbumEvaluation:
     """Return a keep/remove decision from live Spotify album and liked state."""
+    if reference is not None:
+        try:
+            name, album_id = parse_spotify_lookup_reference(reference, "album")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not name and not album_id:
-        raise HTTPException(status_code=400, detail="provide name or album_id")
+        raise HTTPException(
+            status_code=400,
+            detail="provide an album name, ID, or Spotify link",
+        )
     try:
         return evaluate_album_live(
             client,
@@ -4849,6 +4897,25 @@ def cmd_refresh_library_mirrors(
 ) -> AnalysisJobResult:
     """Refresh canonical saved-album and liked-track mirrors from Spotify."""
     return start_analysis_job("mirrors", client, full_rebuild=full_rebuild)
+
+
+@app.post(
+    "/commands/refresh-library-mirrors/{resource}",
+    response_model=AnalysisJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_refresh_library_mirror_resource(
+    resource: library_analysis.ResourceName,
+    client: AnalysisClientDep,
+    full_rebuild: bool = False,
+) -> AnalysisJobResult:
+    """Refresh one canonical Spotify mirror with independent progress."""
+    return start_analysis_job(
+        "mirrors",
+        client,
+        full_rebuild=full_rebuild,
+        mirror_resource=resource,
+    )
 
 
 @app.get(
