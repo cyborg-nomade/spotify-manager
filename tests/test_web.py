@@ -235,6 +235,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
     found_art_position = response.text.index('id="foundArtCard"')
     release_check_position = response.text.index('id="releaseCheckCard"')
     discography_position = response.text.index('id="discographyCard"')
+    new_kids_position = response.text.index('id="newKidsCard"')
     new_wine_position = response.text.index('id="newWineCard"')
     slow_listening_position = response.text.index('id="slowListeningCard"')
     something_old_position = response.text.index('id="somethingOldCard"')
@@ -252,6 +253,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
         < daily_position
         < found_art_position
         < genre_position
+        < new_kids_position
         < new_wine_position
         < slow_listening_position
         < something_old_position
@@ -283,6 +285,13 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "previousReleaseIds" in response.text
     assert "previousChoiceKey === choiceKey" in response.text
     assert "restoreActiveDiscographyJobs();" in response.text
+    assert 'id="newKidsDryRun" checked' in response.text
+    assert 'data-action="startNewKids"' in response.text
+    assert 'data-action="newKidsChoice"' in response.text
+    assert '"/commands/flush-new-kids-jobs/"' in response.text
+    assert "job.new_kids_pending_choice" in response.text
+    assert "job.new_kids_results" in response.text
+    assert "restoreActiveNewKidsJobs();" in response.text
     assert 'id="newWineDryRun" checked' in response.text
     assert 'id="newWineNoDiscovery"' in response.text
     assert 'id="refreshCache"' not in response.text

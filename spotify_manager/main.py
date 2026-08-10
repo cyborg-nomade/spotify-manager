@@ -50,6 +50,7 @@ from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
+from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import recover_removed_albums
@@ -305,6 +306,61 @@ def ask_new_wine_release_choice(
             return new_wine.CHOICE_SKIP
         if response == "q":
             return new_wine.CHOICE_QUIT
+        return candidates[int(response) - 1].spotify_id
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def ask_new_kids_release_choice(
+    console: Console,
+    artist_name: str,
+    candidates: tuple[new_kids.RankedRelease, ...],
+    progress: Progress | None = None,
+) -> str:
+    """Prompt for the next ranked New Kids release."""
+    if progress is not None:
+        progress.stop()
+    try:
+        table = Table(title=f"Choose the next release for {artist_name}")
+        table.add_column("#", justify="right")
+        table.add_column("Release")
+        table.add_column("Type")
+        table.add_column("Date")
+        table.add_column("Tracks", justify="right")
+        table.add_column("Popularity", justify="right")
+        table.add_column("Top track", justify="right")
+        table.add_column("Saved")
+        for index, candidate in enumerate(candidates, start=1):
+            table.add_row(
+                str(index),
+                candidate.name,
+                candidate.release_type,
+                candidate.release_date,
+                str(candidate.total_tracks),
+                (
+                    str(candidate.popularity)
+                    if candidate.popularity is not None
+                    else "-"
+                ),
+                (
+                    f"#{candidate.top_track_rank}"
+                    if candidate.top_track_rank is not None
+                    else "-"
+                ),
+                "yes" if candidate.saved else "-",
+            )
+        console.print(table)
+        choices = [str(index) for index in range(1, len(candidates) + 1)]
+        response = Prompt.ask(
+            "Release number / [s]kip this run / [q]uit",
+            choices=[*choices, "s", "q"],
+            console=console,
+        )
+        if response == "s":
+            return new_kids.CHOICE_SKIP
+        if response == "q":
+            return new_kids.CHOICE_QUIT
         return candidates[int(response) - 1].spotify_id
     finally:
         if progress is not None:
@@ -1526,6 +1582,225 @@ def found_art_command(
         )
 
 
+@app.command(name="flush-new-kids")
+def flush_new_kids_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show the complete run without changing Spotify or durable state.",
+    ),
+) -> None:
+    """Advance New Kids artists and refill the playlist from Queue 2."""
+    console = Console()
+    progress_ref: Progress | None = None
+    configuration = Settings()
+    try:
+        new_kids_playlist_id = new_kids.parse_playlist_id(
+            configuration.new_kids_on_the_block_playlist,
+            "NEW_KIDS_ON_THE_BLOCK_PLAYLIST",
+        )
+        queue_2_playlist_id = new_kids.parse_playlist_id(
+            configuration.the_queue_2_playlist,
+            "THE_QUEUE_2_PLAYLIST",
+        )
+        great_discoveries_playlist_id = new_kids.parse_playlist_id(
+            configuration.great_discoveries_2026_playlist,
+            "GREAT_DISCOVERIES_2026_PLAYLIST",
+        )
+        unlucky_ones_playlist_id = new_kids.parse_playlist_id(
+            configuration.unlucky_ones_playlist,
+            "UNLUCKY_ONES_PLAYLIST",
+        )
+        newfoundland_playlist_id = new_kids.parse_playlist_id(
+            configuration.discography_newfoundland_playlist,
+            "DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST",
+        )
+    except new_kids.NewKidsConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith(("Added", "Moved", "Removed", "Saved", "Reconciled")):
+            style = "bold green"
+        elif line.startswith("Would"):
+            style = "yellow"
+        elif line.startswith(("Unfollowed", "Unsaved")):
+            style = "bold red"
+        elif "resum" in line.casefold():
+            style = "cyan"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            description = "Planning New Kids flush"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(completed: int, total: int, status: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=completed,
+                    total=max(completed, total),
+                    description=status,
+                )
+
+            summary = new_kids.flush_new_kids(
+                review_client(),
+                new_kids_playlist_id,
+                queue_2_playlist_id,
+                great_discoveries_playlist_id,
+                unlucky_ones_playlist_id,
+                newfoundland_playlist_id,
+                choice_reader=lambda artist, candidates: ask_new_kids_release_choice(
+                    console,
+                    artist,
+                    candidates,
+                    progress_ref,
+                ),
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        if not dry_run:
+            console.print(
+                "The active New Kids run was saved and can be resumed.",
+                style="yellow",
+            )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        if not dry_run:
+            console.print(
+                "The active New Kids run was saved and can be resumed.",
+                style="yellow",
+            )
+        raise typer.Exit(code=0) from exc
+    except new_kids.NewKidsError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        if not dry_run:
+            console.print(
+                "The active New Kids run was saved and can be resumed.",
+                style="yellow",
+            )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        if not dry_run:
+            console.print(
+                "New Kids flush paused. The active run was saved.",
+                style="bold yellow",
+            )
+        raise typer.Exit(code=0) from exc
+
+    if summary.results:
+        table = Table(title="New Kids on the Block")
+        table.add_column("Artist")
+        table.add_column("Current")
+        table.add_column("Release")
+        table.add_column("Like")
+        table.add_column("Streak", justify="right")
+        table.add_column("Action")
+        table.add_column("Next")
+        action_styles = {
+            "advance": "green",
+            "next release": "cyan",
+            "great discovery": "bold green",
+            "unlucky": "yellow",
+            "unfollowed": "bold red",
+            "skip": "dim",
+        }
+        for decision in summary.results:
+            next_item = decision.target_track or "-"
+            if (
+                decision.target_release
+                and decision.target_release != decision.source_release
+            ):
+                next_item = f"{decision.target_release} - {next_item}"
+            table.add_row(
+                decision.artist,
+                decision.source_track,
+                decision.source_release,
+                "liked" if decision.current_liked else "unliked",
+                str(decision.consecutive_unliked),
+                Text(decision.action, style=action_styles[decision.action]),
+                next_item,
+            )
+        console.print(table)
+
+    transfers = [("Before", transfer) for transfer in summary.prefill] + [
+        ("After", transfer) for transfer in summary.postfill
+    ]
+    if transfers:
+        transfer_table = Table(title="Queue 2 transfer")
+        transfer_table.add_column("Stage")
+        transfer_table.add_column("Artist")
+        transfer_table.add_column("Track")
+        transfer_table.add_column("Action")
+        for stage, transfer in transfers:
+            transfer_table.add_row(
+                stage,
+                transfer.artist,
+                transfer.track,
+                transfer.action,
+            )
+        console.print(transfer_table)
+
+    prefix = "Dry run" if summary.dry_run else "Flush"
+    console.print(
+        f"{prefix}: New Kids {summary.playlist_length_before} -> "
+        f"{summary.playlist_length_after}; {len(summary.results)} decisions, "
+        f"{len(summary.prefill) + len(summary.postfill)} Queue 2 transfers.",
+        style="bold",
+    )
+    if summary.resumed:
+        console.print("Resumed the previously saved flush.", style="cyan")
+    if summary.paused:
+        console.print(
+            "Flush paused; run the command again to resume.",
+            style="bold yellow",
+        )
+
+
 @app.command(name="flush-new-wine")
 def flush_new_wine_command(
     dry_run: bool = typer.Option(
@@ -1723,13 +1998,21 @@ def flush_new_wine_command(
         displayed_results = [
             result for result in summary.refill.results if result.action != "ineligible"
         ]
-        for result in displayed_results:
+        for refill_result in displayed_results:
             refill_table.add_row(
-                result.artist,
-                result.source_track,
-                result.action,
-                str(result.liked_tracks) if result.liked_tracks is not None else "-",
-                str(result.saved_albums) if result.saved_albums is not None else "-",
+                refill_result.artist,
+                refill_result.source_track,
+                refill_result.action,
+                (
+                    str(refill_result.liked_tracks)
+                    if refill_result.liked_tracks is not None
+                    else "-"
+                ),
+                (
+                    str(refill_result.saved_albums)
+                    if refill_result.saved_albums is not None
+                    else "-"
+                ),
             )
         if displayed_results:
             console.print(refill_table)

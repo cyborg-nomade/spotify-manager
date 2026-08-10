@@ -152,6 +152,11 @@ spotify_manager/files/new_wine_flush_state.json
 spotify_manager/files/new_wine_flush_state.json.tmp
 spotify_manager/files/new_wine_flush_log.jsonl
 
+# Restart-safe New Kids flush state and audit log
+spotify_manager/files/new_kids_state.json
+spotify_manager/files/new_kids_state.json.tmp
+spotify_manager/files/new_kids_log.jsonl
+
 # Restart-safe new-release discovery state and audit log
 spotify_manager/files/release_check_state.json
 spotify_manager/files/release_check_state.json.tmp

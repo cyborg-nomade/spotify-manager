@@ -76,7 +76,7 @@
   .card::before { top: 6px; left: 6px; }
   .card::after { right: 6px; bottom: 6px; }
   #blastCard, #dailyMindRadioCard, #foundArtCard, #genreRevealCard { --panel-accent: var(--lime); }
-  #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
+  #newKidsCard, #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
   #requeueForADreamCard, #palaceOfMemoryCard { --panel-accent: var(--amber); }
   #releaseCheckCard, #discographyCard { --panel-accent: var(--green); }
   #artistStatsCard, #albumEvaluationCard { --panel-accent: #73856a; }
@@ -675,6 +675,19 @@
       </div>
     </section>
 
+    <section class="card" id="newKidsCard">
+      <h2>New kids on the block</h2>
+      <label class="inline">
+        <input type="checkbox" id="newKidsDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions">
+        <button class="primary" data-action="startNewKids">Run</button>
+        <button class="danger cancel" data-action="cancelNewKids" hidden title="Stop flush">×</button>
+      </div>
+      <div class="analysis-progress" id="newKidsProgress"></div>
+    </section>
+
     <section class="card" id="newWineCard">
       <h2>New wine from old bottles</h2>
       <label class="inline">
@@ -844,6 +857,7 @@
   var blastJob = null;
   var dailyMindRadioJob = null;
   var foundArtJob = null;
+  var newKidsJob = null;
   var newWineJob = null;
   var slowListeningJob = null;
   var somethingOldJob = null;
@@ -1400,6 +1414,171 @@
 
   function restoreActiveFoundArtJobs() {
     return restoreActivePlaylistJobs("found");
+  }
+
+  function renderNewKidsJob(job) {
+    newKidsJob = job;
+    var out = document.getElementById("newKidsProgress");
+    var start = document.querySelector('[data-action="startNewKids"]');
+    var cancel = document.querySelector('[data-action="cancelNewKids"]');
+    document.getElementById("newKidsDryRun").checked = Boolean(job.dry_run);
+    var processed = typeof job.processed === "number" ? job.processed : 0;
+    var total = typeof job.total === "number" ? Math.max(job.total, processed) : null;
+    var pct = total === null
+      ? null
+      : (total === 0 ? 100 : Math.min(100, Math.round(processed * 100 / total)));
+    var meter = pct === null
+      ? '<div class="meter"><span class="indeterminate"></span></div>'
+      : '<div class="meter"><span style="width:' + pct + '%"></span></div>';
+    var count = total === null ? esc(processed) : esc(processed + " / " + total);
+    var results = job.new_kids_results || [];
+    var promoted = results.filter(function (item) {
+      return item.action === "great discovery";
+    }).length;
+    var unlucky = results.filter(function (item) {
+      return item.action === "unlucky";
+    }).length;
+    var unfollowed = results.filter(function (item) {
+      return item.action === "unfollowed";
+    }).length;
+    var summary = results.length
+      ? '<div class="blast-summary">' +
+          '<div><strong>' + esc(job.advanced || 0) + '</strong><span>Advanced</span></div>' +
+          '<div><strong>' + esc(promoted) + '</strong><span>Promoted</span></div>' +
+          '<div><strong>' + esc(unlucky + unfollowed) + '</strong><span>Released</span></div>' +
+        '</div>'
+      : "";
+    var resultRows = results.map(function (item) {
+      var next = item.target_track || "";
+      if (item.target_release && item.target_release !== item.source_release) {
+        next = item.target_release + (next ? " · " + next : "");
+      }
+      var album = "";
+      if (item.album_decision) {
+        album = ' · album ' + item.album_decision;
+        if (typeof item.album_liked_tracks === "number") {
+          album += ' ' + item.album_liked_tracks + '/' + item.album_total_tracks;
+        }
+      }
+      var reasons = (item.qualification_reasons || []).length
+        ? '<div class="playlist-dates">' + esc(item.qualification_reasons.join(" · ")) + '</div>'
+        : "";
+      return '<div class="blast-selection new-kids-result">' +
+        '<div class="blast-selection-title">' + esc(item.artist) + ' · ' +
+          esc(item.source_track) + '</div>' +
+        '<div class="blast-selection-match">' + esc(item.source_release) +
+          (next ? ' → ' + esc(next) : '') + '</div>' +
+        '<div class="blast-selection-meta">' +
+          (item.current_liked ? "liked" : "unliked") + ' · streak ' +
+          esc(item.consecutive_unliked) + ' · <span class="blast-action">' +
+          esc(item.action) + '</span>' + esc(album) + '</div>' + reasons + '</div>';
+    }).join("");
+    var transferRows = [];
+    (job.new_kids_prefill || []).forEach(function (item) {
+      transferRows.push({ stage: "before", item: item });
+    });
+    (job.new_kids_postfill || []).forEach(function (item) {
+      transferRows.push({ stage: "after", item: item });
+    });
+    var transfers = transferRows.length
+      ? '<div class="new-wine-refill"><div class="new-wine-choice-title">Queue 2 transfer</div>' +
+          transferRows.map(function (entry) {
+            return '<div class="blast-selection new-wine-cellar-result">' +
+              '<div class="blast-selection-title">' + esc(entry.item.artist) + ' · ' +
+                esc(entry.item.track) + '</div>' +
+              '<div class="blast-selection-meta">' + esc(entry.stage) + ' · ' +
+                '<span class="blast-action">' + esc(entry.item.action) + '</span></div></div>';
+          }).join("") + '</div>'
+      : "";
+    var pending = "";
+    if (job.new_kids_pending_choice) {
+      var releaseButtons = (job.new_kids_pending_choice.releases || []).map(function (release) {
+        var rank = typeof release.popularity === "number"
+          ? "popularity " + release.popularity
+          : (release.top_track_rank ? "top track #" + release.top_track_rank : "unranked");
+        return '<button class="ghost" data-action="newKidsChoice" data-choice="' +
+          esc(release.spotify_id) + '">' +
+          '<span class="new-wine-option-name">' + esc(release.name) + '</span>' +
+          '<span class="new-wine-option-meta">' + esc(release.release_type) + ' · ' +
+            esc(release.release_date) + ' · ' + esc(release.total_tracks) + ' tracks · ' +
+            esc(rank) + (release.saved ? ' · saved' : '') + '</span></button>';
+      }).join("");
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">' +
+          esc(job.new_kids_pending_choice.artist) + '</div>' +
+        '<div class="new-wine-options">' + releaseButtons + '</div>' +
+        '<div class="new-wine-controls">' +
+          '<button class="ghost" data-action="newKidsChoice" data-choice="__skip__">Skip</button>' +
+          '<button class="danger" data-action="newKidsChoice" data-choice="__quit__">Quit</button>' +
+        '</div></div>';
+    }
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity…</span></div>';
+    }
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.new_kids_resumed) state += " · resumed";
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + ' · ' + count + '</div>' +
+      meter + summary + resultRows + transfers + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running…");
+      if (job.status === "waiting") start.innerHTML = '<span class="spinner"></span> Waiting…';
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollNewKidsJob(jobId) {
+    try {
+      var job = await api("/commands/flush-new-kids-jobs/" + jobId);
+      renderNewKidsJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollNewKidsJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("New Kids flush finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "New Kids flush stopped", "ok");
+      } else {
+        showToast("New Kids flush " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("newKidsProgress"), e);
+      setBusy(document.querySelector('[data-action="startNewKids"]'), false);
+      showToast("Could not read New Kids progress", "err");
+    }
+  }
+
+  async function restoreActiveNewKidsJobs() {
+    try {
+      var jobs = await api("/commands/flush-new-kids-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderNewKidsJob(job);
+      pollNewKidsJob(job.job_id);
+      showToast("Reconnected to New Kids flush", "ok");
+    } catch (e) {
+      if (e.status !== 401) showToast("Could not restore New Kids progress", "err");
+    }
   }
 
   function renderNewWineJob(job) {
@@ -2882,6 +3061,61 @@
       }
     },
 
+    async startNewKids(btn) {
+      var dryRun = document.getElementById("newKidsDryRun").checked;
+      var out = document.getElementById("newKidsProgress");
+      if (!dryRun && !confirm("Apply the New Kids flush to Spotify?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api("/commands/flush-new-kids?" + q.toString(), { method: "POST" });
+        renderNewKidsJob(job);
+        pollNewKidsJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "flush_new_kids") {
+          await pollNewKidsJob(activeJobId);
+          showToast("Reconnected to New Kids flush", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start New Kids flush", "err");
+      }
+    },
+
+    async newKidsChoice(btn) {
+      if (!newKidsJob || !newKidsJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/flush-new-kids-jobs/" + newKidsJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice } }
+        );
+        renderNewKidsJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit release choice", "err");
+      }
+    },
+
+    async cancelNewKids(btn) {
+      if (!newKidsJob || !newKidsJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/flush-new-kids-jobs/" + newKidsJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderNewKidsJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop New Kids flush", "err");
+      }
+    },
+
     async startNewWine(btn) {
       var dryRun = document.getElementById("newWineDryRun").checked;
       var noDiscovery = document.getElementById("newWineNoDiscovery").checked;
@@ -3481,6 +3715,7 @@
     restoreActiveFoundArtJobs();
     restoreActiveReleaseCheckJobs();
     restoreActiveDiscographyJobs();
+    restoreActiveNewKidsJobs();
     restoreActiveNewWineJobs();
     restoreActiveSlowListeningJobs();
     restoreActiveSomethingOldJobs();

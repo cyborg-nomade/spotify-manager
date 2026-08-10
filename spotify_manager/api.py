@@ -63,6 +63,7 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
+from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import release_check
@@ -277,6 +278,58 @@ class NewWineRefillResult(BaseModel):
 
 class NewWineChoiceRequest(BaseModel):
     """Choice submitted for a waiting New Wine job."""
+
+    choice: str
+
+
+class NewKidsReleaseOption(BaseModel):
+    """One ranked release offered by an interactive New Kids job."""
+
+    spotify_id: str
+    name: str
+    release_type: str
+    release_date: str
+    total_tracks: int
+    popularity: int | None = None
+    top_track_rank: int | None = None
+    saved: bool = False
+
+
+class NewKidsPendingChoice(BaseModel):
+    """Current New Kids release choice exposed to the web client."""
+
+    artist: str
+    releases: list[NewKidsReleaseOption] = Field(default_factory=list)
+
+
+class NewKidsTrackResult(BaseModel):
+    """One completed New Kids artist decision."""
+
+    artist: str
+    source_track: str
+    source_release: str
+    current_liked: bool
+    consecutive_unliked: int
+    action: str
+    target_track: str | None = None
+    target_release: str | None = None
+    release_number: int | None = None
+    album_decision: str | None = None
+    album_liked_tracks: int | None = None
+    album_total_tracks: int | None = None
+    qualification_reasons: list[str] = Field(default_factory=list)
+
+
+class NewKidsFillResult(BaseModel):
+    """One Queue 2 marker handled while filling New Kids."""
+
+    artist: str
+    track: str
+    action: str
+
+
+class NewKidsChoiceRequest(BaseModel):
+    """Release or control choice submitted to a waiting New Kids job."""
 
     choice: str
 
@@ -518,6 +571,12 @@ class BlastJobResult(BaseModel):
     new_wine_results: list[NewWineTrackResult] = Field(default_factory=list)
     new_wine_refill: NewWineRefillResult | None = None
     pending_choice: NewWinePendingChoice | None = None
+    new_kids_results: list[NewKidsTrackResult] = Field(default_factory=list)
+    new_kids_prefill: list[NewKidsFillResult] = Field(default_factory=list)
+    new_kids_postfill: list[NewKidsFillResult] = Field(default_factory=list)
+    new_kids_pending_choice: NewKidsPendingChoice | None = None
+    new_kids_resumed: bool = False
+    new_kids_paused: bool = False
     completed_artists: int | None = None
     slow_listening_results: list[SlowListeningTrackResult] = Field(default_factory=list)
     slow_listening_pending_choice: SlowListeningPendingChoice | None = None
@@ -594,6 +653,10 @@ class _BlastJob:
 
 class _NewWineJobCancelledError(RuntimeError):
     """Stop one web flush while preserving the routine's durable state."""
+
+
+class _NewKidsJobCancelledError(RuntimeError):
+    """Stop one New Kids web job while preserving durable progress."""
 
 
 class _SlowListeningJobCancelledError(RuntimeError):
@@ -1294,6 +1357,245 @@ def _run_found_art_job(
         if callable(spotify_event_setter):
             spotify_event_setter(previous_spotify_event_callback)
         with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
+def _new_kids_track_result(result: new_kids.FlushResult) -> NewKidsTrackResult:
+    """Convert one New Kids result into its stable API representation."""
+    return NewKidsTrackResult(
+        artist=result.artist,
+        source_track=result.source_track,
+        source_release=result.source_release,
+        current_liked=result.current_liked,
+        consecutive_unliked=result.consecutive_unliked,
+        action=result.action,
+        target_track=result.target_track,
+        target_release=result.target_release,
+        release_number=result.release_number,
+        album_decision=result.album_decision,
+        album_liked_tracks=result.album_liked_tracks,
+        album_total_tracks=result.album_total_tracks,
+        qualification_reasons=list(result.qualification_reasons),
+    )
+
+
+def _new_kids_fill_result(result: new_kids.FillResult) -> NewKidsFillResult:
+    """Convert one Queue 2 transfer into its web representation."""
+    return NewKidsFillResult(
+        artist=result.artist,
+        track=result.track,
+        action=result.action,
+    )
+
+
+def _run_new_kids_job(
+    job_id: str,
+    spotify: Spotify,
+    new_kids_playlist_id: str,
+    queue_2_playlist_id: str,
+    great_discoveries_playlist_id: str,
+    unlucky_ones_playlist_id: str,
+    newfoundland_playlist_id: str,
+    dry_run: bool,
+) -> None:
+    """Execute one interactive New Kids flush as a reconnectable web job."""
+    job = get_blast_job(job_id, command="flush_new_kids")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "New Kids flush started"
+        _append_blast_log_locked(
+            job,
+            f"New Kids flush started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def progress_callback(completed: int, total: int, progress_status: str) -> None:
+        if job.cancel_event.is_set():
+            raise _NewKidsJobCancelledError
+        with _blast_jobs_lock:
+            job.result.processed = completed
+            job.result.total = total
+            job.result.detail = progress_status
+
+    def choice_reader(
+        artist: str,
+        candidates: tuple[new_kids.RankedRelease, ...],
+    ) -> str:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _NewKidsJobCancelledError
+            job.submitted_choice = None
+            job.choice_event.clear()
+            job.result.new_kids_pending_choice = NewKidsPendingChoice(
+                artist=artist,
+                releases=[
+                    NewKidsReleaseOption(
+                        spotify_id=candidate.spotify_id,
+                        name=candidate.name,
+                        release_type=candidate.release_type,
+                        release_date=candidate.release_date,
+                        total_tracks=candidate.total_tracks,
+                        popularity=candidate.popularity,
+                        top_track_rank=candidate.top_track_rank,
+                        saved=candidate.saved,
+                    )
+                    for candidate in candidates
+                ],
+            )
+            job.result.status = "waiting"
+            job.result.detail = f"Choose the next release for {artist}"
+            _append_blast_log_locked(job, job.result.detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _NewKidsJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                job.submitted_choice = None
+                job.choice_event.clear()
+                job.result.new_kids_pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying release choice"
+                _append_blast_log_locked(job, f"Release choice received: {choice}.")
+                return choice
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _NewKidsJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = new_kids.flush_new_kids(
+            spotify,
+            new_kids_playlist_id,
+            queue_2_playlist_id,
+            great_discoveries_playlist_id,
+            unlucky_ones_playlist_id,
+            newfoundland_playlist_id,
+            choice_reader=choice_reader,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=retry_call,
+        )
+    except _NewKidsJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.new_kids_pending_choice = None
+            job.result.detail = (
+                "New Kids flush stopped. Progress was saved."
+                if not dry_run
+                else "New Kids dry run stopped."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.new_kids_pending_choice = None
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.new_kids_pending_choice = None
+            job.result.detail = (
+                review_album_limits.format_transient_spotify_failure(exc)
+                + ". Progress was saved."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.new_kids_pending_choice = None
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
+    except (new_kids.NewKidsError, SpotifyException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.new_kids_pending_choice = None
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"New Kids flush failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected New Kids flush error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.new_kids_pending_choice = None
+            job.result.detail = f"Unexpected New Kids error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [_new_kids_track_result(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "paused" if summary.paused else "completed"
+            job.result.processed = len(summary.results)
+            if job.result.total is None:
+                job.result.total = len(summary.results)
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.advanced = sum(
+                result.action in {"advance", "next release"}
+                for result in summary.results
+            )
+            job.result.skipped = sum(
+                result.action == "skip" for result in summary.results
+            )
+            job.result.new_kids_results = results
+            job.result.new_kids_prefill = [
+                _new_kids_fill_result(result) for result in summary.prefill
+            ]
+            job.result.new_kids_postfill = [
+                _new_kids_fill_result(result) for result in summary.postfill
+            ]
+            job.result.new_kids_pending_choice = None
+            job.result.new_kids_resumed = summary.resumed
+            job.result.new_kids_paused = summary.paused
+            if summary.paused:
+                job.result.detail = "New Kids flush paused. Progress was saved."
+            else:
+                transfers = len(summary.prefill) + len(summary.postfill)
+                job.result.detail = (
+                    f"{len(summary.results)} decisions; New Kids "
+                    f"{summary.playlist_length_before} -> "
+                    f"{summary.playlist_length_after}; {transfers} Queue 2 "
+                    "transfers."
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.new_kids_pending_choice = None
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
@@ -3220,6 +3522,61 @@ def start_found_art_job(
     return snapshot
 
 
+def start_new_kids_job(
+    spotify: Spotify,
+    new_kids_playlist_id: str,
+    queue_2_playlist_id: str,
+    great_discoveries_playlist_id: str,
+    unlucky_ones_playlist_id: str,
+    newfoundland_playlist_id: str,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one New Kids web job, rejecting another playlist routine."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="flush_new_kids",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            f"New Kids flush queued{' in dry-run mode' if dry_run else ''}.",
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_new_kids_job,
+        args=(
+            job_id,
+            spotify,
+            new_kids_playlist_id,
+            queue_2_playlist_id,
+            great_discoveries_playlist_id,
+            unlucky_ones_playlist_id,
+            newfoundland_playlist_id,
+            dry_run,
+        ),
+        name=f"new-kids-flush-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
 def start_new_wine_job(
     spotify: Spotify,
     new_wine_playlist_id: str,
@@ -3984,6 +4341,131 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
     """Return current progress for one Found Art job."""
     job = get_blast_job(job_id, command="found_art")
     with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-new-kids",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_flush_new_kids(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start an interactive New Kids flush with reconnectable web state."""
+    configuration = Settings()
+    try:
+        new_kids_playlist_id = new_kids.parse_playlist_id(
+            configuration.new_kids_on_the_block_playlist,
+            "NEW_KIDS_ON_THE_BLOCK_PLAYLIST",
+        )
+        queue_2_playlist_id = new_kids.parse_playlist_id(
+            configuration.the_queue_2_playlist,
+            "THE_QUEUE_2_PLAYLIST",
+        )
+        great_discoveries_playlist_id = new_kids.parse_playlist_id(
+            configuration.great_discoveries_2026_playlist,
+            "GREAT_DISCOVERIES_2026_PLAYLIST",
+        )
+        unlucky_ones_playlist_id = new_kids.parse_playlist_id(
+            configuration.unlucky_ones_playlist,
+            "UNLUCKY_ONES_PLAYLIST",
+        )
+        newfoundland_playlist_id = new_kids.parse_playlist_id(
+            configuration.discography_newfoundland_playlist,
+            "DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST",
+        )
+    except new_kids.NewKidsConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_new_kids_job(
+        client,
+        new_kids_playlist_id,
+        queue_2_playlist_id,
+        great_discoveries_playlist_id,
+        unlucky_ones_playlist_id,
+        newfoundland_playlist_id,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/flush-new-kids-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_new_kids_jobs() -> list[BlastJobResult]:
+    """Return active New Kids jobs so the web UI can reconnect after reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "flush_new_kids"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/flush-new-kids-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_new_kids_job(job_id: str) -> BlastJobResult:
+    """Return current progress and any pending New Kids choice."""
+    job = get_blast_job(job_id, command="flush_new_kids")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-new-kids-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_new_kids_release(
+    job_id: str,
+    request: NewKidsChoiceRequest,
+) -> BlastJobResult:
+    """Submit one release or control choice to a waiting New Kids job."""
+    job = get_blast_job(job_id, command="flush_new_kids")
+    with _blast_jobs_lock:
+        pending = job.result.new_kids_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="New Kids job is not waiting for a release choice",
+            )
+        allowed = {
+            new_kids.CHOICE_SKIP,
+            new_kids.CHOICE_QUIT,
+            *(release.spotify_id for release in pending.releases),
+        }
+        if request.choice not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail="release choice is not available",
+            )
+        job.submitted_choice = request.choice
+        job.result.new_kids_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Release choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-new-kids-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_new_kids_job(job_id: str) -> BlastJobResult:
+    """Request a clean stop at the next New Kids processing boundary."""
+    job = get_blast_job(job_id, command="flush_new_kids")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(status_code=409, detail="New Kids job is not active")
+        job.result.status = "cancelling"
+        job.result.new_kids_pending_choice = None
+        job.result.detail = "Stopping New Kids flush"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
         return _blast_job_snapshot(job)
 
 
