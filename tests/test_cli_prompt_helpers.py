@@ -588,6 +588,42 @@ def test_queue_artist_prompt_handles_no_candidates(
 
 @pytest.mark.parametrize(
     ("response", "expected"),
+    [
+        ("1", "album-1"),
+        ("s", main.sauvignon.CHOICE_SKIP),
+        ("q", main.sauvignon.CHOICE_QUIT),
+    ],
+)
+def test_sauvignon_album_prompt_maps_every_action(
+    monkeypatch: pytest.MonkeyPatch,
+    response: str,
+    expected: str,
+) -> None:
+    progress = Pausable()
+    monkeypatch.setattr(main.Prompt, "ask", lambda *_args, **_kwargs: response)
+    option = SimpleNamespace(
+        spotify_id="album-1",
+        album="Album",
+        release_type="Album",
+        release_date="2024-01-01",
+        total_tracks=10,
+        source_track="Evidence",
+    )
+
+    assert (
+        main.ask_sauvignon_album(
+            _console(),
+            SimpleNamespace(artist="Artist", album="Album"),  # type: ignore[arg-type]
+            (option,),  # type: ignore[arg-type]
+            progress,  # type: ignore[arg-type]
+        )
+        == expected
+    )
+    assert progress.calls == ["stop", "start"]
+
+
+@pytest.mark.parametrize(
+    ("response", "expected"),
     [("1", "release-1"), ("q", "quit")],
 )
 def test_something_old_album_prompt_maps_selection_and_quit(

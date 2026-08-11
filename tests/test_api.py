@@ -1216,6 +1216,172 @@ def test_found_art_endpoint_runs_background_job_with_requested_count(
     )
 
 
+def test_sauvignon_web_job_waits_for_album_choice_and_completes(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: dict[str, object] = {}
+    first_option = api.sauvignon.SpotifyAlbumOption(
+        spotify_id="plain",
+        uri="spotify:album:plain",
+        artist_id="artist",
+        artist="Recommendation Artist",
+        album="Recommendation Album",
+        release_type="Album",
+        release_date="2025-01-01",
+        total_tracks=10,
+        source_track="Recommended Track",
+        source_track_id="track",
+        search_rank=1,
+        track_similarity=1.0,
+        track_popularity=50,
+    )
+    second_option = api.sauvignon.SpotifyAlbumOption(
+        spotify_id="alternate",
+        uri="spotify:album:alternate",
+        artist_id="artist",
+        artist="Recommendation Artist",
+        album="Recommendation Album",
+        release_type="EP",
+        release_date="2025-02-01",
+        total_tracks=6,
+        source_track="Recommended Track",
+        source_track_id="track",
+        search_rank=2,
+        track_similarity=0.99,
+        track_popularity=45,
+    )
+    recommendation = api.sauvignon.AlbumRecommendation(
+        artist="Recommendation Artist",
+        album="Recommendation Album",
+        key=("recommendation artist", "recommendation album"),
+        score=1.4,
+        best_match=0.95,
+        supporting_tracks=("Recommended Track", "Another Track"),
+        options=(first_option, second_option),
+        base_rank=3,
+        weekly_rank=0.8,
+    )
+
+    def complete(spotify, lastfm, playlist_id, choice_reader, **kwargs):
+        received.update(
+            spotify=spotify,
+            lastfm=lastfm,
+            playlist_id=playlist_id,
+            count=kwargs["count"],
+            max_playlist_length=kwargs["max_playlist_length"],
+            seed_count=kwargs["seed_count"],
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"]("Resolving album recommendations")
+        choice = choice_reader(recommendation, recommendation.options)
+        received["choice"] = choice
+        chosen = second_option if choice == second_option.spotify_id else first_option
+        return api.sauvignon.SauvignonSummary(
+            generated_at=datetime(2026, 8, 11, 12, 0, tzinfo=UTC),
+            week_start=date(2026, 8, 7),
+            playlist_id=playlist_id,
+            requested_count=1,
+            history_albums=400,
+            history_scrobbles=12000,
+            live_scrobbles_added=4,
+            seed_count=30,
+            track_candidate_count=100,
+            album_candidate_count=25,
+            playlist_length_before=19,
+            playlist_length_after=19,
+            paused=False,
+            dry_run=True,
+            results=(
+                api.sauvignon.SauvignonResult(
+                    recommendation=recommendation,
+                    album=chosen,
+                    first_track=api.sauvignon.FirstTrack(
+                        "first",
+                        "spotify:track:first",
+                        "Opening Track",
+                    ),
+                    action="would add",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            sauvignon_terre_neuve_playlist="spotify:playlist:sauvignon",
+            lastfm_api_key="lastfm-key",
+            lastfm_username="lastfm-user",
+        ),
+    )
+    monkeypatch.setattr(api.sauvignon, "fill_sauvignon_from_lastfm", complete)
+
+    response = client.post(
+        "/commands/fill-sauvignon-from-lastfm",
+        params={"dry_run": True},
+    )
+
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+    waiting = wait_for_sauvignon_status(client, job_id, {"waiting"})
+    assert waiting["sauvignon_pending_choice"]["album"] == "Recommendation Album"
+    assert [
+        option["spotify_id"]
+        for option in waiting["sauvignon_pending_choice"]["options"]
+    ] == ["plain", "alternate"]
+    assert [
+        job["job_id"]
+        for job in client.get("/commands/fill-sauvignon-from-lastfm-jobs").json()
+    ] == [job_id]
+
+    choice = client.post(
+        f"/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/choice",
+        json={"choice": "alternate"},
+    )
+    assert choice.status_code == 200
+
+    result = wait_for_sauvignon_status(client, job_id, {"completed"})
+    assert received["playlist_id"] == "sauvignon"
+    assert received["count"] is None
+    assert received["max_playlist_length"] == 20
+    assert received["seed_count"] == 30
+    assert received["dry_run"] is True
+    assert received["choice"] == "alternate"
+    assert result["command"] == "fill_sauvignon_from_lastfm"
+    assert result["added"] == 1
+    assert result["sauvignon_history_albums"] == 400
+    assert result["sauvignon_track_candidate_count"] == 100
+    assert result["sauvignon_album_candidate_count"] == 25
+    assert result["sauvignon_results"][0]["spotify_album_id"] == "alternate"
+    assert result["sauvignon_results"][0]["first_track"] == "Opening Track"
+    assert client.get("/commands/fill-sauvignon-from-lastfm-jobs").json() == []
+
+
+def test_sauvignon_endpoint_validates_limits_and_configuration(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conflict = client.post(
+        "/commands/fill-sauvignon-from-lastfm",
+        params={"count": 2, "max_playlist_length": 20},
+    )
+    assert conflict.status_code == 400
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            sauvignon_terre_neuve_playlist=None,
+            lastfm_api_key="key",
+            lastfm_username="user",
+        ),
+    )
+    missing = client.post("/commands/fill-sauvignon-from-lastfm")
+    assert missing.status_code == 500
+    assert "SAUVIGNON_TERRE_NEUVE_PLAYLIST" in missing.json()["detail"]
+
+
 def test_new_kids_web_job_waits_for_and_applies_release_choice(
     client: TestClient,
     monkeypatch,
@@ -3325,6 +3491,24 @@ def wait_for_found_art_status(
             return body
         sleep(0.01)
     pytest.fail(f"Found Art job {job_id} did not reach {expected}")
+
+
+def wait_for_sauvignon_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+    timeout: float = 2,
+) -> dict:
+    """Poll one Sauvignon album-discovery job until it reaches a target state."""
+    deadline = monotonic() + timeout
+    while monotonic() < deadline:
+        response = client.get(f"/commands/fill-sauvignon-from-lastfm-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Sauvignon job {job_id} did not reach {expected}")
 
 
 def wait_for_queue_fill_status(

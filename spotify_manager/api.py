@@ -70,6 +70,7 @@ from spotify_manager.routines import queue_3
 from spotify_manager.routines import release_check
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
+from spotify_manager.routines import sauvignon
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines import something_old
@@ -189,6 +190,54 @@ class FoundArtSelectionResult(BaseModel):
     spotify_match: str | None = None
     track_similarity: float | None = None
     action: str
+
+
+class SauvignonAlbumOption(BaseModel):
+    """One materially distinct Spotify album edition offered to the user."""
+
+    spotify_id: str
+    artist: str
+    album: str
+    release_type: str
+    release_date: str
+    total_tracks: int
+
+
+class SauvignonPendingChoice(BaseModel):
+    """Current ambiguous Sauvignon album match shown by the web client."""
+
+    artist: str
+    album: str
+    score: float
+    best_match: float
+    base_rank: int
+    weekly_rank: float
+    supporting_tracks: list[str] = Field(default_factory=list)
+    options: list[SauvignonAlbumOption] = Field(default_factory=list)
+
+
+class SauvignonSelectionResult(BaseModel):
+    """One Last.fm-derived album recommendation and its Spotify outcome."""
+
+    artist: str
+    album: str
+    score: float
+    best_match: float
+    supporting_tracks: list[str] = Field(default_factory=list)
+    base_rank: int
+    weekly_rank: float
+    spotify_album: str | None = None
+    spotify_album_id: str | None = None
+    release_type: str | None = None
+    release_date: str | None = None
+    first_track: str | None = None
+    action: str
+
+
+class SauvignonChoiceRequest(BaseModel):
+    """One album edition, skip, or quit choice for Sauvignon discovery."""
+
+    choice: str
 
 
 class PalaceAlbumSelectionResult(BaseModel):
@@ -674,6 +723,12 @@ class BlastJobResult(BaseModel):
     history_backup_path: str | None = None
     candidate_count: int | None = None
     found_art_results: list[FoundArtSelectionResult] = Field(default_factory=list)
+    sauvignon_history_albums: int | None = None
+    sauvignon_seed_count: int | None = None
+    sauvignon_track_candidate_count: int | None = None
+    sauvignon_album_candidate_count: int | None = None
+    sauvignon_results: list[SauvignonSelectionResult] = Field(default_factory=list)
+    sauvignon_pending_choice: SauvignonPendingChoice | None = None
     dry_run: bool = False
     no_discovery: bool = False
     processed: int | None = None
@@ -794,6 +849,10 @@ class _Queue3JobCancelledError(RuntimeError):
 
 class _QueueJobCancelledError(RuntimeError):
     """Stop one Queue web job while preserving completed work."""
+
+
+class _SauvignonJobCancelledError(RuntimeError):
+    """Stop one Sauvignon recommendation job at a safe boundary."""
 
 
 class _SlowListeningJobCancelledError(RuntimeError):
@@ -1494,6 +1553,248 @@ def _run_found_art_job(
         if callable(spotify_event_setter):
             spotify_event_setter(previous_spotify_event_callback)
         with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
+def _sauvignon_selection_result(
+    result: sauvignon.SauvignonResult,
+) -> SauvignonSelectionResult:
+    """Convert one Sauvignon album recommendation for stable web polling."""
+    album = result.album
+    return SauvignonSelectionResult(
+        artist=result.recommendation.artist,
+        album=result.recommendation.album,
+        score=result.recommendation.score,
+        best_match=result.recommendation.best_match,
+        supporting_tracks=list(result.recommendation.supporting_tracks),
+        base_rank=result.recommendation.base_rank,
+        weekly_rank=result.recommendation.weekly_rank,
+        spotify_album=album.album if album is not None else None,
+        spotify_album_id=album.spotify_id if album is not None else None,
+        release_type=album.release_type if album is not None else None,
+        release_date=album.release_date if album is not None else None,
+        first_track=result.first_track.name if result.first_track is not None else None,
+        action=result.action,
+    )
+
+
+def _run_sauvignon_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+    api_key: str,
+    username: str,
+    count: int | None,
+    max_playlist_length: int | None,
+    seed_count: int,
+    dry_run: bool,
+) -> None:
+    """Run reconnectable Last.fm album discovery for Sauvignon."""
+    job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Sauvignon album discovery started"
+        dry_run_suffix = " in dry-run mode" if dry_run else ""
+        _append_blast_log_locked(
+            job,
+            f"Sauvignon album discovery started{dry_run_suffix}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    last_progress: str | None = None
+
+    def progress_callback(progress_status: str) -> None:
+        nonlocal last_progress
+        if job.cancel_event.is_set():
+            raise _SauvignonJobCancelledError
+        with _blast_jobs_lock:
+            job.result.detail = progress_status
+            if progress_status != last_progress:
+                _append_blast_log_locked(job, progress_status)
+                last_progress = progress_status
+
+    def choice_reader(
+        recommendation: sauvignon.AlbumRecommendation,
+        options: tuple[sauvignon.SpotifyAlbumOption, ...],
+    ) -> str:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _SauvignonJobCancelledError
+            job.submitted_choice = None
+            job.choice_event.clear()
+            job.result.sauvignon_pending_choice = SauvignonPendingChoice(
+                artist=recommendation.artist,
+                album=recommendation.album,
+                score=recommendation.score,
+                best_match=recommendation.best_match,
+                base_rank=recommendation.base_rank,
+                weekly_rank=recommendation.weekly_rank,
+                supporting_tracks=list(recommendation.supporting_tracks),
+                options=[
+                    SauvignonAlbumOption(
+                        spotify_id=option.spotify_id,
+                        artist=option.artist,
+                        album=option.album,
+                        release_type=option.release_type,
+                        release_date=option.release_date,
+                        total_tracks=option.total_tracks,
+                    )
+                    for option in options
+                ],
+            )
+            job.result.status = "waiting"
+            job.result.detail = (
+                f"Choose the Spotify edition for {recommendation.artist} - "
+                f"{recommendation.album}"
+            )
+            _append_blast_log_locked(job, job.result.detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _SauvignonJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                job.submitted_choice = None
+                job.choice_event.clear()
+                job.result.sauvignon_pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying Sauvignon album choice"
+                _append_blast_log_locked(job, f"Album choice received: {choice}.")
+                return choice
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _SauvignonJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        if job.cancel_event.is_set():
+            raise _SauvignonJobCancelledError
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+    lastfm = LastFmClient(api_key, username, event_callback=echo)
+
+    try:
+        summary = sauvignon.fill_sauvignon_from_lastfm(
+            spotify,
+            lastfm,
+            playlist_id,
+            choice_reader,
+            count=count,
+            max_playlist_length=max_playlist_length,
+            seed_count=seed_count,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=retry_call,
+        )
+    except _SauvignonJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = (
+                "Sauvignon discovery stopped. Cached calls and completed additions "
+                "remain saved."
+                if not dry_run
+                else "Sauvignon discovery dry run stopped."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = (
+                review_album_limits.format_transient_spotify_failure(exc)
+                + ". Cached calls and completed additions remain saved."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
+    except (
+        sauvignon.SauvignonError,
+        found_art.FoundArtError,
+        LastFmError,
+        SpotifyException,
+    ) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Sauvignon discovery failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Sauvignon discovery error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected Sauvignon discovery error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [_sauvignon_selection_result(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "paused" if summary.paused else "completed"
+            job.result.requested_count = summary.requested_count
+            job.result.week_start = summary.week_start.isoformat()
+            job.result.history_scrobbles = summary.history_scrobbles
+            job.result.sauvignon_history_albums = summary.history_albums
+            job.result.live_scrobbles_added = summary.live_scrobbles_added
+            job.result.sauvignon_seed_count = summary.seed_count
+            job.result.sauvignon_track_candidate_count = summary.track_candidate_count
+            job.result.sauvignon_album_candidate_count = summary.album_candidate_count
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.added = summary.selected
+            job.result.dry_run = summary.dry_run
+            job.result.sauvignon_results = results
+            verb = "Would add" if summary.dry_run else "Added"
+            job.result.detail = (
+                f"{verb} {summary.selected} of {summary.requested_count} album "
+                f"recommendations; playlist {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}."
+            )
+            for result in results:
+                target = result.spotify_album or "no selected Spotify edition"
+                _append_blast_log_locked(
+                    job,
+                    f"{result.artist} - {result.album} -> {target} ({result.action}).",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.sauvignon_pending_choice = None
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
@@ -4324,6 +4625,64 @@ def start_found_art_job(
     return snapshot
 
 
+def start_sauvignon_job(
+    spotify: Spotify,
+    playlist_id: str,
+    api_key: str,
+    username: str,
+    *,
+    count: int | None,
+    max_playlist_length: int | None,
+    seed_count: int,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start a Sauvignon album-discovery job, rejecting playlist overlap."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="fill_sauvignon_from_lastfm",
+                requested_count=count,
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            f"Sauvignon album discovery queued{' in dry-run mode' if dry_run else ''}.",
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_sauvignon_job,
+        args=(
+            job_id,
+            spotify,
+            playlist_id,
+            api_key,
+            username,
+            count,
+            max_playlist_length,
+            seed_count,
+            dry_run,
+        ),
+        name=f"sauvignon-fill-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
 def start_queue_fill_job(
     spotify: Spotify,
     playlists: the_queue.QueuePlaylists,
@@ -5343,6 +5702,132 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
     """Return current progress for one Found Art job."""
     job = get_blast_job(job_id, command="found_art")
     with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/fill-sauvignon-from-lastfm",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_fill_sauvignon_from_lastfm(
+    client: InteractiveClientDep,
+    count: Annotated[int | None, Query(ge=1)] = None,
+    max_playlist_length: Annotated[int | None, Query(ge=1)] = None,
+    seed_count: Annotated[int, Query(ge=1)] = sauvignon.DEFAULT_SEED_COUNT,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start reconnectable Last.fm album discovery for Sauvignon."""
+    if count is not None and max_playlist_length is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="use either count or maximum playlist length, not both",
+        )
+    configuration = Settings()
+    try:
+        playlist_id = sauvignon.parse_playlist_id(
+            configuration.sauvignon_terre_neuve_playlist
+        )
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (sauvignon.SauvignonConfigError, found_art.FoundArtConfigError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    effective_maximum = (
+        sauvignon.DEFAULT_MAX_PLAYLIST_LENGTH
+        if count is None and max_playlist_length is None
+        else max_playlist_length
+    )
+    return start_sauvignon_job(
+        client,
+        playlist_id,
+        api_key,
+        username,
+        count=count,
+        max_playlist_length=effective_maximum,
+        seed_count=seed_count,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/fill-sauvignon-from-lastfm-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_sauvignon_jobs() -> list[BlastJobResult]:
+    """Return active Sauvignon jobs so the UI can reconnect after reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "fill_sauvignon_from_lastfm"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_sauvignon_job(job_id: str) -> BlastJobResult:
+    """Return Sauvignon progress and any pending album-edition choice."""
+    job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_sauvignon_album(
+    job_id: str,
+    request: SauvignonChoiceRequest,
+) -> BlastJobResult:
+    """Submit one ambiguous Spotify album edition, skip, or quit choice."""
+    job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
+    with _blast_jobs_lock:
+        pending = job.result.sauvignon_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Sauvignon discovery is not waiting for an album choice",
+            )
+        allowed = {
+            sauvignon.CHOICE_SKIP,
+            sauvignon.CHOICE_QUIT,
+            *(option.spotify_id for option in pending.options),
+        }
+        if request.choice not in allowed:
+            raise HTTPException(status_code=400, detail="album choice is not available")
+        job.submitted_choice = request.choice
+        job.result.sauvignon_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Sauvignon album choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_sauvignon_job(job_id: str) -> BlastJobResult:
+    """Stop Sauvignon discovery at its next safe boundary."""
+    job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail="Sauvignon discovery job is not active",
+            )
+        job.result.status = "cancelling"
+        job.result.sauvignon_pending_choice = None
+        job.result.detail = "Stopping Sauvignon album discovery"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
         return _blast_job_snapshot(job)
 
 
