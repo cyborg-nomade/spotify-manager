@@ -102,9 +102,12 @@ def test_state_replacement_keeps_a_restorable_backup(tmp_path: Path) -> None:
     backups = list((tmp_path / "genre-state_backups").glob("*.json"))
     assert second.completed == ["ambient", "jazz"]
     assert len(backups) == 1
-    assert genre_reveal.GenreRevealState.model_validate_json(
-        backups[0].read_text(encoding="utf-8")
-    ) == first
+    assert (
+        genre_reveal.GenreRevealState.model_validate_json(
+            backups[0].read_text(encoding="utf-8")
+        )
+        == first
+    )
 
 
 def test_identical_state_does_not_replace_or_back_up(tmp_path: Path) -> None:

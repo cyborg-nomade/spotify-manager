@@ -293,3 +293,114 @@ def test_refresh_rejects_an_export_for_a_different_user(tmp_path: Path) -> None:
         )
 
     assert lastfm.calls == []
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        "not-an-object",
+        {"artist": "Artist", "track": "Track", "date": True},
+        {"artist": "Artist", "track": "Track", "date": "bad"},
+        {"artist": "", "track": "Track", "date": 1},
+        {"artist": "Artist", "track": "", "date": 1},
+        {"artist": "Artist", "track": "Track", "date": -1},
+    ],
+)
+def test_export_record_validation_rejects_malformed_scrobbles(record: object) -> None:
+    with pytest.raises(scrobble_history.ScrobbleHistoryError, match="Scrobble 3"):
+        scrobble_history._parse_export_record(record, 3)
+
+
+def test_export_and_legacy_delta_reject_invalid_shapes(tmp_path: Path) -> None:
+    export_path = tmp_path / "lastfm.json"
+    export_path.write_text(json.dumps({"scrobbles": "bad"}))
+    with pytest.raises(scrobble_history.ScrobbleHistoryError, match="scrobbles"):
+        scrobble_history._load_export(export_path)
+
+    legacy_path = tmp_path / "legacy.jsonl"
+    legacy_path.write_text("\n[]\n")
+    with pytest.raises(scrobble_history.ScrobbleHistoryError, match="delta is invalid"):
+        scrobble_history._load_legacy_delta(legacy_path)
+
+
+def test_missing_or_invalid_export_is_reported(tmp_path: Path) -> None:
+    with pytest.raises(scrobble_history.ScrobbleHistoryError):
+        scrobble_history._load_export(tmp_path / "missing.json")
+
+
+def test_refresh_rejects_empty_history(tmp_path: Path) -> None:
+    export_path = tmp_path / "lastfm.json"
+    export_path.write_text(json.dumps({"username": "user", "scrobbles": []}))
+
+    with pytest.raises(scrobble_history.ScrobbleHistoryError, match="history is empty"):
+        scrobble_history.refresh_scrobble_history(
+            FakeLastFm(()),
+            expected_username="user",
+            export_path=export_path,
+            legacy_delta_path=None,
+            backup_dir=tmp_path / "backups",
+            log_path=tmp_path / "log.jsonl",
+        )
+
+
+def test_backup_write_log_and_timestamp_failures_are_wrapped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    export_path = tmp_path / "lastfm.json"
+    write_export(export_path)
+    blocked = tmp_path / "blocked"
+    blocked.write_text("file")
+    checked_at = datetime(2026, 8, 5, tzinfo=UTC)
+
+    with pytest.raises(
+        scrobble_history.ScrobbleHistoryError,
+        match="Could not back up",
+    ):
+        scrobble_history._backup_export(
+            export_path,
+            blocked / "backups",
+            checked_at,
+        )
+
+    with pytest.raises(scrobble_history.ScrobbleHistoryError, match="audit log"):
+        scrobble_history._append_log(
+            scrobble_history.ScrobbleHistorySummary(
+                checked_at=checked_at,
+                username="user",
+                history=(),
+                export_scrobbles=0,
+                legacy_scrobbles_added=0,
+                live_scrobbles_added=0,
+                dry_run=False,
+                persisted=False,
+                backup_path=None,
+            ),
+            blocked / "log.jsonl",
+        )
+
+    with pytest.raises(scrobble_history.ScrobbleHistoryError, match="check time"):
+        scrobble_history._mark_export_checked(tmp_path / "missing.json", checked_at)
+
+    monkeypatch.setattr(
+        scrobble_history.os,
+        "replace",
+        lambda *_args: (_ for _ in ()).throw(OSError("replace failed")),
+    )
+    with pytest.raises(
+        scrobble_history.ScrobbleHistoryError,
+        match="atomically update",
+    ):
+        scrobble_history._write_export_atomic(
+            export_path,
+            {"username": "user"},
+            [
+                {
+                    "artist": "Artist",
+                    "track": "Track",
+                    "album": "",
+                    "date": 1,
+                }
+            ],
+        )
+    assert not list(tmp_path.glob(".lastfm.json.*.tmp"))

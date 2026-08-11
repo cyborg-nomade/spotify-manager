@@ -51,7 +51,10 @@ def test_new_wine_web_labels_jump_to_later_liked_track(client: TestClient) -> No
     assert 'item.advance_reason === "next_liked_track"' in response.text
     assert 'action += " · next liked"' in response.text
     assert "job.pending_choice.terminal_release" in response.text
-    assert 'data-choice="finish">Finish' in response.text
+    finish_button = (
+        'class="danger" data-action="newWineChoice" data-choice="finish">Finish'
+    )
+    assert finish_button in response.text
     assert "item.continuation_release" in response.text
     assert "item.continuation_track" in response.text
     assert 'id="newWineNoDiscovery"' in response.text
@@ -123,6 +126,53 @@ def test_genre_reveal_source_preview(
 
     assert response.status_code == 200
     assert response.json()["source_playlist_id"] == "source"
+
+
+@pytest.mark.parametrize(
+    ("method", "target"),
+    [
+        ("get", "load_genre_reveal_state"),
+        ("put", "save_genre_reveal_state"),
+    ],
+)
+def test_genre_reveal_state_errors_are_reported(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    target: str,
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise genre_reveal.GenreRevealStateError("state unavailable")
+
+    monkeypatch.setattr(web.genre_reveal, target, fail)
+    if method == "get":
+        response = client.get("/genre-reveal/state")
+    else:
+        response = client.put(
+            "/genre-reveal/state",
+            json={"completed": [], "hide_done": False},
+        )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "state unavailable"
+
+
+def test_genre_reveal_source_error_is_reported(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise genre_reveal.GenreRevealSourceError("source unavailable")
+
+    monkeypatch.setattr(web.genre_reveal, "discover_genre_source", fail)
+
+    response = client.get(
+        "/genre-reveal/source",
+        params={"slug": "genre", "name": "Genre"},
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "source unavailable"
 
 
 def test_genre_reveal_run_marks_state_only_after_spotify_succeeds(
@@ -221,6 +271,86 @@ def test_genre_reveal_rate_limit_returns_promptly_and_releases_lock(
     assert "after trying all configured credentials" in response.json()["detail"]
     assert "in 2 minutes" in response.json()["detail"]
     assert web._genre_reveal_run_lock.locked() is False
+
+
+def test_genre_reveal_rejects_concurrent_and_completed_runs(
+    client: TestClient,
+) -> None:
+    assert web._genre_reveal_run_lock.acquire(blocking=False)
+    try:
+        busy = client.post(
+            "/genre-reveal/run-next",
+            json={"slug": "genre", "name": "Genre"},
+        )
+    finally:
+        web._genre_reveal_run_lock.release()
+
+    client.put(
+        "/genre-reveal/state",
+        json={"completed": ["genre"], "hide_done": False},
+    )
+    completed = client.post(
+        "/genre-reveal/run-next",
+        json={"slug": "genre", "name": "Genre"},
+    )
+
+    assert busy.status_code == 409
+    assert "already running" in busy.json()["detail"]
+    assert completed.status_code == 409
+    assert "already completed" in completed.json()["detail"]
+    assert web._genre_reveal_run_lock.locked() is False
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status"),
+    [
+        (genre_reveal.GenreRevealConfigError("missing setting"), 500),
+        (genre_reveal.GenreRevealStateError("state failed"), 500),
+        (genre_reveal.GenreRevealLogError("log failed"), 500),
+        (SpotifyException(400, -1, "bad request"), 400),
+        (SpotifyException(403, -1, "forbidden"), 403),
+        (SpotifyException(500, -1, "server failed"), 502),
+    ],
+)
+def test_genre_reveal_run_translates_operational_errors(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    expected_status: int,
+) -> None:
+    monkeypatch.setattr(
+        web,
+        "Settings",
+        lambda: SimpleNamespace(genre_reveal_playlist="destination"),
+    )
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(web.genre_reveal, "process_next_genre", fail)
+
+    response = client.post(
+        "/genre-reveal/run-next",
+        json={"slug": "genre", "name": "Genre"},
+    )
+
+    assert response.status_code == expected_status
+    assert web._genre_reveal_run_lock.locked() is False
+
+
+def test_favicon_and_server_entrypoint(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[object, str, int]] = []
+    monkeypatch.setattr(
+        "uvicorn.run",
+        lambda app, host, port: calls.append((app, host, port)),
+    )
+
+    assert client.get("/favicon.ico").status_code == 204
+    web.serve("127.0.0.1", 9000)
+    assert calls == [(web.app, "127.0.0.1", 9000)]
 
 
 def test_main_page_places_playlist_routines_in_expected_order(

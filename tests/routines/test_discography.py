@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from spotify_manager.routines import discography
+from spotify_manager.routines import new_wine
 
 
 def raw_release(
@@ -50,6 +51,32 @@ def catalog_release(
         plain=True,
         edition_rank=0,
         default=default,
+    )
+
+
+def playlist_track(
+    track_id: str,
+    artist_id: str,
+    artist_name: str,
+) -> new_wine.PlaylistTrack:
+    """Build one playlist marker for queue-loading tests."""
+    release = new_wine.ReleaseCandidate(
+        spotify_id=f"release-{track_id}",
+        uri=f"spotify:album:release-{track_id}",
+        name="Release",
+        release_type="Album",
+        release_date="2020-01-01",
+        total_tracks=10,
+        primary_artist_id=artist_id,
+        primary_artist_name=artist_name,
+    )
+    return new_wine.PlaylistTrack(
+        spotify_id=track_id,
+        uri=f"spotify:track:{track_id}",
+        name=track_id,
+        primary_artist_id=artist_id,
+        primary_artist_name=artist_name,
+        release=release,
     )
 
 
@@ -153,6 +180,66 @@ def test_new_state_starts_with_the_requeue(tmp_path: Path) -> None:
     assert discography._next_start_queue("requeue") == "memory_lane"
     assert discography._next_start_queue("memory_lane") == "newfoundland"
     assert discography._next_start_queue("newfoundland") == "requeue"
+
+
+def test_artist_queues_keep_first_seen_order_and_all_unique_markers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    playlists = {
+        "nf": [
+            playlist_track("a-1", "a", "Artist A"),
+            playlist_track("b-1", "b", "Artist B"),
+            playlist_track("a-1", "a", "Artist A"),
+            playlist_track("a-2", "a", "Artist A"),
+        ],
+        "ml": [playlist_track("a-3", "a", "Artist A")],
+        "rq": [],
+        "q3": [
+            playlist_track("a-4", "a", "Artist A"),
+            playlist_track("a-4", "a", "Artist A"),
+        ],
+    }
+    monkeypatch.setattr(
+        discography.new_wine,
+        "load_playlist_tracks",
+        lambda _spotify, playlist_id, _retry: playlists[playlist_id],
+    )
+
+    queues, markers = discography._load_artist_queues(
+        object(),  # type: ignore[arg-type]
+        {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
+        lambda operation, _description: operation(),
+        "q3",
+    )
+
+    assert [artist.spotify_id for artist in queues["newfoundland"]] == ["a", "b"]
+    assert queues["requeue"] == ()
+    assert [(marker.queue, marker.uris) for marker in markers["a"]] == [
+        ("newfoundland", ("spotify:track:a-1", "spotify:track:a-2")),
+        ("memory_lane", ("spotify:track:a-3",)),
+        ("queue_3", ("spotify:track:a-4",)),
+    ]
+
+
+@pytest.mark.parametrize("failing_playlist", ["nf", "q3"])
+def test_artist_queue_loading_translates_playlist_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    failing_playlist: str,
+) -> None:
+    def load(_spotify, playlist_id, _retry):
+        if playlist_id == failing_playlist:
+            raise new_wine.NewWineError("playlist unavailable")
+        return ()
+
+    monkeypatch.setattr(discography.new_wine, "load_playlist_tracks", load)
+
+    with pytest.raises(discography.DiscographyError, match="playlist unavailable"):
+        discography._load_artist_queues(
+            object(),  # type: ignore[arg-type]
+            {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
+            lambda operation, _description: operation(),
+            "q3",
+        )
 
 
 def test_plan_peruses_the_next_queue_for_an_artist_that_fits(

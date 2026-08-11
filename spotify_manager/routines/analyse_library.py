@@ -14,6 +14,7 @@ from pathlib import Path
 from time import sleep as default_sleep
 from typing import Any
 from typing import Literal
+from typing import cast
 
 from pydantic import BaseModel
 from requests.exceptions import ConnectionError as RequestsConnectionError
@@ -703,13 +704,38 @@ def live_mirror_resource_paths(
 def _live_resource_config(
     paths: LibraryAnalysisPaths,
     resource: ResourceName,
-) -> tuple[Path, type[LibraryModel], Callable[[LibraryModel], object]]:
+) -> tuple[
+    Path,
+    type[LibraryModel],
+    Callable[[LibraryModel], tuple[int, ...]],
+]:
     """Return the output path, model, and ordering key for one live mirror."""
     if resource == "albums":
-        return paths.albums_total, YourLibraryAlbum, album_sort_key
+        return cast(
+            tuple[
+                Path,
+                type[LibraryModel],
+                Callable[[LibraryModel], tuple[int, ...]],
+            ],
+            (paths.albums_total, YourLibraryAlbum, album_sort_key),
+        )
     if resource == "tracks":
-        return paths.liked_tracks_total, YourLibraryTrack, track_sort_key
-    return paths.artists_total, YourLibraryArtist, artist_sort_key
+        return cast(
+            tuple[
+                Path,
+                type[LibraryModel],
+                Callable[[LibraryModel], tuple[int, ...]],
+            ],
+            (paths.liked_tracks_total, YourLibraryTrack, track_sort_key),
+        )
+    return cast(
+        tuple[
+            Path,
+            type[LibraryModel],
+            Callable[[LibraryModel], tuple[int, ...]],
+        ],
+        (paths.artists_total, YourLibraryArtist, artist_sort_key),
+    )
 
 
 def finalize_live_mirror_resource(
@@ -774,7 +800,7 @@ def finalize_live_mirror_resource(
         manifest = load_json(backup_dir / "manifest.json")
         if not isinstance(manifest, dict):
             raise LibrarySyncError("The live-mirror backup manifest is invalid.")
-        summary = ResourceSyncSummary(**manifest["summaries"][0])
+        summary = ResourceSyncSummary(**cast(dict[str, Any], manifest)["summaries"][0])
 
     write_models(target, current)
     checkpoint["status"] = "complete"
@@ -1827,7 +1853,7 @@ def refresh_live_library_resource_routine(
             )
 
         if resource in {"albums", "tracks"}:
-            offset_resource: Literal["albums", "tracks"] = resource
+            offset_resource = cast(Literal["albums", "tracks"], resource)
             if rebuild:
                 sync_initial_offset_resource(
                     sp,

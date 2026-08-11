@@ -2,7 +2,6 @@
 
 # Standard Library
 import re
-import unicodedata
 
 from pyuca import Collator
 
@@ -11,26 +10,6 @@ from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
-
-
-latin_letters: dict = {}
-
-
-def is_latin(unicode_char: str) -> bool:
-    """Return whether a character is in the Latin subset of unicode."""
-    try:
-        return latin_letters[unicode_char]
-    except KeyError:
-        return latin_letters.setdefault(
-            unicode_char, "LATIN" in unicodedata.name(unicode_char)
-        )
-
-
-def is_all_latin(string: str) -> bool:
-    """Return whether a string is made up of only latin characters."""
-    return all(
-        is_latin(unicode_char) for unicode_char in string if unicode_char.isalpha()
-    )
 
 
 def get_ordering_string(album_name: str) -> str:

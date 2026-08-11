@@ -9,6 +9,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from time import sleep as default_sleep
+from typing import cast
 
 from spotipy import Spotify
 
@@ -341,11 +342,12 @@ def ensure_artists_followed(
 
     for artist_batch in chunked(list(distinct_artists.values()), ARTIST_BATCH_SIZE):
         artist_ids = [artist.spotify_id for artist in artist_batch]
-        statuses = list(
+        statuses = cast(
+            list[bool],
             retry_call(
                 partial(sp.current_user_following_artists, artist_ids),
                 f"checking {len(artist_ids)} credited artists",
-            )
+            ),
         )
         if len(statuses) != len(artist_batch):
             raise RuntimeError("Spotify returned an incomplete artist-follow response.")
@@ -517,7 +519,7 @@ def recover_removed_albums(
                 echo(
                     f"Album unavailable from Spotify: {record.album} - {record.artist}"
                 )
-                event = {
+                event: dict[str, object] = {
                     "event": "album_processed",
                     "processed_at": timestamp,
                     "status": "unavailable",

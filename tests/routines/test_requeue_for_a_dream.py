@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from spotify_manager.routines import requeue_for_a_dream
+from spotify_manager.routines import slow_listening
 
 
 def raw_release(
@@ -146,6 +147,17 @@ def configured_spotify() -> tuple[FakeSpotify, dict[str, object], dict[str, obje
     return spotify, first, second
 
 
+def test_playlist_reference_is_parsed_or_reported() -> None:
+    assert requeue_for_a_dream.parse_playlist_id("spotify:playlist:playlistid") == (
+        "playlistid"
+    )
+    with pytest.raises(
+        requeue_for_a_dream.RequeueForADreamConfigError,
+        match="not configured",
+    ):
+        requeue_for_a_dream.parse_playlist_id(None)
+
+
 def test_flush_adds_first_track_of_next_album_before_removing_source(
     tmp_path: Path,
 ) -> None:
@@ -273,3 +285,147 @@ def test_empty_playlist_is_a_no_op(tmp_path: Path) -> None:
     assert summary.playlist_length_before == 0
     assert summary.playlist_length_after == 0
     assert spotify.mutations == []
+
+
+def test_flush_reports_playlist_discography_and_track_loading_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spotify, _first, _second = configured_spotify()
+
+    monkeypatch.setattr(
+        requeue_for_a_dream.new_wine,
+        "load_playlist_tracks",
+        lambda *_args: (_ for _ in ()).throw(
+            requeue_for_a_dream.new_wine.NewWineError("playlist failed")
+        ),
+    )
+    with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="playlist"):
+        requeue_for_a_dream.flush_requeue_for_a_dream(
+            spotify,
+            "playlist",
+            log_path=tmp_path / "log.jsonl",
+        )
+
+    monkeypatch.undo()
+    spotify, _first, _second = configured_spotify()
+    monkeypatch.setattr(
+        requeue_for_a_dream.slow_listening,
+        "load_discography",
+        lambda *_args: (_ for _ in ()).throw(
+            slow_listening.SlowListeningError("discography failed")
+        ),
+    )
+    with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="discography"):
+        requeue_for_a_dream.flush_requeue_for_a_dream(
+            spotify,
+            "playlist",
+            log_path=tmp_path / "log.jsonl",
+        )
+
+    monkeypatch.undo()
+    spotify, _first, _second = configured_spotify()
+    monkeypatch.setattr(
+        requeue_for_a_dream.slow_listening,
+        "load_release_tracks",
+        lambda *_args: (_ for _ in ()).throw(
+            slow_listening.SlowListeningError("tracks failed")
+        ),
+    )
+    with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="tracks"):
+        requeue_for_a_dream.flush_requeue_for_a_dream(
+            spotify,
+            "playlist",
+            log_path=tmp_path / "log.jsonl",
+        )
+
+
+def test_flush_skips_ineligible_current_or_empty_next_release(
+    tmp_path: Path,
+) -> None:
+    spotify, first, _second = configured_spotify()
+    unknown = raw_release("unknown", "Unknown", release_date="2019-01-01")
+    spotify.playlist = [raw_track("unknown-track", "Unknown", unknown)]
+
+    ineligible = requeue_for_a_dream.flush_requeue_for_a_dream(
+        spotify,
+        "playlist",
+        log_path=tmp_path / "ineligible.jsonl",
+    )
+
+    assert ineligible.action == "skip"
+    assert "not an eligible" in str(ineligible.reason)
+
+    spotify, _first, _second = configured_spotify()
+    spotify.release_tracks["r2"] = []
+    no_tracks = requeue_for_a_dream.flush_requeue_for_a_dream(
+        spotify,
+        "playlist",
+        log_path=tmp_path / "empty-release.jsonl",
+    )
+    assert no_tracks.action == "skip"
+    assert no_tracks.target_release == "Second"
+    assert "no playable tracks" in str(no_tracks.reason)
+    assert first["name"] == "First"
+
+
+def test_flush_emits_progress_and_wraps_recheck_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spotify, _first, _second = configured_spotify()
+    progress: list[str] = []
+
+    summary = requeue_for_a_dream.flush_requeue_for_a_dream(
+        spotify,
+        "playlist",
+        log_path=tmp_path / "log.jsonl",
+        progress_callback=progress.append,
+    )
+
+    assert summary.action == "advance"
+    assert progress == [
+        "Loading Requeue for a Dream",
+        "Loading Artist's discography",
+        "Loading Second",
+        "Rechecking the playlist head",
+    ]
+
+    spotify, _first, _second = configured_spotify()
+    original = requeue_for_a_dream.new_wine.load_playlist_tracks
+    calls = 0
+
+    def fail_second(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise requeue_for_a_dream.new_wine.NewWineError("recheck failed")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        requeue_for_a_dream.new_wine,
+        "load_playlist_tracks",
+        fail_second,
+    )
+    with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="recheck"):
+        requeue_for_a_dream.flush_requeue_for_a_dream(
+            spotify,
+            "playlist",
+            log_path=tmp_path / "second.jsonl",
+        )
+
+
+def test_log_write_failure_is_reported(tmp_path: Path) -> None:
+    spotify, _first, _second = configured_spotify()
+    blocked = tmp_path / "blocked"
+    blocked.write_text("file")
+
+    with pytest.raises(
+        requeue_for_a_dream.RequeueForADreamLogError,
+        match="Could not write",
+    ):
+        requeue_for_a_dream.flush_requeue_for_a_dream(
+            spotify,
+            "playlist",
+            log_path=blocked / "log.jsonl",
+        )

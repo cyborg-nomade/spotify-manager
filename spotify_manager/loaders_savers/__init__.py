@@ -15,7 +15,6 @@ from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
-from spotify_manager.models.your_library import YourLibraryTrack
 
 
 # Album track lists fetched from the API are cached here so repeated album
@@ -25,8 +24,14 @@ ALBUM_TRACKS_CACHE_PATH = (
     Path(__file__).resolve().parent.parent / "files" / "album_tracks_cache.json"
 )
 FILES_PATH = Path(__file__).resolve().parent.parent / "files"
-LIKED_TRACKS_TOTAL_PATH = FILES_PATH / "liked_tracks_total.json"
-LIKED_TRACKS_LEGACY_PATH = FILES_PATH / "liked_tracks.json"
+CONTROL_FILE_PATH = FILES_PATH / "control_file.json"
+TOTAL_ALBUMS_PATH = FILES_PATH / "albums_total.json"
+TOTAL_ALBUMS_NEW_PATH = FILES_PATH / "albums_total_new.json"
+YOUR_LIBRARY_PATH = FILES_PATH / "YourLibrary.json"
+COMPARISON_PATH = FILES_PATH / "comparison.json"
+TOTAL_ARTISTS_PATH = FILES_PATH / "artists_total.json"
+STATS_HISTORY_PATH = FILES_PATH / "stats_history.json"
+STATS_FILE_PATH = FILES_PATH / "stats_file.json"
 
 
 def serialize_model_list(model_list: Sequence[BaseModel]) -> list[dict]:
@@ -55,9 +60,7 @@ def save_album_tracks_cache(cache: dict[str, list[dict]]) -> None:
 def load_control_file() -> list[ControlFileItem]:
     """Load control file."""
     print("Loading control file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/control_file.json",
-    ) as control_file:
+    with open(CONTROL_FILE_PATH) as control_file:
         result_dict = json.load(control_file)
         print("OK!")
         return [ControlFileItem.model_validate(s) for s in result_dict]
@@ -65,9 +68,7 @@ def load_control_file() -> list[ControlFileItem]:
 
 def load_total_albums_file() -> list[SimplifiedAlbum]:
     """Load total albums file."""
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/albums_total.json",
-    ) as main_file:
+    with open(TOTAL_ALBUMS_PATH) as main_file:
         print("Loading Total Albums file")
         result_dict = json.load(main_file)
         print("Done.")
@@ -76,9 +77,7 @@ def load_total_albums_file() -> list[SimplifiedAlbum]:
 
 def load_total_albums_new_file() -> list[YourLibraryAlbum]:
     """Load total albums file."""
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/albums_total_new.json",
-    ) as main_file:
+    with open(TOTAL_ALBUMS_NEW_PATH) as main_file:
         print("Loading Total Albums file")
         result_dict = json.load(main_file)
         print("Done.")
@@ -87,9 +86,7 @@ def load_total_albums_new_file() -> list[YourLibraryAlbum]:
 
 def load_your_library_file() -> YourLibraryFile:
     """Load your library file."""
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/YourLibrary.json",
-    ) as main_file:
+    with open(YOUR_LIBRARY_PATH) as main_file:
         print("Loading Your Library file..")
         result_dict = json.load(main_file)
         print("Done.")
@@ -98,43 +95,23 @@ def load_your_library_file() -> YourLibraryFile:
 
 def load_comparison_file() -> dict:
     """."""
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/comparison.json",
-    ) as main_file:
+    with open(COMPARISON_PATH) as main_file:
         result_dict = json.load(main_file)
         return result_dict
 
 
 def load_total_artists_file() -> list[YourLibraryArtist]:
     """Load total artists file."""
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/artists_total.json",
-    ) as main_file:
+    with open(TOTAL_ARTISTS_PATH) as main_file:
         print("Loading total artists file..")
         result_dict = json.load(main_file)
         print("Done.")
         return [YourLibraryArtist.model_validate(a) for a in result_dict]
 
 
-def load_liked_tracks_file() -> list[YourLibraryTrack]:
-    """Load the live mirror, falling back to the legacy/export-derived file."""
-    source_path = (
-        LIKED_TRACKS_TOTAL_PATH
-        if LIKED_TRACKS_TOTAL_PATH.exists()
-        else LIKED_TRACKS_LEGACY_PATH
-    )
-    with open(source_path) as main_file:
-        print("Loading liked tracks file..")
-        result_dict = json.load(main_file)
-        print("Done.")
-        return [YourLibraryTrack.model_validate(t) for t in result_dict]
-
-
 def load_stats_history_file() -> dict[str, StatsReport]:
     """Load liked tracks file."""
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/stats_history.json",
-    ) as main_file:
+    with open(STATS_HISTORY_PATH) as main_file:
         print("Loading liked tracks file..")
         result_dict: dict = json.load(main_file)
         print("Done.")
@@ -145,10 +122,7 @@ def load_stats_history_file() -> dict[str, StatsReport]:
 def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]) -> None:
     """Save total albums file."""
     print("Saving total albums file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/albums_total.json",
-        "w",
-    ) as main_file:
+    with open(TOTAL_ALBUMS_PATH, "w") as main_file:
         json.dump(
             serialize_model_list(total_albums_file_items), main_file, ensure_ascii=False
         )
@@ -158,10 +132,7 @@ def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]) -> No
 def save_total_albums_new_file(total_albums_file_items: list[YourLibraryAlbum]) -> None:
     """Save total albums file."""
     print("Saving total albums file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/albums_total_new.json",
-        "w",
-    ) as main_file:
+    with open(TOTAL_ALBUMS_NEW_PATH, "w") as main_file:
         json.dump(
             serialize_model_list(total_albums_file_items), main_file, ensure_ascii=False
         )
@@ -171,24 +142,9 @@ def save_total_albums_new_file(total_albums_file_items: list[YourLibraryAlbum]) 
 def save_total_artists_file(total_artists_file_items: list[YourLibraryArtist]) -> None:
     """Save total artists file."""
     print("Saving total artists file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/artists_total.json",
-        "w",
-    ) as main_file:
+    with open(TOTAL_ARTISTS_PATH, "w") as main_file:
         json.dump(
             serialize_model_list(total_artists_file_items),
-            main_file,
-            ensure_ascii=False,
-        )
-        print("OK!")
-
-
-def save_liked_tracks_file(liked_tracks_file_items: list[YourLibraryTrack]) -> None:
-    """Save the canonical liked-tracks mirror."""
-    print("Saving liked tracks file...")
-    with open(LIKED_TRACKS_TOTAL_PATH, "w") as main_file:
-        json.dump(
-            serialize_model_list(liked_tracks_file_items),
             main_file,
             ensure_ascii=False,
         )
@@ -198,10 +154,7 @@ def save_liked_tracks_file(liked_tracks_file_items: list[YourLibraryTrack]) -> N
 def save_control_file(control_file_items: list[ControlFileItem]) -> None:
     """Save total albums file."""
     print("Saving control file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/control_file.json",
-        "w",
-    ) as main_file:
+    with open(CONTROL_FILE_PATH, "w") as main_file:
         json.dump(
             serialize_model_list(control_file_items), main_file, ensure_ascii=False
         )
@@ -211,10 +164,7 @@ def save_control_file(control_file_items: list[ControlFileItem]) -> None:
 def save_stats_file(stats_file_items: StatsFileItem) -> None:
     """Save total albums file."""
     print("Saving stats file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/stats_file.json",
-        "w",
-    ) as main_file:
+    with open(STATS_FILE_PATH, "w") as main_file:
         json.dump(stats_file_items.model_dump(), main_file, ensure_ascii=False)
         print("OK!")
 
@@ -222,10 +172,7 @@ def save_stats_file(stats_file_items: StatsFileItem) -> None:
 def save_stats_history(stats_history: dict[str, StatsReport]) -> None:
     """Save total albums file."""
     print("Saving stats file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/stats_history.json",
-        "w",
-    ) as main_file:
+    with open(STATS_HISTORY_PATH, "w") as main_file:
         serialized_dict = {k: v.model_dump() for k, v in stats_history.items()}
         json.dump(serialized_dict, main_file, ensure_ascii=False)
         print("OK!")
@@ -234,9 +181,6 @@ def save_stats_history(stats_history: dict[str, StatsReport]) -> None:
 def save_comparison_file(comparison_dict: dict) -> None:
     """."""
     print("Saving comparison file...")
-    with open(
-        "/Users/uriel.fiori/dev/spotify-manager/spotify_manager/files/comparison.json",
-        "w",
-    ) as main_file:
+    with open(COMPARISON_PATH, "w") as main_file:
         json.dump(comparison_dict, main_file, ensure_ascii=False)
         print("OK!")

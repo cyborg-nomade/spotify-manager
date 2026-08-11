@@ -131,58 +131,6 @@ def _all_items(sp: Spotify, page: object) -> list[dict]:
         page = sp.next(page)
 
 
-def resolve_artist(
-    library: YourLibraryFile,
-    name: str | None = None,
-    artist_id: str | None = None,
-) -> tuple[str | None, str]:
-    """Resolve an artist to ``(artist_id, artist_name)`` from the library.
-
-    Track and album entries in the export carry only artist *names*, so the
-    returned name is what counting is keyed on. ``artist_id`` is returned when
-    the artist is among the followed artists (which do carry ids).
-    """
-    if not name and not artist_id:
-        raise ValueError("provide an artist name or artist_id")
-
-    if artist_id:
-        for artist in library.artists:
-            if artist.spotify_id == artist_id:
-                return artist_id, artist.name
-        raise ArtistNotFoundError(
-            f"Artist id {artist_id!r} is not among your followed artists"
-        )
-
-    assert name is not None
-    for artist in library.artists:
-        if _norm(artist.name) == _norm(name):
-            return artist.spotify_id, artist.name
-    # Not followed, but tracks/albums can still be counted by name.
-    return None, name
-
-
-def get_artist_library_stats(
-    name: str | None = None,
-    artist_id: str | None = None,
-    library: YourLibraryFile | None = None,
-) -> ArtistLibraryStats:
-    """Return liked-track and saved-release counts for an artist (local only)."""
-    lib = _load_library(library)
-    resolved_id, resolved_name = resolve_artist(lib, name=name, artist_id=artist_id)
-    target = _norm(resolved_name)
-
-    liked = sum(1 for track in lib.tracks if _norm(track.artist) == target)
-    releases = sum(1 for album in lib.albums if _norm(album.artist) == target)
-
-    return ArtistLibraryStats(
-        artist_name=resolved_name,
-        artist_id=resolved_id,
-        liked_tracks=liked,
-        saved_releases=releases,
-        source="files",
-    )
-
-
 def _spotify_artist_identity(raw: object) -> tuple[str, str] | None:
     """Return a Spotify artist id/name pair from one response object."""
     if not isinstance(raw, dict):

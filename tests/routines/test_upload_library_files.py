@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from huggingface_hub import CommitOperationAdd
 from huggingface_hub import CommitOperationDelete
 
@@ -151,3 +152,144 @@ def test_invalid_export_is_rejected_before_upload(tmp_path: Path) -> None:
         assert "not valid JSON" in str(exc)
     else:
         raise AssertionError("invalid JSON should fail validation")
+
+
+def test_prepare_rejects_missing_wrong_shape_and_empty_selection(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(
+        upload_library_files.LibraryFilesUploadError,
+        match="does not exist",
+    ):
+        upload_library_files.prepare_library_files_upload(
+            include_lastfm=False,
+            files_dir=tmp_path,
+        )
+
+    write_json(
+        tmp_path / upload_library_files.YOUR_LIBRARY_FILENAME,
+        {"tracks": "not-a-list"},
+    )
+    with pytest.raises(
+        upload_library_files.LibraryFilesUploadError,
+        match="must contain",
+    ):
+        upload_library_files.prepare_library_files_upload(
+            include_lastfm=False,
+            files_dir=tmp_path,
+        )
+
+    with pytest.raises(
+        upload_library_files.LibraryFilesUploadError,
+        match="at least one",
+    ):
+        upload_library_files.prepare_library_files_upload(
+            include_your_library=False,
+            include_lastfm=False,
+            files_dir=tmp_path,
+        )
+
+
+def test_prepare_reports_unreadable_export(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / upload_library_files.YOUR_LIBRARY_FILENAME
+    write_json(source, {"tracks": []})
+    original_read_bytes = Path.read_bytes
+
+    def fail_selected(path: Path) -> bytes:
+        if path == source:
+            raise OSError("permission denied")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", fail_selected)
+
+    with pytest.raises(
+        upload_library_files.LibraryFilesUploadError,
+        match="Could not read export",
+    ):
+        upload_library_files.prepare_library_files_upload(
+            include_lastfm=False,
+            files_dir=tmp_path,
+        )
+
+
+def test_part_suffix_rejects_unrepresentable_indexes() -> None:
+    with pytest.raises(upload_library_files.LibraryFilesUploadError, match="too many"):
+        upload_library_files._part_suffix(-1)
+    with pytest.raises(upload_library_files.LibraryFilesUploadError, match="too many"):
+        upload_library_files._part_suffix(26 * 26)
+
+
+def test_materialize_is_noop_without_parts(tmp_path: Path) -> None:
+    plan = upload_library_files.LibraryFilesUploadPlan(
+        repo_id="repo",
+        revision="main",
+        resources=(),
+        lastfm_parts=(),
+    )
+
+    upload_library_files.materialize_lastfm_parts(plan)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_materialize_reports_filesystem_failure(tmp_path: Path) -> None:
+    blocked = tmp_path / "blocked"
+    blocked.write_text("file")
+    plan = upload_library_files.LibraryFilesUploadPlan(
+        repo_id="repo",
+        revision="main",
+        resources=(),
+        lastfm_parts=(
+            upload_library_files.GeneratedPart(
+                local_path=blocked / "part-aa",
+                path_in_repo="files/part-aa",
+                content=b"content",
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        upload_library_files.LibraryFilesUploadError,
+        match="Could not update",
+    ):
+        upload_library_files.materialize_lastfm_parts(plan)
+
+
+@pytest.mark.parametrize("failure_stage", ["list", "commit", "url"])
+def test_upload_reports_hugging_face_failures(
+    tmp_path: Path,
+    failure_stage: str,
+) -> None:
+    source = tmp_path / upload_library_files.YOUR_LIBRARY_FILENAME
+    write_json(source, {"tracks": []})
+    plan = upload_library_files.prepare_library_files_upload(
+        include_lastfm=False,
+        files_dir=tmp_path,
+    )
+
+    class FailingApi(FakeHfApi):
+        def list_repo_files(self, **_kwargs: object) -> list[str]:
+            if failure_stage == "list":
+                raise RuntimeError("cannot list")
+            return []
+
+        def create_commit(self, **_kwargs: object) -> SimpleNamespace:
+            if failure_stage == "commit":
+                raise RuntimeError("cannot commit")
+            if failure_stage == "url":
+                return SimpleNamespace(commit_url=None)
+            return SimpleNamespace(commit_url="https://example.test/commit")
+
+    expected = {
+        "list": "Could not read files",
+        "commit": "HF upload",
+        "url": "did not return a commit URL",
+    }[failure_stage]
+    with pytest.raises(upload_library_files.LibraryFilesUploadError, match=expected):
+        upload_library_files.upload_library_files(
+            plan,
+            api=FailingApi(),  # type: ignore[arg-type]
+        )

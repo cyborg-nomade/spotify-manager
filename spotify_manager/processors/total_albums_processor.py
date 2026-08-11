@@ -55,9 +55,7 @@ def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAl
                 )
 
         for index, album in enumerate(albums):
-            if not album:
-                print(index)
-            if not album["album"]:
+            if not album or not album.get("album"):
                 print(index)
 
         simplified_albums = [

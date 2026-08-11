@@ -2,7 +2,9 @@
 
 from types import SimpleNamespace
 
+import pytest
 from rich.console import Console
+from spotipy.exceptions import SpotifyException
 from typer.testing import CliRunner
 
 from spotify_manager import main
@@ -144,3 +146,168 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
     assert "Dry run: 1/1 processed" in result.output
     assert "Current" in result.output
     assert "Next" in result.output
+
+
+def test_flush_new_wine_renders_detailed_results_and_refill(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            new_wine_from_old_bottles_playlist="new",
+            sauvignon_terre_neuve_playlist="sauvignon",
+            wine_cellar_playlist="cellar",
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", lambda: object())
+
+    def flush(*_args, **kwargs):
+        for message in (
+            "Added track",
+            "Moved track",
+            "Removed track",
+            "Would add track",
+            "No eligible track",
+            "Source already removed",
+            "Skipping duplicate",
+        ):
+            kwargs["echo"](message)
+        kwargs["progress_callback"](1, 1, "Complete")
+        return main.new_wine.FlushSummary(
+            run_id="run",
+            total=1,
+            processed=1,
+            advanced=0,
+            dropped=1,
+            sent_to_sauvignon=0,
+            completed_singles=0,
+            skipped=0,
+            albums_unsaved=1,
+            paused=True,
+            dry_run=False,
+            resumed=True,
+            results=(
+                main.new_wine.FlushResult(
+                    source_track="Current",
+                    artist="Artist",
+                    release="Album",
+                    release_type="Album",
+                    current_liked=False,
+                    consecutive_unliked=3,
+                    action="drop",
+                    album_unsaved=True,
+                    advance_reason="next_liked_track",
+                    drop_reason="manual_selection",
+                    continuation_release="Next Album",
+                    continuation_track="Next Track",
+                ),
+            ),
+            refill=main.new_wine.CellarRefillSummary(
+                target_size=10,
+                before=8,
+                after=9,
+                added=1,
+                removed_from_cellar=1,
+                ineligible=1,
+                no_discovery=True,
+                results=(
+                    main.new_wine.CellarRefillResult(
+                        source_track="Cellar Track",
+                        artist="Cellar Artist",
+                        action="moved",
+                        liked_tracks=18,
+                        saved_albums=3,
+                    ),
+                    main.new_wine.CellarRefillResult(
+                        source_track="Hidden",
+                        artist="Hidden Artist",
+                        action="ineligible",
+                    ),
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", flush)
+
+    main.flush_new_wine_command(dry_run=False, no_discovery=True)
+
+    output = capsys.readouterr().out
+    assert "chosen" in output
+    assert "Wine Cellar (no-discovery)" in output
+    assert "Resumed the previously saved flush" in output
+    assert "Flush paused" in output
+
+
+@pytest.mark.parametrize(
+    ("error", "exit_code", "message"),
+    [
+        (
+            main.review_album_limits.SpotifyRateLimitError(120),
+            0,
+            "rate limit reached",
+        ),
+        (
+            main.review_album_limits.SpotifyTransientServerError(
+                502,
+                "loading playlist",
+                3,
+            ),
+            0,
+            "temporarily unavailable",
+        ),
+        (main.new_wine.NewWineError("state failed"), 1, "state failed"),
+        (SpotifyException(500, -1, "server failed"), 1, "HTTP 500"),
+        (KeyboardInterrupt(), 0, "flush paused"),
+    ],
+)
+def test_flush_new_wine_reports_operational_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: BaseException,
+    exit_code: int,
+    message: str,
+) -> None:
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            new_wine_from_old_bottles_playlist="new",
+            sauvignon_terre_neuve_playlist="sauvignon",
+            wine_cellar_playlist="cellar",
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", lambda: object())
+
+    def fail(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", fail)
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.flush_new_wine_command(dry_run=False, no_discovery=False)
+
+    assert exc.value.exit_code == exit_code
+    assert message.casefold() in capsys.readouterr().out.casefold()
+
+
+def test_flush_new_wine_reports_missing_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            new_wine_from_old_bottles_playlist=None,
+            sauvignon_terre_neuve_playlist=None,
+            wine_cellar_playlist=None,
+        ),
+    )
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.flush_new_wine_command(dry_run=False, no_discovery=False)
+
+    assert exc.value.exit_code == 1
+    assert "not configured" in capsys.readouterr().out

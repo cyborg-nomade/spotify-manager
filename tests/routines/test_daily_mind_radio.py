@@ -121,13 +121,10 @@ def test_anniversary_dates_follow_previous_year_then_five_year_steps() -> None:
 
 
 def test_anniversary_dates_skip_invalid_february_29() -> None:
-    assert (
-        daily_mind_radio.anniversary_dates(
-            date(2028, 2, 29),
-            earliest_year=2007,
-        )
-        == (date(2012, 2, 29),)
-    )
+    assert daily_mind_radio.anniversary_dates(
+        date(2028, 2, 29),
+        earliest_year=2007,
+    ) == (date(2012, 2, 29),)
 
 
 def test_selection_skips_missing_dates_and_uses_one_timestamp(
@@ -144,6 +141,7 @@ def test_selection_skips_missing_dates_and_uses_one_timestamp(
     )
     generated_at = datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC)
     calls = 0
+    progress: list[str] = []
 
     def timestamp() -> datetime:
         nonlocal calls
@@ -154,6 +152,7 @@ def test_selection_skips_missing_dates_and_uses_one_timestamp(
         path=export_path,
         today=date(2026, 7, 22),
         random_timestamp_reader=timestamp,
+        progress_callback=progress.append,
     )
 
     assert calls == 1
@@ -167,6 +166,21 @@ def test_selection_skips_missing_dates_and_uses_one_timestamp(
         "Track 2025",
         "Track 2015",
     ]
+    assert progress == [
+        "Loading Last.fm scrobbles",
+        "Requesting a selection timestamp from Random.org",
+        "Applying Last.fm pagination rules",
+    ]
+
+
+def test_selection_rejects_an_empty_export(
+    tmp_path: Path,
+) -> None:
+    export_path = tmp_path / "lastfm.json"
+    write_export(export_path, [])
+
+    with pytest.raises(blast_from_past.LastFmExportError, match="does not contain"):
+        daily_mind_radio.select_daily_mind_radio(path=export_path)
 
 
 def test_no_populated_dates_skips_random_org(tmp_path: Path) -> None:
@@ -231,6 +245,7 @@ def test_spotify_routine_reuses_liked_match_preference(
         ),
     ]
     sp.liked_ids = {"liked"}
+    progress: list[str] = []
     monkeypatch.setattr(
         daily_mind_radio,
         "select_daily_mind_radio",
@@ -240,6 +255,7 @@ def test_spotify_routine_reuses_liked_match_preference(
     summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
         sp,  # type: ignore[arg-type]
         "daily",
+        progress_callback=progress.append,
     )
 
     assert summary.added == 1
@@ -248,6 +264,8 @@ def test_spotify_routine_reuses_liked_match_preference(
     assert summary.results[0].match is not None
     assert summary.results[0].match.spotify_id == "liked"
     assert sp.posts == [("playlists/daily/items", {"uris": ["spotify:track:liked"]})]
+    assert "Loading the Spotify playlist" in progress
+    assert "Adding 1 tracks to Spotify" in progress
 
 
 def test_spotify_routine_avoids_api_calls_when_all_dates_are_empty(

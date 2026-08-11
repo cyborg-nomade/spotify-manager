@@ -1,18 +1,20 @@
 """Tests for local and live artist-stats and album-evaluation lookups."""
 
+from types import SimpleNamespace
+
 import pytest
+from spotipy.exceptions import SpotifyException
 
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
+from spotify_manager.processors import library_lookups
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
 from spotify_manager.processors.library_lookups import AmbiguousArtistError
-from spotify_manager.processors.library_lookups import ArtistNotFoundError
 from spotify_manager.processors.library_lookups import evaluate_album
 from spotify_manager.processors.library_lookups import evaluate_album_live
-from spotify_manager.processors.library_lookups import get_artist_library_stats
 from spotify_manager.processors.library_lookups import get_live_artist_library_stats
 from spotify_manager.processors.library_lookups import parse_spotify_lookup_reference
 from spotify_manager.processors.library_lookups import required_liked_tracks
@@ -87,6 +89,107 @@ def test_parse_spotify_lookup_reference_rejects_wrong_share_link_type() -> None:
         parse_spotify_lookup_reference(
             "https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb",
             "album",
+        )
+
+
+@pytest.mark.parametrize(
+    "reference",
+    ["", "spotify:artist:not-an-id"],
+)
+def test_parse_spotify_lookup_reference_rejects_empty_and_invalid_uri(
+    reference: str,
+) -> None:
+    with pytest.raises(ValueError):
+        parse_spotify_lookup_reference(reference, "artist")
+
+
+def test_paginated_items_validate_pages_and_progress() -> None:
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups._all_items(object(), None)  # type: ignore[arg-type]
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups._all_items(object(), {})  # type: ignore[arg-type]
+    with pytest.raises(library_lookups.SpotifyLookupResponseError, match="empty"):
+        library_lookups._all_items(
+            object(),  # type: ignore[arg-type]
+            {"items": [], "next": "next"},
+        )
+
+    spotify = SimpleNamespace(next=lambda _page: {"items": [{"id": "two"}]})
+    assert library_lookups._all_items(
+        spotify,  # type: ignore[arg-type]
+        {"items": [{"id": "one"}, None], "next": "next"},
+    ) == [{"id": "one"}, {"id": "two"}]
+
+
+def test_live_artist_resolution_validates_direct_and_search_responses() -> None:
+    with pytest.raises(ValueError):
+        library_lookups.resolve_live_artist(object())  # type: ignore[arg-type]
+
+    missing = SimpleNamespace(
+        artist=lambda _artist_id: (_ for _ in ()).throw(
+            SpotifyException(404, -1, "missing")
+        )
+    )
+    with pytest.raises(library_lookups.ArtistNotFoundError):
+        library_lookups.resolve_live_artist(missing, artist_id="missing")  # type: ignore[arg-type]
+
+    malformed = SimpleNamespace(artist=lambda _artist_id: {"id": "artist"})
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups.resolve_live_artist(malformed, artist_id="artist")  # type: ignore[arg-type]
+
+    invalid_search = SimpleNamespace(search=lambda **_kwargs: {})
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups.resolve_live_artist(invalid_search, name="Artist")  # type: ignore[arg-type]
+
+    no_exact_match = SimpleNamespace(
+        search=lambda **_kwargs: {
+            "artists": {"items": [None, {"id": "other", "name": "Other"}]}
+        }
+    )
+    with pytest.raises(library_lookups.ArtistNotFoundError):
+        library_lookups.resolve_live_artist(no_exact_match, name="Artist")  # type: ignore[arg-type]
+
+
+def test_live_catalog_helpers_reject_malformed_pagination_and_statuses() -> None:
+    malformed_releases = SimpleNamespace(artist_albums=lambda *_args, **_kwargs: {})
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups._live_artist_release_ids(
+            malformed_releases,  # type: ignore[arg-type]
+            "artist",
+        )
+
+    stalled_releases = SimpleNamespace(
+        artist_albums=lambda *_args, **_kwargs: {"items": [], "next": "next"}
+    )
+    with pytest.raises(library_lookups.SpotifyLookupResponseError, match="empty"):
+        library_lookups._live_artist_release_ids(
+            stalled_releases,  # type: ignore[arg-type]
+            "artist",
+        )
+
+    malformed_albums = SimpleNamespace(albums=lambda _ids: {})
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups._live_primary_track_ids(
+            malformed_albums,  # type: ignore[arg-type]
+            "artist",
+            ["album"],
+        )
+
+    malformed_tracks = SimpleNamespace(
+        albums=lambda _ids: {"albums": [{"tracks": None}]}
+    )
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups._live_primary_track_ids(
+            malformed_tracks,  # type: ignore[arg-type]
+            "artist",
+            ["album"],
+        )
+
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups._count_live_contains(
+            ["one"],
+            lambda _ids: [],
+            "Liked Songs",
         )
 
 
@@ -219,26 +322,6 @@ class LiveFakeSpotify:
         return [track_id in {"t1", "shared"} for track_id in track_ids]
 
 
-def test_artist_stats_by_name() -> None:
-    stats = get_artist_library_stats(name="radiohead ", library=_library())
-    assert stats.artist_id == "art1"
-    assert stats.artist_name == "Radiohead"
-    assert stats.liked_tracks == 2
-    assert stats.saved_releases == 2
-    assert stats.source == "files"
-
-
-def test_artist_stats_by_id_resolves_name() -> None:
-    stats = get_artist_library_stats(artist_id="art1", library=_library())
-    assert stats.artist_name == "Radiohead"
-    assert stats.liked_tracks == 2
-
-
-def test_artist_stats_unknown_id_raises() -> None:
-    with pytest.raises(ArtistNotFoundError):
-        get_artist_library_stats(artist_id="nope", library=_library())
-
-
 def test_live_artist_stats_use_live_saved_and_liked_statuses() -> None:
     sp = LiveFakeSpotify()
 
@@ -323,11 +406,111 @@ def test_live_album_evaluation_uses_fresh_liked_statuses() -> None:
     assert sp.contains_track_calls == [["t1", "guest", "shared"]]
 
 
+def test_live_album_resolution_validates_direct_lookup_failures() -> None:
+    with pytest.raises(ValueError):
+        library_lookups.resolve_live_album(object())  # type: ignore[arg-type]
+
+    missing = SimpleNamespace(
+        album=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            SpotifyException(404, -1, "missing")
+        )
+    )
+    with pytest.raises(AlbumNotFoundError):
+        library_lookups.resolve_live_album(missing, album_id="missing")  # type: ignore[arg-type]
+
+    malformed = SimpleNamespace(album=lambda *_args, **_kwargs: None)
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups.resolve_live_album(malformed, album_id="album")  # type: ignore[arg-type]
+
+
+def test_live_album_resolution_handles_search_ambiguity_and_filters() -> None:
+    invalid = SimpleNamespace(search=lambda **_kwargs: {})
+    with pytest.raises(library_lookups.SpotifyLookupResponseError):
+        library_lookups.resolve_live_album(invalid, name="Album")  # type: ignore[arg-type]
+
+    no_match = SimpleNamespace(
+        search=lambda **_kwargs: {
+            "albums": {
+                "items": [
+                    None,
+                    {"id": "other", "name": "Other", "artists": []},
+                    {
+                        "id": "wrong-artist",
+                        "name": "Album",
+                        "artists": [{"name": "Someone Else"}],
+                    },
+                ]
+            }
+        }
+    )
+    with pytest.raises(AlbumNotFoundError, match="by 'Artist'"):
+        library_lookups.resolve_live_album(
+            no_match,  # type: ignore[arg-type]
+            name="Album",
+            artist="Artist",
+        )
+
+    ambiguous = SimpleNamespace(
+        search=lambda **_kwargs: {
+            "albums": {
+                "items": [
+                    {
+                        "id": "one",
+                        "name": "Album",
+                        "artists": [{"name": "Artist"}],
+                    },
+                    {"id": "two", "name": "Album", "artists": [None]},
+                ]
+            }
+        }
+    )
+    with pytest.raises(AmbiguousAlbumError) as exc:
+        library_lookups.resolve_live_album(ambiguous, name="Album")  # type: ignore[arg-type]
+    assert {candidate["id"] for candidate in exc.value.candidates} == {"one", "two"}
+
+
+def test_live_album_resolution_rejects_incomplete_selected_album() -> None:
+    spotify = SimpleNamespace(
+        search=lambda **_kwargs: {
+            "albums": {"items": [{"id": "album", "name": "Album"}]}
+        }
+    )
+    assert library_lookups.resolve_live_album(
+        spotify,  # type: ignore[arg-type]
+        name="Album",
+    ) == ("album", "Album", None)
+
+    incomplete = SimpleNamespace(album=lambda *_args, **_kwargs: {"id": "album"})
+    with pytest.raises(library_lookups.SpotifyLookupResponseError, match="incomplete"):
+        library_lookups.resolve_live_album(
+            incomplete,  # type: ignore[arg-type]
+            album_id="album",
+        )
+
+
+def test_live_album_evaluation_rejects_misaligned_liked_statuses() -> None:
+    spotify = LiveFakeSpotify()
+    spotify.current_user_saved_tracks_contains = lambda _ids: []  # type: ignore[method-assign]
+
+    with pytest.raises(library_lookups.SpotifyLookupResponseError, match="Liked Songs"):
+        evaluate_album_live(spotify, album_id="alb1")
+
+
 def test_required_liked_tracks_keeps_non_empty_positive_threshold_meaningful() -> None:
+    assert required_liked_tracks(0, 0.5) == 1
     assert required_liked_tracks(5, 0.5) == 2
     assert required_liked_tracks(3, 0.5) == 1
     assert required_liked_tracks(1, 0.5) == 1
     assert required_liked_tracks(1, 0) == 0
+
+
+def test_local_album_resolution_validates_input_and_allows_unsaved_ids() -> None:
+    with pytest.raises(ValueError):
+        library_lookups.resolve_album(_library())
+    assert library_lookups.resolve_album(
+        _library(),
+        album_id="unsaved",
+    ) == ("unsaved", None, None)
 
 
 def test_evaluate_album_by_id() -> None:
