@@ -574,6 +574,12 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert "function enhanceControlPanels()" in response.text
     assert "function createTerminalTrigger(scope)" in response.text
     assert 'class="card blank-console-card" aria-hidden="true"' in response.text
+    assert ".discovery-grid > .blank-console-card" in response.text
+    assert ".blank-console-card { display: none; order: 8; }" in response.text
+    assert "grid-template-rows: repeat(7, auto) minmax(24px, 1fr)" in response.text
+    assert "grid-column: 6 / -1;\n      grid-row: 2 / span 3" in response.text
+    assert "grid-column: 1 / span 5;\n      grid-row: 3" in response.text
+    assert "grid-column: 1 / span 5;\n      grid-row: 4" in response.text
     assert "strip.appendChild(terminal);\n        strip.appendChild(command);" in (
         response.text
     )
