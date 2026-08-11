@@ -133,6 +133,10 @@ flush-new-kids *args:
 flush-queue-2 *args:
     {{ cli }} flush-queue-2 "$@"
 
+# Import last year's discoveries, then advance the first ten Queue 3 artists.
+flush-queue-3 *args:
+    {{ cli }} flush-queue-3 "$@"
+
 # Advance the first two Slow Listening tracks through studio releases.
 flush-slow-listening *args:
     {{ cli }} flush-slow-listening "$@"

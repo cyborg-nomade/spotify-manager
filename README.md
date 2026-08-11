@@ -654,6 +654,63 @@ POST /commands/flush-queue-2-jobs/{job_id}/choice
 POST /commands/flush-queue-2-jobs/{job_id}/cancel
 ```
 
+### `flush-queue-3`
+
+Advances the first 10 unique artists in *The Queue 3* once through their studio
+discographies. Configure `THE_QUEUE_3_PLAYLIST` with a Spotify URL, URI, or id.
+Tracks advance automatically in Spotify disc and track order. At a release
+boundary, the CLI shows the completed and next chronological album or EP for
+confirmation, then applies the usual live 50% liked-track decision to save or
+unsave the completed release. Saved editions are preferred over plain editions,
+and plain editions over decorated reissues. Singles, live releases, and
+compilations are excluded.
+
+For composers with an ordered works playlist, Queue 3 looks only among
+playlists owned by the authenticated Spotify user for a title containing the
+composer's full name or surname. One match is used automatically; ambiguous
+owned matches are prompted once and the selection is persisted. The routine
+then advances in the playlist's literal Spotify order, retaining the composer
+identity even when Spotify credits a performer as the next track's primary
+artist.
+
+At the start of the first run in each calendar year, the command finds the
+playlist named exactly `Great Discoveries PREVIOUS_YEAR` among the user's owned
+Spotify playlists and appends one existing marker for every artist not already
+represented in Queue 3. The completed import year is persisted, while partial
+imports remain idempotent because membership is checked by primary artist.
+
+Preview the annual import and ten artist transitions:
+
+```console
+uv run spotify-manager flush-queue-3 --dry-run
+just flush-queue-3 --dry-run
+```
+
+Apply them:
+
+```console
+uv run spotify-manager flush-queue-3
+just flush-queue-3
+```
+
+The replacement track is added before the previous marker is removed. Reaching
+the final track of the final eligible release removes the artist from Queue 3.
+Runs checkpoint after every completed artist in
+`spotify_manager/files/queue_3_state.json`; annual imports and transitions are
+recorded in `spotify_manager/files/queue_3_log.jsonl`.
+
+The web app exposes the same reconnectable dry-run and live workflow, including
+release-boundary confirmations, owned composer-playlist choices, progress, and
+logs:
+
+```text
+POST /commands/flush-queue-3?dry_run=true
+GET  /commands/flush-queue-3-jobs
+GET  /commands/flush-queue-3-jobs/{job_id}
+POST /commands/flush-queue-3-jobs/{job_id}/choice
+POST /commands/flush-queue-3-jobs/{job_id}/cancel
+```
+
 ### `flush-new-wine`
 
 Advances every track present at the start of a *New Wine from Old Bottles*
@@ -861,9 +918,11 @@ just plan-discographies --dry-run
 ```
 
 Without `--dry-run`, a final confirmation removes every marker track for the
-shown primary artists from all three source playlists. Each completed removal
-is logged in `spotify_manager/files/discography_routine_log.jsonl`, including
-the exact selected releases. The next queue is saved atomically in
+shown primary artists from all three source playlists. When an artist is
+removed from Newfoundland, any primary-artist markers in
+`THE_QUEUE_3_PLAYLIST` are removed in the same operation. Each completed
+removal is logged in `spotify_manager/files/discography_routine_log.jsonl`,
+including the exact selected releases. The next queue is saved atomically in
 `spotify_manager/files/discography_routine_state.json`.
 
 ```console

@@ -183,6 +183,20 @@ def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
             "d": "requeue",
         }.items()
     }
+    marker_map["a"] += (
+        discography.ArtistMarkers(
+            queue="queue_3",
+            playlist_id="q3",
+            uris=("spotify:track:a-q3",),
+        ),
+    )
+    marker_map["c"] += (
+        discography.ArtistMarkers(
+            queue="queue_3",
+            playlist_id="q3",
+            uris=("spotify:track:c-q3",),
+        ),
+    )
     counts = {"a": 4, "b": 8, "c": 6, "d": 2}
     prompted: list[str] = []
     monkeypatch.setattr(
@@ -217,6 +231,7 @@ def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
             "requeue": "rq",
         },
         select_defaults,
+        queue_3_playlist_id="q3",
         state_path=state_path,
     )
 
@@ -226,6 +241,8 @@ def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
     assert plan.open_slots == 0
     assert plan.next_queue == "requeue"
     assert prompted == ["a", "c"]
+    assert any(marker.queue == "queue_3" for marker in plan.artists[0].markers)
+    assert all(marker.queue != "queue_3" for marker in plan.artists[1].markers)
 
 
 class MutationSpotify:
@@ -258,6 +275,11 @@ def test_apply_removes_all_markers_logs_and_advances_priority(tmp_path: Path) ->
                 "ml",
                 ("spotify:track:ml",),
             ),
+            discography.ArtistMarkers(
+                "queue_3",
+                "q3",
+                ("spotify:track:q3",),
+            ),
         ),
     )
     plan = discography.DiscographyPlan(
@@ -281,9 +303,10 @@ def test_apply_removes_all_markers_logs_and_advances_priority(tmp_path: Path) ->
     assert spotify.deletions == [
         ("playlists/nf/items", ("spotify:track:nf",)),
         ("playlists/ml/items", ("spotify:track:ml",)),
+        ("playlists/q3/items", ("spotify:track:q3",)),
     ]
     assert summary.removed_artists == 1
-    assert summary.removed_markers == 2
+    assert summary.removed_markers == 3
     assert summary.next_queue == "memory_lane"
     assert json.loads(state_path.read_text())["next_queue"] == "memory_lane"
     record = json.loads(log_path.read_text())

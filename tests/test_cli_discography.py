@@ -48,12 +48,14 @@ def test_plan_discographies_dry_run_prints_fractional_days(monkeypatch) -> None:
             discography_newfoundland_playlist="nf",
             discography_memory_lane_playlist="ml",
             discography_requeue_playlist="rq",
+            the_queue_3_playlist="q3",
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
 
     def build(_spotify, playlist_ids, _selector, **kwargs):
         received["playlist_ids"] = playlist_ids
+        received["queue_3_playlist_id"] = kwargs["queue_3_playlist_id"]
         received["retry"] = callable(kwargs["retry_call"])
         return plan
 
@@ -70,6 +72,7 @@ def test_plan_discographies_dry_run_prints_fractional_days(monkeypatch) -> None:
         "memory_lane": "ml",
         "requeue": "rq",
     }
+    assert received["queue_3_playlist_id"] == "q3"
     assert received["retry"] is True
     assert "Artist" in result.output
     assert "1.5" in result.output

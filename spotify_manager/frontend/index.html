@@ -76,7 +76,7 @@
   .card::before { top: 6px; left: 6px; }
   .card::after { right: 6px; bottom: 6px; }
   #blastCard, #dailyMindRadioCard, #foundArtCard, #genreRevealCard { --panel-accent: var(--lime); }
-  #newKidsCard, #queue2Card, #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
+  #newKidsCard, #queue2Card, #queue3Card, #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
   #requeueForADreamCard, #palaceOfMemoryCard { --panel-accent: var(--amber); }
   #releaseCheckCard, #discographyCard { --panel-accent: var(--green); }
   #artistStatsCard, #albumEvaluationCard { --panel-accent: #73856a; }
@@ -338,6 +338,7 @@
   .discovery-grid #newKidsCard { order: 3; }
   .discovery-grid #newWineCard { order: 4; }
   .discovery-grid #queue2Card { order: 5; }
+  .discovery-grid #queue3Card { order: 6; }
   .recovery-grid {
     min-height: calc(100% - 28px);
     grid-template-rows: auto auto minmax(24px, 1fr);
@@ -722,6 +723,19 @@
       </div>
       <div class="analysis-progress" id="queue2Progress"></div>
     </section>
+
+    <section class="card" id="queue3Card">
+      <h2>The queue 3</h2>
+      <label class="inline">
+        <input type="checkbox" id="queue3DryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions">
+        <button class="primary" data-action="startQueue3">Run</button>
+        <button class="danger cancel" data-action="cancelQueue3" hidden title="Stop flush">×</button>
+      </div>
+      <div class="analysis-progress" id="queue3Progress"></div>
+    </section>
       </div>
     </section>
 
@@ -877,6 +891,7 @@
   var foundArtJob = null;
   var newKidsJob = null;
   var queue2Job = null;
+  var queue3Job = null;
   var newWineJob = null;
   var slowListeningJob = null;
   var somethingOldJob = null;
@@ -1640,6 +1655,170 @@
     return restoreActiveAlbumDiscoveryJobs("queue2");
   }
 
+  function renderQueue3Job(job) {
+    queue3Job = job;
+    var out = document.getElementById("queue3Progress");
+    var start = document.querySelector('[data-action="startQueue3"]');
+    var cancel = document.querySelector('[data-action="cancelQueue3"]');
+    document.getElementById("queue3DryRun").checked = Boolean(job.dry_run);
+    var processed = typeof job.processed === "number" ? job.processed : 0;
+    var total = typeof job.total === "number" ? Math.max(job.total, processed) : null;
+    var pct = total === null
+      ? null
+      : (total === 0 ? 100 : Math.min(100, Math.round(processed * 100 / total)));
+    var meter = pct === null
+      ? '<div class="meter"><span class="indeterminate"></span></div>'
+      : '<div class="meter"><span style="width:' + pct + '%"></span></div>';
+    var count = total === null ? esc(processed) : esc(processed + " / " + total);
+    var results = job.queue_3_results || [];
+    var summary = (typeof job.advanced === "number")
+      ? '<div class="blast-summary">' +
+          '<div><strong>' + esc(job.advanced) + '</strong><span>Advanced</span></div>' +
+          '<div><strong>' + esc(job.queue_3_changed_releases || 0) + '</strong><span>Releases</span></div>' +
+          '<div><strong>' + esc(job.completed_artists || 0) + '</strong><span>Complete</span></div>' +
+        '</div>'
+      : "";
+    var resultRows = results.map(function (item) {
+      var next = item.target_track || "";
+      if (item.target_release && item.target_release !== item.source_release) {
+        next = item.target_release + (next ? " · " + next : "");
+      }
+      if (item.composer_playlist) {
+        next = item.composer_playlist + (next ? " · " + next : "");
+      }
+      var album = "";
+      if (item.album_decision) {
+        album = " · album " + item.album_decision;
+        if (typeof item.album_liked_tracks === "number") {
+          album += " " + item.album_liked_tracks + "/" + item.album_total_tracks;
+        }
+      }
+      return '<div class="blast-selection new-kids-result">' +
+        '<div class="blast-selection-title">' + esc(item.artist) + ' · ' +
+          esc(item.source_track) + '</div>' +
+        '<div class="blast-selection-match">' + esc(item.source_release) +
+          (next ? ' → ' + esc(next) : '') + '</div>' +
+        '<div class="blast-selection-meta"><span class="blast-action">' +
+          esc(item.action) + '</span>' + esc(album) +
+          (item.reason ? ' · ' + esc(item.reason) : '') + '</div></div>';
+    }).join("");
+    var annualRows = (job.queue_3_annual_import || []).map(function (item) {
+      return '<div class="blast-selection new-wine-cellar-result">' +
+        '<div class="blast-selection-title">' + esc(item.artist) + ' · ' +
+          esc(item.track) + '</div>' +
+        '<div class="blast-selection-meta">Great Discoveries ' +
+          esc(item.source_year) + ' · <span class="blast-action">' +
+          esc(item.action) + '</span></div></div>';
+    }).join("");
+    var annual = annualRows
+      ? '<div class="new-wine-refill"><div class="new-wine-choice-title">' +
+          'Previous-year import</div>' + annualRows + '</div>'
+      : "";
+    var pending = "";
+    var choice = job.queue_3_pending_choice;
+    if (choice && choice.kind === "release") {
+      var current = choice.current_release || {};
+      var following = choice.next_release || {};
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">' + esc(choice.artist) +
+          ' · release boundary</div>' +
+        '<div class="blast-selection"><div class="blast-selection-title">Current · ' +
+          esc(current.name || "Unknown") + '</div>' +
+          '<div class="blast-selection-meta">' + esc(current.release_type || "") +
+          ' · ' + esc(current.release_date || "") + ' · ' +
+          esc(current.total_tracks || 0) + ' tracks</div></div>' +
+        '<div class="blast-selection"><div class="blast-selection-title">Next · ' +
+          esc(following.name || "Unknown") + '</div>' +
+          '<div class="blast-selection-meta">' + esc(following.release_type || "") +
+          ' · ' + esc(following.release_date || "") + ' · ' +
+          esc(following.total_tracks || 0) + ' tracks</div></div>' +
+        '<div class="new-wine-controls">' +
+          '<button class="primary" data-action="queue3Choice" data-choice="advance">Advance</button>' +
+          '<button class="danger" data-action="queue3Choice" data-choice="quit">Quit</button>' +
+        '</div></div>';
+    } else if (choice && choice.kind === "composer_playlist") {
+      var playlistButtons = (choice.playlists || []).map(function (playlist) {
+        return '<button class="ghost" data-action="queue3Choice" data-choice="' +
+          esc(playlist.spotify_id) + '"><span class="new-wine-option-name">' +
+          esc(playlist.name) + '</span><span class="new-wine-option-meta">' +
+          esc(playlist.total_tracks) + ' tracks · owned</span></button>';
+      }).join("");
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">' + esc(choice.artist) +
+          ' · composer playlist</div><div class="new-wine-options">' +
+          playlistButtons + '</div><div class="new-wine-controls">' +
+          '<button class="danger" data-action="queue3Choice" data-choice="quit">Quit</button>' +
+        '</div></div>';
+    }
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity…</span></div>';
+    }
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.queue_3_resumed) state += " · resumed";
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + ' · ' + count + '</div>' +
+      meter + summary + resultRows + annual + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active) {
+      if (!start.disabled) setBusy(start, true, "Running…");
+      if (job.status === "waiting") start.innerHTML = '<span class="spinner"></span> Waiting…';
+    } else {
+      setBusy(start, false);
+    }
+  }
+
+  async function pollQueue3Job(jobId) {
+    try {
+      var job = await api("/commands/flush-queue-3-jobs/" + jobId);
+      renderQueue3Job(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollQueue3Job(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Queue 3 flush finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "Queue 3 flush stopped", "ok");
+      } else {
+        showToast("Queue 3 flush " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("queue3Progress"), e);
+      setBusy(document.querySelector('[data-action="startQueue3"]'), false);
+      showToast("Could not read Queue 3 progress", "err");
+    }
+  }
+
+  async function restoreActiveQueue3Jobs() {
+    try {
+      var jobs = await api("/commands/flush-queue-3-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderQueue3Job(job);
+      pollQueue3Job(job.job_id);
+      showToast("Reconnected to Queue 3 flush", "ok");
+    } catch (e) {
+      if (e.status !== 401) showToast("Could not restore Queue 3 progress", "err");
+    }
+  }
+
   function renderNewWineJob(job) {
     newWineJob = job;
     var out = document.getElementById("newWineProgress");
@@ -2389,7 +2568,7 @@
           'data-choice="quit">Quit</button></div></div>';
     } else if (choice && choice.kind === "confirm") {
       pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
-        'Remove the planned artists from all three queues?</div>' +
+        'Remove the planned artists from their source queues and Queue 3 where applicable?</div>' +
         '<div class="btns"><button class="primary" data-action="discographyChoice" ' +
           'data-choice="apply">Remove artists</button>' +
         '<button class="ghost" data-action="discographyChoice" ' +
@@ -2919,6 +3098,61 @@
     }
   }
 
+  async function startQueue3WebJob(btn) {
+    var dryRun = document.getElementById("queue3DryRun").checked;
+    var out = document.getElementById("queue3Progress");
+    if (!dryRun && !confirm("Apply the Queue 3 flush to Spotify?")) return;
+    var q = new URLSearchParams();
+    q.set("dry_run", dryRun ? "true" : "false");
+    setBusy(btn, true, "Starting…");
+    try {
+      var job = await api("/commands/flush-queue-3?" + q.toString(), { method: "POST" });
+      renderQueue3Job(job);
+      pollQueue3Job(job.job_id);
+    } catch (e) {
+      var detail = e.data && e.data.detail;
+      var activeJobId = e.status === 409 && detail && detail.job_id;
+      if (activeJobId && detail.command === "flush_queue_3") {
+        await pollQueue3Job(activeJobId);
+        showToast("Reconnected to Queue 3 flush", "ok");
+        return;
+      }
+      renderError(out, e);
+      setBusy(btn, false);
+      showToast("Could not start Queue 3 flush", "err");
+    }
+  }
+
+  async function submitQueue3Choice(btn) {
+    if (!queue3Job || !queue3Job.job_id) return;
+    btn.disabled = true;
+    try {
+      var job = await api(
+        "/commands/flush-queue-3-jobs/" + queue3Job.job_id + "/choice",
+        { method: "POST", json: { choice: btn.dataset.choice } }
+      );
+      renderQueue3Job(job);
+    } catch (e) {
+      btn.disabled = false;
+      showToast(e.detail || "Could not submit Queue 3 choice", "err");
+    }
+  }
+
+  async function cancelQueue3(btn) {
+    if (!queue3Job || !queue3Job.job_id) return;
+    btn.disabled = true;
+    try {
+      var job = await api(
+        "/commands/flush-queue-3-jobs/" + queue3Job.job_id + "/cancel",
+        { method: "POST" }
+      );
+      renderQueue3Job(job);
+    } catch (e) {
+      btn.disabled = false;
+      showToast(e.detail || "Could not stop Queue 3 flush", "err");
+    }
+  }
+
   var actions = {
     mirrorMode(btn) {
       setMirrorMode(btn.dataset.resource, btn.dataset.mirrorMode);
@@ -3210,6 +3444,18 @@
 
     async cancelQueue2(btn) {
       return cancelAlbumDiscovery("queue2", btn);
+    },
+
+    async startQueue3(btn) {
+      return startQueue3WebJob(btn);
+    },
+
+    async queue3Choice(btn) {
+      return submitQueue3Choice(btn);
+    },
+
+    async cancelQueue3(btn) {
+      return cancelQueue3(btn);
     },
 
     async startNewWine(btn) {
@@ -3813,6 +4059,7 @@
     restoreActiveDiscographyJobs();
     restoreActiveNewKidsJobs();
     restoreActiveQueue2Jobs();
+    restoreActiveQueue3Jobs();
     restoreActiveNewWineJobs();
     restoreActiveSlowListeningJobs();
     restoreActiveSomethingOldJobs();

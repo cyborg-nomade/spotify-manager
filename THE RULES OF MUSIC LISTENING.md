@@ -159,8 +159,10 @@ Track lists have evolved from the need to allow single tracks to be listened wit
    3.  **Flush**:
        1.  Listen each track and add the next track from the artist at the end of the playlist
        2.  Follow the albums by track
-       3.  Play the whole discography chronologically
-       4.  Remove from list when discography is taken up in *newfoundland*
+       3.  Play the whole eligible discography (studio albums and EPs) chronologically
+       4.  Remove from the list after reaching the last track of the last eligible release
+       5.  Also remove from the list when the discography is taken up from *newfoundland*
+       6.  For classical composers with a user-created works playlist whose title contains the composer's name or surname, follow the playlist's stored Spotify order instead of Spotify release order. Only playlists owned by the user count.
    4.  **Cap**: No cap, 10 listened/day
 10. *slow listening* contains tracks to be investigated in depth
     1.  **Type**: RECOVERY
