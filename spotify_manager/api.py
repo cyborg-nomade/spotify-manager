@@ -66,6 +66,7 @@ from spotify_manager.routines import found_art
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import palace_of_memory
+from spotify_manager.routines import queue_3
 from spotify_manager.routines import release_check
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
@@ -334,6 +335,66 @@ class NewKidsChoiceRequest(BaseModel):
     choice: str
 
 
+class Queue3ReleaseOption(BaseModel):
+    """One current or next Queue 3 release shown at a boundary."""
+
+    spotify_id: str
+    name: str
+    release_type: str
+    release_date: str
+    total_tracks: int
+
+
+class Queue3ComposerPlaylistOption(BaseModel):
+    """One owned composer playlist offered to a Queue 3 job."""
+
+    spotify_id: str
+    name: str
+    total_tracks: int
+
+
+class Queue3PendingChoice(BaseModel):
+    """Current Queue 3 release or composer-playlist decision."""
+
+    kind: Literal["release", "composer_playlist"]
+    artist: str
+    source_track: str | None = None
+    current_release: Queue3ReleaseOption | None = None
+    next_release: Queue3ReleaseOption | None = None
+    playlists: list[Queue3ComposerPlaylistOption] = Field(default_factory=list)
+
+
+class Queue3TrackResult(BaseModel):
+    """One completed Queue 3 artist transition."""
+
+    artist: str
+    source_track: str
+    source_release: str
+    action: str
+    target_track: str | None = None
+    target_release: str | None = None
+    album_decision: str | None = None
+    album_liked_tracks: int | None = None
+    album_total_tracks: int | None = None
+    composer_playlist: str | None = None
+    reason: str | None = None
+
+
+class Queue3AnnualImportEntry(BaseModel):
+    """One previous-year discovery considered during Queue 3 fill-up."""
+
+    artist: str
+    track: str
+    source_year: int
+    action: str
+
+
+class Queue3ChoiceRequest(BaseModel):
+    """Release, composer-playlist, or quit choice for Queue 3."""
+
+    choice: str
+
+
 class SlowListeningReleaseOption(BaseModel):
     """One equal-date release offered for chronological ordering."""
 
@@ -577,6 +638,12 @@ class BlastJobResult(BaseModel):
     new_kids_pending_choice: NewKidsPendingChoice | None = None
     new_kids_resumed: bool = False
     new_kids_paused: bool = False
+    queue_3_results: list[Queue3TrackResult] = Field(default_factory=list)
+    queue_3_annual_import: list[Queue3AnnualImportEntry] = Field(default_factory=list)
+    queue_3_pending_choice: Queue3PendingChoice | None = None
+    queue_3_resumed: bool = False
+    queue_3_paused: bool = False
+    queue_3_changed_releases: int | None = None
     completed_artists: int | None = None
     slow_listening_results: list[SlowListeningTrackResult] = Field(default_factory=list)
     slow_listening_pending_choice: SlowListeningPendingChoice | None = None
@@ -657,6 +724,10 @@ class _NewWineJobCancelledError(RuntimeError):
 
 class _NewKidsJobCancelledError(RuntimeError):
     """Stop one New Kids web job while preserving durable progress."""
+
+
+class _Queue3JobCancelledError(RuntimeError):
+    """Stop one Queue 3 web job while preserving durable progress."""
 
 
 class _SlowListeningJobCancelledError(RuntimeError):
@@ -1618,6 +1689,246 @@ def _run_new_kids_job(
             spotify_event_setter(previous_spotify_event_callback)
         with _blast_jobs_lock:
             job.result.new_kids_pending_choice = None
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
+def _queue_3_release_option(
+    release: slow_listening.DiscographyRelease,
+) -> Queue3ReleaseOption:
+    """Convert one Queue 3 boundary release for the web client."""
+    return Queue3ReleaseOption(
+        spotify_id=release.spotify_id,
+        name=release.name,
+        release_type=release.release_type,
+        release_date=release.chronology_date,
+        total_tracks=release.total_tracks,
+    )
+
+
+def _queue_3_track_result(result: queue_3.FlushResult) -> Queue3TrackResult:
+    """Convert one Queue 3 transition into its web representation."""
+    return Queue3TrackResult(
+        artist=result.artist,
+        source_track=result.source_track,
+        source_release=result.source_release,
+        action=result.action,
+        target_track=result.target_track,
+        target_release=result.target_release,
+        album_decision=result.album_decision,
+        album_liked_tracks=result.album_liked_tracks,
+        album_total_tracks=result.album_total_tracks,
+        composer_playlist=result.composer_playlist,
+        reason=result.reason,
+    )
+
+
+def _run_queue_3_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+    dry_run: bool,
+) -> None:
+    """Execute one interactive Queue 3 flush as a reconnectable web job."""
+    job = get_blast_job(job_id, command="flush_queue_3")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Queue 3 flush started"
+        _append_blast_log_locked(
+            job,
+            f"Queue 3 flush started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    def progress_callback(completed: int, total: int, progress_status: str) -> None:
+        if job.cancel_event.is_set():
+            raise _Queue3JobCancelledError
+        with _blast_jobs_lock:
+            job.result.processed = completed
+            job.result.total = total
+            job.result.detail = progress_status
+
+    def wait_for_choice(detail: str) -> str:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _Queue3JobCancelledError
+            job.submitted_choice = None
+            job.choice_event.clear()
+            job.result.status = "waiting"
+            job.result.detail = detail
+            _append_blast_log_locked(job, detail)
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _Queue3JobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                job.submitted_choice = None
+                job.choice_event.clear()
+                job.result.queue_3_pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying Queue 3 choice"
+                _append_blast_log_locked(job, f"Queue 3 choice received: {choice}.")
+                return choice
+
+    def transition_reader(
+        source: new_wine.PlaylistTrack,
+        current: slow_listening.DiscographyRelease,
+        following: slow_listening.DiscographyRelease,
+    ) -> str:
+        with _blast_jobs_lock:
+            job.result.queue_3_pending_choice = Queue3PendingChoice(
+                kind="release",
+                artist=source.primary_artist_name,
+                source_track=source.name,
+                current_release=_queue_3_release_option(current),
+                next_release=_queue_3_release_option(following),
+            )
+        return wait_for_choice(
+            f"Confirm the next release for {source.primary_artist_name}"
+        )
+
+    def composer_playlist_reader(
+        artist: str,
+        candidates: tuple[queue_3.OwnedPlaylist, ...],
+    ) -> str:
+        with _blast_jobs_lock:
+            job.result.queue_3_pending_choice = Queue3PendingChoice(
+                kind="composer_playlist",
+                artist=artist,
+                playlists=[
+                    Queue3ComposerPlaylistOption(
+                        spotify_id=candidate.spotify_id,
+                        name=candidate.name,
+                        total_tracks=candidate.total_tracks,
+                    )
+                    for candidate in candidates
+                ],
+            )
+        return wait_for_choice(f"Choose the composer playlist for {artist}")
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _Queue3JobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = queue_3.flush_queue_3(
+            spotify,
+            playlist_id,
+            transition_reader,
+            composer_playlist_reader=composer_playlist_reader,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=retry_call,
+        )
+    except _Queue3JobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = (
+                "Queue 3 flush stopped. Progress was saved."
+                if not dry_run
+                else "Queue 3 dry run stopped."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = (
+                review_album_limits.format_transient_spotify_failure(exc)
+                + ". Progress was saved."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
+    except (queue_3.Queue3Error, SpotifyException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Queue 3 flush failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Queue 3 flush error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected Queue 3 error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        with _blast_jobs_lock:
+            job.result.status = "paused" if summary.paused else "completed"
+            job.result.run_id = summary.run_id
+            job.result.processed = summary.processed
+            job.result.total = summary.total
+            job.result.advanced = summary.advanced
+            job.result.queue_3_changed_releases = summary.changed_releases
+            job.result.completed_artists = summary.completed_artists
+            job.result.skipped = summary.skipped
+            job.result.queue_3_results = [
+                _queue_3_track_result(result) for result in summary.results
+            ]
+            job.result.queue_3_annual_import = [
+                Queue3AnnualImportEntry(
+                    artist=result.artist,
+                    track=result.track,
+                    source_year=result.source_year,
+                    action=result.action,
+                )
+                for result in summary.annual_import
+            ]
+            job.result.queue_3_resumed = summary.resumed
+            job.result.queue_3_paused = summary.paused
+            if summary.paused:
+                job.result.detail = "Queue 3 flush paused. Progress was saved."
+            else:
+                job.result.detail = (
+                    f"{summary.processed} decisions; {summary.advanced} advances; "
+                    f"{summary.changed_releases} release changes; "
+                    f"{summary.completed_artists} completed artists."
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.queue_3_pending_choice = None
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
@@ -2743,6 +3054,7 @@ def _run_discography_job(
     job_id: str,
     spotify: Spotify,
     playlist_ids: dict[discography.QueueName, str],
+    queue_3_playlist_id: str,
     dry_run: bool,
 ) -> None:
     """Execute one reload-safe interactive discography planning job."""
@@ -2864,6 +3176,7 @@ def _run_discography_job(
             spotify,
             playlist_ids,
             release_selector,
+            queue_3_playlist_id=queue_3_playlist_id,
             retry_call=retry_call,
             progress_callback=progress,
         )
@@ -2897,7 +3210,10 @@ def _run_discography_job(
         else:
             choice, _release_ids = wait_for_submission(
                 DiscographyPendingChoice(kind="confirm"),
-                "Confirm removal of the planned artists from all three queues.",
+                (
+                    "Confirm removal from the source queues and Queue 3 "
+                    "where applicable."
+                ),
             )
             if choice == "quit":
                 raise _DiscographyJobCancelledError
@@ -3655,6 +3971,48 @@ def start_queue_2_job(
     return snapshot
 
 
+def start_queue_3_job(
+    spotify: Spotify,
+    playlist_id: str,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one Queue 3 web job, rejecting another playlist routine."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="flush_queue_3",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            f"Queue 3 flush queued{' in dry-run mode' if dry_run else ''}.",
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_queue_3_job,
+        args=(job_id, spotify, playlist_id, dry_run),
+        name=f"queue-3-flush-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
 def start_new_wine_job(
     spotify: Spotify,
     new_wine_playlist_id: str,
@@ -3854,6 +4212,7 @@ def start_release_check_job(
 def start_discography_job(
     spotify: Spotify,
     playlist_ids: dict[discography.QueueName, str],
+    queue_3_playlist_id: str,
     *,
     dry_run: bool,
 ) -> BlastJobResult:
@@ -3890,7 +4249,7 @@ def start_discography_job(
 
     Thread(
         target=_run_discography_job,
-        args=(job_id, spotify, playlist_ids, dry_run),
+        args=(job_id, spotify, playlist_ids, queue_3_playlist_id, dry_run),
         name=f"discography-plan-{job_id[:8]}",
         daemon=True,
     ).start()
@@ -4646,6 +5005,106 @@ def cmd_cancel_queue_2_job(job_id: str) -> BlastJobResult:
 
 
 @app.post(
+    "/commands/flush-queue-3",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_flush_queue_3(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start an interactive Queue 3 flush with reconnectable web state."""
+    configuration = Settings()
+    try:
+        playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
+    except queue_3.Queue3ConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_queue_3_job(client, playlist_id, dry_run=dry_run)
+
+
+@app.get(
+    "/commands/flush-queue-3-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_queue_3_jobs() -> list[BlastJobResult]:
+    """Return active Queue 3 jobs so the web UI can reconnect after reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "flush_queue_3"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/flush-queue-3-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_queue_3_job(job_id: str) -> BlastJobResult:
+    """Return current progress and any pending Queue 3 choice."""
+    job = get_blast_job(job_id, command="flush_queue_3")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-queue-3-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_queue_3(
+    job_id: str,
+    request: Queue3ChoiceRequest,
+) -> BlastJobResult:
+    """Submit one release, composer-playlist, or quit choice to Queue 3."""
+    job = get_blast_job(job_id, command="flush_queue_3")
+    with _blast_jobs_lock:
+        pending = job.result.queue_3_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Queue 3 job is not waiting for a choice",
+            )
+        if pending.kind == "release":
+            allowed = {queue_3.CHOICE_ADVANCE, queue_3.CHOICE_QUIT}
+        else:
+            allowed = {
+                queue_3.CHOICE_QUIT,
+                *(playlist.spotify_id for playlist in pending.playlists),
+            }
+        if request.choice not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail="Queue 3 choice is not available",
+            )
+        job.submitted_choice = request.choice
+        job.result.queue_3_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Queue 3 choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-queue-3-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_queue_3_job(job_id: str) -> BlastJobResult:
+    """Request a clean stop at the next Queue 3 processing boundary."""
+    job = get_blast_job(job_id, command="flush_queue_3")
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(status_code=409, detail="Queue 3 job is not active")
+        job.result.status = "cancelling"
+        job.result.queue_3_pending_choice = None
+        job.result.detail = "Stopping Queue 3 flush"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
     "/commands/flush-new-wine",
     response_model=BlastJobResult,
     status_code=status.HTTP_202_ACCEPTED,
@@ -5179,9 +5638,18 @@ def cmd_plan_discographies(
             configuration.discography_memory_lane_playlist,
             configuration.discography_requeue_playlist,
         )
+        queue_3_playlist_id = discography.parse_playlist_id(
+            configuration.the_queue_3_playlist,
+            "THE_QUEUE_3_PLAYLIST",
+        )
     except discography.DiscographyConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_discography_job(client, playlist_ids, dry_run=dry_run)
+    return start_discography_job(
+        client,
+        playlist_ids,
+        queue_3_playlist_id,
+        dry_run=dry_run,
+    )
 
 
 @app.get(

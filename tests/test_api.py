@@ -961,6 +961,177 @@ def test_queue_2_web_job_waits_for_and_applies_release_choice(
     assert client.get("/commands/flush-queue-2-jobs").json() == []
 
 
+def test_queue_3_web_job_handles_release_and_composer_choices(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """Queue 3 should reconnect across both of its interactive choice types."""
+    from spotify_manager import api
+
+    source_release = api.new_wine.ReleaseCandidate(
+        spotify_id="current",
+        uri="spotify:album:current",
+        name="Current Release",
+        release_type="Album",
+        release_date="2020-01-01",
+        total_tracks=2,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+    )
+    source = api.new_wine.PlaylistTrack(
+        spotify_id="current-track",
+        uri="spotify:track:current-track",
+        name="Current Track",
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        release=source_release,
+    )
+
+    def boundary_release(spotify_id: str, name: str, date: str):
+        return api.slow_listening.DiscographyRelease(
+            spotify_id=spotify_id,
+            uri=f"spotify:album:{spotify_id}",
+            name=name,
+            release_type="Album",
+            release_date=date,
+            chronology_date=date,
+            total_tracks=2,
+            primary_artist_id="artist",
+            primary_artist_name="Artist",
+            identity=name.casefold(),
+            saved=False,
+            plain=True,
+            edition_rank=0,
+        )
+
+    received: dict[str, object] = {}
+
+    def flush(spotify, playlist_id, transition_reader, **kwargs):
+        received.update(
+            spotify_type=type(spotify).__name__,
+            playlist_id=playlist_id,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"](0, 2, "Reviewing Artist")
+        received["release_choice"] = transition_reader(
+            source,
+            boundary_release("current", "Current Release", "2020-01-01"),
+            boundary_release("next", "Next Release", "2021-01-01"),
+        )
+        received["composer_choice"] = kwargs["composer_playlist_reader"](
+            "Johann Sebastian Bach",
+            (
+                api.queue_3.OwnedPlaylist("bach-a", "Bach works", 120),
+                api.queue_3.OwnedPlaylist("bach-b", "All of Bach", 3197),
+            ),
+        )
+        kwargs["progress_callback"](2, 2, "Completed Queue 3")
+        kwargs["echo"]("Queue 3 choices applied")
+        return api.queue_3.FlushSummary(
+            run_id="queue-3-run",
+            total=2,
+            processed=2,
+            advanced=1,
+            changed_releases=1,
+            completed_artists=0,
+            skipped=0,
+            annual_import=(
+                api.queue_3.AnnualImportResult(
+                    artist="Imported Artist",
+                    track="Marker",
+                    source_year=2025,
+                    action="would add",
+                ),
+            ),
+            paused=False,
+            dry_run=kwargs["dry_run"],
+            resumed=True,
+            results=(
+                api.queue_3.FlushResult(
+                    artist="Artist",
+                    source_track="Current Track",
+                    source_release="Current Release",
+                    action="next release",
+                    target_track="Opening Track",
+                    target_release="Next Release",
+                    album_decision="keep",
+                    album_liked_tracks=1,
+                    album_total_tracks=2,
+                    dry_run=kwargs["dry_run"],
+                ),
+                api.queue_3.FlushResult(
+                    artist="Johann Sebastian Bach",
+                    source_track="BWV 1",
+                    source_release="Recording",
+                    action="composer playlist",
+                    target_track="BWV 2",
+                    target_release="Another Recording",
+                    composer_playlist="All of Bach",
+                    dry_run=kwargs["dry_run"],
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            the_queue_3_playlist="spotify:playlist:queue3",
+        ),
+    )
+    monkeypatch.setattr(api.queue_3, "flush_queue_3", flush)
+
+    started = client.post(
+        "/commands/flush-queue-3",
+        params={"dry_run": "true"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    release_wait = wait_for_queue_3_choice(client, job_id, "release")
+    assert release_wait["queue_3_pending_choice"]["next_release"]["name"] == (
+        "Next Release"
+    )
+    assert [
+        job["job_id"] for job in client.get("/commands/flush-queue-3-jobs").json()
+    ] == [job_id]
+
+    release_response = client.post(
+        f"/commands/flush-queue-3-jobs/{job_id}/choice",
+        json={"choice": "advance"},
+    )
+    assert release_response.status_code == 200
+
+    composer_wait = wait_for_queue_3_choice(client, job_id, "composer_playlist")
+    assert [
+        playlist["spotify_id"]
+        for playlist in composer_wait["queue_3_pending_choice"]["playlists"]
+    ] == ["bach-a", "bach-b"]
+    composer_response = client.post(
+        f"/commands/flush-queue-3-jobs/{job_id}/choice",
+        json={"choice": "bach-b"},
+    )
+    assert composer_response.status_code == 200
+
+    completed = wait_for_queue_3_status(client, job_id, {"completed"})
+    assert received == {
+        "spotify_type": "FakeSpotify",
+        "playlist_id": "queue3",
+        "dry_run": True,
+        "release_choice": "advance",
+        "composer_choice": "bach-b",
+    }
+    assert completed["run_id"] == "queue-3-run"
+    assert completed["queue_3_resumed"] is True
+    assert completed["queue_3_changed_releases"] == 1
+    assert completed["queue_3_results"][1]["composer_playlist"] == "All of Bach"
+    assert completed["queue_3_annual_import"][0]["artist"] == "Imported Artist"
+    assert any(
+        entry["message"] == "Queue 3 choices applied" for entry in completed["logs"]
+    )
+    assert client.get("/commands/flush-queue-3-jobs").json() == []
+
+
 def test_new_wine_web_job_waits_for_and_applies_release_choice(
     client: TestClient,
     monkeypatch,
@@ -1841,6 +2012,7 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
 
     def build(_spotify, playlist_ids, release_selector, **kwargs):
         received["playlist_ids"] = playlist_ids
+        received["queue_3_playlist_id"] = kwargs["queue_3_playlist_id"]
         kwargs["progress_callback"]("Loading next discography artist")
         selected_ids = release_selector(artist, (studio, live))
         received["selected_ids"] = selected_ids
@@ -1878,6 +2050,7 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
             discography_newfoundland_playlist="nf",
             discography_memory_lane_playlist="ml",
             discography_requeue_playlist="rq",
+            the_queue_3_playlist="q3",
         ),
     )
     monkeypatch.setattr(api.discography, "build_discography_plan", build)
@@ -1932,6 +2105,7 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
         "memory_lane": "ml",
         "requeue": "rq",
     }
+    assert received["queue_3_playlist_id"] == "q3"
     assert received["applied_plan"].total_releases == 2
     assert completed["discography_removed_artists"] == 1
     assert completed["discography_removed_markers"] == 2
@@ -2372,6 +2546,41 @@ def wait_for_queue_2_status(
             return body
         sleep(0.01)
     pytest.fail(f"Queue 2 job {job_id} did not reach {expected}")
+
+
+def wait_for_queue_3_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one Queue 3 job until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/flush-queue-3-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Queue 3 job {job_id} did not reach {expected}")
+
+
+def wait_for_queue_3_choice(
+    client: TestClient,
+    job_id: str,
+    kind: str,
+) -> dict:
+    """Poll until Queue 3 exposes the requested pending-choice type."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/flush-queue-3-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        pending = body.get("queue_3_pending_choice")
+        if body["status"] == "waiting" and pending and pending["kind"] == kind:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Queue 3 job {job_id} did not request {kind}")
 
 
 def wait_for_slow_listening_status(

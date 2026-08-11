@@ -53,6 +53,7 @@ from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import palace_of_memory
+from spotify_manager.routines import queue_3
 from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import release_check
 from spotify_manager.routines import requeue_for_a_dream
@@ -490,6 +491,81 @@ def ask_slow_listening_action(
             "s": slow_listening.CHOICE_SKIP,
             "q": slow_listening.CHOICE_QUIT,
         }[response]
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def ask_queue_3_release_transition(
+    console: Console,
+    source: new_wine.PlaylistTrack,
+    current_release: slow_listening.DiscographyRelease,
+    next_release: slow_listening.DiscographyRelease,
+    progress: Progress | None = None,
+) -> str:
+    """Confirm the next chronological release at a Queue 3 boundary."""
+    if progress is not None:
+        progress.stop()
+    try:
+        table = Table(title=f"Queue 3 release boundary: {source.primary_artist_name}")
+        table.add_column("Position")
+        table.add_column("Release")
+        table.add_column("Type")
+        table.add_column("Date")
+        table.add_column("Tracks", justify="right")
+        table.add_row(
+            "Current",
+            current_release.name,
+            current_release.release_type,
+            current_release.chronology_date,
+            str(current_release.total_tracks),
+        )
+        table.add_row(
+            "Next",
+            next_release.name,
+            next_release.release_type,
+            next_release.chronology_date,
+            str(next_release.total_tracks),
+        )
+        console.print(table)
+        response = Prompt.ask(
+            "Advance to this release?",
+            choices=["y", "q"],
+            default="y",
+            console=console,
+        )
+        return queue_3.CHOICE_ADVANCE if response == "y" else queue_3.CHOICE_QUIT
+    finally:
+        if progress is not None:
+            progress.start()
+
+
+def ask_queue_3_composer_playlist(
+    console: Console,
+    artist_name: str,
+    candidates: tuple[queue_3.OwnedPlaylist, ...],
+    progress: Progress | None = None,
+) -> str:
+    """Choose one owned composer playlist when names are ambiguous."""
+    if progress is not None:
+        progress.stop()
+    try:
+        table = Table(title=f"Queue 3 composer playlist: {artist_name}")
+        table.add_column("#", justify="right")
+        table.add_column("Owned playlist")
+        table.add_column("Tracks", justify="right")
+        for index, candidate in enumerate(candidates, start=1):
+            table.add_row(str(index), candidate.name, str(candidate.total_tracks))
+        console.print(table)
+        response = Prompt.ask(
+            "Use which composer playlist?",
+            choices=[*(str(index) for index in range(1, len(candidates) + 1)), "q"],
+            default="1",
+            console=console,
+        )
+        if response == "q":
+            return queue_3.CHOICE_QUIT
+        return candidates[int(response) - 1].spotify_id
     finally:
         if progress is not None:
             progress.start()
@@ -2239,6 +2315,210 @@ def flush_new_wine_command(
         )
 
 
+@app.command(name="flush-queue-3")
+def flush_queue_3_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help=(
+            "Preview the annual import and next ten artist transitions without "
+            "changing Spotify or state."
+        ),
+    ),
+) -> None:
+    """Advance the first ten Queue 3 artists through studio discographies."""
+    console = Console()
+    progress_ref: Progress | None = None
+    configuration = Settings()
+    try:
+        playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
+    except queue_3.Queue3ConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith("Added") or line.startswith("Removed"):
+            style = "bold green"
+        elif line.startswith("Would"):
+            style = "yellow"
+        elif line.startswith("Completed"):
+            style = "bold cyan"
+        elif line.startswith("Reconciled") or line.startswith("Imported"):
+            style = "cyan"
+        elif line.startswith("Skipped"):
+            style = "dim yellow"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            description = "Planning Queue 3 flush"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(completed: int, total: int, status: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=completed,
+                    total=max(completed, total),
+                    description=status,
+                )
+
+            summary = queue_3.flush_queue_3(
+                review_client(),
+                playlist_id,
+                transition_reader=lambda source, current, following: (
+                    ask_queue_3_release_transition(
+                        console,
+                        source,
+                        current,
+                        following,
+                        progress_ref,
+                    )
+                ),
+                composer_playlist_reader=lambda artist, candidates: (
+                    ask_queue_3_composer_playlist(
+                        console,
+                        artist,
+                        candidates,
+                        progress_ref,
+                    )
+                ),
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "The active Queue 3 run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        console.print(
+            "The active Queue 3 run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except queue_3.Queue3CancelledError as exc:
+        console.print(str(exc), style="bold yellow", markup=False)
+        raise typer.Exit(code=0) from exc
+    except queue_3.Queue3Error as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        console.print(
+            "The active Queue 3 run was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        console.print(
+            "Queue 3 flush paused. The active run was saved.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+
+    if summary.annual_import:
+        import_table = Table(title="Previous-year Great Discoveries")
+        import_table.add_column("Artist")
+        import_table.add_column("Track")
+        import_table.add_column("Year", justify="right")
+        import_table.add_column("Action")
+        for seed_result in summary.annual_import:
+            import_table.add_row(
+                seed_result.artist,
+                seed_result.track,
+                str(seed_result.source_year),
+                seed_result.action,
+            )
+        console.print(import_table)
+
+    table = Table(title="The Queue 3")
+    table.add_column("Artist")
+    table.add_column("Current")
+    table.add_column("Release")
+    table.add_column("Action")
+    table.add_column("Next")
+    for flush_result in summary.results:
+        next_item = flush_result.target_track or "-"
+        if (
+            flush_result.target_release
+            and flush_result.target_release != flush_result.source_release
+        ):
+            next_item = f"{flush_result.target_release} - {next_item}"
+        if flush_result.composer_playlist:
+            next_item = f"{flush_result.composer_playlist} - {next_item}"
+        action_text = str(flush_result.action)
+        if flush_result.album_decision is not None:
+            action_text += (
+                f"; {flush_result.album_decision} "
+                f"{flush_result.album_liked_tracks}/"
+                f"{flush_result.album_total_tracks}"
+            )
+        table.add_row(
+            flush_result.artist,
+            flush_result.source_track,
+            flush_result.source_release,
+            action_text,
+            next_item,
+        )
+    console.print(table)
+    console.print(
+        f"Processed {summary.processed}/{summary.total}: "
+        f"{summary.advanced} track advances, "
+        f"{summary.changed_releases} release changes, "
+        f"{summary.completed_artists} completed artists, "
+        f"{summary.skipped} skipped." + (" Preview only." if dry_run else ""),
+        style="bold cyan" if dry_run else "bold green",
+    )
+    if summary.resumed:
+        console.print("Resumed the previously saved Queue 3 flush.", style="cyan")
+    if summary.paused:
+        console.print(
+            "Queue 3 flush paused; run the command again to resume.",
+            style="bold yellow",
+        )
+
+
 @app.command(name="flush-slow-listening")
 def flush_slow_listening_command(
     dry_run: bool = typer.Option(
@@ -2589,6 +2869,10 @@ def plan_discographies_command(
             configuration.discography_memory_lane_playlist,
             configuration.discography_requeue_playlist,
         )
+        queue_3_playlist_id = discography.parse_playlist_id(
+            configuration.the_queue_3_playlist,
+            "THE_QUEUE_3_PLAYLIST",
+        )
     except discography.DiscographyConfigError as exc:
         console.print(str(exc), style="bold red", markup=False)
         raise typer.Exit(code=1) from exc
@@ -2622,6 +2906,7 @@ def plan_discographies_command(
                     candidates,
                     status_ref,
                 ),
+                queue_3_playlist_id=queue_3_playlist_id,
                 retry_call=retry_call,
                 progress_callback=status.update,
             )

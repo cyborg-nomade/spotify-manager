@@ -157,6 +157,9 @@ spotify_manager/files/new_kids_state.json
 spotify_manager/files/new_kids_state.json.tmp
 spotify_manager/files/new_kids_log.jsonl
 spotify_manager/files/queue_2_log.jsonl
+spotify_manager/files/queue_3_state.json
+spotify_manager/files/queue_3_state.json.tmp
+spotify_manager/files/queue_3_log.jsonl
 
 # Restart-safe new-release discovery state and audit log
 spotify_manager/files/release_check_state.json

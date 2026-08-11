@@ -31,6 +31,7 @@ PLAYLIST_MUTATION_BATCH_SIZE = 100
 WEEK_RELEASES = 10
 
 QueueName = Literal["newfoundland", "memory_lane", "requeue"]
+MarkerQueueName = Literal["newfoundland", "memory_lane", "requeue", "queue_3"]
 QUEUE_ORDER: tuple[QueueName, ...] = (
     "newfoundland",
     "memory_lane",
@@ -41,10 +42,11 @@ START_QUEUE_ROTATION: tuple[QueueName, ...] = (
     "requeue",
     "memory_lane",
 )
-QUEUE_LABELS: dict[QueueName, str] = {
+QUEUE_LABELS: dict[MarkerQueueName, str] = {
     "newfoundland": "Newfoundland",
     "memory_lane": "Memory Lane",
     "requeue": "The Requeue",
+    "queue_3": "The Queue 3",
 }
 
 RetryCall = Callable[[Callable[[], object], str], object]
@@ -112,7 +114,7 @@ class QueueArtist:
 class ArtistMarkers:
     """Playlist marker URIs belonging to one selected artist."""
 
-    queue: QueueName
+    queue: MarkerQueueName
     playlist_id: str
     uris: tuple[str, ...]
 
@@ -267,6 +269,7 @@ def _load_artist_queues(
     spotify: Spotify,
     playlist_ids: dict[QueueName, str],
     retry_call: RetryCall,
+    queue_3_playlist_id: str | None = None,
 ) -> tuple[
     dict[QueueName, tuple[QueueArtist, ...]],
     dict[str, tuple[ArtistMarkers, ...]],
@@ -310,6 +313,28 @@ def _load_artist_queues(
                     uris=tuple(artist_uris[artist_id]),
                 )
             )
+    if queue_3_playlist_id is not None:
+        try:
+            queue_3_tracks = new_wine.load_playlist_tracks(
+                spotify,
+                queue_3_playlist_id,
+                retry_call,
+            )
+        except new_wine.NewWineError as exc:
+            raise DiscographyError(str(exc)) from exc
+        queue_3_uris: dict[str, list[str]] = defaultdict(list)
+        for track in queue_3_tracks:
+            if track.uri not in queue_3_uris[track.primary_artist_id]:
+                queue_3_uris[track.primary_artist_id].append(track.uri)
+        for artist_id, uris in queue_3_uris.items():
+            markers[artist_id].append(
+                ArtistMarkers(
+                    queue="queue_3",
+                    playlist_id=queue_3_playlist_id,
+                    uris=tuple(uris),
+                )
+            )
+
     return queues, {artist_id: tuple(groups) for artist_id, groups in markers.items()}
 
 
@@ -523,6 +548,7 @@ def build_discography_plan(
     playlist_ids: dict[QueueName, str],
     release_selector: ReleaseSelector,
     *,
+    queue_3_playlist_id: str | None = None,
     retry_call: RetryCall | None = None,
     progress_callback: ProgressCallback | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
@@ -533,7 +559,12 @@ def build_discography_plan(
     start_queue = cast(QueueName, state["next_queue"])
     if progress_callback is not None:
         progress_callback("Loading discography artist queues")
-    queues, markers = _load_artist_queues(spotify, playlist_ids, retry)
+    queues, markers = _load_artist_queues(
+        spotify,
+        playlist_ids,
+        retry,
+        queue_3_playlist_id,
+    )
 
     catalogs: dict[str, tuple[CatalogRelease, ...]] = {}
     choices: dict[str, tuple[CatalogRelease, ...]] = {}
@@ -580,12 +611,17 @@ def build_discography_plan(
         releases = resolve(candidate)
         if not releases:
             return None
+        artist_markers = markers.get(candidate.spotify_id, ())
+        if not any(marker.queue == "newfoundland" for marker in artist_markers):
+            artist_markers = tuple(
+                marker for marker in artist_markers if marker.queue != "queue_3"
+            )
         return ArtistSelection(
             spotify_id=candidate.spotify_id,
             name=candidate.name,
             source_queue=candidate.queue,
             releases=releases,
-            markers=markers.get(candidate.spotify_id, ()),
+            markers=artist_markers,
         )
 
     first: ArtistSelection | None = None
