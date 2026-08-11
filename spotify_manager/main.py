@@ -59,6 +59,7 @@ from spotify_manager.routines import release_check
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import review_artists as artist_review
+from spotify_manager.routines import sauvignon
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines import something_old
@@ -908,6 +909,54 @@ def print_found_art_table(
     console.print(table)
 
 
+def print_sauvignon_table(
+    console: Console,
+    results: tuple[sauvignon.SauvignonResult, ...],
+) -> None:
+    """Render album-level Last.fm recommendations for Sauvignon."""
+    table = Table(title="Fill Sauvignon Terre-Neuve from Last.fm")
+    table.add_column("#", justify="right")
+    table.add_column("Album")
+    table.add_column("Recommendation")
+    table.add_column("First track")
+    table.add_column("Result")
+    styles = {
+        "added": "bold green",
+        "would add": "bold cyan",
+        "already represented": "yellow",
+        "artist already selected": "yellow",
+        "skipped": "yellow",
+        "quit": "bold yellow",
+    }
+    for index, result in enumerate(results, start=1):
+        recommendation = result.recommendation
+        support_count = len(recommendation.supporting_tracks)
+        recommendation_text = (
+            f"base #{recommendation.base_rank}; "
+            f"weekly {recommendation.weekly_rank:.3f}; "
+            f"score {recommendation.score:.3f}; "
+            f"{support_count} supporting "
+            f"track{'s' if support_count != 1 else ''}"
+        )
+        if result.album is None:
+            album_text = f"{recommendation.artist} - {recommendation.album}"
+        else:
+            album_text = (
+                f"{result.album.artist} - {result.album.album}\n"
+                f"{result.album.release_type}; {result.album.release_date}; "
+                f"{result.album.total_tracks} tracks"
+            )
+        first_track = result.first_track.name if result.first_track else "-"
+        table.add_row(
+            str(index),
+            album_text,
+            recommendation_text,
+            first_track,
+            Text(result.action, style=styles[result.action]),
+        )
+    console.print(table)
+
+
 def print_queue_fill_table(
     console: Console,
     results: tuple[the_queue.FillResult, ...],
@@ -1197,6 +1246,58 @@ def ask_queue_artist(
         if response == "q":
             return the_queue.CHOICE_QUIT
         return candidates[int(response) - 1].spotify_id
+    finally:
+        progress.start()
+
+
+def ask_sauvignon_album(
+    console: Console,
+    recommendation: sauvignon.AlbumRecommendation,
+    options: tuple[sauvignon.SpotifyAlbumOption, ...],
+    progress: Progress,
+) -> str:
+    """Prompt only when Spotify exposes materially different album editions."""
+    progress.stop()
+    try:
+        table = Table(
+            title=(
+                "Choose Sauvignon edition: "
+                f"{recommendation.artist} - {recommendation.album}"
+            )
+        )
+        table.add_column("#", justify="right")
+        table.add_column("Release")
+        table.add_column("Type")
+        table.add_column("Date")
+        table.add_column("Tracks", justify="right")
+        table.add_column("Evidence track")
+        table.add_column("Spotify id")
+        for index, option in enumerate(options, start=1):
+            table.add_row(
+                str(index),
+                option.album,
+                option.release_type,
+                option.release_date,
+                str(option.total_tracks),
+                option.source_track,
+                option.spotify_id,
+            )
+        console.print(table)
+        response = Prompt.ask(
+            "Release number / [s]kip this run / [q]uit",
+            choices=[
+                *(str(index) for index in range(1, len(options) + 1)),
+                "s",
+                "q",
+            ],
+            default="s",
+            console=console,
+        )
+        if response == "s":
+            return sauvignon.CHOICE_SKIP
+        if response == "q":
+            return sauvignon.CHOICE_QUIT
+        return options[int(response) - 1].spotify_id
     finally:
         progress.start()
 
@@ -1845,6 +1946,173 @@ def found_art_command(
             f"{summary.requested_count} requested tracks.",
             style="bold",
         )
+
+
+@app.command(name="fill-sauvignon-from-lastfm")
+def fill_sauvignon_from_lastfm_command(
+    count: int | None = typer.Option(
+        None,
+        "--count",
+        min=1,
+        help="Number of unheard albums to add.",
+    ),
+    max_playlist_length: int | None = typer.Option(
+        None,
+        "--max-playlist-length",
+        min=1,
+        help="Fill to this Sauvignon length instead of using --count.",
+    ),
+    seed_count: int = typer.Option(
+        sauvignon.DEFAULT_SEED_COUNT,
+        "--seed-count",
+        min=1,
+        help="Number of listening-history tracks sent to Last.fm.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Resolve album recommendations without changing Spotify.",
+    ),
+) -> None:
+    """Recommend unheard albums from Last.fm and add them to Sauvignon."""
+    if count is not None and max_playlist_length is not None:
+        raise typer.BadParameter(
+            "use either --count or --max-playlist-length, not both"
+        )
+    console = Console()
+    configuration = Settings()
+    try:
+        playlist_id = sauvignon.parse_playlist_id(
+            configuration.sauvignon_terre_neuve_playlist
+        )
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (sauvignon.SauvignonConfigError, found_art.FoundArtConfigError) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    effective_maximum = (
+        sauvignon.DEFAULT_MAX_PLAYLIST_LENGTH
+        if count is None and max_playlist_length is None
+        else max_playlist_length
+    )
+    progress_ref: Progress | None = None
+
+    def echo(line: str = "") -> None:
+        style = "bold green" if line.startswith("Added") else None
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    lastfm_client = LastFmClient(
+        api_key,
+        username,
+        event_callback=lambda message: console.print(message, style="yellow"),
+    )
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            description = "Building Last.fm album recommendations"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(status: str) -> None:
+                progress.update(task_id, description=status)
+
+            summary = sauvignon.fill_sauvignon_from_lastfm(
+                review_client(),
+                lastfm_client,
+                playlist_id,
+                choice_reader=lambda recommendation, options: ask_sauvignon_album(
+                    console,
+                    recommendation,
+                    options,
+                    progress,
+                ),
+                count=count,
+                max_playlist_length=effective_maximum,
+                seed_count=seed_count,
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except (
+        sauvignon.SauvignonError,
+        found_art.FoundArtError,
+        LastFmError,
+    ) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        console.print(
+            "Sauvignon fill stopped safely. Cached Last.fm calls remain saved.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    finally:
+        if progress_ref is not None:
+            progress_ref.stop()
+
+    print_sauvignon_table(console, summary.results)
+    console.print(
+        f"Listening week: {summary.week_start.isoformat()} through "
+        f"{(summary.week_start + timedelta(days=6)).isoformat()}",
+        style="bold cyan",
+    )
+    prefix = "Dry run" if summary.dry_run else "Fill"
+    console.print(
+        f"{prefix}: {summary.history_scrobbles:,} scrobbles across "
+        f"{summary.history_albums:,} albums; {summary.seed_count} seeds, "
+        f"{summary.track_candidate_count:,} track candidates, "
+        f"{summary.album_candidate_count:,} eligible albums; Sauvignon "
+        f"{summary.playlist_length_before} -> {summary.playlist_length_after}; "
+        f"selected {summary.selected}/{summary.requested_count}.",
+        style="bold",
+    )
+    if summary.paused:
+        console.print("Sauvignon fill paused; rerun to continue.", style="bold yellow")
 
 
 def configured_queue_playlists(configuration: Settings) -> the_queue.QueuePlaylists:

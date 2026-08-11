@@ -83,6 +83,26 @@ RUNNERS = (
         lambda: api.found_art.FoundArtError("found art failed"),
     ),
     RunnerSpec(
+        "sauvignon",
+        "fill_sauvignon_from_lastfm",
+        lambda job_id, spotify: api._run_sauvignon_job(
+            job_id,
+            spotify,  # type: ignore[arg-type]
+            "playlist",
+            "key",
+            "user",
+            None,
+            20,
+            30,
+            True,
+        ),
+        api.sauvignon,
+        "fill_sauvignon_from_lastfm",
+        lambda: api.sauvignon.SauvignonError("sauvignon failed"),
+        api._SauvignonJobCancelledError,
+        True,
+    ),
+    RunnerSpec(
         "queue-fill",
         "fill_queue_from_lastfm",
         lambda job_id, spotify: api._run_queue_fill_job(
@@ -315,6 +335,24 @@ def _success_result(spec: RunnerSpec) -> object:
             history_scrobbles=20,
             live_scrobbles_added=1,
             candidate_count=5,
+            results=(),
+        )
+    if spec.name == "sauvignon":
+        return api.sauvignon.SauvignonSummary(
+            generated_at=now,
+            week_start=date(2026, 8, 7),
+            playlist_id="playlist",
+            requested_count=1,
+            history_albums=10,
+            history_scrobbles=20,
+            live_scrobbles_added=1,
+            seed_count=3,
+            track_candidate_count=5,
+            album_candidate_count=2,
+            playlist_length_before=0,
+            playlist_length_after=0,
+            paused=False,
+            dry_run=True,
             results=(),
         )
     if spec.name == "queue-fill":
@@ -590,7 +628,11 @@ def test_interactive_job_runners_pause_for_retryable_spotify_failures(
 
 @pytest.mark.parametrize(
     "spec",
-    tuple(spec for spec in RUNNERS if spec.name in {"queue-fill", "queue-flush"}),
+    tuple(
+        spec
+        for spec in RUNNERS
+        if spec.name in {"sauvignon", "queue-fill", "queue-flush"}
+    ),
     ids=lambda spec: spec.name,
 )
 def test_queue_jobs_report_connection_failures(

@@ -592,7 +592,7 @@ def gather_candidates(
     heard_keys: set[TrackKey],
     *,
     cache_path: Path = DEFAULT_CACHE_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
+    log_path: Path | None = DEFAULT_LOG_PATH,
     week_start: date | None = None,
     candidate_pool_size: int = MIN_WEEKLY_CANDIDATE_POOL,
     now: datetime | None = None,
@@ -607,7 +607,10 @@ def gather_candidates(
     entries = cache["entries"]
     if not isinstance(entries, dict):
         raise AssertionError("validated cache entries changed type")
-    excluded_keys = heard_keys | previously_added_track_keys(log_path)
+    logged_keys = (
+        previously_added_track_keys(log_path) if log_path is not None else set()
+    )
+    excluded_keys = heard_keys | logged_keys
     candidates: dict[TrackKey, _CandidateAccumulator] = {}
 
     for index, seed in enumerate(seeds, start=1):

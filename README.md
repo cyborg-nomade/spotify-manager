@@ -267,10 +267,11 @@ stores the full export through large-file storage. A successful upload to
 ### `update-scrobble-history`
 
 Keeps `spotify_manager/files/lastfmstats-man-et-arms.json` as the canonical
-Last.fm record shared by Blast from the Past, Daily Mind Radio, Found Art, and
-Something Old. It reads the latest timestamp in the export, fetches the complete
-newer range through `user.getRecentTracks`, de-duplicates the inclusive boundary,
-and absorbs the older append-only Found Art delta when present.
+Last.fm record shared by Blast from the Past, Daily Mind Radio, Found Art,
+Sauvignon recommendations, and Something Old. It reads the latest timestamp in
+the export, fetches the complete newer range through `user.getRecentTracks`,
+de-duplicates the inclusive boundary, and absorbs the older append-only Found
+Art delta when present.
 
 A real update creates a timestamped gzip backup under
 `spotify_manager/files/lastfm_history_backups/`, completes the replacement
@@ -407,6 +408,57 @@ results so the page can reconnect after a reload:
 POST /commands/found-art?count=20
 GET  /commands/found-art-jobs
 GET  /commands/found-art-jobs/{job_id}
+```
+
+### `fill-sauvignon-from-lastfm`
+
+Rebuilds Last.fm-style album recommendations for *Sauvignon Terre-Neuve*.
+Last.fm does not expose an album-neighbour endpoint, so the routine reuses Found
+Art's weekly mix of recent, annual, and all-time track seeds and its cached
+`track.getSimilar` responses. Qualifying Spotify track matches are grouped by
+their primary artist's album, and evidence from multiple recommended tracks is
+combined into an album-level score with a new Friday-based rotation.
+
+Only plain studio albums and EPs are eligible. Singles, compilations, live
+releases, deluxe editions, and reissues are excluded. An album is also excluded
+when its normalized artist and release identity appears anywhere in the updated
+Last.fm history, the current Sauvignon playlist, or a previous successful run.
+Saved albums remain eligible when they have no scrobbles. Each run selects at
+most one album per artist.
+
+Spotify matches require the recommended artist to be the primary artist of both
+the matching track and its album. Equivalent regional copies are resolved
+automatically; materially different editions prompt for a choice, skip, or
+clean quit. The selected album is represented in Sauvignon by its first playable
+track in Spotify's stored track order. The album itself is not saved.
+
+By default the command fills only the available slots up to Sauvignon's 20-item
+cap. Use either `--count` or `--max-playlist-length`, never both:
+
+```console
+uv run spotify-manager fill-sauvignon-from-lastfm --dry-run
+just fill-sauvignon-from-lastfm --dry-run
+
+just fill-sauvignon-from-lastfm --count 5
+just fill-sauvignon-from-lastfm --max-playlist-length 10
+```
+
+Last.fm responses are cached after every completed seed, so interruptions do
+not repeat those calls. Every dry or real run is recorded in
+`spotify_manager/files/sauvignon_recommendation_log.jsonl`; only albums actually
+added by real runs are excluded permanently.
+
+The Album Cycles module exposes the same routine above Requeue for a Dream. It
+defaults to a dry run and the 20-item cap, streams the recommendation trace,
+pauses only for materially different Spotify editions, and reconnects to an
+active run or pending edition choice after a page reload:
+
+```text
+POST /commands/fill-sauvignon-from-lastfm?dry_run=true
+GET  /commands/fill-sauvignon-from-lastfm-jobs
+GET  /commands/fill-sauvignon-from-lastfm-jobs/{job_id}
+POST /commands/fill-sauvignon-from-lastfm-jobs/{job_id}/choice
+POST /commands/fill-sauvignon-from-lastfm-jobs/{job_id}/cancel
 ```
 
 ### `something-old`

@@ -77,7 +77,7 @@
   .card::after { right: 6px; bottom: 6px; }
   #blastCard, #dailyMindRadioCard, #foundArtCard, #genreRevealCard { --panel-accent: var(--lime); }
   #newKidsCard, #queue2Card, #queue3Card, #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
-  #requeueForADreamCard, #palaceOfMemoryCard { --panel-accent: var(--amber); }
+  #sauvignonCard, #requeueForADreamCard, #palaceOfMemoryCard { --panel-accent: var(--amber); }
   #releaseCheckCard, #discographyCard { --panel-accent: var(--green); }
   #artistStatsCard, #albumEvaluationCard { --panel-accent: #73856a; }
   .card h2 {
@@ -822,6 +822,19 @@
     <section class="macro-module albums-module" aria-labelledby="albumsModuleTitle">
       <header class="macro-header"><h2 id="albumsModuleTitle">Album cycles</h2><span>Release signal</span></header>
       <div class="macro-grid albums-grid">
+    <section class="card" id="sauvignonCard">
+      <h2>Sauvignon</h2>
+      <label class="inline">
+        <input type="checkbox" id="sauvignonDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions">
+        <button class="primary" data-action="startSauvignon">Run</button>
+        <button class="danger cancel" data-action="cancelSauvignon" hidden title="Stop routine">×</button>
+      </div>
+      <div class="analysis-progress" id="sauvignonProgress"></div>
+    </section>
+
     <section class="card" id="requeueForADreamCard">
       <h2>Requeue for a dream</h2>
       <label class="inline">
@@ -938,6 +951,7 @@
   var blastJob = null;
   var dailyMindRadioJob = null;
   var foundArtJob = null;
+  var sauvignonJob = null;
   var newKidsJob = null;
   var queueJob = null;
   var queue2Job = null;
@@ -1498,6 +1512,145 @@
 
   function restoreActiveFoundArtJobs() {
     return restoreActivePlaylistJobs("found");
+  }
+
+  function renderSauvignonJob(job) {
+    sauvignonJob = job;
+    var out = document.getElementById("sauvignonProgress");
+    var start = document.querySelector('[data-action="startSauvignon"]');
+    var cancel = document.querySelector('[data-action="cancelSauvignon"]');
+    document.getElementById("sauvignonDryRun").checked = Boolean(job.dry_run);
+
+    var summary = "";
+    if (typeof job.playlist_length_before === "number" &&
+        typeof job.playlist_length_after === "number") {
+      summary = '<div class="blast-summary">' +
+        '<div><strong>' + esc(job.added || 0) + '</strong><span>' +
+          (job.dry_run ? 'Proposed' : 'Added') + '</span></div>' +
+        '<div><strong>' + esc(job.playlist_length_before) + '</strong><span>Before</span></div>' +
+        '<div><strong>' + esc(job.playlist_length_after) + '</strong><span>After</span></div>' +
+        '</div>';
+    }
+
+    var history = "";
+    if (job.week_start) {
+      history = '<div class="playlist-dates">Listening week: ' + esc(job.week_start) +
+        ' · ' + esc(job.history_scrobbles || 0) + ' scrobbles across ' +
+        esc(job.sauvignon_history_albums || 0) + ' albums · ' +
+        esc(job.live_scrobbles_added || 0) + ' new · ' +
+        esc(job.sauvignon_seed_count || 0) + ' seeds · ' +
+        esc(job.sauvignon_track_candidate_count || 0) + ' track candidates · ' +
+        esc(job.sauvignon_album_candidate_count || 0) + ' album candidates</div>';
+    }
+
+    var results = (job.sauvignon_results || []).map(function (item) {
+      var target = item.spotify_album || "No selected Spotify edition";
+      if (item.first_track) target += " · " + item.first_track;
+      var edition = [item.release_type, item.release_date].filter(Boolean).join(" · ");
+      var support = (item.supporting_tracks || []).length;
+      var actionClass = String(item.action || "").replace(/\s+/g, "-");
+      return '<div class="blast-selection">' +
+        '<div class="blast-selection-title">' + esc(item.artist) + ' · ' +
+          esc(item.album) + '</div>' +
+        '<div class="blast-selection-match">' + esc(target) + '</div>' +
+        '<div class="blast-selection-meta">' +
+          (edition ? esc(edition) + ' · ' : '') +
+          'base #' + esc(item.base_rank) + ' · weekly ' +
+          esc(Number(item.weekly_rank || 0).toFixed(3)) + ' · score ' +
+          esc(Number(item.score || 0).toFixed(3)) + ' · best ' +
+          esc(Math.round(Number(item.best_match || 0) * 100)) + '% · ' +
+          esc(support) + (support === 1 ? ' track' : ' tracks') + ' · ' +
+          '<span class="blast-action ' + esc(actionClass) + '">' +
+            esc(item.action) + '</span></div></div>';
+    }).join("");
+
+    var pending = "";
+    if (job.sauvignon_pending_choice) {
+      var choice = job.sauvignon_pending_choice;
+      var options = (choice.options || []).map(function (option) {
+        return '<button class="ghost new-wine-option" data-action="sauvignonChoice" ' +
+          'data-choice="' + esc(option.spotify_id) + '">' +
+          '<span class="new-wine-option-name">' + esc(option.album) + '</span>' +
+          '<span class="new-wine-option-meta">' + esc(option.artist) + ' · ' +
+            esc(option.release_type) + ' · ' + esc(option.release_date || 'date unknown') +
+            ' · ' + esc(option.total_tracks) + ' tracks</span></button>';
+      }).join("");
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">Choose edition · ' + esc(choice.artist) +
+          ' · ' + esc(choice.album) + '</div>' +
+        '<div class="playlist-dates">Only materially different eligible editions are shown.</div>' +
+        '<div class="new-wine-options">' + options + '</div>' +
+        '<div class="new-wine-controls">' +
+          '<button class="ghost" data-action="sauvignonChoice" data-choice="__skip__">Skip</button>' +
+          '<button class="danger" data-action="sauvignonChoice" data-choice="__quit__">Quit</button>' +
+        '</div></div>';
+    }
+
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], {
+          hour: "2-digit", minute: "2-digit", second: "2-digit"
+        });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity…</span></div>';
+    }
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' +
+      history + summary + results + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active && !start.disabled) setBusy(start, true, "Running…");
+    if (!active) setBusy(start, false);
+  }
+
+  async function pollSauvignonJob(jobId) {
+    try {
+      var job = await api("/commands/fill-sauvignon-from-lastfm-jobs/" + jobId);
+      renderSauvignonJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollSauvignonJob(jobId); }, 1500);
+      } else if (job.status === "completed") {
+        showToast("Sauvignon discovery finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "Sauvignon discovery stopped", "ok");
+      } else {
+        showToast("Sauvignon discovery " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("sauvignonProgress"), e);
+      setBusy(document.querySelector('[data-action="startSauvignon"]'), false);
+      showToast("Could not read Sauvignon progress", "err");
+    }
+  }
+
+  async function restoreActiveSauvignonJobs() {
+    try {
+      var jobs = await api("/commands/fill-sauvignon-from-lastfm-jobs");
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderSauvignonJob(job);
+      pollSauvignonJob(job.job_id);
+      showToast("Reconnected to Sauvignon discovery", "ok");
+    } catch (e) {
+      if (e.status !== 401) showToast("Could not restore Sauvignon progress", "err");
+    }
   }
 
   function queueJobBasePath(command) {
@@ -3503,6 +3656,66 @@
       }
     },
 
+    async startSauvignon(btn) {
+      var dryRun = document.getElementById("sauvignonDryRun").checked;
+      var out = document.getElementById("sauvignonProgress");
+      if (!dryRun && !confirm("Add recommended album markers to Sauvignon?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api(
+          "/commands/fill-sauvignon-from-lastfm?" + q.toString(),
+          { method: "POST" }
+        );
+        renderSauvignonJob(job);
+        pollSauvignonJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "fill_sauvignon_from_lastfm") {
+          await pollSauvignonJob(activeJobId);
+          showToast("Reconnected to Sauvignon discovery", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Sauvignon discovery", "err");
+      }
+    },
+
+    async sauvignonChoice(btn) {
+      if (!sauvignonJob || !sauvignonJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/fill-sauvignon-from-lastfm-jobs/" +
+            sauvignonJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice } }
+        );
+        renderSauvignonJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit album choice", "err");
+      }
+    },
+
+    async cancelSauvignon(btn) {
+      if (!sauvignonJob || !sauvignonJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/fill-sauvignon-from-lastfm-jobs/" +
+            sauvignonJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderSauvignonJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop Sauvignon discovery", "err");
+      }
+    },
+
     async startQueueFill(btn) {
       var selectedMode = document.querySelector(
         '[data-action="queueFillMode"].active'
@@ -4424,6 +4637,7 @@
     restoreActiveBlastJobs();
     restoreActiveDailyMindRadioJobs();
     restoreActiveFoundArtJobs();
+    restoreActiveSauvignonJobs();
     restoreActiveReleaseCheckJobs();
     restoreActiveDiscographyJobs();
     restoreActiveNewKidsJobs();

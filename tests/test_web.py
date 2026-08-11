@@ -371,6 +371,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
     new_wine_position = response.text.index('id="newWineCard"')
     slow_listening_position = response.text.index('id="slowListeningCard"')
     something_old_position = response.text.index('id="somethingOldCard"')
+    sauvignon_position = response.text.index('id="sauvignonCard"')
     requeue_position = response.text.index('id="requeueForADreamCard"')
     palace_position = response.text.index('id="palaceOfMemoryCard"')
     scrobble_history_position = response.text.index('id="scrobbleHistoryCard"')
@@ -391,6 +392,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
         < queue_2_position
         < slow_listening_position
         < something_old_position
+        < sauvignon_position
         < requeue_position
         < palace_position
         < release_check_position
@@ -469,6 +471,14 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "job.something_old_ranking" in response.text
     assert "job.something_old_tracks" in response.text
     assert "restoreActiveSomethingOldJobs();" in response.text
+    assert 'id="sauvignonDryRun" checked' in response.text
+    assert 'data-action="startSauvignon"' in response.text
+    assert 'data-action="sauvignonChoice"' in response.text
+    assert 'data-action="cancelSauvignon"' in response.text
+    assert '"/commands/fill-sauvignon-from-lastfm-jobs/"' in response.text
+    assert "job.sauvignon_pending_choice" in response.text
+    assert "job.sauvignon_results" in response.text
+    assert "restoreActiveSauvignonJobs();" in response.text
     assert 'id="requeueForADreamDryRun" checked' in response.text
     assert 'data-action="startRequeueForADream"' in response.text
     assert 'data-action="cancelRequeueForADream"' in response.text

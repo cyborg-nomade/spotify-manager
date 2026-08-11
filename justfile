@@ -109,6 +109,10 @@ blast-from-the-past *args:
 found-art *args:
     {{ cli }} found-art "$@"
 
+# Recommend unheard albums and add their first tracks to Sauvignon.
+fill-sauvignon-from-lastfm *args:
+    {{ cli }} fill-sauvignon-from-lastfm "$@"
+
 # Recommend unheard Last.fm artists and add one marker each to The Queue.
 fill-queue-from-lastfm *args:
     {{ cli }} fill-queue-from-lastfm "$@"
