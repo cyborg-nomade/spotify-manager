@@ -201,6 +201,42 @@ def isolated_paths(tmp_path: Path) -> dict[str, Path]:
     }
 
 
+def seed_artist(
+    spotify: FakeSpotify,
+    artist_id: str,
+    *,
+    release_count: int = 1,
+    tracks_per_release: int = 2,
+) -> list[list[dict[str, object]]]:
+    """Add a compact primary-artist catalog to the Spotify simulation."""
+    releases: list[dict[str, object]] = []
+    seeded_tracks: list[list[dict[str, object]]] = []
+    for release_index in range(1, release_count + 1):
+        release_id = f"{artist_id}-r{release_index}"
+        release = raw_release(
+            release_id,
+            f"{artist_id} Release {release_index}",
+            artist_id=artist_id,
+            total_tracks=tracks_per_release,
+            release_date=f"202{release_index}-01-01",
+        )
+        tracks = [
+            raw_track(
+                f"{artist_id}-r{release_index}-t{track_index}",
+                f"{artist_id} Track {release_index}.{track_index}",
+                release,
+                artist_id=artist_id,
+                track_number=track_index,
+            )
+            for track_index in range(1, tracks_per_release + 1)
+        ]
+        releases.append(release)
+        seeded_tracks.append(tracks)
+        spotify.release_tracks[release_id] = tracks
+    spotify.artist_releases[artist_id] = releases
+    return seeded_tracks
+
+
 def flush(
     spotify: FakeSpotify,
     tmp_path: Path,
@@ -549,3 +585,235 @@ def test_interrupted_postfill_resumes_without_advancing_new_artist(
     assert spotify.playlists["queue"] == []
     completed = json.loads((tmp_path / "state.json").read_text())
     assert completed["active_run"] is None
+
+
+def test_queue_2_fills_new_kids_then_advances_only_ten_artists(
+    tmp_path: Path,
+) -> None:
+    """The normal Queue 2 run respects New Kids priority and its daily limit."""
+    spotify = FakeSpotify()
+    for index in range(8):
+        spotify.playlists["new"].append(seed_artist(spotify, f"new-{index}")[0][0])
+    queue_tracks = [seed_artist(spotify, f"queue-{index}")[0][0] for index in range(14)]
+    spotify.playlists["queue"] = list(queue_tracks)
+
+    summary = new_kids.flush_queue_2(
+        spotify,
+        "new",
+        "queue",
+        "great",
+        "unlucky",
+        "newfoundland",
+        lambda *_args: pytest.fail("release prompt was unexpected"),
+        year=2026,
+        **isolated_paths(tmp_path),
+    )
+
+    assert summary.new_kids_length_before == 8
+    assert summary.new_kids_length_after == 10
+    assert len(summary.prefill) == 2
+    assert len(summary.results) == new_kids.QUEUE_2_DAILY_LIMIT
+    assert summary.queue_length_before == 14
+    assert summary.queue_length_after == 12
+    assert [result.artist for result in summary.results] == ["Artist"] * 10
+    assert [track["id"] for track in spotify.playlists["new"][-2:]] == [
+        "queue-0-r1-t1",
+        "queue-1-r1-t1",
+    ]
+    assert [track["id"] for track in spotify.playlists["queue"]] == [
+        "queue-12-r1-t1",
+        "queue-13-r1-t1",
+        *[f"queue-{index}-r1-t2" for index in range(2, 12)],
+    ]
+
+
+def test_queue_2_dry_run_excludes_simulated_new_kids_transfers(
+    tmp_path: Path,
+) -> None:
+    """A dry run reviews the queue left after its simulated prefill."""
+    spotify = FakeSpotify()
+    for index in range(9):
+        spotify.playlists["new"].append(seed_artist(spotify, f"new-{index}")[0][0])
+    first = seed_artist(spotify, "first")[0][0]
+    second = seed_artist(spotify, "second")[0][0]
+    spotify.playlists["queue"] = [first, second]
+
+    summary = new_kids.flush_queue_2(
+        spotify,
+        "new",
+        "queue",
+        "great",
+        "unlucky",
+        "newfoundland",
+        lambda *_args: pytest.fail("release prompt was unexpected"),
+        dry_run=True,
+        year=2026,
+        **isolated_paths(tmp_path),
+    )
+
+    assert summary.new_kids_length_after == 10
+    assert summary.queue_length_after == 1
+    assert len(summary.prefill) == 1
+    assert [result.source_track for result in summary.results] == ["second Track 1.1"]
+    assert [track["id"] for track in spotify.playlists["queue"]] == [
+        "first-r1-t1",
+        "second-r1-t1",
+    ]
+    assert spotify.mutations == []
+    assert not (tmp_path / "state.json").exists()
+
+
+def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
+    """A transferred marker continues at release three instead of restarting."""
+    spotify = FakeSpotify()
+    tracks = seed_artist(spotify, "artist", release_count=3, tracks_per_release=1)
+    spotify.playlists["queue"] = [tracks[1][0]]
+    state = new_kids._default_state()
+    state["artists"] = {
+        "artist": {
+            "artist_name": "Artist",
+            "selected_release_ids": ["artist-r1", "artist-r2"],
+            "selected_release_identities": [
+                new_kids.release_identity("artist Release 1"),
+                new_kids.release_identity("artist Release 2"),
+            ],
+            "completed_release_ids": [],
+            "current_release_id": "artist-r2",
+            "prior_unliked_streak": 0,
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        }
+    }
+    new_kids.save_state(state, tmp_path / "state.json")
+
+    queue_summary = new_kids.flush_queue_2(
+        spotify,
+        "new",
+        "queue",
+        "great",
+        "unlucky",
+        "newfoundland",
+        lambda *_args: pytest.fail("release prompt was unexpected"),
+        year=2026,
+        **isolated_paths(tmp_path),
+    )
+    spotify.liked_ids.add("artist-r2-t1")
+    new_summary = flush(
+        spotify,
+        tmp_path,
+        choice_reader=lambda _artist, candidates: candidates[0].spotify_id,
+    )
+
+    assert queue_summary.results == ()
+    assert [track["id"] for track in spotify.playlists["new"]] == ["artist-r3-t1"]
+    assert new_summary.results[0].action == "next release"
+    assert new_summary.results[0].release_number == 3
+    persisted = json.loads((tmp_path / "state.json").read_text())
+    assert persisted["artists"]["artist"]["selected_release_ids"] == [
+        "artist-r1",
+        "artist-r2",
+        "artist-r3",
+    ]
+
+
+def test_queue_2_finishes_fourth_release_without_waiting_for_new_kids(
+    tmp_path: Path,
+) -> None:
+    """A completed Queue 2 artist is assessed immediately when New Kids is full."""
+    spotify = FakeSpotify()
+    for index in range(10):
+        spotify.playlists["new"].append(seed_artist(spotify, f"new-{index}")[0][0])
+    tracks = seed_artist(spotify, "artist", release_count=4, tracks_per_release=1)
+    spotify.playlists["queue"] = [tracks[3][0]]
+    spotify.liked_ids.add("artist-r1-t1")
+    spotify.saved_album_ids.update({"artist-r1", "artist-r2", "artist-r3"})
+    state = new_kids._default_state()
+    state["artists"] = {
+        "artist": {
+            "artist_name": "Artist",
+            "selected_release_ids": [
+                "artist-r1",
+                "artist-r2",
+                "artist-r3",
+                "artist-r4",
+            ],
+            "selected_release_identities": [
+                "ARTISTRELEASE1",
+                "ARTISTRELEASE2",
+                "ARTISTRELEASE3",
+                "ARTISTRELEASE4",
+            ],
+            "completed_release_ids": [],
+            "current_release_id": "artist-r4",
+            "prior_unliked_streak": 0,
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        }
+    }
+    new_kids.save_state(state, tmp_path / "state.json")
+
+    summary = new_kids.flush_queue_2(
+        spotify,
+        "new",
+        "queue",
+        "great",
+        "unlucky",
+        "newfoundland",
+        lambda *_args: pytest.fail("release prompt was unexpected"),
+        year=2026,
+        **isolated_paths(tmp_path),
+    )
+
+    assert summary.results[0].action == "great discovery"
+    assert spotify.playlists["queue"] == []
+    assert [track["id"] for track in spotify.playlists["great"]] == ["artist-r1-t1"]
+    assert [track["id"] for track in spotify.playlists["newfoundland"]] == [
+        "artist-r1-t1"
+    ]
+
+
+def test_queue_2_resumes_after_replacement_was_added(tmp_path: Path) -> None:
+    """A partial add-before-remove mutation is reconciled on restart."""
+    spotify = FakeSpotify()
+    for index in range(10):
+        spotify.playlists["new"].append(seed_artist(spotify, f"new-{index}")[0][0])
+    tracks = seed_artist(spotify, "artist")[0]
+    spotify.playlists["queue"] = [tracks[0]]
+    spotify.fail_playlist_delete_once = "queue"
+
+    with pytest.raises(RuntimeError, match="interrupted"):
+        new_kids.flush_queue_2(
+            spotify,
+            "new",
+            "queue",
+            "great",
+            "unlucky",
+            "newfoundland",
+            lambda *_args: pytest.fail("release prompt was unexpected"),
+            year=2026,
+            **isolated_paths(tmp_path),
+        )
+
+    interrupted = json.loads((tmp_path / "state.json").read_text())
+    assert interrupted["active_run"] is None
+    assert interrupted["queue_2_active_run"]["status"] == "active"
+    assert [track["id"] for track in spotify.playlists["queue"]] == [
+        "artist-r1-t1",
+        "artist-r1-t2",
+    ]
+
+    summary = new_kids.flush_queue_2(
+        spotify,
+        "new",
+        "queue",
+        "great",
+        "unlucky",
+        "newfoundland",
+        lambda *_args: pytest.fail("release prompt was unexpected"),
+        year=2026,
+        **isolated_paths(tmp_path),
+    )
+
+    assert summary.resumed is True
+    assert [track["id"] for track in spotify.playlists["queue"]] == ["artist-r1-t2"]
+    completed = json.loads((tmp_path / "state.json").read_text())
+    assert completed["active_run"] is None
+    assert completed["queue_2_active_run"] is None

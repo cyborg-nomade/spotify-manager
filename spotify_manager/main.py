@@ -367,6 +367,49 @@ def ask_new_kids_release_choice(
             progress.start()
 
 
+def print_album_discovery_decisions(
+    console: Console,
+    title: str,
+    decisions: tuple[new_kids.FlushResult, ...],
+) -> None:
+    """Render shared New Kids and Queue 2 artist decisions."""
+    if not decisions:
+        return
+    table = Table(title=title)
+    table.add_column("Artist")
+    table.add_column("Current")
+    table.add_column("Release")
+    table.add_column("Like")
+    table.add_column("Streak", justify="right")
+    table.add_column("Action")
+    table.add_column("Next")
+    action_styles = {
+        "advance": "green",
+        "next release": "cyan",
+        "great discovery": "bold green",
+        "unlucky": "yellow",
+        "unfollowed": "bold red",
+        "skip": "dim",
+    }
+    for decision in decisions:
+        next_item = decision.target_track or "-"
+        if (
+            decision.target_release
+            and decision.target_release != decision.source_release
+        ):
+            next_item = f"{decision.target_release} - {next_item}"
+        table.add_row(
+            decision.artist,
+            decision.source_track,
+            decision.source_release,
+            "liked" if decision.current_liked else "unliked",
+            str(decision.consecutive_unliked),
+            Text(decision.action, style=action_styles[decision.action]),
+            next_item,
+        )
+    console.print(table)
+
+
 def ask_slow_listening_release_order(
     console: Console,
     release_date: str,
@@ -1732,40 +1775,11 @@ def flush_new_kids_command(
             )
         raise typer.Exit(code=0) from exc
 
-    if summary.results:
-        table = Table(title="New Kids on the Block")
-        table.add_column("Artist")
-        table.add_column("Current")
-        table.add_column("Release")
-        table.add_column("Like")
-        table.add_column("Streak", justify="right")
-        table.add_column("Action")
-        table.add_column("Next")
-        action_styles = {
-            "advance": "green",
-            "next release": "cyan",
-            "great discovery": "bold green",
-            "unlucky": "yellow",
-            "unfollowed": "bold red",
-            "skip": "dim",
-        }
-        for decision in summary.results:
-            next_item = decision.target_track or "-"
-            if (
-                decision.target_release
-                and decision.target_release != decision.source_release
-            ):
-                next_item = f"{decision.target_release} - {next_item}"
-            table.add_row(
-                decision.artist,
-                decision.source_track,
-                decision.source_release,
-                "liked" if decision.current_liked else "unliked",
-                str(decision.consecutive_unliked),
-                Text(decision.action, style=action_styles[decision.action]),
-                next_item,
-            )
-        console.print(table)
+    print_album_discovery_decisions(
+        console,
+        "New Kids on the Block",
+        summary.results,
+    )
 
     transfers = [("Before", transfer) for transfer in summary.prefill] + [
         ("After", transfer) for transfer in summary.postfill
@@ -1794,6 +1808,187 @@ def flush_new_kids_command(
     )
     if summary.resumed:
         console.print("Resumed the previously saved flush.", style="cyan")
+    if summary.paused:
+        console.print(
+            "Flush paused; run the command again to resume.",
+            style="bold yellow",
+        )
+
+
+@app.command(name="flush-queue-2")
+def flush_queue_2_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show the Queue 2 run without changing Spotify or durable state.",
+    ),
+) -> None:
+    """Fill New Kids, then advance the first ten Queue 2 artists."""
+    console = Console()
+    progress_ref: Progress | None = None
+    configuration = Settings()
+    try:
+        new_kids_playlist_id = new_kids.parse_playlist_id(
+            configuration.new_kids_on_the_block_playlist,
+            "NEW_KIDS_ON_THE_BLOCK_PLAYLIST",
+        )
+        queue_2_playlist_id = new_kids.parse_playlist_id(
+            configuration.the_queue_2_playlist,
+            "THE_QUEUE_2_PLAYLIST",
+        )
+        great_discoveries_playlist_id = new_kids.parse_playlist_id(
+            configuration.great_discoveries_2026_playlist,
+            "GREAT_DISCOVERIES_2026_PLAYLIST",
+        )
+        unlucky_ones_playlist_id = new_kids.parse_playlist_id(
+            configuration.unlucky_ones_playlist,
+            "UNLUCKY_ONES_PLAYLIST",
+        )
+        newfoundland_playlist_id = new_kids.parse_playlist_id(
+            configuration.discography_newfoundland_playlist,
+            "DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST",
+        )
+    except new_kids.NewKidsConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith(("Added", "Moved", "Removed", "Saved", "Reconciled")):
+            style = "bold green"
+        elif line.startswith("Would"):
+            style = "yellow"
+        elif line.startswith(("Unfollowed", "Unsaved")):
+            style = "bold red"
+        elif "resum" in line.casefold():
+            style = "cyan"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            description = "Planning Queue 2 flush"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(completed: int, total: int, status: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=completed,
+                    total=max(completed, total),
+                    description=status,
+                )
+
+            summary = new_kids.flush_queue_2(
+                review_client(),
+                new_kids_playlist_id,
+                queue_2_playlist_id,
+                great_discoveries_playlist_id,
+                unlucky_ones_playlist_id,
+                newfoundland_playlist_id,
+                choice_reader=lambda artist, candidates: ask_new_kids_release_choice(
+                    console,
+                    artist,
+                    candidates,
+                    progress_ref,
+                ),
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        if not dry_run:
+            console.print(
+                "The active Queue 2 run was saved and can be resumed.",
+                style="yellow",
+            )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        if not dry_run:
+            console.print(
+                "The active Queue 2 run was saved and can be resumed.",
+                style="yellow",
+            )
+        raise typer.Exit(code=0) from exc
+    except new_kids.NewKidsError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        if not dry_run:
+            console.print(
+                "The active Queue 2 run was saved and can be resumed.",
+                style="yellow",
+            )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        if not dry_run:
+            console.print(
+                "Queue 2 flush paused. The active run was saved.",
+                style="bold yellow",
+            )
+        raise typer.Exit(code=0) from exc
+
+    print_album_discovery_decisions(console, "The Queue 2", summary.results)
+    if summary.prefill:
+        transfer_table = Table(title="New Kids prefill")
+        transfer_table.add_column("Artist")
+        transfer_table.add_column("Track")
+        transfer_table.add_column("Action")
+        for transfer in summary.prefill:
+            transfer_table.add_row(
+                transfer.artist,
+                transfer.track,
+                transfer.action,
+            )
+        console.print(transfer_table)
+
+    prefix = "Dry run" if summary.dry_run else "Flush"
+    console.print(
+        f"{prefix}: New Kids {summary.new_kids_length_before} -> "
+        f"{summary.new_kids_length_after}; Queue 2 "
+        f"{summary.queue_length_before} -> {summary.queue_length_after}; "
+        f"{len(summary.results)} decisions, {len(summary.prefill)} transfers.",
+        style="bold",
+    )
+    if summary.resumed:
+        console.print("Resumed the previously saved Queue 2 flush.", style="cyan")
     if summary.paused:
         console.print(
             "Flush paused; run the command again to resume.",
