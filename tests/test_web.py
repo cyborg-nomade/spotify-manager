@@ -366,6 +366,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
     release_check_position = response.text.index('id="releaseCheckCard"')
     discography_position = response.text.index('id="discographyCard"')
     new_kids_position = response.text.index('id="newKidsCard"')
+    queue_position = response.text.index('id="queueCard"')
     queue_2_position = response.text.index('id="queue2Card"')
     new_wine_position = response.text.index('id="newWineCard"')
     slow_listening_position = response.text.index('id="slowListeningCard"')
@@ -386,6 +387,7 @@ def test_main_page_places_playlist_routines_in_expected_order(
         < genre_position
         < new_kids_position
         < new_wine_position
+        < queue_position
         < queue_2_position
         < slow_listening_position
         < something_old_position
@@ -424,6 +426,17 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "job.new_kids_pending_choice" in response.text
     assert "job.new_kids_results" in response.text
     assert "restoreActiveNewKidsJobs();" in response.text
+    assert 'id="queueDryRun" checked' in response.text
+    assert 'id="queueCount"' in response.text
+    assert 'id="queueMaximum"' in response.text
+    assert 'data-action="startQueueFill"' in response.text
+    assert 'data-action="startQueueFlush"' in response.text
+    assert 'data-action="queueArtistChoice"' in response.text
+    assert 'data-action="queueArtistSearch"' in response.text
+    assert '"/commands/fill-queue-from-lastfm?"' in response.text
+    assert '"/commands/flush-queue?"' in response.text
+    assert "job.queue_pending_choice" in response.text
+    assert "restoreActiveQueueJobs();" in response.text
     assert 'id="queue2DryRun" checked' in response.text
     assert 'data-action="startQueue2"' in response.text
     assert '"queue2Choice"' in response.text
@@ -432,7 +445,8 @@ def test_main_page_places_playlist_routines_in_expected_order(
     assert "restoreActiveQueue2Jobs();" in response.text
     assert ".discovery-grid #newKidsCard { order: 3; }" in response.text
     assert ".discovery-grid #newWineCard { order: 4; }" in response.text
-    assert ".discovery-grid #queue2Card { order: 5; }" in response.text
+    assert ".discovery-grid #queueCard { order: 5; }" in response.text
+    assert ".discovery-grid #queue2Card { order: 6; }" in response.text
     assert 'id="newWineDryRun" checked' in response.text
     assert 'id="newWineNoDiscovery"' in response.text
     assert 'id="refreshCache"' not in response.text

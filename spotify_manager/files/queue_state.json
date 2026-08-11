@@ -1,0 +1,204 @@
+{
+  "version": 1,
+  "artist_mappings": {
+    "everclear": {
+      "spotify_id": "694QW15WkebjcrWgQHzRYF",
+      "name": "Everclear",
+      "uri": "spotify:artist:694QW15WkebjcrWgQHzRYF",
+      "popularity": 64,
+      "followers": 1164285,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "hemelbestormer": {
+      "spotify_id": "5oHzkbFUZZHA2y8t2aAhso",
+      "name": "Hemelbestormer",
+      "uri": "spotify:artist:5oHzkbFUZZHA2y8t2aAhso",
+      "popularity": 15,
+      "followers": 5779,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "niogarcia": {
+      "spotify_id": "5hdhHgpxyniooUiQVaPxQ0",
+      "name": "Nio Garcia",
+      "uri": "spotify:artist:5hdhHgpxyniooUiQVaPxQ0",
+      "popularity": 71,
+      "followers": 5798065,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "newyoungponyclub": {
+      "spotify_id": "3kdrMtLybQIl93rXJlvF3w",
+      "name": "New Young Pony Club",
+      "uri": "spotify:artist:3kdrMtLybQIl93rXJlvF3w",
+      "popularity": 35,
+      "followers": 63961,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "foxborohottubs": {
+      "spotify_id": "5tI0Vj2FhioY8AKtEqu9d3",
+      "name": "Foxboro Hottubs",
+      "uri": "spotify:artist:5tI0Vj2FhioY8AKtEqu9d3",
+      "popularity": 33,
+      "followers": 46890,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "joannanewsom": {
+      "spotify_id": "4gn6f5jaOO75s0oF7ozqGG",
+      "name": "Joanna Newsom",
+      "uri": "spotify:artist:4gn6f5jaOO75s0oF7ozqGG",
+      "popularity": 39,
+      "followers": 142023,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "electricoctopus": {
+      "spotify_id": "4dcZVsGQzFSiXuAHyhw3qT",
+      "name": "Electric Octopus",
+      "uri": "spotify:artist:4dcZVsGQzFSiXuAHyhw3qT",
+      "popularity": 20,
+      "followers": 44729,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "cutcopy": {
+      "spotify_id": "4EENT7N7rCBwrddM3s0vFS",
+      "name": "Cut Copy",
+      "uri": "spotify:artist:4EENT7N7rCBwrddM3s0vFS",
+      "popularity": 49,
+      "followers": 352486,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "balanceandcomposure": {
+      "spotify_id": "2fgl3me4n9diODTrVfruF3",
+      "name": "Balance And Composure",
+      "uri": "spotify:artist:2fgl3me4n9diODTrVfruF3",
+      "popularity": 47,
+      "followers": 166292,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "deadmeadow": {
+      "spotify_id": "0AI2um3PpFgOj7Yzmk2Xu0",
+      "name": "Dead Meadow",
+      "uri": "spotify:artist:0AI2um3PpFgOj7Yzmk2Xu0",
+      "popularity": 38,
+      "followers": 96466,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "omarcourtz": {
+      "spotify_id": "3E12tRURRvPfHz0hAMCFYc",
+      "name": "Omar Courtz",
+      "uri": "spotify:artist:3E12tRURRvPfHz0hAMCFYc",
+      "popularity": 89,
+      "followers": 4403185,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "arcangel": {
+      "spotify_id": "4SsVbpTthjScTS7U2hmr1X",
+      "name": "Arcángel",
+      "uri": "spotify:artist:4SsVbpTthjScTS7U2hmr1X",
+      "popularity": 86,
+      "followers": 19423766,
+      "search_rank": 2,
+      "exact_name": true
+    },
+    "therestoned": {
+      "spotify_id": "6bLvlTSqMrL6C2eFeAx0BY",
+      "name": "The Re-Stoned",
+      "uri": "spotify:artist:6bLvlTSqMrL6C2eFeAx0BY",
+      "popularity": 35,
+      "followers": 34637,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "rauwalejandro": {
+      "spotify_id": "1mcTU81TzQhprhouKaTkpq",
+      "name": "Rauw Alejandro",
+      "uri": "spotify:artist:1mcTU81TzQhprhouKaTkpq",
+      "popularity": 89,
+      "followers": 34664325,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "sod": {
+      "spotify_id": "6KcocikbSWKm3Ewqk7AvqM",
+      "name": "S.O.D. Stormtroopers of Death",
+      "uri": "spotify:artist:6KcocikbSWKm3Ewqk7AvqM",
+      "popularity": 41,
+      "followers": 172857,
+      "search_rank": 2,
+      "exact_name": false
+    },
+    "showmeadinosaur": {
+      "spotify_id": "1wou9vWv5PgrTn3pu3TydQ",
+      "name": "Show Me A Dinosaur",
+      "uri": "spotify:artist:1wou9vWv5PgrTn3pu3TydQ",
+      "popularity": 27,
+      "followers": 20346,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "farruko": {
+      "spotify_id": "329e4yvIujISKGKz1BZZbO",
+      "name": "Farruko",
+      "uri": "spotify:artist:329e4yvIujISKGKz1BZZbO",
+      "popularity": 86,
+      "followers": 18226254,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "trioternura": {
+      "spotify_id": "6J4hJ6O6WJmBTlIL3wJBcT",
+      "name": "Trio Ternura",
+      "uri": "spotify:artist:6J4hJ6O6WJmBTlIL3wJBcT",
+      "popularity": 47,
+      "followers": 29404,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "rvssian": {
+      "spotify_id": "1fctva4kpRbg2k3v7kwRuS",
+      "name": "Rvssian",
+      "uri": "spotify:artist:1fctva4kpRbg2k3v7kwRuS",
+      "popularity": 74,
+      "followers": 2778411,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "uffie": {
+      "spotify_id": "2s6lxOYvvCvzpHtd3VyuMj",
+      "name": "Uffie",
+      "uri": "spotify:artist:2s6lxOYvvCvzpHtd3VyuMj",
+      "popularity": 51,
+      "followers": 88200,
+      "search_rank": 2,
+      "exact_name": true
+    },
+    "lesdiscrets": {
+      "spotify_id": "2VYbuGDGM7ipeu54IbKzyw",
+      "name": "Les Discrets",
+      "uri": "spotify:artist:2VYbuGDGM7ipeu54IbKzyw",
+      "popularity": 33,
+      "followers": 82648,
+      "search_rank": 1,
+      "exact_name": true
+    },
+    "pulseultra": {
+      "spotify_id": "0mfFGjshEFbLqZEkPBkblG",
+      "name": "Pulse Ultra",
+      "uri": "spotify:artist:0mfFGjshEFbLqZEkPBkblG",
+      "popularity": 34,
+      "followers": 15247,
+      "search_rank": 1,
+      "exact_name": true
+    }
+  },
+  "active_flush": null
+}

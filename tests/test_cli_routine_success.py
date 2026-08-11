@@ -22,6 +22,7 @@ def _settings() -> SimpleNamespace:
         new_vintage_playlist=PLAYLIST_ID,
         found_art_playlist=PLAYLIST_ID,
         new_kids_on_the_block_playlist=PLAYLIST_ID,
+        the_queue_playlist=PLAYLIST_ID,
         the_queue_2_playlist=PLAYLIST_ID,
         the_queue_3_playlist=PLAYLIST_ID,
         great_discoveries_2026_playlist=PLAYLIST_ID,
@@ -170,6 +171,71 @@ def test_found_art_command_completes(
     main.found_art_command(count=20, max_playlist_length=None, dry_run=True)
 
     assert "Found Art" in capsys.readouterr().out
+
+
+def test_fill_queue_from_lastfm_command_completes(
+    monkeypatch: pytest.MonkeyPatch,
+    configured_cli: object,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del configured_cli
+    summary = main.the_queue.FillSummary(
+        week_start=date(2026, 8, 7),
+        requested_count=1,
+        history_artists=100,
+        history_scrobbles=1000,
+        live_scrobbles_added=1,
+        seed_count=3,
+        candidate_count=20,
+        playlist_length_before=2,
+        playlist_length_after=2,
+        paused=False,
+        dry_run=True,
+        results=(),
+    )
+
+    def run(*_args, **kwargs):
+        kwargs["progress_callback"](1, 1, "Queue recommendations complete")
+        return summary
+
+    monkeypatch.setattr(main.the_queue, "fill_queue_from_lastfm", run)
+
+    main.fill_queue_from_lastfm_command(
+        count=1,
+        max_playlist_length=None,
+        seed_count=3,
+        dry_run=True,
+    )
+
+    assert "selected 0/1" in capsys.readouterr().out
+
+
+def test_flush_queue_command_completes(
+    monkeypatch: pytest.MonkeyPatch,
+    configured_cli: object,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del configured_cli
+    summary = main.the_queue.FlushSummary(
+        run_id="run",
+        playlist_length_before=10,
+        playlist_length_after=10,
+        total=10,
+        processed=10,
+        resumed=False,
+        dry_run=True,
+        results=(),
+    )
+
+    def run(*_args, **kwargs):
+        kwargs["progress_callback"](10, 10, "Queue flush complete")
+        return summary
+
+    monkeypatch.setattr(main.the_queue, "flush_queue", run)
+
+    main.flush_queue_command(dry_run=True)
+
+    assert "processed 10/10 artists" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("command", ["new-kids", "queue-2"])

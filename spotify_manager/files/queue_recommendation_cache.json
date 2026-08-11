@@ -1,0 +1,6177 @@
+{
+  "version": 1,
+  "entries": {
+    "blackorchidempire": {
+      "artist": "Black Orchid Empire",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "The Intersphere",
+          "match": 1.0
+        },
+        {
+          "artist": "Stellar Circuits",
+          "match": 0.633837
+        },
+        {
+          "artist": "Twelve Foot Ninja",
+          "match": 0.61006
+        },
+        {
+          "artist": "Arcane Roots",
+          "match": 0.592508
+        },
+        {
+          "artist": "VOWER",
+          "match": 0.43949
+        },
+        {
+          "artist": "Esoterica",
+          "match": 0.390782
+        },
+        {
+          "artist": "Karnivool",
+          "match": 0.374343
+        },
+        {
+          "artist": "Port Noir",
+          "match": 0.371924
+        },
+        {
+          "artist": "Daniel Tompkins",
+          "match": 0.370439
+        },
+        {
+          "artist": "Agent Fresco",
+          "match": 0.360391
+        },
+        {
+          "artist": "Maraton",
+          "match": 0.296701
+        },
+        {
+          "artist": "Royal Sorrow",
+          "match": 0.286127
+        },
+        {
+          "artist": "The Butterfly Effect",
+          "match": 0.273264
+        },
+        {
+          "artist": "Black Map",
+          "match": 0.27008
+        },
+        {
+          "artist": "Pulse Ultra",
+          "match": 0.267834
+        },
+        {
+          "artist": "Dead Letter Circus",
+          "match": 0.264048
+        },
+        {
+          "artist": "Self Deception",
+          "match": 0.249239
+        },
+        {
+          "artist": "Alter Bridge",
+          "match": 0.237882
+        },
+        {
+          "artist": "Siamese",
+          "match": 0.236106
+        },
+        {
+          "artist": "I Am Giant",
+          "match": 0.230139
+        },
+        {
+          "artist": "Night Verses",
+          "match": 0.224019
+        },
+        {
+          "artist": "Luna Kills",
+          "match": 0.221341
+        },
+        {
+          "artist": "Highly Suspect",
+          "match": 0.215867
+        },
+        {
+          "artist": "Submersed",
+          "match": 0.212521
+        },
+        {
+          "artist": "Save Us",
+          "match": 0.212476
+        },
+        {
+          "artist": "Tremonti",
+          "match": 0.20716
+        },
+        {
+          "artist": "Alt.",
+          "match": 0.20711
+        },
+        {
+          "artist": "Don Broco",
+          "match": 0.202811
+        },
+        {
+          "artist": "Lo-Pro",
+          "match": 0.201326
+        },
+        {
+          "artist": "Earshot",
+          "match": 0.200874
+        },
+        {
+          "artist": "Nothing More",
+          "match": 0.195777
+        },
+        {
+          "artist": "Stoneside.",
+          "match": 0.194098
+        },
+        {
+          "artist": "Fair to Midland",
+          "match": 0.182452
+        },
+        {
+          "artist": "Saint Agnes",
+          "match": 0.181894
+        },
+        {
+          "artist": "Glass Tides",
+          "match": 0.18089
+        },
+        {
+          "artist": "Weather Systems",
+          "match": 0.179794
+        },
+        {
+          "artist": "Boston Manor",
+          "match": 0.175708
+        },
+        {
+          "artist": "Pop Evil",
+          "match": 0.174612
+        },
+        {
+          "artist": "ASHES dIVIDE",
+          "match": 0.174276
+        },
+        {
+          "artist": "Thornhill",
+          "match": 0.16986
+        },
+        {
+          "artist": "Calva Louise",
+          "match": 0.169621
+        },
+        {
+          "artist": "VUKOVI",
+          "match": 0.169479
+        },
+        {
+          "artist": "10 Years",
+          "match": 0.165594
+        },
+        {
+          "artist": "Biffy Clyro",
+          "match": 0.163482
+        },
+        {
+          "artist": "The Pineapple Thief",
+          "match": 0.162144
+        },
+        {
+          "artist": "Fightstar",
+          "match": 0.161632
+        },
+        {
+          "artist": "The Apex Theory",
+          "match": 0.160427
+        },
+        {
+          "artist": "Amplifier",
+          "match": 0.157962
+        },
+        {
+          "artist": "The Pretty Wild",
+          "match": 0.156532
+        },
+        {
+          "artist": "Sevendust",
+          "match": 0.154582
+        }
+      ]
+    },
+    "braza": {
+      "artist": "BRAZA",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Forfun",
+          "match": 1.0
+        },
+        {
+          "artist": "Scracho",
+          "match": 0.439999
+        },
+        {
+          "artist": "Planta e Raiz",
+          "match": 0.318383
+        },
+        {
+          "artist": "Seu Cuca",
+          "match": 0.266881
+        },
+        {
+          "artist": "Baiana System",
+          "match": 0.22043
+        },
+        {
+          "artist": "Natiruts",
+          "match": 0.195865
+        },
+        {
+          "artist": "Maneva",
+          "match": 0.192889
+        },
+        {
+          "artist": "Ponto de Equilíbrio",
+          "match": 0.184753
+        },
+        {
+          "artist": "Armandinho",
+          "match": 0.164422
+        },
+        {
+          "artist": "O Rappa",
+          "match": 0.146795
+        },
+        {
+          "artist": "Maskavo",
+          "match": 0.116671
+        },
+        {
+          "artist": "Chimarruts",
+          "match": 0.111398
+        },
+        {
+          "artist": "SOJA",
+          "match": 0.106221
+        },
+        {
+          "artist": "Marcelo Falcão",
+          "match": 0.104797
+        },
+        {
+          "artist": "Dazaranha",
+          "match": 0.103094
+        },
+        {
+          "artist": "Melim",
+          "match": 0.097295
+        },
+        {
+          "artist": "Cidade Negra",
+          "match": 0.079147
+        },
+        {
+          "artist": "Edson Gomes",
+          "match": 0.066149
+        },
+        {
+          "artist": "Onze:20",
+          "match": 0.059374
+        },
+        {
+          "artist": "BNegão",
+          "match": 0.05572
+        },
+        {
+          "artist": "Edu Ribeiro",
+          "match": 0.051309
+        },
+        {
+          "artist": "Papas da Língua",
+          "match": 0.04742
+        },
+        {
+          "artist": "Cynthia Luz",
+          "match": 0.046146
+        },
+        {
+          "artist": "Francisca La Braza",
+          "match": 0.041039
+        },
+        {
+          "artist": "Tribo De Jah",
+          "match": 0.039815
+        },
+        {
+          "artist": "Rebelution",
+          "match": 0.034419
+        },
+        {
+          "artist": "IZA",
+          "match": 0.031153
+        },
+        {
+          "artist": "Gabriel Elias",
+          "match": 0.019959
+        },
+        {
+          "artist": "Big Up",
+          "match": 0.018342
+        },
+        {
+          "artist": "Dibob",
+          "match": 0.013826
+        },
+        {
+          "artist": "BRAZA, Josyara",
+          "match": 0.013659
+        },
+        {
+          "artist": "BRAZA e Ponto de Equilibrio",
+          "match": 0.012965
+        },
+        {
+          "artist": "Francisca La Braza, Francisco, el Hombre, BRAZA",
+          "match": 0.011308
+        },
+        {
+          "artist": "Pense",
+          "match": 0.011232
+        },
+        {
+          "artist": "Suricato",
+          "match": 0.010477
+        },
+        {
+          "artist": "BRAZA, Ponto De Equilíbrio",
+          "match": 0.010477
+        },
+        {
+          "artist": "Gloria",
+          "match": 0.009627
+        },
+        {
+          "artist": "Dead Fish",
+          "match": 0.009588
+        },
+        {
+          "artist": "Vivendo do Ócio",
+          "match": 0.009551
+        },
+        {
+          "artist": "Menores Atos",
+          "match": 0.009153
+        },
+        {
+          "artist": "BRAZA, Alexandre Carlo",
+          "match": 0.009143
+        },
+        {
+          "artist": "CPM 22",
+          "match": 0.008983
+        },
+        {
+          "artist": "Zander",
+          "match": 0.008872
+        },
+        {
+          "artist": "Mato Seco",
+          "match": 0.008838
+        },
+        {
+          "artist": "Bullet Bane",
+          "match": 0.008701
+        },
+        {
+          "artist": "BRAZA, Pump Killa, Ragg",
+          "match": 0.008675
+        },
+        {
+          "artist": "Marcelo D2",
+          "match": 0.008631
+        },
+        {
+          "artist": "Fresno",
+          "match": 0.008391
+        },
+        {
+          "artist": "Hotelo",
+          "match": 0.008344
+        },
+        {
+          "artist": "Strike",
+          "match": 0.008057
+        }
+      ]
+    },
+    "evanescence": {
+      "artist": "Evanescence",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Amy Lee",
+          "match": 1.0
+        },
+        {
+          "artist": "We Are the Fallen",
+          "match": 0.57082
+        },
+        {
+          "artist": "Lacuna Coil",
+          "match": 0.341353
+        },
+        {
+          "artist": "The Pretty Reckless",
+          "match": 0.341244
+        },
+        {
+          "artist": "Halestorm",
+          "match": 0.294666
+        },
+        {
+          "artist": "Flyleaf",
+          "match": 0.275073
+        },
+        {
+          "artist": "Avril Lavigne",
+          "match": 0.258576
+        },
+        {
+          "artist": "Pitty",
+          "match": 0.21103
+        },
+        {
+          "artist": "Linkin Park",
+          "match": 0.198686
+        },
+        {
+          "artist": "HIM",
+          "match": 0.184126
+        },
+        {
+          "artist": "Paramore",
+          "match": 0.174837
+        },
+        {
+          "artist": "Three Days Grace",
+          "match": 0.165372
+        },
+        {
+          "artist": "Icon for Hire",
+          "match": 0.160187
+        },
+        {
+          "artist": "Breaking Benjamin",
+          "match": 0.157375
+        },
+        {
+          "artist": "Amira Elfeky",
+          "match": 0.1517
+        },
+        {
+          "artist": "Alanis Morissette",
+          "match": 0.138317
+        },
+        {
+          "artist": "30 Seconds to Mars",
+          "match": 0.130079
+        },
+        {
+          "artist": "Dead Sara",
+          "match": 0.128341
+        },
+        {
+          "artist": "Seether",
+          "match": 0.127
+        },
+        {
+          "artist": "Seether (feat. Amy Lee)",
+          "match": 0.125563
+        },
+        {
+          "artist": "The Birthday Massacre",
+          "match": 0.12284
+        },
+        {
+          "artist": "3 Doors Down",
+          "match": 0.121356
+        },
+        {
+          "artist": "New Years Day",
+          "match": 0.116224
+        },
+        {
+          "artist": "The Cranberries",
+          "match": 0.11426
+        },
+        {
+          "artist": "Lacey Sturm",
+          "match": 0.113247
+        },
+        {
+          "artist": "Kerli",
+          "match": 0.11214
+        },
+        {
+          "artist": "Hayley Williams",
+          "match": 0.111668
+        },
+        {
+          "artist": "VIOLENT VIRA",
+          "match": 0.10987
+        },
+        {
+          "artist": "Liv Kristine",
+          "match": 0.109482
+        },
+        {
+          "artist": "Staind",
+          "match": 0.106888
+        },
+        {
+          "artist": "Muse",
+          "match": 0.105166
+        },
+        {
+          "artist": "The Rasmus",
+          "match": 0.104834
+        },
+        {
+          "artist": "Skillet",
+          "match": 0.104681
+        },
+        {
+          "artist": "Garbage",
+          "match": 0.100168
+        },
+        {
+          "artist": "Hoobastank",
+          "match": 0.099826
+        },
+        {
+          "artist": "Daughtry",
+          "match": 0.09701
+        },
+        {
+          "artist": "Papa Roach",
+          "match": 0.095211
+        },
+        {
+          "artist": "Emilie Autumn",
+          "match": 0.094656
+        },
+        {
+          "artist": "Dead by Sunrise",
+          "match": 0.094546
+        },
+        {
+          "artist": "Chevelle",
+          "match": 0.093412
+        },
+        {
+          "artist": "Deftones",
+          "match": 0.092999
+        },
+        {
+          "artist": "Florence + the Machine",
+          "match": 0.092555
+        },
+        {
+          "artist": "The 69 Eyes",
+          "match": 0.091602
+        },
+        {
+          "artist": "Nickelback",
+          "match": 0.091243
+        },
+        {
+          "artist": "Stone Sour",
+          "match": 0.090658
+        },
+        {
+          "artist": "Alter Bridge",
+          "match": 0.089105
+        },
+        {
+          "artist": "Sick Puppies",
+          "match": 0.089042
+        },
+        {
+          "artist": "Lord of the Lost",
+          "match": 0.088765
+        },
+        {
+          "artist": "Creed",
+          "match": 0.088168
+        },
+        {
+          "artist": "The Calling",
+          "match": 0.088156
+        }
+      ]
+    },
+    "wolfgangamadeusmozart": {
+      "artist": "Wolfgang Amadeus Mozart",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Ludwig van Beethoven",
+          "match": 1.0
+        },
+        {
+          "artist": "Johann Sebastian Bach",
+          "match": 0.763821
+        },
+        {
+          "artist": "Franz Joseph Haydn",
+          "match": 0.696748
+        },
+        {
+          "artist": "Franz Schubert",
+          "match": 0.694777
+        },
+        {
+          "artist": "Georg Friedrich Händel",
+          "match": 0.665595
+        },
+        {
+          "artist": "Johannes Brahms",
+          "match": 0.652915
+        },
+        {
+          "artist": "Antonín Dvořák",
+          "match": 0.551842
+        },
+        {
+          "artist": "Antonio Vivaldi",
+          "match": 0.535106
+        },
+        {
+          "artist": "Giuseppe Verdi",
+          "match": 0.531125
+        },
+        {
+          "artist": "Felix Mendelssohn",
+          "match": 0.528028
+        },
+        {
+          "artist": "Robert Schumann",
+          "match": 0.523174
+        },
+        {
+          "artist": "Gustav Mahler",
+          "match": 0.516165
+        },
+        {
+          "artist": "Frédéric Chopin",
+          "match": 0.477682
+        },
+        {
+          "artist": "Edvard Grieg",
+          "match": 0.46062
+        },
+        {
+          "artist": "Franz Liszt",
+          "match": 0.457814
+        },
+        {
+          "artist": "Richard Wagner",
+          "match": 0.453327
+        },
+        {
+          "artist": "Richard Strauss",
+          "match": 0.443841
+        },
+        {
+          "artist": "Giacomo Puccini",
+          "match": 0.437103
+        },
+        {
+          "artist": "Pyotr Ilyich Tchaikovsky",
+          "match": 0.429016
+        },
+        {
+          "artist": "Anton Bruckner",
+          "match": 0.398575
+        },
+        {
+          "artist": "Maurice Ravel",
+          "match": 0.392549
+        },
+        {
+          "artist": "Sir Edward Elgar",
+          "match": 0.387565
+        },
+        {
+          "artist": "Jean Sibelius",
+          "match": 0.380317
+        },
+        {
+          "artist": "Georges Bizet",
+          "match": 0.377102
+        },
+        {
+          "artist": "Sergei Rachmaninoff",
+          "match": 0.37232
+        },
+        {
+          "artist": "Gioacchino Rossini",
+          "match": 0.36192
+        },
+        {
+          "artist": "Georg Philipp Telemann",
+          "match": 0.357717
+        },
+        {
+          "artist": "Dmitri Shostakovich",
+          "match": 0.353362
+        },
+        {
+          "artist": "Claude Debussy",
+          "match": 0.342678
+        },
+        {
+          "artist": "Gabriel Fauré",
+          "match": 0.332835
+        },
+        {
+          "artist": "Domenico Scarlatti",
+          "match": 0.317549
+        },
+        {
+          "artist": "Bedřich Smetana",
+          "match": 0.313108
+        },
+        {
+          "artist": "Sergei Prokofiev",
+          "match": 0.307312
+        },
+        {
+          "artist": "Luigi Boccherini",
+          "match": 0.28919
+        },
+        {
+          "artist": "Igor Stravinsky",
+          "match": 0.284559
+        },
+        {
+          "artist": "Camille Saint-Saëns",
+          "match": 0.28234
+        },
+        {
+          "artist": "Béla Bartók",
+          "match": 0.280635
+        },
+        {
+          "artist": "Modest Petrovich Mussorgsky",
+          "match": 0.280511
+        },
+        {
+          "artist": "Carl Maria von Weber",
+          "match": 0.278982
+        },
+        {
+          "artist": "Christoph Willibald Gluck",
+          "match": 0.275755
+        },
+        {
+          "artist": "Leoš Janáček",
+          "match": 0.274024
+        },
+        {
+          "artist": "Claudio Monteverdi",
+          "match": 0.272283
+        },
+        {
+          "artist": "Jean-Philippe Rameau",
+          "match": 0.267745
+        },
+        {
+          "artist": "Johann Pachelbel",
+          "match": 0.264302
+        },
+        {
+          "artist": "Ralph Vaughan Williams",
+          "match": 0.25865
+        },
+        {
+          "artist": "Arcangelo Corelli",
+          "match": 0.255226
+        },
+        {
+          "artist": "Gustav Holst",
+          "match": 0.253109
+        },
+        {
+          "artist": "Johann Strauss II",
+          "match": 0.250176
+        },
+        {
+          "artist": "Tomaso Giovanni Albinoni",
+          "match": 0.248754
+        },
+        {
+          "artist": "Henry Purcell",
+          "match": 0.248196
+        }
+      ]
+    },
+    "caetanoveloso": {
+      "artist": "Caetano Veloso",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Gilberto Gil",
+          "match": 1.0
+        },
+        {
+          "artist": "Gal Costa",
+          "match": 0.772737
+        },
+        {
+          "artist": "Maria Bethânia",
+          "match": 0.715775
+        },
+        {
+          "artist": "Caetano Veloso & Gilberto Gil",
+          "match": 0.585738
+        },
+        {
+          "artist": "Elis Regina",
+          "match": 0.536901
+        },
+        {
+          "artist": "Luiz Melodia",
+          "match": 0.508759
+        },
+        {
+          "artist": "Chico Buarque",
+          "match": 0.488973
+        },
+        {
+          "artist": "Tom Zé",
+          "match": 0.484155
+        },
+        {
+          "artist": "Novos Baianos",
+          "match": 0.465249
+        },
+        {
+          "artist": "João Bosco",
+          "match": 0.426303
+        },
+        {
+          "artist": "Milton Nascimento",
+          "match": 0.416418
+        },
+        {
+          "artist": "Jorge Mautner",
+          "match": 0.415528
+        },
+        {
+          "artist": "Edu Lobo",
+          "match": 0.409359
+        },
+        {
+          "artist": "João Gilberto",
+          "match": 0.395009
+        },
+        {
+          "artist": "Geraldo Azevedo",
+          "match": 0.394152
+        },
+        {
+          "artist": "Gonzaguinha",
+          "match": 0.383643
+        },
+        {
+          "artist": "Erasmo Carlos",
+          "match": 0.381843
+        },
+        {
+          "artist": "Chico César",
+          "match": 0.381735
+        },
+        {
+          "artist": "Paulinho da Viola",
+          "match": 0.380481
+        },
+        {
+          "artist": "Adriana Calcanhotto",
+          "match": 0.371798
+        },
+        {
+          "artist": "Sérgio Sampaio",
+          "match": 0.36948
+        },
+        {
+          "artist": "Marina Lima",
+          "match": 0.368696
+        },
+        {
+          "artist": "Dorival Caymmi",
+          "match": 0.361054
+        },
+        {
+          "artist": "Secos & Molhados",
+          "match": 0.359855
+        },
+        {
+          "artist": "Maria Rita",
+          "match": 0.358446
+        },
+        {
+          "artist": "Jorge Ben",
+          "match": 0.354251
+        },
+        {
+          "artist": "Moraes Moreira",
+          "match": 0.353401
+        },
+        {
+          "artist": "Ney Matogrosso",
+          "match": 0.343504
+        },
+        {
+          "artist": "Nara Leão",
+          "match": 0.340005
+        },
+        {
+          "artist": "Djavan",
+          "match": 0.338621
+        },
+        {
+          "artist": "Os Mutantes",
+          "match": 0.334784
+        },
+        {
+          "artist": "Céu",
+          "match": 0.33462
+        },
+        {
+          "artist": "Rita Lee",
+          "match": 0.332417
+        },
+        {
+          "artist": "Nana Caymmi",
+          "match": 0.332179
+        },
+        {
+          "artist": "Angela Ro Ro",
+          "match": 0.328827
+        },
+        {
+          "artist": "Lenine",
+          "match": 0.324819
+        },
+        {
+          "artist": "Hyldon",
+          "match": 0.32438
+        },
+        {
+          "artist": "Clara Nunes",
+          "match": 0.323483
+        },
+        {
+          "artist": "Marisa Monte",
+          "match": 0.314231
+        },
+        {
+          "artist": "Fagner",
+          "match": 0.313543
+        },
+        {
+          "artist": "Alceu Valença",
+          "match": 0.312325
+        },
+        {
+          "artist": "Cássia Eller",
+          "match": 0.301398
+        },
+        {
+          "artist": "Roberto Carlos",
+          "match": 0.293943
+        },
+        {
+          "artist": "Zé Ibarra",
+          "match": 0.289706
+        },
+        {
+          "artist": "Itamar Assumpção",
+          "match": 0.287224
+        },
+        {
+          "artist": "João Donato",
+          "match": 0.286349
+        },
+        {
+          "artist": "Belchior",
+          "match": 0.281136
+        },
+        {
+          "artist": "Elba Ramalho",
+          "match": 0.28057
+        },
+        {
+          "artist": "Baby Do Brasil",
+          "match": 0.276684
+        }
+      ]
+    },
+    "lantlos": {
+      "artist": "Lantlôs",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Heretoir",
+          "match": 1.0
+        },
+        {
+          "artist": "Alcest",
+          "match": 0.909616
+        },
+        {
+          "artist": "Amesoeurs",
+          "match": 0.907753
+        },
+        {
+          "artist": "Deafheaven",
+          "match": 0.856609
+        },
+        {
+          "artist": "Les Discrets",
+          "match": 0.843121
+        },
+        {
+          "artist": "An Autumn for Crippled Children",
+          "match": 0.829237
+        },
+        {
+          "artist": "MØL",
+          "match": 0.759762
+        },
+        {
+          "artist": "White Ward",
+          "match": 0.7534
+        },
+        {
+          "artist": "Numenorean",
+          "match": 0.699135
+        },
+        {
+          "artist": "Altar of Plagues",
+          "match": 0.668379
+        },
+        {
+          "artist": "Bosse-de-Nage",
+          "match": 0.584433
+        },
+        {
+          "artist": "Show Me a Dinosaur",
+          "match": 0.5735
+        },
+        {
+          "artist": "Ghost Bath",
+          "match": 0.572335
+        },
+        {
+          "artist": "Holy Fawn",
+          "match": 0.569127
+        },
+        {
+          "artist": "Unreqvited",
+          "match": 0.555336
+        },
+        {
+          "artist": "Woods of Desolation",
+          "match": 0.5316
+        },
+        {
+          "artist": "Olhava",
+          "match": 0.480187
+        },
+        {
+          "artist": "Violet Cold",
+          "match": 0.4757
+        },
+        {
+          "artist": "Harakiri for the Sky",
+          "match": 0.467809
+        },
+        {
+          "artist": "Sadness",
+          "match": 0.465764
+        },
+        {
+          "artist": "Sylvaine",
+          "match": 0.458164
+        },
+        {
+          "artist": "ColdWorld",
+          "match": 0.457642
+        },
+        {
+          "artist": "Panopticon",
+          "match": 0.456835
+        },
+        {
+          "artist": "Wolves in the Throne Room",
+          "match": 0.435613
+        },
+        {
+          "artist": "A Light in the Dark",
+          "match": 0.433814
+        },
+        {
+          "artist": "Fen",
+          "match": 0.43128
+        },
+        {
+          "artist": "Astronoid",
+          "match": 0.428514
+        },
+        {
+          "artist": "Asunojokei",
+          "match": 0.426136
+        },
+        {
+          "artist": "Miserere Luminis",
+          "match": 0.421759
+        },
+        {
+          "artist": "Oathbreaker",
+          "match": 0.406167
+        },
+        {
+          "artist": "The Great Old Ones",
+          "match": 0.379827
+        },
+        {
+          "artist": "Ultha",
+          "match": 0.378957
+        },
+        {
+          "artist": "Together to the Stars",
+          "match": 0.364953
+        },
+        {
+          "artist": "Austere",
+          "match": 0.356048
+        },
+        {
+          "artist": "Wounds of Recollection",
+          "match": 0.354238
+        },
+        {
+          "artist": "Der Weg einer Freiheit",
+          "match": 0.353349
+        },
+        {
+          "artist": "Ellende",
+          "match": 0.349819
+        },
+        {
+          "artist": "Old Silver Key",
+          "match": 0.347874
+        },
+        {
+          "artist": "Mare Cognitum",
+          "match": 0.340766
+        },
+        {
+          "artist": "Yellow Eyes",
+          "match": 0.338215
+        },
+        {
+          "artist": "The Ruins of Beverast",
+          "match": 0.332611
+        },
+        {
+          "artist": "Jesu",
+          "match": 0.329096
+        },
+        {
+          "artist": "Falls of Rauros",
+          "match": 0.322912
+        },
+        {
+          "artist": "Som",
+          "match": 0.316226
+        },
+        {
+          "artist": "Sólstafir",
+          "match": 0.314357
+        },
+        {
+          "artist": "Agrikulture",
+          "match": 0.313586
+        },
+        {
+          "artist": "Planning for Burial",
+          "match": 0.307949
+        },
+        {
+          "artist": "Winterfylleth",
+          "match": 0.307843
+        },
+        {
+          "artist": "Totalselfhatred",
+          "match": 0.300532
+        },
+        {
+          "artist": "None",
+          "match": 0.299127
+        }
+      ]
+    },
+    "legiaourbana": {
+      "artist": "Legião Urbana",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Engenheiros Do Hawaii",
+          "match": 1.0
+        },
+        {
+          "artist": "Os Paralamas Do Sucesso",
+          "match": 0.961049
+        },
+        {
+          "artist": "Titãs",
+          "match": 0.947446
+        },
+        {
+          "artist": "Capital Inicial",
+          "match": 0.899707
+        },
+        {
+          "artist": "Renato Russo",
+          "match": 0.87311
+        },
+        {
+          "artist": "Barão Vermelho",
+          "match": 0.856356
+        },
+        {
+          "artist": "Nenhum de Nós",
+          "match": 0.808268
+        },
+        {
+          "artist": "RPM",
+          "match": 0.777334
+        },
+        {
+          "artist": "Ira!",
+          "match": 0.748496
+        },
+        {
+          "artist": "Raul Seixas",
+          "match": 0.677241
+        },
+        {
+          "artist": "Ultraje A Rigor",
+          "match": 0.669188
+        },
+        {
+          "artist": "Cazuza",
+          "match": 0.648435
+        },
+        {
+          "artist": "Biquini Cavadão",
+          "match": 0.637377
+        },
+        {
+          "artist": "Lobão",
+          "match": 0.579648
+        },
+        {
+          "artist": "Lulu Santos",
+          "match": 0.573563
+        },
+        {
+          "artist": "Skank",
+          "match": 0.569029
+        },
+        {
+          "artist": "Plebe Rude",
+          "match": 0.566962
+        },
+        {
+          "artist": "Frejat",
+          "match": 0.555807
+        },
+        {
+          "artist": "Nando Reis",
+          "match": 0.527376
+        },
+        {
+          "artist": "Cássia Eller",
+          "match": 0.519632
+        },
+        {
+          "artist": "Mamonas Assassinas",
+          "match": 0.510259
+        },
+        {
+          "artist": "Charlie Brown Jr.",
+          "match": 0.510075
+        },
+        {
+          "artist": "Raimundos",
+          "match": 0.501815
+        },
+        {
+          "artist": "Uns e Outros",
+          "match": 0.472929
+        },
+        {
+          "artist": "Detonautas Roque Clube",
+          "match": 0.455516
+        },
+        {
+          "artist": "O Rappa",
+          "match": 0.45039
+        },
+        {
+          "artist": "Jota Quest",
+          "match": 0.436613
+        },
+        {
+          "artist": "Camisa de Vênus",
+          "match": 0.42356
+        },
+        {
+          "artist": "CPM 22",
+          "match": 0.417823
+        },
+        {
+          "artist": "Kid Abelha",
+          "match": 0.413295
+        },
+        {
+          "artist": "Zé Ramalho",
+          "match": 0.385636
+        },
+        {
+          "artist": "Los Hermanos",
+          "match": 0.37973
+        },
+        {
+          "artist": "Gabriel O Pensador",
+          "match": 0.365459
+        },
+        {
+          "artist": "Humberto Gessinger",
+          "match": 0.34897
+        },
+        {
+          "artist": "Pitty",
+          "match": 0.328026
+        },
+        {
+          "artist": "Tihuana",
+          "match": 0.326435
+        },
+        {
+          "artist": "Marina Lima",
+          "match": 0.318118
+        },
+        {
+          "artist": "Leoni",
+          "match": 0.317033
+        },
+        {
+          "artist": "Pato Fu",
+          "match": 0.314434
+        },
+        {
+          "artist": "Leo Jaime",
+          "match": 0.302113
+        },
+        {
+          "artist": "Roupa Nova",
+          "match": 0.299412
+        },
+        {
+          "artist": "Rita Lee",
+          "match": 0.282292
+        },
+        {
+          "artist": "O Surto",
+          "match": 0.273751
+        },
+        {
+          "artist": "Heróis Da Resistência",
+          "match": 0.26892
+        },
+        {
+          "artist": "Secos & Molhados",
+          "match": 0.267594
+        },
+        {
+          "artist": "Planet Hemp",
+          "match": 0.261689
+        },
+        {
+          "artist": "14 Bis",
+          "match": 0.261647
+        },
+        {
+          "artist": "Guilherme Arantes",
+          "match": 0.254562
+        },
+        {
+          "artist": "Zeca Baleiro",
+          "match": 0.254395
+        },
+        {
+          "artist": "Fagner",
+          "match": 0.249715
+        }
+      ]
+    },
+    "mysleepingkarma": {
+      "artist": "My Sleeping Karma",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Colour Haze",
+          "match": 1.0
+        },
+        {
+          "artist": "Monkey3",
+          "match": 0.999146
+        },
+        {
+          "artist": "Naxatras",
+          "match": 0.844699
+        },
+        {
+          "artist": "Samsara Blues Experiment",
+          "match": 0.837297
+        },
+        {
+          "artist": "Somali Yacht Club",
+          "match": 0.831889
+        },
+        {
+          "artist": "Causa Sui",
+          "match": 0.828985
+        },
+        {
+          "artist": "The Re-Stoned",
+          "match": 0.780785
+        },
+        {
+          "artist": "Mars Red Sky",
+          "match": 0.687851
+        },
+        {
+          "artist": "King Buffalo",
+          "match": 0.685003
+        },
+        {
+          "artist": "Siena Root",
+          "match": 0.663132
+        },
+        {
+          "artist": "Tuber",
+          "match": 0.654798
+        },
+        {
+          "artist": "Earthless",
+          "match": 0.620628
+        },
+        {
+          "artist": "Glowsun",
+          "match": 0.597547
+        },
+        {
+          "artist": "Mother Engine",
+          "match": 0.569257
+        },
+        {
+          "artist": "COMACOZER",
+          "match": 0.540007
+        },
+        {
+          "artist": "Weedpecker",
+          "match": 0.52942
+        },
+        {
+          "artist": "Spaceslug",
+          "match": 0.511086
+        },
+        {
+          "artist": "Mondo Drag",
+          "match": 0.475772
+        },
+        {
+          "artist": "Maha Sohona",
+          "match": 0.463079
+        },
+        {
+          "artist": "Arenna",
+          "match": 0.45044
+        },
+        {
+          "artist": "1000mods",
+          "match": 0.433159
+        },
+        {
+          "artist": "35007",
+          "match": 0.42049
+        },
+        {
+          "artist": "Stoned Jesus",
+          "match": 0.416984
+        },
+        {
+          "artist": "Asteroid",
+          "match": 0.413306
+        },
+        {
+          "artist": "Elder",
+          "match": 0.407127
+        },
+        {
+          "artist": "The Devil And The Almighty Blues",
+          "match": 0.405804
+        },
+        {
+          "artist": "Black Rainbows",
+          "match": 0.397465
+        },
+        {
+          "artist": "Greenleaf",
+          "match": 0.391753
+        },
+        {
+          "artist": "Assemble Head In Sunburst Sound",
+          "match": 0.390567
+        },
+        {
+          "artist": "Yawning Man",
+          "match": 0.389959
+        },
+        {
+          "artist": "All Them Witches",
+          "match": 0.387784
+        },
+        {
+          "artist": "Kadavar",
+          "match": 0.386477
+        },
+        {
+          "artist": "Dead Meadow",
+          "match": 0.386234
+        },
+        {
+          "artist": "liquify",
+          "match": 0.385114
+        },
+        {
+          "artist": "Valley of the Sun",
+          "match": 0.383598
+        },
+        {
+          "artist": "Villagers of Ioannina City",
+          "match": 0.374345
+        },
+        {
+          "artist": "Truckfighters",
+          "match": 0.362475
+        },
+        {
+          "artist": "Brant Bjork",
+          "match": 0.358705
+        },
+        {
+          "artist": "Wo Fat",
+          "match": 0.335809
+        },
+        {
+          "artist": "The Kings of Frog Island",
+          "match": 0.33259
+        },
+        {
+          "artist": "Dozer",
+          "match": 0.331027
+        },
+        {
+          "artist": "John Garcia",
+          "match": 0.323665
+        },
+        {
+          "artist": "Graveyard",
+          "match": 0.31922
+        },
+        {
+          "artist": "Electric Octopus",
+          "match": 0.317668
+        },
+        {
+          "artist": "Ufomammut",
+          "match": 0.312842
+        },
+        {
+          "artist": "Om",
+          "match": 0.311906
+        },
+        {
+          "artist": "The Heavy Eyes",
+          "match": 0.310828
+        },
+        {
+          "artist": "The Machine",
+          "match": 0.307033
+        },
+        {
+          "artist": "Wet Cactus",
+          "match": 0.298332
+        },
+        {
+          "artist": "Farflung",
+          "match": 0.294674
+        }
+      ]
+    },
+    "blackveilbrides": {
+      "artist": "Black Veil Brides",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Escape The Fate",
+          "match": 1.0
+        },
+        {
+          "artist": "Motionless in White",
+          "match": 0.915285
+        },
+        {
+          "artist": "Falling in Reverse",
+          "match": 0.705375
+        },
+        {
+          "artist": "Ice Nine Kills",
+          "match": 0.663435
+        },
+        {
+          "artist": "Asking Alexandria",
+          "match": 0.615306
+        },
+        {
+          "artist": "Sleeping With Sirens",
+          "match": 0.579017
+        },
+        {
+          "artist": "Get Scared",
+          "match": 0.520411
+        },
+        {
+          "artist": "Dark Divine",
+          "match": 0.441582
+        },
+        {
+          "artist": "Bullet for My Valentine",
+          "match": 0.410987
+        },
+        {
+          "artist": "The Funeral Portrait",
+          "match": 0.407915
+        },
+        {
+          "artist": "Bad Omens",
+          "match": 0.407318
+        },
+        {
+          "artist": "Snow White's Poison Bite",
+          "match": 0.402911
+        },
+        {
+          "artist": "Blessthefall",
+          "match": 0.388279
+        },
+        {
+          "artist": "Alesana",
+          "match": 0.383858
+        },
+        {
+          "artist": "Picture Me Broken",
+          "match": 0.381633
+        },
+        {
+          "artist": "A Skylit Drive",
+          "match": 0.379328
+        },
+        {
+          "artist": "Bring Me the Horizon",
+          "match": 0.377721
+        },
+        {
+          "artist": "Pierce the Veil",
+          "match": 0.368642
+        },
+        {
+          "artist": "Vampires Everywhere!",
+          "match": 0.364007
+        },
+        {
+          "artist": "Crown the Empire",
+          "match": 0.358171
+        },
+        {
+          "artist": "I Prevail",
+          "match": 0.333566
+        },
+        {
+          "artist": "Of Mice & Men",
+          "match": 0.333344
+        },
+        {
+          "artist": "Eyes Set to Kill",
+          "match": 0.322159
+        },
+        {
+          "artist": "The Amity Affliction",
+          "match": 0.315229
+        },
+        {
+          "artist": "Famous Last Words",
+          "match": 0.312421
+        },
+        {
+          "artist": "Silverstein",
+          "match": 0.310881
+        },
+        {
+          "artist": "Memphis May Fire",
+          "match": 0.306005
+        },
+        {
+          "artist": "Story Of The Year",
+          "match": 0.299945
+        },
+        {
+          "artist": "The Word Alive",
+          "match": 0.298834
+        },
+        {
+          "artist": "We Came as Romans",
+          "match": 0.288711
+        },
+        {
+          "artist": "Saosin",
+          "match": 0.287989
+        },
+        {
+          "artist": "Beartooth",
+          "match": 0.284184
+        },
+        {
+          "artist": "TX2",
+          "match": 0.283329
+        },
+        {
+          "artist": "Before Today",
+          "match": 0.2774
+        },
+        {
+          "artist": "Chiodos",
+          "match": 0.276185
+        },
+        {
+          "artist": "Destroy Rebuild Until God Shows",
+          "match": 0.274925
+        },
+        {
+          "artist": "Scary Kids Scaring Kids",
+          "match": 0.271549
+        },
+        {
+          "artist": "A Day to Remember",
+          "match": 0.269525
+        },
+        {
+          "artist": "From First to Last",
+          "match": 0.264949
+        },
+        {
+          "artist": "Our Last Night",
+          "match": 0.26463
+        },
+        {
+          "artist": "The Red Jumpsuit Apparatus",
+          "match": 0.261042
+        },
+        {
+          "artist": "Dayseeker",
+          "match": 0.260595
+        },
+        {
+          "artist": "Caskets",
+          "match": 0.260438
+        },
+        {
+          "artist": "Atreyu",
+          "match": 0.254277
+        },
+        {
+          "artist": "Attack Attack!",
+          "match": 0.253872
+        },
+        {
+          "artist": "The Used",
+          "match": 0.248657
+        },
+        {
+          "artist": "Senses Fail",
+          "match": 0.245867
+        },
+        {
+          "artist": "Hawthorne Heights",
+          "match": 0.240082
+        },
+        {
+          "artist": "Aiden",
+          "match": 0.235673
+        },
+        {
+          "artist": "Catch Your Breath",
+          "match": 0.235121
+        }
+      ]
+    },
+    "timmaia": {
+      "artist": "Tim Maia",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Cassiano",
+          "match": 1.0
+        },
+        {
+          "artist": "Hyldon",
+          "match": 0.940474
+        },
+        {
+          "artist": "Jorge Ben",
+          "match": 0.924814
+        },
+        {
+          "artist": "Cartola",
+          "match": 0.726269
+        },
+        {
+          "artist": "Toni Tornado",
+          "match": 0.690689
+        },
+        {
+          "artist": "Belchior",
+          "match": 0.641883
+        },
+        {
+          "artist": "Brylho",
+          "match": 0.641099
+        },
+        {
+          "artist": "Adoniran Barbosa",
+          "match": 0.625666
+        },
+        {
+          "artist": "Os Originais Do Samba",
+          "match": 0.617616
+        },
+        {
+          "artist": "Djavan",
+          "match": 0.600611
+        },
+        {
+          "artist": "Arthur Verocai",
+          "match": 0.596589
+        },
+        {
+          "artist": "Sandra De Sá",
+          "match": 0.58931
+        },
+        {
+          "artist": "Ed Motta",
+          "match": 0.572569
+        },
+        {
+          "artist": "Erasmo Carlos",
+          "match": 0.568581
+        },
+        {
+          "artist": "Di Melo",
+          "match": 0.561274
+        },
+        {
+          "artist": "Gilberto Gil",
+          "match": 0.55405
+        },
+        {
+          "artist": "Chico Buarque",
+          "match": 0.547878
+        },
+        {
+          "artist": "Bebeto",
+          "match": 0.538241
+        },
+        {
+          "artist": "Luiz Melodia",
+          "match": 0.526485
+        },
+        {
+          "artist": "Novos Baianos",
+          "match": 0.523345
+        },
+        {
+          "artist": "Raul Seixas",
+          "match": 0.521579
+        },
+        {
+          "artist": "Angela Ro Ro",
+          "match": 0.51831
+        },
+        {
+          "artist": "Gonzaguinha",
+          "match": 0.510693
+        },
+        {
+          "artist": "Wilson Simonal",
+          "match": 0.507854
+        },
+        {
+          "artist": "Secos & Molhados",
+          "match": 0.503944
+        },
+        {
+          "artist": "Cazuza",
+          "match": 0.50103
+        },
+        {
+          "artist": "Martinho Da Vila",
+          "match": 0.499548
+        },
+        {
+          "artist": "Banda Black Rio",
+          "match": 0.48978
+        },
+        {
+          "artist": "Vinícius de Moraes",
+          "match": 0.486302
+        },
+        {
+          "artist": "Lô Borges",
+          "match": 0.477697
+        },
+        {
+          "artist": "Milton Nascimento",
+          "match": 0.476675
+        },
+        {
+          "artist": "Zé Ramalho",
+          "match": 0.471745
+        },
+        {
+          "artist": "Caetano Veloso",
+          "match": 0.465772
+        },
+        {
+          "artist": "Toquinho, Vinícius de Moraes",
+          "match": 0.461604
+        },
+        {
+          "artist": "Marcos Valle",
+          "match": 0.460442
+        },
+        {
+          "artist": "Seu Jorge",
+          "match": 0.459122
+        },
+        {
+          "artist": "Roberto Carlos",
+          "match": 0.453691
+        },
+        {
+          "artist": "Toquinho",
+          "match": 0.451251
+        },
+        {
+          "artist": "Evinha",
+          "match": 0.449511
+        },
+        {
+          "artist": "Emílio Santiago",
+          "match": 0.446301
+        },
+        {
+          "artist": "Bezerra da Silva",
+          "match": 0.442789
+        },
+        {
+          "artist": "Rita Lee",
+          "match": 0.43981
+        },
+        {
+          "artist": "Elis Regina",
+          "match": 0.436176
+        },
+        {
+          "artist": "Alceu Valença",
+          "match": 0.434885
+        },
+        {
+          "artist": "Sérgio Sampaio",
+          "match": 0.429795
+        },
+        {
+          "artist": "Lulu Santos",
+          "match": 0.421891
+        },
+        {
+          "artist": "Cássia Eller",
+          "match": 0.421554
+        },
+        {
+          "artist": "Carlos Dafé",
+          "match": 0.416486
+        },
+        {
+          "artist": "Ave Sangria",
+          "match": 0.416028
+        },
+        {
+          "artist": "Gal Costa",
+          "match": 0.415228
+        }
+      ]
+    },
+    "karnivool": {
+      "artist": "Karnivool",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Dead Letter Circus",
+          "match": 1.0
+        },
+        {
+          "artist": "Cog",
+          "match": 0.939088
+        },
+        {
+          "artist": "Rishloo",
+          "match": 0.753271
+        },
+        {
+          "artist": "Caligula's Horse",
+          "match": 0.735573
+        },
+        {
+          "artist": "The Butterfly Effect",
+          "match": 0.7145
+        },
+        {
+          "artist": "Ihlo",
+          "match": 0.688799
+        },
+        {
+          "artist": "VOLA",
+          "match": 0.670781
+        },
+        {
+          "artist": "Leprous",
+          "match": 0.664162
+        },
+        {
+          "artist": "Haken",
+          "match": 0.650435
+        },
+        {
+          "artist": "Vulkan",
+          "match": 0.598591
+        },
+        {
+          "artist": "Arcane Roots",
+          "match": 0.561591
+        },
+        {
+          "artist": "Agent Fresco",
+          "match": 0.550617
+        },
+        {
+          "artist": "Port Noir",
+          "match": 0.549937
+        },
+        {
+          "artist": "VOWER",
+          "match": 0.515911
+        },
+        {
+          "artist": "Fair to Midland",
+          "match": 0.509845
+        },
+        {
+          "artist": "Twelve Foot Ninja",
+          "match": 0.500485
+        },
+        {
+          "artist": "Soen",
+          "match": 0.488679
+        },
+        {
+          "artist": "Oceansize",
+          "match": 0.46892
+        },
+        {
+          "artist": "Einar Solberg",
+          "match": 0.468811
+        },
+        {
+          "artist": "Earthside",
+          "match": 0.453632
+        },
+        {
+          "artist": "Good Tiger",
+          "match": 0.43996
+        },
+        {
+          "artist": "Night Verses",
+          "match": 0.434942
+        },
+        {
+          "artist": "A Perfect Circle",
+          "match": 0.433934
+        },
+        {
+          "artist": "Birds of Tokyo",
+          "match": 0.417804
+        },
+        {
+          "artist": "Puscifer",
+          "match": 0.414182
+        },
+        {
+          "artist": "Plini",
+          "match": 0.40367
+        },
+        {
+          "artist": "The Pineapple Thief",
+          "match": 0.393911
+        },
+        {
+          "artist": "Devin Townsend",
+          "match": 0.39236
+        },
+        {
+          "artist": "Kolm",
+          "match": 0.386511
+        },
+        {
+          "artist": "Tool",
+          "match": 0.377695
+        },
+        {
+          "artist": "Riverside",
+          "match": 0.377224
+        },
+        {
+          "artist": "Porcupine Tree",
+          "match": 0.376779
+        },
+        {
+          "artist": "Stellar Circuits",
+          "match": 0.376456
+        },
+        {
+          "artist": "Lucid Planet",
+          "match": 0.375871
+        },
+        {
+          "artist": "Osi",
+          "match": 0.364365
+        },
+        {
+          "artist": "dredg",
+          "match": 0.348311
+        },
+        {
+          "artist": "Pain of Salvation",
+          "match": 0.346991
+        },
+        {
+          "artist": "Jericco",
+          "match": 0.341503
+        },
+        {
+          "artist": "Pure Reason Revolution",
+          "match": 0.334514
+        },
+        {
+          "artist": "Green Carnation",
+          "match": 0.330717
+        },
+        {
+          "artist": "The Dear Hunter",
+          "match": 0.328168
+        },
+        {
+          "artist": "Ions",
+          "match": 0.328137
+        },
+        {
+          "artist": "ASHES dIVIDE",
+          "match": 0.32593
+        },
+        {
+          "artist": "Moron Police",
+          "match": 0.324694
+        },
+        {
+          "artist": "Lunatic Soul",
+          "match": 0.309734
+        },
+        {
+          "artist": "Closure in Moscow",
+          "match": 0.307734
+        },
+        {
+          "artist": "Distorted Harmony",
+          "match": 0.305998
+        },
+        {
+          "artist": "Ok Goodnight",
+          "match": 0.303758
+        },
+        {
+          "artist": "Blackfield",
+          "match": 0.300217
+        },
+        {
+          "artist": "Thank You Scientist",
+          "match": 0.299188
+        }
+      ]
+    },
+    "fionaapple": {
+      "artist": "Fiona Apple",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "PJ Harvey",
+          "match": 1.0
+        },
+        {
+          "artist": "Björk",
+          "match": 0.97252
+        },
+        {
+          "artist": "Kate Bush",
+          "match": 0.93211
+        },
+        {
+          "artist": "Tori Amos",
+          "match": 0.852548
+        },
+        {
+          "artist": "Mitski",
+          "match": 0.729972
+        },
+        {
+          "artist": "Black Box Recorder",
+          "match": 0.640524
+        },
+        {
+          "artist": "St. Vincent",
+          "match": 0.612801
+        },
+        {
+          "artist": "Joanna Newsom",
+          "match": 0.580448
+        },
+        {
+          "artist": "Joni Mitchell",
+          "match": 0.57989
+        },
+        {
+          "artist": "Lana Del Rey",
+          "match": 0.570252
+        },
+        {
+          "artist": "Regina Spektor",
+          "match": 0.546851
+        },
+        {
+          "artist": "Liz Phair",
+          "match": 0.515328
+        },
+        {
+          "artist": "Mazzy Star",
+          "match": 0.5139
+        },
+        {
+          "artist": "Phoebe Bridgers",
+          "match": 0.496041
+        },
+        {
+          "artist": "Patti Smith",
+          "match": 0.488408
+        },
+        {
+          "artist": "Florence + the Machine",
+          "match": 0.464483
+        },
+        {
+          "artist": "Sinéad O'Connor",
+          "match": 0.460743
+        },
+        {
+          "artist": "Adrianne Lenker",
+          "match": 0.4371
+        },
+        {
+          "artist": "Sufjan Stevens",
+          "match": 0.433463
+        },
+        {
+          "artist": "Jeff Buckley",
+          "match": 0.386316
+        },
+        {
+          "artist": "Nico",
+          "match": 0.374174
+        },
+        {
+          "artist": "Elliott Smith",
+          "match": 0.371717
+        },
+        {
+          "artist": "Angel Olsen",
+          "match": 0.36543
+        },
+        {
+          "artist": "Hope Sandoval & The Warm Inventions",
+          "match": 0.362988
+        },
+        {
+          "artist": "The Sugarcubes",
+          "match": 0.36
+        },
+        {
+          "artist": "Amy Winehouse",
+          "match": 0.354421
+        },
+        {
+          "artist": "Alanis Morissette",
+          "match": 0.334067
+        },
+        {
+          "artist": "Imogen Heap",
+          "match": 0.332423
+        },
+        {
+          "artist": "Lucy Dacus",
+          "match": 0.327181
+        },
+        {
+          "artist": "Chairlift",
+          "match": 0.323443
+        },
+        {
+          "artist": "Perfume Genius",
+          "match": 0.311665
+        },
+        {
+          "artist": "Sharon Van Etten",
+          "match": 0.309407
+        },
+        {
+          "artist": "Cibo Matto",
+          "match": 0.309364
+        },
+        {
+          "artist": "John Parish and Polly Jean Harvey",
+          "match": 0.308786
+        },
+        {
+          "artist": "Aimee Mann",
+          "match": 0.301868
+        },
+        {
+          "artist": "The Sundays",
+          "match": 0.292079
+        },
+        {
+          "artist": "Veruca Salt",
+          "match": 0.287789
+        },
+        {
+          "artist": "M.I.A.",
+          "match": 0.286934
+        },
+        {
+          "artist": "Marina & the Diamonds",
+          "match": 0.283039
+        },
+        {
+          "artist": "Hayley Williams",
+          "match": 0.280767
+        },
+        {
+          "artist": "Jessica Pratt",
+          "match": 0.280166
+        },
+        {
+          "artist": "Cat Power",
+          "match": 0.278909
+        },
+        {
+          "artist": "Sibylle Baier",
+          "match": 0.275981
+        },
+        {
+          "artist": "Suzanne Vega",
+          "match": 0.273726
+        },
+        {
+          "artist": "Julia Jacklin",
+          "match": 0.270888
+        },
+        {
+          "artist": "Janelle Monáe",
+          "match": 0.269284
+        },
+        {
+          "artist": "Haley Heynderickx",
+          "match": 0.26775
+        },
+        {
+          "artist": "Vashti Bunyan",
+          "match": 0.264959
+        },
+        {
+          "artist": "HAIM",
+          "match": 0.263261
+        },
+        {
+          "artist": "Laura Nyro",
+          "match": 0.260106
+        }
+      ]
+    },
+    "destinypotato": {
+      "artist": "Destiny Potato",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Sordid Pink",
+          "match": 1.0
+        },
+        {
+          "artist": "David Maxim Micic",
+          "match": 0.400841
+        },
+        {
+          "artist": "TesseracT",
+          "match": 0.272207
+        },
+        {
+          "artist": "Monuments",
+          "match": 0.225161
+        },
+        {
+          "artist": "Skyharbor",
+          "match": 0.22363
+        },
+        {
+          "artist": "Twelve Foot Ninja",
+          "match": 0.215154
+        },
+        {
+          "artist": "Periphery",
+          "match": 0.182791
+        },
+        {
+          "artist": "The Contortionist",
+          "match": 0.180954
+        },
+        {
+          "artist": "Intervals",
+          "match": 0.178835
+        },
+        {
+          "artist": "Disperse",
+          "match": 0.17545
+        },
+        {
+          "artist": "Artificial Language",
+          "match": 0.172978
+        },
+        {
+          "artist": "Good Tiger",
+          "match": 0.167422
+        },
+        {
+          "artist": "Their Dogs Were Astronauts",
+          "match": 0.162874
+        },
+        {
+          "artist": "Plini",
+          "match": 0.16053
+        },
+        {
+          "artist": "Distorted Harmony",
+          "match": 0.150484
+        },
+        {
+          "artist": "Caligula's Horse",
+          "match": 0.149971
+        },
+        {
+          "artist": "Ihlo",
+          "match": 0.146781
+        },
+        {
+          "artist": "Animals as Leaders",
+          "match": 0.145494
+        },
+        {
+          "artist": "Circles",
+          "match": 0.144253
+        },
+        {
+          "artist": "Jakub Żytecki",
+          "match": 0.137836
+        },
+        {
+          "artist": "Unprocessed",
+          "match": 0.135226
+        },
+        {
+          "artist": "Valis Ablaze",
+          "match": 0.133582
+        },
+        {
+          "artist": "Textures",
+          "match": 0.128299
+        },
+        {
+          "artist": "Vitalism",
+          "match": 0.128046
+        },
+        {
+          "artist": "Haunted Shores",
+          "match": 0.126847
+        },
+        {
+          "artist": "VOLA",
+          "match": 0.12645
+        },
+        {
+          "artist": "Kadinja",
+          "match": 0.125055
+        },
+        {
+          "artist": "Haken",
+          "match": 0.124014
+        },
+        {
+          "artist": "Time, The Valuator",
+          "match": 0.124
+        },
+        {
+          "artist": "Voices From The Fuselage",
+          "match": 0.123991
+        },
+        {
+          "artist": "Corelia",
+          "match": 0.121284
+        },
+        {
+          "artist": "Mandroid Echostar",
+          "match": 0.121012
+        },
+        {
+          "artist": "Aviations",
+          "match": 0.120822
+        },
+        {
+          "artist": "Native Construct",
+          "match": 0.119663
+        },
+        {
+          "artist": "Sithu Aye",
+          "match": 0.118613
+        },
+        {
+          "artist": "Richard Henshall",
+          "match": 0.116365
+        },
+        {
+          "artist": "Arch Echo",
+          "match": 0.114113
+        },
+        {
+          "artist": "Anup Sastry",
+          "match": 0.112321
+        },
+        {
+          "artist": "The Safety Fire",
+          "match": 0.110806
+        },
+        {
+          "artist": "Shokran",
+          "match": 0.109395
+        },
+        {
+          "artist": "The Helix Nebula",
+          "match": 0.108907
+        },
+        {
+          "artist": "Novelists",
+          "match": 0.107572
+        },
+        {
+          "artist": "Leprous",
+          "match": 0.107206
+        },
+        {
+          "artist": "Bulb",
+          "match": 0.106875
+        },
+        {
+          "artist": "Protest the Hero",
+          "match": 0.103836
+        },
+        {
+          "artist": "The Omnific",
+          "match": 0.103266
+        },
+        {
+          "artist": "Karmanjakah",
+          "match": 0.103063
+        },
+        {
+          "artist": "Oceans of Slumber",
+          "match": 0.10183
+        },
+        {
+          "artist": "Uneven Structure",
+          "match": 0.100708
+        },
+        {
+          "artist": "I Built the Sky",
+          "match": 0.099121
+        }
+      ]
+    },
+    "opeth": {
+      "artist": "Opeth",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Katatonia",
+          "match": 1.0
+        },
+        {
+          "artist": "Porcupine Tree",
+          "match": 0.977173
+        },
+        {
+          "artist": "Gojira",
+          "match": 0.875317
+        },
+        {
+          "artist": "Dream Theater",
+          "match": 0.815421
+        },
+        {
+          "artist": "Edge of Sanity",
+          "match": 0.759822
+        },
+        {
+          "artist": "Pain of Salvation",
+          "match": 0.739608
+        },
+        {
+          "artist": "Soen",
+          "match": 0.719152
+        },
+        {
+          "artist": "Agalloch",
+          "match": 0.697196
+        },
+        {
+          "artist": "Bloodbath",
+          "match": 0.677366
+        },
+        {
+          "artist": "Ne Obliviscaris",
+          "match": 0.670826
+        },
+        {
+          "artist": "Leprous",
+          "match": 0.632317
+        },
+        {
+          "artist": "Mastodon",
+          "match": 0.626433
+        },
+        {
+          "artist": "Haken",
+          "match": 0.614266
+        },
+        {
+          "artist": "Riverside",
+          "match": 0.609494
+        },
+        {
+          "artist": "Caligula's Horse",
+          "match": 0.596904
+        },
+        {
+          "artist": "Wilderun",
+          "match": 0.573733
+        },
+        {
+          "artist": "Tool",
+          "match": 0.561211
+        },
+        {
+          "artist": "Cynic",
+          "match": 0.550514
+        },
+        {
+          "artist": "Death",
+          "match": 0.529153
+        },
+        {
+          "artist": "Ihsahn",
+          "match": 0.524672
+        },
+        {
+          "artist": "Dan Swanö",
+          "match": 0.522435
+        },
+        {
+          "artist": "Between the Buried and Me",
+          "match": 0.515819
+        },
+        {
+          "artist": "Blood Incantation",
+          "match": 0.514849
+        },
+        {
+          "artist": "Persefone",
+          "match": 0.496526
+        },
+        {
+          "artist": "The Ocean",
+          "match": 0.492532
+        },
+        {
+          "artist": "Meshuggah",
+          "match": 0.486411
+        },
+        {
+          "artist": "Rivers of Nihil",
+          "match": 0.471952
+        },
+        {
+          "artist": "Necrophagist",
+          "match": 0.459125
+        },
+        {
+          "artist": "Anathema",
+          "match": 0.456842
+        },
+        {
+          "artist": "Liquid Tension Experiment",
+          "match": 0.444917
+        },
+        {
+          "artist": "Devin Townsend",
+          "match": 0.443352
+        },
+        {
+          "artist": "Black Crown Initiate",
+          "match": 0.442631
+        },
+        {
+          "artist": "Symphony X",
+          "match": 0.440435
+        },
+        {
+          "artist": "In Mourning",
+          "match": 0.436309
+        },
+        {
+          "artist": "Anekdoten",
+          "match": 0.407097
+        },
+        {
+          "artist": "Anciients",
+          "match": 0.400668
+        },
+        {
+          "artist": "Green Carnation",
+          "match": 0.390172
+        },
+        {
+          "artist": "Disillusion",
+          "match": 0.389719
+        },
+        {
+          "artist": "Devin Townsend Project",
+          "match": 0.389594
+        },
+        {
+          "artist": "Amorphis",
+          "match": 0.384182
+        },
+        {
+          "artist": "Osi",
+          "match": 0.382535
+        },
+        {
+          "artist": "Obscura",
+          "match": 0.382523
+        },
+        {
+          "artist": "Be'lakor",
+          "match": 0.381252
+        },
+        {
+          "artist": "An Abstract Illusion",
+          "match": 0.376452
+        },
+        {
+          "artist": "In Vain",
+          "match": 0.357022
+        },
+        {
+          "artist": "TesseracT",
+          "match": 0.353395
+        },
+        {
+          "artist": "Vulkan",
+          "match": 0.352036
+        },
+        {
+          "artist": "Iotunn",
+          "match": 0.345882
+        },
+        {
+          "artist": "Atheist",
+          "match": 0.345071
+        },
+        {
+          "artist": "Novembre",
+          "match": 0.342484
+        }
+      ]
+    },
+    "sepultura": {
+      "artist": "Sepultura",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Soulfly",
+          "match": 1.0
+        },
+        {
+          "artist": "Cavalera Conspiracy",
+          "match": 0.980397
+        },
+        {
+          "artist": "Slayer",
+          "match": 0.946627
+        },
+        {
+          "artist": "Nailbomb",
+          "match": 0.713797
+        },
+        {
+          "artist": "Pantera",
+          "match": 0.677656
+        },
+        {
+          "artist": "Death",
+          "match": 0.6366
+        },
+        {
+          "artist": "Sarcófago",
+          "match": 0.634051
+        },
+        {
+          "artist": "Sodom",
+          "match": 0.579681
+        },
+        {
+          "artist": "Obituary",
+          "match": 0.572753
+        },
+        {
+          "artist": "Anthrax",
+          "match": 0.568205
+        },
+        {
+          "artist": "Exodus",
+          "match": 0.541176
+        },
+        {
+          "artist": "Testament",
+          "match": 0.537142
+        },
+        {
+          "artist": "Kreator",
+          "match": 0.511361
+        },
+        {
+          "artist": "Megadeth",
+          "match": 0.50615
+        },
+        {
+          "artist": "Metallica",
+          "match": 0.432446
+        },
+        {
+          "artist": "Venom",
+          "match": 0.421913
+        },
+        {
+          "artist": "Morbid Angel",
+          "match": 0.411676
+        },
+        {
+          "artist": "Possessed",
+          "match": 0.409305
+        },
+        {
+          "artist": "Deicide",
+          "match": 0.399606
+        },
+        {
+          "artist": "Cannibal Corpse",
+          "match": 0.388988
+        },
+        {
+          "artist": "Krisiun",
+          "match": 0.387345
+        },
+        {
+          "artist": "Machine Head",
+          "match": 0.384617
+        },
+        {
+          "artist": "S.O.D.",
+          "match": 0.377109
+        },
+        {
+          "artist": "Nuclear Assault",
+          "match": 0.374469
+        },
+        {
+          "artist": "Morbid Saint",
+          "match": 0.370007
+        },
+        {
+          "artist": "Lamb of God",
+          "match": 0.365937
+        },
+        {
+          "artist": "Overkill",
+          "match": 0.362147
+        },
+        {
+          "artist": "Nervosa",
+          "match": 0.362026
+        },
+        {
+          "artist": "Sacred Reich",
+          "match": 0.356562
+        },
+        {
+          "artist": "Carcass",
+          "match": 0.349418
+        },
+        {
+          "artist": "Entombed",
+          "match": 0.348974
+        },
+        {
+          "artist": "Crypta",
+          "match": 0.346237
+        },
+        {
+          "artist": "Fear Factory",
+          "match": 0.343272
+        },
+        {
+          "artist": "Destruction",
+          "match": 0.343122
+        },
+        {
+          "artist": "Celtic Frost",
+          "match": 0.335969
+        },
+        {
+          "artist": "Havok",
+          "match": 0.334709
+        },
+        {
+          "artist": "Annihilator",
+          "match": 0.333697
+        },
+        {
+          "artist": "Vader",
+          "match": 0.331488
+        },
+        {
+          "artist": "Gojira",
+          "match": 0.331222
+        },
+        {
+          "artist": "Dark Angel",
+          "match": 0.322382
+        },
+        {
+          "artist": "Six Feet Under",
+          "match": 0.318527
+        },
+        {
+          "artist": "Brujeria",
+          "match": 0.318142
+        },
+        {
+          "artist": "Damageplan",
+          "match": 0.317342
+        },
+        {
+          "artist": "Tankard",
+          "match": 0.31719
+        },
+        {
+          "artist": "Hellhammer",
+          "match": 0.314521
+        },
+        {
+          "artist": "Death Angel",
+          "match": 0.313222
+        },
+        {
+          "artist": "Demolition Hammer",
+          "match": 0.310297
+        },
+        {
+          "artist": "Exhorder",
+          "match": 0.306611
+        },
+        {
+          "artist": "Violator",
+          "match": 0.302569
+        },
+        {
+          "artist": "Bolt Thrower",
+          "match": 0.297754
+        }
+      ]
+    },
+    "titas": {
+      "artist": "Titãs",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Os Paralamas Do Sucesso",
+          "match": 1.0
+        },
+        {
+          "artist": "Ira!",
+          "match": 0.851366
+        },
+        {
+          "artist": "Ultraje A Rigor",
+          "match": 0.836678
+        },
+        {
+          "artist": "Barão Vermelho",
+          "match": 0.805758
+        },
+        {
+          "artist": "RPM",
+          "match": 0.721182
+        },
+        {
+          "artist": "Capital Inicial",
+          "match": 0.718496
+        },
+        {
+          "artist": "Engenheiros Do Hawaii",
+          "match": 0.699835
+        },
+        {
+          "artist": "Biquini Cavadão",
+          "match": 0.688846
+        },
+        {
+          "artist": "Legião Urbana",
+          "match": 0.668602
+        },
+        {
+          "artist": "Plebe Rude",
+          "match": 0.635084
+        },
+        {
+          "artist": "Skank",
+          "match": 0.591399
+        },
+        {
+          "artist": "Nenhum de Nós",
+          "match": 0.59038
+        },
+        {
+          "artist": "Lobão",
+          "match": 0.585165
+        },
+        {
+          "artist": "Lulu Santos",
+          "match": 0.527479
+        },
+        {
+          "artist": "Camisa de Vênus",
+          "match": 0.518075
+        },
+        {
+          "artist": "Raul Seixas",
+          "match": 0.487326
+        },
+        {
+          "artist": "Nando Reis",
+          "match": 0.475549
+        },
+        {
+          "artist": "Uns e Outros",
+          "match": 0.467828
+        },
+        {
+          "artist": "Frejat",
+          "match": 0.463561
+        },
+        {
+          "artist": "Jota Quest",
+          "match": 0.454667
+        },
+        {
+          "artist": "Arnaldo Antunes",
+          "match": 0.43247
+        },
+        {
+          "artist": "Raimundos",
+          "match": 0.392971
+        },
+        {
+          "artist": "Detonautas Roque Clube",
+          "match": 0.374638
+        },
+        {
+          "artist": "Kid Abelha",
+          "match": 0.364927
+        },
+        {
+          "artist": "Cidade Negra",
+          "match": 0.360393
+        },
+        {
+          "artist": "CPM 22",
+          "match": 0.355941
+        },
+        {
+          "artist": "Cássia Eller",
+          "match": 0.328692
+        },
+        {
+          "artist": "Leo Jaime",
+          "match": 0.328253
+        },
+        {
+          "artist": "Tihuana",
+          "match": 0.325838
+        },
+        {
+          "artist": "Zé Ramalho",
+          "match": 0.311804
+        },
+        {
+          "artist": "Pato Fu",
+          "match": 0.310397
+        },
+        {
+          "artist": "Cazuza",
+          "match": 0.307639
+        },
+        {
+          "artist": "Mamonas Assassinas",
+          "match": 0.303448
+        },
+        {
+          "artist": "Zeca Baleiro",
+          "match": 0.299388
+        },
+        {
+          "artist": "O Rappa",
+          "match": 0.297925
+        },
+        {
+          "artist": "Leoni",
+          "match": 0.294893
+        },
+        {
+          "artist": "Fagner",
+          "match": 0.293665
+        },
+        {
+          "artist": "Humberto Gessinger",
+          "match": 0.29217
+        },
+        {
+          "artist": "Planet Hemp",
+          "match": 0.292127
+        },
+        {
+          "artist": "Matanza",
+          "match": 0.282007
+        },
+        {
+          "artist": "Chico Science & Nação Zumbi",
+          "match": 0.272139
+        },
+        {
+          "artist": "Charlie Brown Jr.",
+          "match": 0.270137
+        },
+        {
+          "artist": "Gabriel O Pensador",
+          "match": 0.265825
+        },
+        {
+          "artist": "Roupa Nova",
+          "match": 0.258433
+        },
+        {
+          "artist": "Inocentes",
+          "match": 0.258146
+        },
+        {
+          "artist": "Heróis Da Resistência",
+          "match": 0.256277
+        },
+        {
+          "artist": "Os Mutantes",
+          "match": 0.248236
+        },
+        {
+          "artist": "Metrô",
+          "match": 0.243194
+        },
+        {
+          "artist": "João Penca E Seus Miquinhos Amestrados",
+          "match": 0.242746
+        },
+        {
+          "artist": "Kid Abelha E Os Abóboras Selvagens",
+          "match": 0.241977
+        }
+      ]
+    },
+    "jorgeben": {
+      "artist": "Jorge Ben",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Jorge Ben Jor, Trio Mocoto",
+          "match": 1.0
+        },
+        {
+          "artist": "Novos Baianos",
+          "match": 0.713108
+        },
+        {
+          "artist": "Trio Mocotó",
+          "match": 0.687805
+        },
+        {
+          "artist": "Os Originais Do Samba",
+          "match": 0.643972
+        },
+        {
+          "artist": "Tim Maia",
+          "match": 0.610167
+        },
+        {
+          "artist": "Bebeto",
+          "match": 0.608375
+        },
+        {
+          "artist": "Gilberto Gil",
+          "match": 0.573046
+        },
+        {
+          "artist": "Arthur Verocai",
+          "match": 0.571757
+        },
+        {
+          "artist": "Milton Nascimento",
+          "match": 0.542918
+        },
+        {
+          "artist": "Cassiano",
+          "match": 0.538223
+        },
+        {
+          "artist": "Chico Buarque",
+          "match": 0.533581
+        },
+        {
+          "artist": "Djavan",
+          "match": 0.525575
+        },
+        {
+          "artist": "Cartola",
+          "match": 0.524199
+        },
+        {
+          "artist": "Luiz Melodia",
+          "match": 0.513265
+        },
+        {
+          "artist": "Caetano Veloso",
+          "match": 0.495882
+        },
+        {
+          "artist": "Wilson Simonal",
+          "match": 0.493554
+        },
+        {
+          "artist": "Gal Costa",
+          "match": 0.489076
+        },
+        {
+          "artist": "Claudya",
+          "match": 0.474543
+        },
+        {
+          "artist": "Di Melo",
+          "match": 0.461353
+        },
+        {
+          "artist": "Evinha",
+          "match": 0.452878
+        },
+        {
+          "artist": "Hyldon",
+          "match": 0.452165
+        },
+        {
+          "artist": "Marcos Valle",
+          "match": 0.411339
+        },
+        {
+          "artist": "Os Tincoãs",
+          "match": 0.409516
+        },
+        {
+          "artist": "Lô Borges",
+          "match": 0.406053
+        },
+        {
+          "artist": "Paulinho da Viola",
+          "match": 0.401405
+        },
+        {
+          "artist": "Adoniran Barbosa",
+          "match": 0.398663
+        },
+        {
+          "artist": "Martinho Da Vila",
+          "match": 0.395225
+        },
+        {
+          "artist": "Toquinho",
+          "match": 0.391505
+        },
+        {
+          "artist": "Secos & Molhados",
+          "match": 0.389733
+        },
+        {
+          "artist": "Erasmo Carlos",
+          "match": 0.378465
+        },
+        {
+          "artist": "Trio Ternura",
+          "match": 0.370472
+        },
+        {
+          "artist": "Zeca Pagodinho",
+          "match": 0.369029
+        },
+        {
+          "artist": "Edu Lobo",
+          "match": 0.368713
+        },
+        {
+          "artist": "Tom Zé",
+          "match": 0.366728
+        },
+        {
+          "artist": "Vinícius de Moraes",
+          "match": 0.366276
+        },
+        {
+          "artist": "Ave Sangria",
+          "match": 0.365104
+        },
+        {
+          "artist": "João Nogueira",
+          "match": 0.36384
+        },
+        {
+          "artist": "João Gilberto",
+          "match": 0.360546
+        },
+        {
+          "artist": "Belchior",
+          "match": 0.358639
+        },
+        {
+          "artist": "Seu Jorge",
+          "match": 0.358597
+        },
+        {
+          "artist": "Clara Nunes",
+          "match": 0.354026
+        },
+        {
+          "artist": "Beth Carvalho",
+          "match": 0.352551
+        },
+        {
+          "artist": "Gonzaguinha",
+          "match": 0.351328
+        },
+        {
+          "artist": "Nelson Cavaquinho",
+          "match": 0.350443
+        },
+        {
+          "artist": "Sérgio Sampaio",
+          "match": 0.343731
+        },
+        {
+          "artist": "João Bosco",
+          "match": 0.339585
+        },
+        {
+          "artist": "Angela Ro Ro",
+          "match": 0.337079
+        },
+        {
+          "artist": "Arlindo Cruz",
+          "match": 0.334487
+        },
+        {
+          "artist": "Alceu Valença",
+          "match": 0.333671
+        }
+      ]
+    },
+    "systemofadown": {
+      "artist": "System of a Down",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Daron Malakian and Scars on Broadway",
+          "match": 1.0
+        },
+        {
+          "artist": "Serj Tankian",
+          "match": 0.994381
+        },
+        {
+          "artist": "Slipknot",
+          "match": 0.624163
+        },
+        {
+          "artist": "Korn",
+          "match": 0.543641
+        },
+        {
+          "artist": "Limp Bizkit",
+          "match": 0.47108
+        },
+        {
+          "artist": "Deftones",
+          "match": 0.348325
+        },
+        {
+          "artist": "Snot",
+          "match": 0.318423
+        },
+        {
+          "artist": "Drowning Pool",
+          "match": 0.299249
+        },
+        {
+          "artist": "Rage Against the Machine",
+          "match": 0.27398
+        },
+        {
+          "artist": "Mudvayne",
+          "match": 0.261864
+        },
+        {
+          "artist": "Avenged Sevenfold",
+          "match": 0.257712
+        },
+        {
+          "artist": "Linkin Park",
+          "match": 0.250212
+        },
+        {
+          "artist": "Scars on Broadway",
+          "match": 0.233076
+        },
+        {
+          "artist": "Disturbed",
+          "match": 0.226359
+        },
+        {
+          "artist": "Tool",
+          "match": 0.225387
+        },
+        {
+          "artist": "Kittie",
+          "match": 0.21412
+        },
+        {
+          "artist": "Stone Sour",
+          "match": 0.212307
+        },
+        {
+          "artist": "Primer 55",
+          "match": 0.20936
+        },
+        {
+          "artist": "Metallica",
+          "match": 0.20009
+        },
+        {
+          "artist": "A Perfect Circle",
+          "match": 0.198595
+        },
+        {
+          "artist": "Chevelle",
+          "match": 0.196724
+        },
+        {
+          "artist": "Sevendust",
+          "match": 0.192793
+        },
+        {
+          "artist": "Static-X",
+          "match": 0.189793
+        },
+        {
+          "artist": "Coal Chamber",
+          "match": 0.185824
+        },
+        {
+          "artist": "Alice in Chains",
+          "match": 0.179285
+        },
+        {
+          "artist": "Godsmack",
+          "match": 0.15853
+        },
+        {
+          "artist": "Soil",
+          "match": 0.149954
+        },
+        {
+          "artist": "Mushroomhead",
+          "match": 0.147634
+        },
+        {
+          "artist": "Nothingface",
+          "match": 0.146148
+        },
+        {
+          "artist": "Radiohead",
+          "match": 0.145874
+        },
+        {
+          "artist": "Faith No More",
+          "match": 0.144641
+        },
+        {
+          "artist": "Slaves on Dope",
+          "match": 0.144536
+        },
+        {
+          "artist": "Primus",
+          "match": 0.138556
+        },
+        {
+          "artist": "Helmet",
+          "match": 0.138478
+        },
+        {
+          "artist": "Papa Roach",
+          "match": 0.137343
+        },
+        {
+          "artist": "Audioslave",
+          "match": 0.137289
+        },
+        {
+          "artist": "Seether",
+          "match": 0.137253
+        },
+        {
+          "artist": "Dope",
+          "match": 0.13453
+        },
+        {
+          "artist": "Three Days Grace",
+          "match": 0.133501
+        },
+        {
+          "artist": "Flaw",
+          "match": 0.1309
+        },
+        {
+          "artist": "VIOLENT VIRA",
+          "match": 0.127066
+        },
+        {
+          "artist": "Staind",
+          "match": 0.124853
+        },
+        {
+          "artist": "Foo Fighters",
+          "match": 0.124698
+        },
+        {
+          "artist": "Spineshank",
+          "match": 0.123572
+        },
+        {
+          "artist": "Breaking Benjamin",
+          "match": 0.120317
+        },
+        {
+          "artist": "Rob Zombie",
+          "match": 0.119251
+        },
+        {
+          "artist": "Vended",
+          "match": 0.119007
+        },
+        {
+          "artist": "Earshot",
+          "match": 0.117983
+        },
+        {
+          "artist": "40 Below Summer",
+          "match": 0.115249
+        },
+        {
+          "artist": "Dry Kill Logic",
+          "match": 0.111349
+        }
+      ]
+    },
+    "badbunny": {
+      "artist": "Bad Bunny",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "JHAYCO",
+          "match": 1.0
+        },
+        {
+          "artist": "Tainy",
+          "match": 0.97824
+        },
+        {
+          "artist": "Rauw Alejandro",
+          "match": 0.963502
+        },
+        {
+          "artist": "J Balvin",
+          "match": 0.929053
+        },
+        {
+          "artist": "Trio Vegabajeño",
+          "match": 0.8661
+        },
+        {
+          "artist": "Mora",
+          "match": 0.854341
+        },
+        {
+          "artist": "Myke Towers",
+          "match": 0.792079
+        },
+        {
+          "artist": "Omar Courtz",
+          "match": 0.731825
+        },
+        {
+          "artist": "Nio Garcia",
+          "match": 0.730414
+        },
+        {
+          "artist": "Feid",
+          "match": 0.608027
+        },
+        {
+          "artist": "Arcángel",
+          "match": 0.602071
+        },
+        {
+          "artist": "Eladio Carrion",
+          "match": 0.563351
+        },
+        {
+          "artist": "Alvaro Diaz",
+          "match": 0.520692
+        },
+        {
+          "artist": "Anuel AA",
+          "match": 0.509223
+        },
+        {
+          "artist": "Quevedo",
+          "match": 0.501549
+        },
+        {
+          "artist": "Young Miko",
+          "match": 0.489351
+        },
+        {
+          "artist": "Ozuna",
+          "match": 0.455406
+        },
+        {
+          "artist": "Dei V",
+          "match": 0.447876
+        },
+        {
+          "artist": "KAROL G",
+          "match": 0.446923
+        },
+        {
+          "artist": "Bryant Myers",
+          "match": 0.429492
+        },
+        {
+          "artist": "Daddy Yankee",
+          "match": 0.428505
+        },
+        {
+          "artist": "Sech",
+          "match": 0.427974
+        },
+        {
+          "artist": "Rvssian",
+          "match": 0.419857
+        },
+        {
+          "artist": "Chris Jedi",
+          "match": 0.397237
+        },
+        {
+          "artist": "Sky Rompiendo",
+          "match": 0.385403
+        },
+        {
+          "artist": "Maluma",
+          "match": 0.37441
+        },
+        {
+          "artist": "Arcangel",
+          "match": 0.367388
+        },
+        {
+          "artist": "Ñengo Flow",
+          "match": 0.355613
+        },
+        {
+          "artist": "Ryan Castro",
+          "match": 0.354251
+        },
+        {
+          "artist": "Yandel",
+          "match": 0.352566
+        },
+        {
+          "artist": "De La Rose",
+          "match": 0.34832
+        },
+        {
+          "artist": "Tego Calderón",
+          "match": 0.347386
+        },
+        {
+          "artist": "Wisin",
+          "match": 0.346614
+        },
+        {
+          "artist": "Lunay",
+          "match": 0.346236
+        },
+        {
+          "artist": "Brytiago",
+          "match": 0.342355
+        },
+        {
+          "artist": "RaiNao",
+          "match": 0.341488
+        },
+        {
+          "artist": "Jowell & Randy",
+          "match": 0.341222
+        },
+        {
+          "artist": "Clarent",
+          "match": 0.339181
+        },
+        {
+          "artist": "Bizarrap",
+          "match": 0.338482
+        },
+        {
+          "artist": "Farruko",
+          "match": 0.33231
+        },
+        {
+          "artist": "Jhay Cortez",
+          "match": 0.33114
+        },
+        {
+          "artist": "Luar La L",
+          "match": 0.32852
+        },
+        {
+          "artist": "Yan Block",
+          "match": 0.322231
+        },
+        {
+          "artist": "Wisin & Yandel",
+          "match": 0.320831
+        },
+        {
+          "artist": "Jay Wheeler",
+          "match": 0.319863
+        },
+        {
+          "artist": "Duki",
+          "match": 0.314137
+        },
+        {
+          "artist": "Brray",
+          "match": 0.298127
+        },
+        {
+          "artist": "Zion & Lennox",
+          "match": 0.297061
+        },
+        {
+          "artist": "Don Omar",
+          "match": 0.291395
+        },
+        {
+          "artist": "De La Ghetto",
+          "match": 0.290871
+        }
+      ]
+    },
+    "pearljam": {
+      "artist": "Pearl Jam",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Eddie Vedder",
+          "match": 1.0
+        },
+        {
+          "artist": "Soundgarden",
+          "match": 0.957438
+        },
+        {
+          "artist": "Temple of the Dog",
+          "match": 0.907403
+        },
+        {
+          "artist": "Stone Temple Pilots",
+          "match": 0.791034
+        },
+        {
+          "artist": "Chris Cornell",
+          "match": 0.780731
+        },
+        {
+          "artist": "Mad Season",
+          "match": 0.720277
+        },
+        {
+          "artist": "Mother Love Bone",
+          "match": 0.696535
+        },
+        {
+          "artist": "Alice in Chains",
+          "match": 0.676368
+        },
+        {
+          "artist": "Audioslave",
+          "match": 0.592471
+        },
+        {
+          "artist": "Screaming Trees",
+          "match": 0.567017
+        },
+        {
+          "artist": "Candlebox",
+          "match": 0.544004
+        },
+        {
+          "artist": "Bush",
+          "match": 0.541198
+        },
+        {
+          "artist": "Foo Fighters",
+          "match": 0.519166
+        },
+        {
+          "artist": "Jerry Cantrell",
+          "match": 0.514058
+        },
+        {
+          "artist": "Live",
+          "match": 0.499966
+        },
+        {
+          "artist": "Silverchair",
+          "match": 0.462448
+        },
+        {
+          "artist": "Blind Melon",
+          "match": 0.455699
+        },
+        {
+          "artist": "Days of the New",
+          "match": 0.433129
+        },
+        {
+          "artist": "Mudhoney",
+          "match": 0.395578
+        },
+        {
+          "artist": "Brad",
+          "match": 0.390513
+        },
+        {
+          "artist": "Seven Mary Three",
+          "match": 0.382883
+        },
+        {
+          "artist": "Green River",
+          "match": 0.378902
+        },
+        {
+          "artist": "The Smashing Pumpkins",
+          "match": 0.343514
+        },
+        {
+          "artist": "Nirvana",
+          "match": 0.337286
+        },
+        {
+          "artist": "Collective Soul",
+          "match": 0.33163
+        },
+        {
+          "artist": "Velvet Revolver",
+          "match": 0.33063
+        },
+        {
+          "artist": "Jane's Addiction",
+          "match": 0.328195
+        },
+        {
+          "artist": "R.E.M.",
+          "match": 0.324257
+        },
+        {
+          "artist": "Soul Asylum",
+          "match": 0.320548
+        },
+        {
+          "artist": "Local H",
+          "match": 0.306023
+        },
+        {
+          "artist": "Creed",
+          "match": 0.29969
+        },
+        {
+          "artist": "Tad",
+          "match": 0.290584
+        },
+        {
+          "artist": "Mark Lanegan",
+          "match": 0.287629
+        },
+        {
+          "artist": "Red Hot Chili Peppers",
+          "match": 0.286711
+        },
+        {
+          "artist": "Faith No More",
+          "match": 0.273369
+        },
+        {
+          "artist": "Toadies",
+          "match": 0.26169
+        },
+        {
+          "artist": "Love Battery",
+          "match": 0.260632
+        },
+        {
+          "artist": "Everclear",
+          "match": 0.25591
+        },
+        {
+          "artist": "Counting Crows",
+          "match": 0.254469
+        },
+        {
+          "artist": "Sponge",
+          "match": 0.248372
+        },
+        {
+          "artist": "Puddle of Mudd",
+          "match": 0.244009
+        },
+        {
+          "artist": "Dinosaur Jr.",
+          "match": 0.243792
+        },
+        {
+          "artist": "Seether",
+          "match": 0.240043
+        },
+        {
+          "artist": "Skin Yard",
+          "match": 0.238579
+        },
+        {
+          "artist": "Fuel",
+          "match": 0.234653
+        },
+        {
+          "artist": "U2",
+          "match": 0.227406
+        },
+        {
+          "artist": "Dave Matthews Band",
+          "match": 0.226867
+        },
+        {
+          "artist": "Tonic",
+          "match": 0.224671
+        },
+        {
+          "artist": "Afghan Whigs",
+          "match": 0.223637
+        },
+        {
+          "artist": "Veruca Salt",
+          "match": 0.220052
+        }
+      ]
+    },
+    "metallica": {
+      "artist": "Metallica",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Megadeth",
+          "match": 1.0
+        },
+        {
+          "artist": "Slayer",
+          "match": 0.635405
+        },
+        {
+          "artist": "Anthrax",
+          "match": 0.626645
+        },
+        {
+          "artist": "Pantera",
+          "match": 0.620437
+        },
+        {
+          "artist": "Iron Maiden",
+          "match": 0.510771
+        },
+        {
+          "artist": "Sepultura",
+          "match": 0.452491
+        },
+        {
+          "artist": "Testament",
+          "match": 0.443538
+        },
+        {
+          "artist": "Exodus",
+          "match": 0.430797
+        },
+        {
+          "artist": "Ozzy Osbourne",
+          "match": 0.419741
+        },
+        {
+          "artist": "Motörhead",
+          "match": 0.402544
+        },
+        {
+          "artist": "Black Sabbath",
+          "match": 0.401855
+        },
+        {
+          "artist": "AC/DC",
+          "match": 0.365833
+        },
+        {
+          "artist": "Slipknot",
+          "match": 0.355781
+        },
+        {
+          "artist": "Overkill",
+          "match": 0.353996
+        },
+        {
+          "artist": "Diamond Head",
+          "match": 0.344195
+        },
+        {
+          "artist": "Guns N' Roses",
+          "match": 0.33537
+        },
+        {
+          "artist": "Kreator",
+          "match": 0.335041
+        },
+        {
+          "artist": "Machine Head",
+          "match": 0.33141
+        },
+        {
+          "artist": "Judas Priest",
+          "match": 0.325439
+        },
+        {
+          "artist": "Godsmack",
+          "match": 0.316173
+        },
+        {
+          "artist": "Annihilator",
+          "match": 0.314709
+        },
+        {
+          "artist": "Black Label Society",
+          "match": 0.310971
+        },
+        {
+          "artist": "Bruce Dickinson",
+          "match": 0.298717
+        },
+        {
+          "artist": "Mötley Crüe",
+          "match": 0.298212
+        },
+        {
+          "artist": "Dio",
+          "match": 0.297134
+        },
+        {
+          "artist": "Death Angel",
+          "match": 0.277505
+        },
+        {
+          "artist": "Volbeat",
+          "match": 0.269813
+        },
+        {
+          "artist": "Disturbed",
+          "match": 0.265036
+        },
+        {
+          "artist": "Trivium",
+          "match": 0.261151
+        },
+        {
+          "artist": "Metal Church",
+          "match": 0.240746
+        },
+        {
+          "artist": "Avenged Sevenfold",
+          "match": 0.237573
+        },
+        {
+          "artist": "Venom",
+          "match": 0.237186
+        },
+        {
+          "artist": "Lamb of God",
+          "match": 0.23698
+        },
+        {
+          "artist": "Sacred Reich",
+          "match": 0.225697
+        },
+        {
+          "artist": "Skid Row",
+          "match": 0.225213
+        },
+        {
+          "artist": "Accept",
+          "match": 0.224232
+        },
+        {
+          "artist": "Saxon",
+          "match": 0.223432
+        },
+        {
+          "artist": "Van Halen",
+          "match": 0.223427
+        },
+        {
+          "artist": "Suicidal Tendencies",
+          "match": 0.222648
+        },
+        {
+          "artist": "Soulfly",
+          "match": 0.221351
+        },
+        {
+          "artist": "Five Finger Death Punch",
+          "match": 0.215491
+        },
+        {
+          "artist": "Havok",
+          "match": 0.213913
+        },
+        {
+          "artist": "Corrosion of Conformity",
+          "match": 0.212014
+        },
+        {
+          "artist": "Nuclear Assault",
+          "match": 0.209355
+        },
+        {
+          "artist": "Quiet Riot",
+          "match": 0.208727
+        },
+        {
+          "artist": "Damageplan",
+          "match": 0.206646
+        },
+        {
+          "artist": "Evile",
+          "match": 0.20655
+        },
+        {
+          "artist": "System of a Down",
+          "match": 0.204997
+        },
+        {
+          "artist": "Rainbow",
+          "match": 0.202824
+        },
+        {
+          "artist": "Def Leppard",
+          "match": 0.199895
+        }
+      ]
+    },
+    "canseidesersexy": {
+      "artist": "Cansei de Ser Sexy",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "New Young Pony Club",
+          "match": 1.0
+        },
+        {
+          "artist": "NoPorn",
+          "match": 0.96148
+        },
+        {
+          "artist": "Letrux",
+          "match": 0.858336
+        },
+        {
+          "artist": "Fernanda Abreu",
+          "match": 0.811253
+        },
+        {
+          "artist": "Vera Fischer Era Clubber",
+          "match": 0.753939
+        },
+        {
+          "artist": "Ladyhawke",
+          "match": 0.706298
+        },
+        {
+          "artist": "Santigold",
+          "match": 0.685196
+        },
+        {
+          "artist": "Bonde do Rolê",
+          "match": 0.649809
+        },
+        {
+          "artist": "We Have Band",
+          "match": 0.625891
+        },
+        {
+          "artist": "Chairlift",
+          "match": 0.618672
+        },
+        {
+          "artist": "Jaloo",
+          "match": 0.615289
+        },
+        {
+          "artist": "The Ting Tings",
+          "match": 0.611489
+        },
+        {
+          "artist": "Tulipa Ruiz",
+          "match": 0.563804
+        },
+        {
+          "artist": "Cut Copy",
+          "match": 0.557047
+        },
+        {
+          "artist": "Does It Offend You, Yeah?",
+          "match": 0.541172
+        },
+        {
+          "artist": "Klaxons",
+          "match": 0.52222
+        },
+        {
+          "artist": "Yeah Yeah Yeahs",
+          "match": 0.519899
+        },
+        {
+          "artist": "Ladytron",
+          "match": 0.510804
+        },
+        {
+          "artist": "The Rapture",
+          "match": 0.504098
+        },
+        {
+          "artist": "Pato Fu",
+          "match": 0.501514
+        },
+        {
+          "artist": "Yelle",
+          "match": 0.497361
+        },
+        {
+          "artist": "Sophia Chablau e Uma Enorme Perda de Tempo",
+          "match": 0.496236
+        },
+        {
+          "artist": "!!!",
+          "match": 0.494025
+        },
+        {
+          "artist": "The Faint",
+          "match": 0.483217
+        },
+        {
+          "artist": "Gaby Amarantos",
+          "match": 0.482687
+        },
+        {
+          "artist": "Friendly Fires",
+          "match": 0.4781
+        },
+        {
+          "artist": "Metronomy",
+          "match": 0.474432
+        },
+        {
+          "artist": "Clarice Falcão",
+          "match": 0.459204
+        },
+        {
+          "artist": "Simian Mobile Disco",
+          "match": 0.450252
+        },
+        {
+          "artist": "Little Boots",
+          "match": 0.449952
+        },
+        {
+          "artist": "Hot Chip",
+          "match": 0.4449
+        },
+        {
+          "artist": "Datarock",
+          "match": 0.444374
+        },
+        {
+          "artist": "The Go! Team",
+          "match": 0.436824
+        },
+        {
+          "artist": "Architecture in Helsinki",
+          "match": 0.432604
+        },
+        {
+          "artist": "La Roux",
+          "match": 0.427278
+        },
+        {
+          "artist": "Vive La Fête",
+          "match": 0.424229
+        },
+        {
+          "artist": "Le Tigre",
+          "match": 0.4193
+        },
+        {
+          "artist": "DUDA BEAT",
+          "match": 0.413708
+        },
+        {
+          "artist": "Miss Kittin & The Hacker",
+          "match": 0.412539
+        },
+        {
+          "artist": "Gossip",
+          "match": 0.404397
+        },
+        {
+          "artist": "Peaches",
+          "match": 0.397076
+        },
+        {
+          "artist": "LCD Soundsystem",
+          "match": 0.395389
+        },
+        {
+          "artist": "Uffie",
+          "match": 0.395012
+        },
+        {
+          "artist": "Late of the Pier",
+          "match": 0.394506
+        },
+        {
+          "artist": "Shiny Toy Guns",
+          "match": 0.393699
+        },
+        {
+          "artist": "M.I.A.",
+          "match": 0.371374
+        },
+        {
+          "artist": "The Knife",
+          "match": 0.369387
+        },
+        {
+          "artist": "Metric",
+          "match": 0.365822
+        },
+        {
+          "artist": "Black Kids",
+          "match": 0.360979
+        },
+        {
+          "artist": "Grimes",
+          "match": 0.348185
+        }
+      ]
+    },
+    "rammstein": {
+      "artist": "Rammstein",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Lindemann",
+          "match": 1.0
+        },
+        {
+          "artist": "Till Lindemann",
+          "match": 0.837883
+        },
+        {
+          "artist": "Emigrate",
+          "match": 0.686519
+        },
+        {
+          "artist": "OOMPH!",
+          "match": 0.538743
+        },
+        {
+          "artist": "Eisbrecher",
+          "match": 0.515998
+        },
+        {
+          "artist": "Megaherz",
+          "match": 0.376869
+        },
+        {
+          "artist": "Stahlmann",
+          "match": 0.327971
+        },
+        {
+          "artist": "Marilyn Manson",
+          "match": 0.255986
+        },
+        {
+          "artist": "Rob Zombie",
+          "match": 0.205498
+        },
+        {
+          "artist": "Ost+Front",
+          "match": 0.203024
+        },
+        {
+          "artist": "Völkerball",
+          "match": 0.184424
+        },
+        {
+          "artist": "Heldmaschine",
+          "match": 0.179588
+        },
+        {
+          "artist": "Erdling",
+          "match": 0.177416
+        },
+        {
+          "artist": "Pain",
+          "match": 0.175145
+        },
+        {
+          "artist": "Die Krupps",
+          "match": 0.1736
+        },
+        {
+          "artist": "Static-X",
+          "match": 0.1594
+        },
+        {
+          "artist": "Deathstars",
+          "match": 0.154801
+        },
+        {
+          "artist": "Slipknot",
+          "match": 0.154313
+        },
+        {
+          "artist": "Clawfinger",
+          "match": 0.1389
+        },
+        {
+          "artist": "Dope",
+          "match": 0.135866
+        },
+        {
+          "artist": "Maerzfeld",
+          "match": 0.132989
+        },
+        {
+          "artist": "Gothminister",
+          "match": 0.131943
+        },
+        {
+          "artist": "Disturbed",
+          "match": 0.130636
+        },
+        {
+          "artist": "Fear Factory",
+          "match": 0.12775
+        },
+        {
+          "artist": "White Zombie",
+          "match": 0.127071
+        },
+        {
+          "artist": "Ruoska",
+          "match": 0.124366
+        },
+        {
+          "artist": "Powerman 5000",
+          "match": 0.116388
+        },
+        {
+          "artist": "Unheilig",
+          "match": 0.115658
+        },
+        {
+          "artist": "KMFDM",
+          "match": 0.113577
+        },
+        {
+          "artist": "3TEETH",
+          "match": 0.110677
+        },
+        {
+          "artist": "Ministry",
+          "match": 0.09861
+        },
+        {
+          "artist": "Hanzel und Gretyl",
+          "match": 0.095601
+        },
+        {
+          "artist": "Tanzwut",
+          "match": 0.091497
+        },
+        {
+          "artist": "Knorkator",
+          "match": 0.086787
+        },
+        {
+          "artist": "Die!",
+          "match": 0.086326
+        },
+        {
+          "artist": "Wayne Static",
+          "match": 0.085404
+        },
+        {
+          "artist": "Turmion Kätilöt",
+          "match": 0.081688
+        },
+        {
+          "artist": "Celldweller",
+          "match": 0.081509
+        },
+        {
+          "artist": "American Head Charge",
+          "match": 0.080807
+        },
+        {
+          "artist": "Lord of the Lost",
+          "match": 0.08037
+        },
+        {
+          "artist": "Samael",
+          "match": 0.078843
+        },
+        {
+          "artist": "Hämatom",
+          "match": 0.077615
+        },
+        {
+          "artist": "Coal Chamber",
+          "match": 0.075397
+        },
+        {
+          "artist": "Seelenzorn",
+          "match": 0.071137
+        },
+        {
+          "artist": "Spineshank",
+          "match": 0.070152
+        },
+        {
+          "artist": "Mushroomhead",
+          "match": 0.069899
+        },
+        {
+          "artist": "Pitchshifter",
+          "match": 0.069
+        },
+        {
+          "artist": "Device",
+          "match": 0.065435
+        },
+        {
+          "artist": "Volbeat",
+          "match": 0.065042
+        },
+        {
+          "artist": "Orgy",
+          "match": 0.064092
+        }
+      ]
+    },
+    "coheedandcambria": {
+      "artist": "Coheed and Cambria",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "The Prize Fighter Inferno",
+          "match": 1.0
+        },
+        {
+          "artist": "The Dear Hunter",
+          "match": 0.39058
+        },
+        {
+          "artist": "Thank You Scientist",
+          "match": 0.301878
+        },
+        {
+          "artist": "Closure in Moscow",
+          "match": 0.242475
+        },
+        {
+          "artist": "The Mars Volta",
+          "match": 0.194101
+        },
+        {
+          "artist": "3",
+          "match": 0.194002
+        },
+        {
+          "artist": "L.S. Dunes",
+          "match": 0.19141
+        },
+        {
+          "artist": "Fair to Midland",
+          "match": 0.181983
+        },
+        {
+          "artist": "Circa Survive",
+          "match": 0.178503
+        },
+        {
+          "artist": "Tides of Man",
+          "match": 0.174854
+        },
+        {
+          "artist": "Eidola",
+          "match": 0.172423
+        },
+        {
+          "artist": "The Sound of Animals Fighting",
+          "match": 0.161459
+        },
+        {
+          "artist": "Motion City Soundtrack",
+          "match": 0.148876
+        },
+        {
+          "artist": "dredg",
+          "match": 0.14787
+        },
+        {
+          "artist": "Taking Back Sunday",
+          "match": 0.142649
+        },
+        {
+          "artist": "A Lot Like Birds",
+          "match": 0.141682
+        },
+        {
+          "artist": "I the Mighty",
+          "match": 0.139684
+        },
+        {
+          "artist": "The Receiving End of Sirens",
+          "match": 0.139219
+        },
+        {
+          "artist": "Bayside",
+          "match": 0.137109
+        },
+        {
+          "artist": "Armor for Sleep",
+          "match": 0.128538
+        },
+        {
+          "artist": "Rishloo",
+          "match": 0.122662
+        },
+        {
+          "artist": "Brand New",
+          "match": 0.116704
+        },
+        {
+          "artist": "Jimmy Eat World",
+          "match": 0.11443
+        },
+        {
+          "artist": "Karnivool",
+          "match": 0.110465
+        },
+        {
+          "artist": "Children Of Nova",
+          "match": 0.109468
+        },
+        {
+          "artist": "AFI",
+          "match": 0.109046
+        },
+        {
+          "artist": "Manchester Orchestra",
+          "match": 0.107522
+        },
+        {
+          "artist": "Haken",
+          "match": 0.105383
+        },
+        {
+          "artist": "The Used",
+          "match": 0.104417
+        },
+        {
+          "artist": "Hail The Sun",
+          "match": 0.103341
+        },
+        {
+          "artist": "Sparta",
+          "match": 0.102681
+        },
+        {
+          "artist": "Say Anything",
+          "match": 0.10261
+        },
+        {
+          "artist": "Anberlin",
+          "match": 0.100481
+        },
+        {
+          "artist": "Incubus",
+          "match": 0.098917
+        },
+        {
+          "artist": "Straylight Run",
+          "match": 0.098786
+        },
+        {
+          "artist": "HRVRD",
+          "match": 0.095549
+        },
+        {
+          "artist": "Alien Ant Farm",
+          "match": 0.09546
+        },
+        {
+          "artist": "Rx Bandits",
+          "match": 0.094311
+        },
+        {
+          "artist": "Head Automatica",
+          "match": 0.093382
+        },
+        {
+          "artist": "Silversun Pickups",
+          "match": 0.09224
+        },
+        {
+          "artist": "Oceansize",
+          "match": 0.091799
+        },
+        {
+          "artist": "Makari",
+          "match": 0.091747
+        },
+        {
+          "artist": "A Perfect Circle",
+          "match": 0.087776
+        },
+        {
+          "artist": "Arcane Roots",
+          "match": 0.08643
+        },
+        {
+          "artist": "The Spill Canvas",
+          "match": 0.086209
+        },
+        {
+          "artist": "Caligula's Horse",
+          "match": 0.086021
+        },
+        {
+          "artist": "Acceptance",
+          "match": 0.083816
+        },
+        {
+          "artist": "The Pineapple Thief",
+          "match": 0.083737
+        },
+        {
+          "artist": "Balance and Composure",
+          "match": 0.083237
+        },
+        {
+          "artist": "Biffy Clyro",
+          "match": 0.082869
+        }
+      ]
+    },
+    "forfun": {
+      "artist": "Forfun",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "BRAZA",
+          "match": 1.0
+        },
+        {
+          "artist": "Scracho",
+          "match": 0.992028
+        },
+        {
+          "artist": "Dibob",
+          "match": 0.96218
+        },
+        {
+          "artist": "Hateen",
+          "match": 0.651839
+        },
+        {
+          "artist": "Fresno",
+          "match": 0.625827
+        },
+        {
+          "artist": "CPM 22",
+          "match": 0.605725
+        },
+        {
+          "artist": "Dead Fish",
+          "match": 0.591181
+        },
+        {
+          "artist": "Strike",
+          "match": 0.584048
+        },
+        {
+          "artist": "NX Zero",
+          "match": 0.518528
+        },
+        {
+          "artist": "Gloria",
+          "match": 0.493395
+        },
+        {
+          "artist": "Seu Cuca",
+          "match": 0.464325
+        },
+        {
+          "artist": "Cueio Limão",
+          "match": 0.438311
+        },
+        {
+          "artist": "Fake Number",
+          "match": 0.429818
+        },
+        {
+          "artist": "Darvin",
+          "match": 0.413995
+        },
+        {
+          "artist": "Hevo84",
+          "match": 0.391406
+        },
+        {
+          "artist": "Dance of Days",
+          "match": 0.3599
+        },
+        {
+          "artist": "Sugar Kane",
+          "match": 0.358685
+        },
+        {
+          "artist": "Pense",
+          "match": 0.351836
+        },
+        {
+          "artist": "Rancore",
+          "match": 0.340394
+        },
+        {
+          "artist": "Detonautas Roque Clube",
+          "match": 0.336658
+        },
+        {
+          "artist": "Esteban",
+          "match": 0.334142
+        },
+        {
+          "artist": "Zander",
+          "match": 0.332679
+        },
+        {
+          "artist": "Canto dos Malditos na Terra do Nunca",
+          "match": 0.302791
+        },
+        {
+          "artist": "Moptop",
+          "match": 0.285252
+        },
+        {
+          "artist": "Medulla",
+          "match": 0.270183
+        },
+        {
+          "artist": "Noção de Nada",
+          "match": 0.268175
+        },
+        {
+          "artist": "Tihuana",
+          "match": 0.263074
+        },
+        {
+          "artist": "B5",
+          "match": 0.257495
+        },
+        {
+          "artist": "Vivendo do Ócio",
+          "match": 0.243751
+        },
+        {
+          "artist": "Hardneja Sertacore",
+          "match": 0.232526
+        },
+        {
+          "artist": "Raimundos",
+          "match": 0.231064
+        },
+        {
+          "artist": "zimbra",
+          "match": 0.229269
+        },
+        {
+          "artist": "Charlie Brown Jr.",
+          "match": 0.215604
+        },
+        {
+          "artist": "Bullet Bane",
+          "match": 0.2141
+        },
+        {
+          "artist": "Cachorro Grande",
+          "match": 0.202675
+        },
+        {
+          "artist": "Armandinho",
+          "match": 0.202162
+        },
+        {
+          "artist": "Restart",
+          "match": 0.201434
+        },
+        {
+          "artist": "Planet Hemp",
+          "match": 0.199434
+        },
+        {
+          "artist": "Rodox",
+          "match": 0.198694
+        },
+        {
+          "artist": "Vespas Mandarinas",
+          "match": 0.195094
+        },
+        {
+          "artist": "O Rappa",
+          "match": 0.191849
+        },
+        {
+          "artist": "Di Ferrero",
+          "match": 0.19076
+        },
+        {
+          "artist": "Matanza",
+          "match": 0.186728
+        },
+        {
+          "artist": "Bidê ou Balde",
+          "match": 0.185781
+        },
+        {
+          "artist": "Luxúria",
+          "match": 0.183872
+        },
+        {
+          "artist": "Planta e Raiz",
+          "match": 0.181832
+        },
+        {
+          "artist": "Los Hermanos",
+          "match": 0.173627
+        },
+        {
+          "artist": "Ls Jack",
+          "match": 0.168332
+        },
+        {
+          "artist": "Capital Inicial",
+          "match": 0.165005
+        },
+        {
+          "artist": "Reação Em Cadeia",
+          "match": 0.162005
+        }
+      ]
+    },
+    "pelican": {
+      "artist": "Pelican",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Russian Circles",
+          "match": 1.0
+        },
+        {
+          "artist": "Isis",
+          "match": 0.695863
+        },
+        {
+          "artist": "Red Sparowes",
+          "match": 0.627806
+        },
+        {
+          "artist": "Cult of Luna",
+          "match": 0.576948
+        },
+        {
+          "artist": "Rosetta",
+          "match": 0.537712
+        },
+        {
+          "artist": "If These Trees Could Talk",
+          "match": 0.475754
+        },
+        {
+          "artist": "We Lost the Sea",
+          "match": 0.463853
+        },
+        {
+          "artist": "Omega Massif",
+          "match": 0.462006
+        },
+        {
+          "artist": "Caspian",
+          "match": 0.447018
+        },
+        {
+          "artist": "Toundra",
+          "match": 0.438445
+        },
+        {
+          "artist": "Mouth of the Architect",
+          "match": 0.425173
+        },
+        {
+          "artist": "Year of No Light",
+          "match": 0.402424
+        },
+        {
+          "artist": "The Ocean",
+          "match": 0.396706
+        },
+        {
+          "artist": "Latitudes",
+          "match": 0.39364
+        },
+        {
+          "artist": "Bossk",
+          "match": 0.389916
+        },
+        {
+          "artist": "Sumac",
+          "match": 0.388969
+        },
+        {
+          "artist": "pg.lost",
+          "match": 0.381392
+        },
+        {
+          "artist": "Neurosis",
+          "match": 0.372109
+        },
+        {
+          "artist": "YOB",
+          "match": 0.36455
+        },
+        {
+          "artist": "Long Distance Calling",
+          "match": 0.362138
+        },
+        {
+          "artist": "Old Man Gloom",
+          "match": 0.33807
+        },
+        {
+          "artist": "This Will Destroy You",
+          "match": 0.330175
+        },
+        {
+          "artist": "Amenra",
+          "match": 0.319102
+        },
+        {
+          "artist": "Sleepmakeswaves",
+          "match": 0.312543
+        },
+        {
+          "artist": "God Is an Astronaut",
+          "match": 0.31182
+        },
+        {
+          "artist": "Psychonaut",
+          "match": 0.307698
+        },
+        {
+          "artist": "Meniscus",
+          "match": 0.306056
+        },
+        {
+          "artist": "Dvne",
+          "match": 0.303657
+        },
+        {
+          "artist": "Lost in Kiev",
+          "match": 0.300747
+        },
+        {
+          "artist": "Intronaut",
+          "match": 0.300036
+        },
+        {
+          "artist": "Callisto",
+          "match": 0.299479
+        },
+        {
+          "artist": "Kylesa",
+          "match": 0.297461
+        },
+        {
+          "artist": "Grails",
+          "match": 0.294125
+        },
+        {
+          "artist": "Baroness",
+          "match": 0.293746
+        },
+        {
+          "artist": "Maserati",
+          "match": 0.286651
+        },
+        {
+          "artist": "Tides From Nebula",
+          "match": 0.286589
+        },
+        {
+          "artist": "Mono",
+          "match": 0.28027
+        },
+        {
+          "artist": "Cloudkicker",
+          "match": 0.271427
+        },
+        {
+          "artist": "Jesu",
+          "match": 0.270498
+        },
+        {
+          "artist": "Torche",
+          "match": 0.267464
+        },
+        {
+          "artist": "And So I Watch You From Afar",
+          "match": 0.267153
+        },
+        {
+          "artist": "Hemelbestormer",
+          "match": 0.265633
+        },
+        {
+          "artist": "The Moth Gatherer",
+          "match": 0.260917
+        },
+        {
+          "artist": "*shels",
+          "match": 0.260326
+        },
+        {
+          "artist": "Oh Hiroshima",
+          "match": 0.256246
+        },
+        {
+          "artist": "The Evpatoria Report",
+          "match": 0.251551
+        },
+        {
+          "artist": "Minsk",
+          "match": 0.250228
+        },
+        {
+          "artist": "Explosions in the Sky",
+          "match": 0.244324
+        },
+        {
+          "artist": "Mogwai",
+          "match": 0.242944
+        },
+        {
+          "artist": "Exxasens",
+          "match": 0.240726
+        }
+      ]
+    },
+    "greenday": {
+      "artist": "Green Day",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "The Network",
+          "match": 1.0
+        },
+        {
+          "artist": "Foxboro Hot Tubs",
+          "match": 0.997848
+        },
+        {
+          "artist": "Pinhead Gunpowder",
+          "match": 0.887753
+        },
+        {
+          "artist": "Billie Joe Armstrong",
+          "match": 0.833628
+        },
+        {
+          "artist": "blink-182",
+          "match": 0.581815
+        },
+        {
+          "artist": "The Longshot",
+          "match": 0.495046
+        },
+        {
+          "artist": "Sum 41",
+          "match": 0.476211
+        },
+        {
+          "artist": "The Offspring",
+          "match": 0.398782
+        },
+        {
+          "artist": "My Chemical Romance",
+          "match": 0.356407
+        },
+        {
+          "artist": "Box Car Racer",
+          "match": 0.325607
+        },
+        {
+          "artist": "Alkaline Trio",
+          "match": 0.29951
+        },
+        {
+          "artist": "Weezer",
+          "match": 0.294299
+        },
+        {
+          "artist": "+44",
+          "match": 0.29174
+        },
+        {
+          "artist": "Bowling for Soup",
+          "match": 0.284338
+        },
+        {
+          "artist": "Good Charlotte",
+          "match": 0.26754
+        },
+        {
+          "artist": "MxPx",
+          "match": 0.261905
+        },
+        {
+          "artist": "Fall Out Boy",
+          "match": 0.261158
+        },
+        {
+          "artist": "Simple Plan",
+          "match": 0.257791
+        },
+        {
+          "artist": "Bad Religion",
+          "match": 0.248094
+        },
+        {
+          "artist": "Billy Talent",
+          "match": 0.235708
+        },
+        {
+          "artist": "New Found Glory",
+          "match": 0.230095
+        },
+        {
+          "artist": "Foo Fighters",
+          "match": 0.227946
+        },
+        {
+          "artist": "Rancid",
+          "match": 0.227769
+        },
+        {
+          "artist": "Sugarcult",
+          "match": 0.226967
+        },
+        {
+          "artist": "NOFX",
+          "match": 0.220937
+        },
+        {
+          "artist": "No Use for a Name",
+          "match": 0.216178
+        },
+        {
+          "artist": "Yellowcard",
+          "match": 0.213061
+        },
+        {
+          "artist": "Descendents",
+          "match": 0.210317
+        },
+        {
+          "artist": "Zebrahead",
+          "match": 0.204681
+        },
+        {
+          "artist": "The All-American Rejects",
+          "match": 0.203848
+        },
+        {
+          "artist": "Social Distortion",
+          "match": 0.202013
+        },
+        {
+          "artist": "SR-71",
+          "match": 0.201809
+        },
+        {
+          "artist": "Rise Against",
+          "match": 0.200798
+        },
+        {
+          "artist": "Angels & Airwaves",
+          "match": 0.199851
+        },
+        {
+          "artist": "Screeching Weasel",
+          "match": 0.19714
+        },
+        {
+          "artist": "American Hi-Fi",
+          "match": 0.195097
+        },
+        {
+          "artist": "Goldfinger",
+          "match": 0.194775
+        },
+        {
+          "artist": "The Ataris",
+          "match": 0.193901
+        },
+        {
+          "artist": "The Distillers",
+          "match": 0.19314
+        },
+        {
+          "artist": "Lagwagon",
+          "match": 0.18695
+        },
+        {
+          "artist": "Gerard Way",
+          "match": 0.185593
+        },
+        {
+          "artist": "Ramones",
+          "match": 0.182397
+        },
+        {
+          "artist": "Operation Ivy",
+          "match": 0.182038
+        },
+        {
+          "artist": "Face to Face",
+          "match": 0.179224
+        },
+        {
+          "artist": "Panic! at the Disco",
+          "match": 0.177794
+        },
+        {
+          "artist": "The Vandals",
+          "match": 0.176297
+        },
+        {
+          "artist": "Lustra",
+          "match": 0.172882
+        },
+        {
+          "artist": "Lit",
+          "match": 0.169986
+        },
+        {
+          "artist": "Frank Iero",
+          "match": 0.169848
+        },
+        {
+          "artist": "The Bouncing Souls",
+          "match": 0.169826
+        }
+      ]
+    },
+    "alterbridge": {
+      "artist": "Alter Bridge",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Tremonti",
+          "match": 1.0
+        },
+        {
+          "artist": "Myles Kennedy",
+          "match": 0.926801
+        },
+        {
+          "artist": "The Mayfield Four",
+          "match": 0.744449
+        },
+        {
+          "artist": "Slash",
+          "match": 0.466921
+        },
+        {
+          "artist": "Black Stone Cherry",
+          "match": 0.318606
+        },
+        {
+          "artist": "Shinedown",
+          "match": 0.313034
+        },
+        {
+          "artist": "Submersed",
+          "match": 0.277204
+        },
+        {
+          "artist": "Scott Stapp",
+          "match": 0.254512
+        },
+        {
+          "artist": "Mammoth WVH",
+          "match": 0.253007
+        },
+        {
+          "artist": "Creed",
+          "match": 0.247154
+        },
+        {
+          "artist": "Stone Sour",
+          "match": 0.233829
+        },
+        {
+          "artist": "Pop Evil",
+          "match": 0.21363
+        },
+        {
+          "artist": "Velvet Revolver",
+          "match": 0.207909
+        },
+        {
+          "artist": "3 Doors Down",
+          "match": 0.207657
+        },
+        {
+          "artist": "Daughtry",
+          "match": 0.20714
+        },
+        {
+          "artist": "Rev Theory",
+          "match": 0.202742
+        },
+        {
+          "artist": "Halestorm",
+          "match": 0.201096
+        },
+        {
+          "artist": "Staind",
+          "match": 0.201084
+        },
+        {
+          "artist": "Seether",
+          "match": 0.19919
+        },
+        {
+          "artist": "Theory of a Deadman",
+          "match": 0.197168
+        },
+        {
+          "artist": "Red Sun Rising",
+          "match": 0.191595
+        },
+        {
+          "artist": "Corey Taylor",
+          "match": 0.188382
+        },
+        {
+          "artist": "Breaking Benjamin",
+          "match": 0.182761
+        },
+        {
+          "artist": "Saint Asonia",
+          "match": 0.177196
+        },
+        {
+          "artist": "Fuel",
+          "match": 0.172174
+        },
+        {
+          "artist": "Godsmack",
+          "match": 0.170633
+        },
+        {
+          "artist": "Sixx:A.M.",
+          "match": 0.170289
+        },
+        {
+          "artist": "Volbeat",
+          "match": 0.169143
+        },
+        {
+          "artist": "Shaman's Harvest",
+          "match": 0.167409
+        },
+        {
+          "artist": "Sevendust",
+          "match": 0.166897
+        },
+        {
+          "artist": "Adelitas Way",
+          "match": 0.166776
+        },
+        {
+          "artist": "Hinder",
+          "match": 0.165412
+        },
+        {
+          "artist": "Saliva",
+          "match": 0.165311
+        },
+        {
+          "artist": "10 Years",
+          "match": 0.164465
+        },
+        {
+          "artist": "Crossfade",
+          "match": 0.162859
+        },
+        {
+          "artist": "12 Stones",
+          "match": 0.162558
+        },
+        {
+          "artist": "Blacktop Mojo",
+          "match": 0.16137
+        },
+        {
+          "artist": "Puddle of Mudd",
+          "match": 0.160761
+        },
+        {
+          "artist": "Nickelback",
+          "match": 0.158323
+        },
+        {
+          "artist": "Big Wreck",
+          "match": 0.15758
+        },
+        {
+          "artist": "Evans Blue",
+          "match": 0.157173
+        },
+        {
+          "artist": "Default",
+          "match": 0.155182
+        },
+        {
+          "artist": "Art of Dying",
+          "match": 0.153823
+        },
+        {
+          "artist": "Three Days Grace",
+          "match": 0.149406
+        },
+        {
+          "artist": "Saving Abel",
+          "match": 0.148569
+        },
+        {
+          "artist": "Sick Puppies",
+          "match": 0.148517
+        },
+        {
+          "artist": "Black Label Society",
+          "match": 0.147764
+        },
+        {
+          "artist": "Cold",
+          "match": 0.14646
+        },
+        {
+          "artist": "Finger Eleven",
+          "match": 0.146209
+        },
+        {
+          "artist": "Chevelle",
+          "match": 0.143279
+        }
+      ]
+    },
+    "circasurvive": {
+      "artist": "Circa Survive",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Anthony Green",
+          "match": 1.0
+        },
+        {
+          "artist": "L.S. Dunes",
+          "match": 0.609869
+        },
+        {
+          "artist": "Saosin",
+          "match": 0.583063
+        },
+        {
+          "artist": "The Sound of Animals Fighting",
+          "match": 0.530433
+        },
+        {
+          "artist": "Thursday",
+          "match": 0.526357
+        },
+        {
+          "artist": "Hail The Sun",
+          "match": 0.459767
+        },
+        {
+          "artist": "Sianvar",
+          "match": 0.379512
+        },
+        {
+          "artist": "A Lot Like Birds",
+          "match": 0.375364
+        },
+        {
+          "artist": "HRVRD",
+          "match": 0.333774
+        },
+        {
+          "artist": "Glassjaw",
+          "match": 0.296246
+        },
+        {
+          "artist": "Royal Coda",
+          "match": 0.287017
+        },
+        {
+          "artist": "Isles & Glaciers",
+          "match": 0.274449
+        },
+        {
+          "artist": "Armor for Sleep",
+          "match": 0.262909
+        },
+        {
+          "artist": "The Fall of Troy",
+          "match": 0.248869
+        },
+        {
+          "artist": "Emarosa",
+          "match": 0.233632
+        },
+        {
+          "artist": "Minus the Bear",
+          "match": 0.232408
+        },
+        {
+          "artist": "Emery",
+          "match": 0.229432
+        },
+        {
+          "artist": "Tides of Man",
+          "match": 0.219881
+        },
+        {
+          "artist": "Kurt Travis",
+          "match": 0.218837
+        },
+        {
+          "artist": "Balance and Composure",
+          "match": 0.217743
+        },
+        {
+          "artist": "Audience of One",
+          "match": 0.217397
+        },
+        {
+          "artist": "Stolas",
+          "match": 0.211818
+        },
+        {
+          "artist": "The Used",
+          "match": 0.209774
+        },
+        {
+          "artist": "Ghost Runner On Third",
+          "match": 0.20524
+        },
+        {
+          "artist": "Envy on the Coast",
+          "match": 0.202368
+        },
+        {
+          "artist": "The Receiving End of Sirens",
+          "match": 0.199937
+        },
+        {
+          "artist": "From Indian Lakes",
+          "match": 0.197687
+        },
+        {
+          "artist": "I the Mighty",
+          "match": 0.193681
+        },
+        {
+          "artist": "Thrice",
+          "match": 0.19155
+        },
+        {
+          "artist": "Taking Back Sunday",
+          "match": 0.190818
+        },
+        {
+          "artist": "Hawthorne Heights",
+          "match": 0.189091
+        },
+        {
+          "artist": "Finch",
+          "match": 0.18901
+        },
+        {
+          "artist": "Brand New",
+          "match": 0.182384
+        },
+        {
+          "artist": "Lady Radiator",
+          "match": 0.17941
+        },
+        {
+          "artist": "Jonny Craig",
+          "match": 0.173088
+        },
+        {
+          "artist": "Head Automatica",
+          "match": 0.172713
+        },
+        {
+          "artist": "Cursive",
+          "match": 0.170383
+        },
+        {
+          "artist": "A Heartwell Ending",
+          "match": 0.169456
+        },
+        {
+          "artist": "La Dispute",
+          "match": 0.169109
+        },
+        {
+          "artist": "Closure in Moscow",
+          "match": 0.16875
+        },
+        {
+          "artist": "Dwellings",
+          "match": 0.164274
+        },
+        {
+          "artist": "As Tall As Lions",
+          "match": 0.161832
+        },
+        {
+          "artist": "Senses Fail",
+          "match": 0.161544
+        },
+        {
+          "artist": "Movements",
+          "match": 0.160469
+        },
+        {
+          "artist": "Coheed and Cambria",
+          "match": 0.160059
+        },
+        {
+          "artist": "Bayside",
+          "match": 0.158592
+        },
+        {
+          "artist": "April's Love Affair",
+          "match": 0.1568
+        },
+        {
+          "artist": "Sleeping With Sirens",
+          "match": 0.150773
+        },
+        {
+          "artist": "The Early November",
+          "match": 0.149501
+        },
+        {
+          "artist": "The Academy Is...",
+          "match": 0.147265
+        }
+      ]
+    },
+    "pitty": {
+      "artist": "Pitty",
+      "fetched_at": "2026-08-11T15:07:35.667826+00:00",
+      "artists": [
+        {
+          "artist": "Agridoce",
+          "match": 1.0
+        },
+        {
+          "artist": "CPM 22",
+          "match": 0.668093
+        },
+        {
+          "artist": "Detonautas Roque Clube",
+          "match": 0.650085
+        },
+        {
+          "artist": "Luxúria",
+          "match": 0.643322
+        },
+        {
+          "artist": "NX Zero",
+          "match": 0.621034
+        },
+        {
+          "artist": "Capital Inicial",
+          "match": 0.577235
+        },
+        {
+          "artist": "Cássia Eller",
+          "match": 0.521644
+        },
+        {
+          "artist": "Charlie Brown Jr.",
+          "match": 0.511852
+        },
+        {
+          "artist": "Tihuana",
+          "match": 0.491983
+        },
+        {
+          "artist": "O Surto",
+          "match": 0.489622
+        },
+        {
+          "artist": "Fresno",
+          "match": 0.476021
+        },
+        {
+          "artist": "Canto dos Malditos na Terra do Nunca",
+          "match": 0.455872
+        },
+        {
+          "artist": "Mamonas Assassinas",
+          "match": 0.421614
+        },
+        {
+          "artist": "Nando Reis",
+          "match": 0.419975
+        },
+        {
+          "artist": "Legião Urbana",
+          "match": 0.418258
+        },
+        {
+          "artist": "Frejat",
+          "match": 0.41648
+        },
+        {
+          "artist": "Rita Lee",
+          "match": 0.412991
+        },
+        {
+          "artist": "Skank",
+          "match": 0.404505
+        },
+        {
+          "artist": "Jota Quest",
+          "match": 0.399151
+        },
+        {
+          "artist": "O Rappa",
+          "match": 0.393256
+        },
+        {
+          "artist": "Marisa Monte",
+          "match": 0.389115
+        },
+        {
+          "artist": "Raimundos",
+          "match": 0.382981
+        },
+        {
+          "artist": "Marjorie Estiano",
+          "match": 0.378752
+        },
+        {
+          "artist": "Titãs",
+          "match": 0.367003
+        },
+        {
+          "artist": "Os Paralamas Do Sucesso",
+          "match": 0.366901
+        },
+        {
+          "artist": "Engenheiros Do Hawaii",
+          "match": 0.358228
+        },
+        {
+          "artist": "Vanessa da Mata",
+          "match": 0.358211
+        },
+        {
+          "artist": "Clarice Falcão",
+          "match": 0.351123
+        },
+        {
+          "artist": "Strike",
+          "match": 0.349065
+        },
+        {
+          "artist": "Nenhum de Nós",
+          "match": 0.341566
+        },
+        {
+          "artist": "Biquini Cavadão",
+          "match": 0.340342
+        },
+        {
+          "artist": "Kid Abelha",
+          "match": 0.33792
+        },
+        {
+          "artist": "Barão Vermelho",
+          "match": 0.335628
+        },
+        {
+          "artist": "Raul Seixas",
+          "match": 0.330864
+        },
+        {
+          "artist": "Ls Jack",
+          "match": 0.328964
+        },
+        {
+          "artist": "Ana Carolina",
+          "match": 0.32701
+        },
+        {
+          "artist": "Cazuza",
+          "match": 0.326922
+        },
+        {
+          "artist": "Rouge",
+          "match": 0.320527
+        },
+        {
+          "artist": "Pato Fu",
+          "match": 0.316209
+        },
+        {
+          "artist": "Ira!",
+          "match": 0.312157
+        },
+        {
+          "artist": "Avril Lavigne",
+          "match": 0.308743
+        },
+        {
+          "artist": "Evanescence",
+          "match": 0.307952
+        },
+        {
+          "artist": "Matanza",
+          "match": 0.303262
+        },
+        {
+          "artist": "Los Hermanos",
+          "match": 0.293209
+        },
+        {
+          "artist": "Supercombo",
+          "match": 0.290299
+        },
+        {
+          "artist": "Banda do Mar",
+          "match": 0.28747
+        },
+        {
+          "artist": "Ultraje A Rigor",
+          "match": 0.276633
+        },
+        {
+          "artist": "Lulu Santos",
+          "match": 0.276321
+        },
+        {
+          "artist": "Vitroles",
+          "match": 0.276009
+        },
+        {
+          "artist": "Vanessa Rangel",
+          "match": 0.273475
+        }
+      ]
+    }
+  }
+}

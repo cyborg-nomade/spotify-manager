@@ -545,6 +545,81 @@ POST /commands/check-new-releases-jobs/{job_id}/choice
 POST /commands/check-new-releases-jobs/{job_id}/cancel
 ```
 
+### `fill-queue-from-lastfm`
+
+Rebuilds Last.fm-style artist recommendations for *The Queue*. The shared
+scrobble history is refreshed first, then a weekly rotating mix of recent,
+annual, and all-time artists is sent to Last.fm `artist.getSimilar`. Artists
+already present in the listening history, a previous successful Queue fill,
+*The Queue*, *The Queue 2*, *New Kids on the Block*, or *The Queue 3* are
+excluded.
+
+Spotify artist mappings are automatic for one exact result and interactive
+when ambiguous, including a custom-search option. The selected artist is
+followed and represented by their first unliked primary-artist Spotify top
+track. Mappings, weekly Last.fm responses, and each completed addition are
+persisted so an interrupted run can continue without repeating expensive API
+work.
+
+The default is 20 artists. Use either a different count or a maximum playlist
+length, but not both:
+
+```console
+uv run spotify-manager fill-queue-from-lastfm --dry-run
+just fill-queue-from-lastfm --dry-run
+
+just fill-queue-from-lastfm --count 10
+just fill-queue-from-lastfm --max-playlist-length 2400
+```
+
+The web card offers the same Count/Cap modes, dry-run default, Spotify artist
+mapping choices, custom searches, live logs, cancellation, and reload recovery:
+
+```text
+POST /commands/fill-queue-from-lastfm?count=20&dry_run=true
+GET  /commands/fill-queue-from-lastfm-jobs
+GET  /commands/fill-queue-from-lastfm-jobs/{job_id}
+POST /commands/fill-queue-from-lastfm-jobs/{job_id}/choice
+POST /commands/fill-queue-from-lastfm-jobs/{job_id}/cancel
+```
+
+### `flush-queue`
+
+Advances the first 10 unique artists in *The Queue*, preserving playlist order.
+For each artist, Spotify's live top-10 window is followed in popularity order.
+Already-liked tracks count toward that window but are skipped instead of being
+queued again, and only tracks crediting the artist first are eligible.
+
+An artist is promoted immediately to *The Queue 2* upon reaching six live liked
+tracks anywhere in their primary-artist catalog. At the end of the top-10
+window, five liked top tracks also trigger promotion. The Queue 2 marker is the
+first primary-artist track of the established top-ranked album or EP. Artists
+below the endpoint threshold are unfollowed; their most popular liked track is
+added to *Unlucky Ones*, when one exists.
+
+The same cautious dry-run-first routine is available in the web card as a
+reconnectable background job:
+
+```text
+POST /commands/flush-queue?dry_run=true
+GET  /commands/flush-queue-jobs
+GET  /commands/flush-queue-jobs/{job_id}
+POST /commands/flush-queue-jobs/{job_id}/cancel
+```
+
+```console
+uv run spotify-manager flush-queue --dry-run
+just flush-queue --dry-run
+
+uv run spotify-manager flush-queue
+just flush-queue
+```
+
+The 2,400-track emergency cap mode is intentionally excluded for now. Real
+runs checkpoint every planned artist transition in
+`spotify_manager/files/queue_state.json`; recommendations and exact flush
+outcomes are appended to `spotify_manager/files/queue_log.jsonl`.
+
 ### `flush-new-kids`
 
 Fills *New Kids on the Block* to 10 tracks from the top of *The Queue 2*,
