@@ -152,6 +152,9 @@
   #blastCard .mode-switch {
     width: calc(var(--control-unit) * 2); max-width: 100%; margin-left: auto;
   }
+  #queueCard .mode-switch {
+    width: calc(var(--control-unit) * 2); max-width: 100%;
+  }
   .blast-control { margin-top: 7px; }
   .blast-summary {
     display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 12px;
@@ -337,8 +340,9 @@
   .discovery-grid #genreRevealCard { order: 2; }
   .discovery-grid #newKidsCard { order: 3; }
   .discovery-grid #newWineCard { order: 4; }
-  .discovery-grid #queue2Card { order: 5; }
-  .discovery-grid #queue3Card { order: 6; }
+  .discovery-grid #queueCard { order: 5; }
+  .discovery-grid #queue2Card { order: 6; }
+  .discovery-grid #queue3Card { order: 7; }
   .recovery-grid {
     min-height: calc(100% - 28px);
     grid-template-rows: auto auto minmax(24px, 1fr);
@@ -711,6 +715,32 @@
       <div class="analysis-progress" id="newWineProgress"></div>
     </section>
 
+    <section class="card" id="queueCard">
+      <h2>The queue</h2>
+      <div class="mode-switch" role="group" aria-label="Queue fill target mode">
+        <button class="active" data-action="queueFillMode" data-queue-mode="count" aria-pressed="true">Count</button>
+        <button data-action="queueFillMode" data-queue-mode="maximum" aria-pressed="false">Cap</button>
+      </div>
+      <div class="blast-control" id="queueCountControl">
+        <label for="queueCount">Artists to add</label>
+        <input id="queueCount" type="number" min="1" step="1" value="20" inputmode="numeric" />
+      </div>
+      <div class="blast-control" id="queueMaximumControl" hidden>
+        <label for="queueMaximum">Maximum playlist length</label>
+        <input id="queueMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
+      </div>
+      <label class="inline">
+        <input type="checkbox" id="queueDryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions">
+        <button class="primary" data-action="startQueueFill">Fill</button>
+        <button class="ghost" data-action="startQueueFlush">Flush</button>
+        <button class="danger cancel" data-action="cancelQueue" hidden title="Stop routine">×</button>
+      </div>
+      <div class="analysis-progress" id="queueProgress"></div>
+    </section>
+
     <section class="card" id="queue2Card">
       <h2>The queue 2</h2>
       <label class="inline">
@@ -890,6 +920,7 @@
   var dailyMindRadioJob = null;
   var foundArtJob = null;
   var newKidsJob = null;
+  var queueJob = null;
   var queue2Job = null;
   var queue3Job = null;
   var newWineJob = null;
@@ -1448,6 +1479,193 @@
 
   function restoreActiveFoundArtJobs() {
     return restoreActivePlaylistJobs("found");
+  }
+
+  function queueJobBasePath(command) {
+    return command === "fill_queue_from_lastfm"
+      ? "/commands/fill-queue-from-lastfm"
+      : "/commands/flush-queue";
+  }
+
+  function renderQueueJob(job) {
+    queueJob = job;
+    var out = document.getElementById("queueProgress");
+    var fill = document.querySelector('[data-action="startQueueFill"]');
+    var flush = document.querySelector('[data-action="startQueueFlush"]');
+    var cancel = document.querySelector('[data-action="cancelQueue"]');
+    document.getElementById("queueDryRun").checked = Boolean(job.dry_run);
+
+    if (job.command === "fill_queue_from_lastfm") {
+      var maximumMode = typeof job.queue_max_playlist_length === "number";
+      document.querySelectorAll('[data-action="queueFillMode"]').forEach(function (item) {
+        var active = item.dataset.queueMode === (maximumMode ? "maximum" : "count");
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      document.getElementById("queueCountControl").hidden = maximumMode;
+      document.getElementById("queueMaximumControl").hidden = !maximumMode;
+      if (maximumMode) {
+        document.getElementById("queueMaximum").value = job.queue_max_playlist_length;
+      } else if (typeof job.requested_count === "number") {
+        document.getElementById("queueCount").value = job.requested_count;
+      }
+    }
+
+    var processed = typeof job.processed === "number" ? job.processed : 0;
+    var total = typeof job.total === "number" ? Math.max(job.total, processed) : null;
+    var pct = total === null
+      ? null
+      : (total === 0 ? 100 : Math.min(100, Math.round(processed * 100 / total)));
+    var meter = pct === null
+      ? '<div class="meter"><span class="indeterminate"></span></div>'
+      : '<div class="meter"><span style="width:' + pct + '%"></span></div>';
+
+    var summary = "";
+    if (typeof job.playlist_length_before === "number") {
+      var firstValue = job.command === "fill_queue_from_lastfm"
+        ? (job.added || 0)
+        : (job.processed || 0);
+      var firstLabel = job.command === "fill_queue_from_lastfm" ? "Selected" : "Processed";
+      summary = '<div class="blast-summary">' +
+        '<div><strong>' + esc(firstValue) + '</strong><span>' + firstLabel + '</span></div>' +
+        '<div><strong>' + esc(job.playlist_length_before) + '</strong><span>Before</span></div>' +
+        '<div><strong>' + esc(job.playlist_length_after) + '</strong><span>After</span></div>' +
+        '</div>';
+    }
+
+    var history = "";
+    if (job.command === "fill_queue_from_lastfm" && job.week_start) {
+      history = '<div class="playlist-dates">Listening week: ' + esc(job.week_start) +
+        ' · ' + esc(job.history_scrobbles || 0) + ' scrobbles across ' +
+        esc(job.queue_history_artists || 0) + ' artists · ' +
+        esc(job.queue_seed_count || 0) + ' seeds · ' +
+        esc(job.candidate_count || 0) + ' candidates</div>';
+    }
+
+    var results = job.command === "fill_queue_from_lastfm"
+      ? (job.queue_fill_results || []).map(function (item) {
+        var target = item.spotify_artist || "No Spotify mapping";
+        if (item.track) target += " · " + item.track;
+        var support = (item.supporting_seeds || []).length;
+        return '<div class="blast-selection">' +
+          '<div class="blast-selection-title">' + esc(item.lastfm_artist) + '</div>' +
+          '<div class="blast-selection-match">' + esc(target) + '</div>' +
+          '<div class="blast-selection-meta">score ' +
+            esc(Number(item.score || 0).toFixed(3)) + ' · best ' +
+            esc(Math.round(Number(item.best_match || 0) * 100)) + '% · ' +
+            esc(support) + (support === 1 ? ' seed' : ' seeds') +
+            (item.followed ? ' · follow' : '') + ' · ' +
+            '<span class="blast-action">' + esc(item.action) + '</span></div></div>';
+      }).join("")
+      : (job.queue_flush_results || []).map(function (item) {
+        var target = item.target_track || "No replacement";
+        if (item.target_release) target = item.target_release + " · " + target;
+        return '<div class="blast-selection">' +
+          '<div class="blast-selection-title">' + esc(item.artist) + ' · ' +
+            esc(item.source_track) + '</div>' +
+          '<div class="blast-selection-match">' + esc(target) + '</div>' +
+          '<div class="blast-selection-meta">top ' + esc(item.top_liked_tracks) + '/' +
+            esc(item.top_tracks) + ' · total ' + esc(item.total_liked_tracks) +
+            (item.reason ? ' · ' + esc(item.reason) : '') + ' · ' +
+            '<span class="blast-action">' + esc(item.action) + '</span></div></div>';
+      }).join("");
+
+    var pending = "";
+    if (job.queue_pending_choice) {
+      var choice = job.queue_pending_choice;
+      var candidateButtons = (choice.candidates || []).map(function (candidate) {
+        var detail = candidate.exact_name ? "exact" : "possible";
+        if (typeof candidate.popularity === "number") detail += " · pop " + candidate.popularity;
+        return '<button class="ghost new-wine-option" data-action="queueArtistChoice" ' +
+          'data-choice="' + esc(candidate.spotify_id) + '"><strong>' +
+          esc(candidate.name) + '</strong><span>' + esc(detail) + '</span></button>';
+      }).join("");
+      pending = '<div class="new-wine-choice">' +
+        '<div class="new-wine-choice-title">Map ' + esc(choice.artist) + '</div>' +
+        '<div class="playlist-dates">base #' + esc(choice.base_rank) + ' · score ' +
+          esc(Number(choice.score || 0).toFixed(3)) + ' · ' +
+          esc((choice.supporting_seeds || []).length) + ' seeds</div>' +
+        '<div class="new-wine-options">' + candidateButtons + '</div>' +
+        '<div class="analysis-actions queue-search-controls">' +
+          '<input id="queueArtistSearch" type="text" placeholder="New Spotify artist search" />' +
+          '<button class="ghost" data-action="queueArtistSearch">Search</button></div>' +
+        '<div class="new-wine-controls">' +
+          '<button class="ghost" data-action="queueArtistChoice" data-choice="skip">Skip</button>' +
+          '<button class="danger" data-action="queueArtistChoice" data-choice="quit">Quit</button>' +
+        '</div></div>';
+    }
+
+    var logRows = (job.logs || []).map(function (entry) {
+      var timestamp = new Date(entry.timestamp);
+      var time = isNaN(timestamp.getTime())
+        ? ""
+        : timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return '<div class="analysis-log-line" data-sequence="' + esc(entry.sequence) + '">' +
+        '<span class="analysis-log-time">' + esc(time) + '</span>' +
+        '<span class="analysis-log-message">' + esc(entry.message) + '</span></div>';
+    }).join("");
+    if (!logRows) {
+      logRows = '<div class="analysis-log-line"><span class="analysis-log-time"></span>' +
+        '<span class="analysis-log-message">Waiting for activity…</span></div>';
+    }
+    var state = (job.dry_run ? "Dry run · " : "") + (job.detail || job.status);
+    if (job.queue_resumed) state += " · resumed";
+    if (job.retry_at) {
+      var retryDate = new Date(job.retry_at);
+      if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
+    }
+    out.innerHTML = '<div class="analysis-state">' + esc(state) + '</div>' + meter +
+      history + summary + results + pending +
+      '<div class="analysis-log" role="log" aria-live="polite">' + logRows + '</div>';
+    out.classList.add("show");
+    var log = out.querySelector(".analysis-log");
+    if (log) log.scrollTop = log.scrollHeight;
+
+    var active = isAnalysisActive(job.status);
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    [fill, flush].forEach(function (start) {
+      if (active && !start.disabled) setBusy(start, true, "Running…");
+      if (!active) setBusy(start, false);
+    });
+  }
+
+  async function pollQueueJob(jobId, command) {
+    try {
+      var job = await api(queueJobBasePath(command) + "-jobs/" + jobId);
+      renderQueueJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollQueueJob(jobId, job.command); }, 1500);
+      } else if (job.status === "completed") {
+        showToast(job.command === "flush_queue" ? "Queue flush finished" : "Queue fill finished", "ok");
+      } else if (job.status === "paused" || job.status === "cancelled") {
+        showToast(job.detail || "Queue routine stopped", "ok");
+      } else {
+        showToast("Queue routine " + job.status, "err");
+      }
+    } catch (e) {
+      renderError(document.getElementById("queueProgress"), e);
+      setBusy(document.querySelector('[data-action="startQueueFill"]'), false);
+      setBusy(document.querySelector('[data-action="startQueueFlush"]'), false);
+      showToast("Could not read Queue progress", "err");
+    }
+  }
+
+  async function restoreActiveQueueJobs() {
+    try {
+      var responses = await Promise.all([
+        api("/commands/fill-queue-from-lastfm-jobs"),
+        api("/commands/flush-queue-jobs"),
+      ]);
+      var jobs = responses[0].concat(responses[1]);
+      if (!jobs.length) return;
+      var job = jobs[jobs.length - 1];
+      renderQueueJob(job);
+      pollQueueJob(job.job_id, job.command);
+      showToast("Reconnected to Queue routine", "ok");
+    } catch (e) {
+      if (e.status !== 401) showToast("Could not restore Queue progress", "err");
+    }
   }
 
   function renderAlbumDiscoveryJob(kind, job) {
@@ -3169,6 +3387,17 @@
       document.getElementById("blastMaximumControl").hidden = mode !== "maximum";
     },
 
+    queueFillMode(btn) {
+      var mode = btn.dataset.queueMode;
+      document.querySelectorAll('[data-action="queueFillMode"]').forEach(function (item) {
+        var active = item === btn;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      document.getElementById("queueCountControl").hidden = mode !== "count";
+      document.getElementById("queueMaximumControl").hidden = mode !== "maximum";
+    },
+
     async startBlast(btn) {
       var selectedMode = document.querySelector('[data-action="blastMode"].active').dataset.blastMode;
       var input = selectedMode === "count"
@@ -3252,6 +3481,127 @@
         renderError(out, e);
         setBusy(btn, false);
         showToast("Could not start Found Art", "err");
+      }
+    },
+
+    async startQueueFill(btn) {
+      var selectedMode = document.querySelector(
+        '[data-action="queueFillMode"].active'
+      ).dataset.queueMode;
+      var input = selectedMode === "count"
+        ? document.getElementById("queueCount")
+        : document.getElementById("queueMaximum");
+      var value = Number(input.value);
+      var dryRun = document.getElementById("queueDryRun").checked;
+      var out = document.getElementById("queueProgress");
+      if (!Number.isInteger(value) || value < 1) {
+        showToast("Enter a positive whole number", "err");
+        input.focus();
+        return;
+      }
+      if (!dryRun && !confirm("Follow artists and add their tracks to The Queue?")) return;
+      var q = new URLSearchParams();
+      q.set(selectedMode === "count" ? "count" : "max_playlist_length", String(value));
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api(
+          "/commands/fill-queue-from-lastfm?" + q.toString(),
+          { method: "POST" }
+        );
+        renderQueueJob(job);
+        pollQueueJob(job.job_id, job.command);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "fill_queue_from_lastfm") {
+          await pollQueueJob(activeJobId, detail.command);
+          showToast("Reconnected to Queue fill", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Queue fill", "err");
+      }
+    },
+
+    async startQueueFlush(btn) {
+      var dryRun = document.getElementById("queueDryRun").checked;
+      var out = document.getElementById("queueProgress");
+      if (!dryRun && !confirm("Advance the first 10 artists in The Queue?")) return;
+      var q = new URLSearchParams();
+      q.set("dry_run", dryRun ? "true" : "false");
+      setBusy(btn, true, "Starting…");
+      try {
+        var job = await api(
+          "/commands/flush-queue?" + q.toString(),
+          { method: "POST" }
+        );
+        renderQueueJob(job);
+        pollQueueJob(job.job_id, job.command);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "flush_queue") {
+          await pollQueueJob(activeJobId, detail.command);
+          showToast("Reconnected to Queue flush", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start Queue flush", "err");
+      }
+    },
+
+    async queueArtistChoice(btn) {
+      if (!queueJob || !queueJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/fill-queue-from-lastfm-jobs/" + queueJob.job_id + "/choice",
+          { method: "POST", json: { choice: btn.dataset.choice } }
+        );
+        renderQueueJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not submit Spotify artist mapping", "err");
+      }
+    },
+
+    async queueArtistSearch(btn) {
+      if (!queueJob || !queueJob.job_id) return;
+      var input = document.getElementById("queueArtistSearch");
+      var searchText = input ? input.value.trim() : "";
+      if (!searchText) {
+        showToast("Enter a Spotify artist search", "err");
+        if (input) input.focus();
+        return;
+      }
+      btn.disabled = true;
+      try {
+        var job = await api(
+          "/commands/fill-queue-from-lastfm-jobs/" + queueJob.job_id + "/choice",
+          { method: "POST", json: { choice: "search:" + searchText } }
+        );
+        renderQueueJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not search for Spotify artist", "err");
+      }
+    },
+
+    async cancelQueue(btn) {
+      if (!queueJob || !queueJob.job_id) return;
+      btn.disabled = true;
+      try {
+        var job = await api(
+          queueJobBasePath(queueJob.command) + "-jobs/" + queueJob.job_id + "/cancel",
+          { method: "POST" }
+        );
+        renderQueueJob(job);
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop Queue routine", "err");
       }
     },
 
@@ -4058,6 +4408,7 @@
     restoreActiveReleaseCheckJobs();
     restoreActiveDiscographyJobs();
     restoreActiveNewKidsJobs();
+    restoreActiveQueueJobs();
     restoreActiveQueue2Jobs();
     restoreActiveQueue3Jobs();
     restoreActiveNewWineJobs();

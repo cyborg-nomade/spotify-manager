@@ -39,6 +39,14 @@ class LastFmSimilarTrack:
 
 
 @dataclass(frozen=True)
+class LastFmSimilarArtist:
+    """One artist returned by ``artist.getSimilar``."""
+
+    artist: str
+    match: float
+
+
+@dataclass(frozen=True)
 class LastFmRecentTrack:
     """One dated scrobble returned by ``user.getRecentTracks``."""
 
@@ -204,6 +212,44 @@ class LastFmClient:
                     LastFmSimilarTrack(
                         artist=artist_name,
                         track=track_name,
+                        match=match,
+                    )
+                )
+        return tuple(results)
+
+    def similar_artists(
+        self,
+        artist: str,
+        *,
+        limit: int = 50,
+    ) -> tuple[LastFmSimilarArtist, ...]:
+        """Return ranked artists similar to one seed artist."""
+        payload = self._request(
+            "artist.getSimilar",
+            artist=artist,
+            autocorrect=1,
+            limit=limit,
+        )
+        container = payload.get("similarartists")
+        raw_artists = container.get("artist") if isinstance(container, dict) else None
+        if not isinstance(raw_artists, list):
+            raise LastFmResponseError(
+                "Last.fm artist.getSimilar returned invalid artist data."
+            )
+
+        results: list[LastFmSimilarArtist] = []
+        for raw_artist in raw_artists:
+            if not isinstance(raw_artist, dict):
+                continue
+            artist_name = str(raw_artist.get("name") or "").strip()
+            try:
+                match = float(raw_artist.get("match") or 0)
+            except TypeError, ValueError:
+                continue
+            if artist_name and match > 0:
+                results.append(
+                    LastFmSimilarArtist(
+                        artist=artist_name,
                         match=match,
                     )
                 )

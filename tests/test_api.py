@@ -809,6 +809,8 @@ def test_server_file_status_reports_stat_failure() -> None:
         "/commands/blast-from-the-past",
         "/commands/daily-mind-radio",
         "/commands/found-art",
+        "/commands/fill-queue-from-lastfm",
+        "/commands/flush-queue",
         "/commands/flush-new-kids",
         "/commands/flush-queue-2",
         "/commands/flush-queue-3",
@@ -833,6 +835,7 @@ def test_routine_endpoints_report_missing_configuration(
         found_art_playlist=None,
         lastfm_api_key=None,
         lastfm_username=None,
+        the_queue_playlist=None,
         new_kids_on_the_block_playlist=None,
         the_queue_2_playlist=None,
         the_queue_3_playlist=None,
@@ -1350,6 +1353,240 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
     assert completed["new_kids_prefill"][0]["artist"] == "Queue Artist"
     assert any(entry["message"] == "Selected release" for entry in completed["logs"])
     assert client.get("/commands/flush-new-kids-jobs").json() == []
+
+
+def test_queue_fill_web_job_waits_for_artist_mapping(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recommendation = api.the_queue.ArtistRecommendation(
+        artist="Last.fm Artist",
+        key="lastfmartist",
+        score=1.25,
+        best_match=0.9,
+        supporting_seeds=("Seed One", "Seed Two"),
+        base_rank=3,
+        weekly_rank=0.8,
+    )
+    artist = api.release_check.SpotifyArtistCandidate(
+        spotify_id="artist-id",
+        name="Spotify Artist",
+        uri="spotify:artist:artist-id",
+        popularity=70,
+        followers=500,
+        search_rank=1,
+        exact_name=False,
+    )
+    track = api.new_kids.CatalogTrack(
+        spotify_id="track-id",
+        uri="spotify:track:track-id",
+        name="Queue Marker",
+        disc_number=1,
+        track_number=1,
+        primary_artist_id="artist-id",
+        primary_artist_name="Spotify Artist",
+        popularity=60,
+    )
+    received: dict[str, object] = {}
+
+    def fill(spotify, lastfm, playlists, choice_reader, **kwargs):
+        received.update(
+            spotify_type=type(spotify).__name__,
+            lastfm_username=lastfm.username,
+            queue=playlists.queue,
+            count=kwargs["count"],
+            seed_count=kwargs["seed_count"],
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"](0, 1, "Resolving Last.fm Artist")
+        received["choice"] = choice_reader(recommendation, (artist,))
+        kwargs["echo"]("Would add Spotify Artist - Queue Marker to The Queue.")
+        return api.the_queue.FillSummary(
+            week_start=date(2026, 8, 7),
+            requested_count=2,
+            history_artists=100,
+            history_scrobbles=500,
+            live_scrobbles_added=4,
+            seed_count=30,
+            candidate_count=200,
+            playlist_length_before=8,
+            playlist_length_after=8,
+            paused=False,
+            dry_run=True,
+            results=(
+                api.the_queue.FillResult(
+                    recommendation,
+                    artist,
+                    track,
+                    "would add",
+                    followed=True,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            the_queue_playlist="spotify:playlist:queue",
+            the_queue_2_playlist="spotify:playlist:queue2",
+            new_kids_on_the_block_playlist="spotify:playlist:newkids",
+            the_queue_3_playlist="spotify:playlist:queue3",
+            unlucky_ones_playlist="spotify:playlist:unlucky",
+            lastfm_api_key="lastfm-key",
+            lastfm_username="lastfm-user",
+        ),
+    )
+    monkeypatch.setattr(api.the_queue, "fill_queue_from_lastfm", fill)
+
+    started = client.post(
+        "/commands/fill-queue-from-lastfm",
+        params={"count": 2, "seed_count": 30, "dry_run": "true"},
+    )
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    waiting = wait_for_queue_fill_status(client, job_id, {"waiting"})
+    assert waiting["queue_pending_choice"] == {
+        "artist": "Last.fm Artist",
+        "base_rank": 3,
+        "score": 1.25,
+        "supporting_seeds": ["Seed One", "Seed Two"],
+        "candidates": [
+            {
+                "spotify_id": "artist-id",
+                "name": "Spotify Artist",
+                "popularity": 70,
+                "followers": 500,
+                "exact_name": False,
+            }
+        ],
+    }
+    assert [
+        job["job_id"]
+        for job in client.get("/commands/fill-queue-from-lastfm-jobs").json()
+    ] == [job_id]
+
+    unavailable = client.post(
+        f"/commands/fill-queue-from-lastfm-jobs/{job_id}/choice",
+        json={"choice": "missing-artist"},
+    )
+    empty_search = client.post(
+        f"/commands/fill-queue-from-lastfm-jobs/{job_id}/choice",
+        json={"choice": "search:   "},
+    )
+    assert unavailable.status_code == 400
+    assert empty_search.status_code == 400
+
+    choice = client.post(
+        f"/commands/fill-queue-from-lastfm-jobs/{job_id}/choice",
+        json={"choice": "artist-id"},
+    )
+
+    assert choice.status_code == 200
+    completed = wait_for_queue_fill_status(client, job_id, {"completed"})
+    assert received == {
+        "spotify_type": "FakeSpotify",
+        "lastfm_username": "lastfm-user",
+        "queue": "queue",
+        "count": 2,
+        "seed_count": 30,
+        "dry_run": True,
+        "choice": "artist-id",
+    }
+    assert completed["queue_history_artists"] == 100
+    assert completed["queue_seed_count"] == 30
+    assert completed["candidate_count"] == 200
+    assert completed["queue_fill_results"][0]["track"] == "Queue Marker"
+    assert completed["queue_fill_results"][0]["followed"] is True
+    stale_choice = client.post(
+        f"/commands/fill-queue-from-lastfm-jobs/{job_id}/choice",
+        json={"choice": "artist-id"},
+    )
+    assert stale_choice.status_code == 409
+    assert client.get("/commands/fill-queue-from-lastfm-jobs").json() == []
+
+
+def test_queue_fill_rejects_count_and_playlist_cap_together(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/commands/fill-queue-from-lastfm",
+        params={"count": 1, "max_playlist_length": 10},
+    )
+
+    assert response.status_code == 400
+    assert "either count or maximum" in response.json()["detail"]
+
+
+def test_queue_flush_web_job_returns_live_decisions(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: dict[str, object] = {}
+
+    def flush(spotify, playlists, **kwargs):
+        received.update(
+            spotify_type=type(spotify).__name__,
+            queue=playlists.queue,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"](1, 1, "Completed Artist")
+        kwargs["echo"]("Would promote Artist to Queue 2 with Opening.")
+        return api.the_queue.FlushSummary(
+            run_id="queue-run",
+            playlist_length_before=10,
+            playlist_length_after=10,
+            total=1,
+            processed=1,
+            resumed=True,
+            dry_run=True,
+            results=(
+                api.the_queue.FlushResult(
+                    artist="Artist",
+                    source_track="Current",
+                    action="promote",
+                    top_tracks=10,
+                    top_liked_tracks=5,
+                    total_liked_tracks=6,
+                    target_track="Opening",
+                    target_release="Established Album",
+                    reason="six liked tracks",
+                    dry_run=True,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            the_queue_playlist="spotify:playlist:queue",
+            the_queue_2_playlist="spotify:playlist:queue2",
+            new_kids_on_the_block_playlist="spotify:playlist:newkids",
+            the_queue_3_playlist="spotify:playlist:queue3",
+            unlucky_ones_playlist="spotify:playlist:unlucky",
+        ),
+    )
+    monkeypatch.setattr(api.the_queue, "flush_queue", flush)
+
+    started = client.post("/commands/flush-queue", params={"dry_run": "true"})
+
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    completed = wait_for_queue_flush_status(client, job_id, {"completed"})
+    assert received == {
+        "spotify_type": "FakeSpotify",
+        "queue": "queue",
+        "dry_run": True,
+    }
+    assert completed["run_id"] == "queue-run"
+    assert completed["queue_resumed"] is True
+    assert completed["queue_flush_results"][0]["target_release"] == (
+        "Established Album"
+    )
+    assert completed["queue_flush_results"][0]["top_liked_tracks"] == 5
+    assert client.get("/commands/flush-queue-jobs").json() == []
 
 
 def test_queue_2_web_job_waits_for_and_applies_release_choice(
@@ -3088,6 +3325,40 @@ def wait_for_found_art_status(
             return body
         sleep(0.01)
     pytest.fail(f"Found Art job {job_id} did not reach {expected}")
+
+
+def wait_for_queue_fill_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one Last.fm Queue fill until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/fill-queue-from-lastfm-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Queue fill job {job_id} did not reach {expected}")
+
+
+def wait_for_queue_flush_status(
+    client: TestClient,
+    job_id: str,
+    expected: set[str],
+) -> dict:
+    """Poll one Queue flush until it reaches an expected state."""
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        response = client.get(f"/commands/flush-queue-jobs/{job_id}")
+        assert response.status_code == 200
+        body = response.json()
+        if body["status"] in expected:
+            return body
+        sleep(0.01)
+    pytest.fail(f"Queue flush job {job_id} did not reach {expected}")
 
 
 def wait_for_new_wine_status(

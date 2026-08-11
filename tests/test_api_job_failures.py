@@ -83,6 +83,41 @@ RUNNERS = (
         lambda: api.found_art.FoundArtError("found art failed"),
     ),
     RunnerSpec(
+        "queue-fill",
+        "fill_queue_from_lastfm",
+        lambda job_id, spotify: api._run_queue_fill_job(
+            job_id,
+            spotify,  # type: ignore[arg-type]
+            api.the_queue.QueuePlaylists("queue", "queue2", "new", "queue3", "unlucky"),
+            "key",
+            "user",
+            1,
+            None,
+            30,
+            True,
+        ),
+        api.the_queue,
+        "fill_queue_from_lastfm",
+        lambda: api.the_queue.QueueError("queue fill failed"),
+        api._QueueJobCancelledError,
+        True,
+    ),
+    RunnerSpec(
+        "queue-flush",
+        "flush_queue",
+        lambda job_id, spotify: api._run_queue_flush_job(
+            job_id,
+            spotify,  # type: ignore[arg-type]
+            api.the_queue.QueuePlaylists("queue", "queue2", "new", "queue3", "unlucky"),
+            True,
+        ),
+        api.the_queue,
+        "flush_queue",
+        lambda: api.the_queue.QueueError("queue flush failed"),
+        api._QueueJobCancelledError,
+        True,
+    ),
+    RunnerSpec(
         "new-kids",
         "flush_new_kids",
         lambda job_id, spotify: api._run_new_kids_job(
@@ -280,6 +315,32 @@ def _success_result(spec: RunnerSpec) -> object:
             history_scrobbles=20,
             live_scrobbles_added=1,
             candidate_count=5,
+            results=(),
+        )
+    if spec.name == "queue-fill":
+        return api.the_queue.FillSummary(
+            week_start=date(2026, 8, 7),
+            requested_count=1,
+            history_artists=10,
+            history_scrobbles=20,
+            live_scrobbles_added=1,
+            seed_count=3,
+            candidate_count=5,
+            playlist_length_before=0,
+            playlist_length_after=0,
+            paused=False,
+            dry_run=True,
+            results=(),
+        )
+    if spec.name == "queue-flush":
+        return api.the_queue.FlushSummary(
+            run_id="run",
+            playlist_length_before=0,
+            playlist_length_after=0,
+            total=0,
+            processed=0,
+            resumed=False,
+            dry_run=True,
             results=(),
         )
     if spec.name == "new-kids":
@@ -525,6 +586,32 @@ def test_interactive_job_runners_pause_for_retryable_spotify_failures(
     assert job.result.logs
     if failure_kind == "rate":
         assert job.result.retry_at is not None
+
+
+@pytest.mark.parametrize(
+    "spec",
+    tuple(spec for spec in RUNNERS if spec.name in {"queue-fill", "queue-flush"}),
+    ids=lambda spec: spec.name,
+)
+def test_queue_jobs_report_connection_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    spec: RunnerSpec,
+) -> None:
+    job = _job(spec)
+    spotify = CallbackSpotify()
+
+    def fail(*_args, **_kwargs):
+        raise api.RequestException("offline")
+
+    monkeypatch.setattr(spec.module, spec.target, fail)
+    try:
+        spec.run(job.result.job_id, spotify)
+    finally:
+        _remove_job(job)
+
+    assert job.result.status == "failed"
+    assert job.result.detail == api.SPOTIFY_CONNECTION_FAILURE_DETAIL
+    assert job.result.completed_at is not None
 
 
 @pytest.mark.parametrize(

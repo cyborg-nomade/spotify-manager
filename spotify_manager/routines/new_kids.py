@@ -341,11 +341,12 @@ def _batched_contains(
     return statuses
 
 
-def _top_track_data(
+def load_top_track_data(
     sp: Spotify,
     artist_id: str,
     retry_call: RetryCall,
 ) -> tuple[dict[str, int], tuple[CatalogTrack, ...]]:
+    """Load primary-artist Spotify top tracks and their release ranks."""
     response = retry_call(
         partial(sp.artist_top_tracks, artist_id),
         f"loading top tracks for artist {artist_id}",
@@ -441,7 +442,7 @@ def load_ranked_catalog(
         "Saved Albums",
         retry_call,
     )
-    top_ranks, _top_tracks = _top_track_data(sp, artist_id, retry_call)
+    top_ranks, _top_tracks = load_top_track_data(sp, artist_id, retry_call)
 
     full_by_id: dict[str, dict[str, object]] = {}
     for start in range(0, len(release_ids), ALBUM_BATCH_SIZE):
@@ -764,7 +765,8 @@ def _sync_local_album(
     return True
 
 
-def _remove_local_artist(artist_id: str, path: Path) -> bool:
+def remove_local_artist(artist_id: str, path: Path = DEFAULT_ARTISTS_PATH) -> bool:
+    """Remove one unfollowed artist from the local mirror and update stats."""
     raw = _read_json_list(path)
     artists = [YourLibraryArtist.model_validate(item) for item in raw]
     updated = [artist for artist in artists if artist.spotify_id != artist_id]
@@ -933,7 +935,7 @@ def assess_artist(
             break
 
     top_liked: CatalogTrack | None = None
-    _album_ranks, top_tracks = _top_track_data(sp, artist_id, retry_call)
+    _album_ranks, top_tracks = load_top_track_data(sp, artist_id, retry_call)
     top_statuses = _batched_contains(
         [track.spotify_id for track in top_tracks],
         sp.current_user_saved_tracks_contains,
@@ -1713,7 +1715,7 @@ def _flush_review_playlist(
                             ),
                             f"unfollowing {source.primary_artist_name}",
                         )
-                        _remove_local_artist(source.primary_artist_id, artists_path)
+                        remove_local_artist(source.primary_artist_id, artists_path)
                     echo(
                         f"{'Would unfollow' if dry_run else 'Unfollowed'} "
                         f"{source.primary_artist_name}."

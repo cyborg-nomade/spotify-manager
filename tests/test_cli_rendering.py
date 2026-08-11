@@ -130,6 +130,89 @@ def test_found_art_table_renders_skip_no_match_and_match() -> None:
     assert "Match" in output
 
 
+def test_queue_fill_table_renders_mapping_and_track_states() -> None:
+    recommendation = SimpleNamespace(
+        artist="Last.fm Artist",
+        base_rank=2,
+        weekly_rank=0.75,
+        score=1.25,
+        supporting_seeds=("Seed One", "Seed Two"),
+    )
+    spotify_artist = SimpleNamespace(name="Spotify Artist")
+    console = _console()
+
+    main.print_queue_fill_table(
+        console,
+        (
+            SimpleNamespace(
+                recommendation=recommendation,
+                spotify_artist=None,
+                track=None,
+                action="no Spotify match",
+                followed=False,
+            ),
+            SimpleNamespace(
+                recommendation=recommendation,
+                spotify_artist=spotify_artist,
+                track=None,
+                action="already represented",
+                followed=False,
+            ),
+            SimpleNamespace(
+                recommendation=recommendation,
+                spotify_artist=spotify_artist,
+                track=SimpleNamespace(name="Queue Marker"),
+                action="would add",
+                followed=True,
+            ),
+        ),  # type: ignore[arg-type]
+    )
+
+    output = _output(console)
+    assert "No Spotify mapping" in output
+    assert "Spotify Artist" in output
+    assert "Queue Marker" in output
+    assert "follow" in output
+
+
+def test_queue_flush_table_renders_targets_and_reasons() -> None:
+    console = _console()
+    common = {
+        "artist": "Artist",
+        "source_track": "Current",
+        "top_tracks": 10,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+    }
+
+    main.print_queue_flush_table(
+        console,
+        (
+            SimpleNamespace(
+                **common,
+                action="advance",
+                target_track="Next",
+                target_release=None,
+                reason=None,
+            ),
+            SimpleNamespace(
+                **common,
+                action="promote",
+                target_track="Opening",
+                target_release="Established Album",
+                reason="promotion threshold reached",
+            ),
+        ),  # type: ignore[arg-type]
+    )
+
+    output = _output(console)
+    assert "top 5/10; total 5" in output
+    assert "Next" in output
+    assert "Opening" in output
+    assert "Established Album" in output
+    assert "promotion threshold reached" in output
+
+
 def test_release_check_summary_renders_history_notes_and_pause_modes() -> None:
     result = SimpleNamespace(
         artist_rank=1,

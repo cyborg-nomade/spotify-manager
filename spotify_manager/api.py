@@ -73,6 +73,7 @@ from spotify_manager.routines import review_album_limits
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines import something_old
+from spotify_manager.routines import the_queue
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
     compare_your_library_and_all_albums,
@@ -331,6 +332,60 @@ class NewKidsFillResult(BaseModel):
 
 class NewKidsChoiceRequest(BaseModel):
     """Release or control choice submitted to a waiting New Kids job."""
+
+    choice: str
+
+
+class QueueArtistOption(BaseModel):
+    """One Spotify artist offered for a Last.fm Queue recommendation."""
+
+    spotify_id: str
+    name: str
+    popularity: int | None = None
+    followers: int | None = None
+    exact_name: bool
+
+
+class QueuePendingChoice(BaseModel):
+    """Current Last.fm-to-Spotify artist mapping shown by the web client."""
+
+    artist: str
+    base_rank: int
+    score: float
+    supporting_seeds: list[str] = Field(default_factory=list)
+    candidates: list[QueueArtistOption] = Field(default_factory=list)
+
+
+class QueueFillResultEntry(BaseModel):
+    """One Last.fm Queue recommendation resolved against Spotify."""
+
+    lastfm_artist: str
+    score: float
+    best_match: float
+    supporting_seeds: list[str] = Field(default_factory=list)
+    spotify_artist: str | None = None
+    spotify_artist_id: str | None = None
+    track: str | None = None
+    action: str
+    followed: bool = False
+
+
+class QueueFlushResultEntry(BaseModel):
+    """One live top-track decision from a Queue flush."""
+
+    artist: str
+    source_track: str
+    action: str
+    top_tracks: int
+    top_liked_tracks: int
+    total_liked_tracks: int
+    target_track: str | None = None
+    target_release: str | None = None
+    reason: str | None = None
+
+
+class QueueChoiceRequest(BaseModel):
+    """Artist mapping, custom search, skip, or quit choice for Queue fill."""
 
     choice: str
 
@@ -638,6 +693,13 @@ class BlastJobResult(BaseModel):
     new_kids_pending_choice: NewKidsPendingChoice | None = None
     new_kids_resumed: bool = False
     new_kids_paused: bool = False
+    queue_history_artists: int | None = None
+    queue_seed_count: int | None = None
+    queue_max_playlist_length: int | None = None
+    queue_fill_results: list[QueueFillResultEntry] = Field(default_factory=list)
+    queue_flush_results: list[QueueFlushResultEntry] = Field(default_factory=list)
+    queue_pending_choice: QueuePendingChoice | None = None
+    queue_resumed: bool = False
     queue_3_results: list[Queue3TrackResult] = Field(default_factory=list)
     queue_3_annual_import: list[Queue3AnnualImportEntry] = Field(default_factory=list)
     queue_3_pending_choice: Queue3PendingChoice | None = None
@@ -728,6 +790,10 @@ class _NewKidsJobCancelledError(RuntimeError):
 
 class _Queue3JobCancelledError(RuntimeError):
     """Stop one Queue 3 web job while preserving durable progress."""
+
+
+class _QueueJobCancelledError(RuntimeError):
+    """Stop one Queue web job while preserving completed work."""
 
 
 class _SlowListeningJobCancelledError(RuntimeError):
@@ -1422,6 +1488,404 @@ def _run_found_art_job(
                 _append_blast_log_locked(
                     job,
                     f"{result.artist} - {result.track} -> {target} ({result.action}).",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
+def _queue_fill_result_entry(result: the_queue.FillResult) -> QueueFillResultEntry:
+    """Convert one Queue recommendation into its stable web representation."""
+    return QueueFillResultEntry(
+        lastfm_artist=result.recommendation.artist,
+        score=result.recommendation.score,
+        best_match=result.recommendation.best_match,
+        supporting_seeds=list(result.recommendation.supporting_seeds),
+        spotify_artist=(
+            result.spotify_artist.name if result.spotify_artist is not None else None
+        ),
+        spotify_artist_id=(
+            result.spotify_artist.spotify_id
+            if result.spotify_artist is not None
+            else None
+        ),
+        track=result.track.name if result.track is not None else None,
+        action=result.action,
+        followed=result.followed,
+    )
+
+
+def _queue_flush_result_entry(result: the_queue.FlushResult) -> QueueFlushResultEntry:
+    """Convert one Queue top-track transition for web polling."""
+    return QueueFlushResultEntry(
+        artist=result.artist,
+        source_track=result.source_track,
+        action=result.action,
+        top_tracks=result.top_tracks,
+        top_liked_tracks=result.top_liked_tracks,
+        total_liked_tracks=result.total_liked_tracks,
+        target_track=result.target_track,
+        target_release=result.target_release,
+        reason=result.reason,
+    )
+
+
+def _run_queue_fill_job(
+    job_id: str,
+    spotify: Spotify,
+    playlists: the_queue.QueuePlaylists,
+    api_key: str,
+    username: str,
+    count: int | None,
+    max_playlist_length: int | None,
+    seed_count: int,
+    dry_run: bool,
+) -> None:
+    """Run reconnectable Last.fm artist discovery for The Queue."""
+    job = get_blast_job(job_id, command="fill_queue_from_lastfm")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Queue artist discovery started"
+        _append_blast_log_locked(
+            job,
+            f"Queue artist discovery started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    last_progress: str | None = None
+
+    def progress_callback(completed: int, total: int, progress_status: str) -> None:
+        nonlocal last_progress
+        if job.cancel_event.is_set():
+            raise _QueueJobCancelledError
+        with _blast_jobs_lock:
+            job.result.processed = completed
+            job.result.total = total or None
+            job.result.detail = progress_status
+            if progress_status != last_progress:
+                _append_blast_log_locked(job, progress_status)
+                last_progress = progress_status
+
+    def choice_reader(
+        recommendation: the_queue.ArtistRecommendation,
+        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
+    ) -> str:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _QueueJobCancelledError
+            job.submitted_choice = None
+            job.choice_event.clear()
+            job.result.queue_pending_choice = QueuePendingChoice(
+                artist=recommendation.artist,
+                base_rank=recommendation.base_rank,
+                score=recommendation.score,
+                supporting_seeds=list(recommendation.supporting_seeds),
+                candidates=[
+                    QueueArtistOption(
+                        spotify_id=candidate.spotify_id,
+                        name=candidate.name,
+                        popularity=candidate.popularity,
+                        followers=candidate.followers,
+                        exact_name=candidate.exact_name,
+                    )
+                    for candidate in candidates
+                ],
+            )
+            job.result.status = "waiting"
+            job.result.detail = f"Map Last.fm artist {recommendation.artist}"
+            _append_blast_log_locked(job, job.result.detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _QueueJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                job.submitted_choice = None
+                job.choice_event.clear()
+                job.result.queue_pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying Queue artist mapping"
+                _append_blast_log_locked(
+                    job,
+                    f"Artist mapping choice received: {choice}.",
+                )
+                return choice
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _QueueJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+    lastfm = LastFmClient(api_key, username, event_callback=echo)
+
+    try:
+        summary = the_queue.fill_queue_from_lastfm(
+            spotify,
+            lastfm,
+            playlists,
+            choice_reader,
+            count=count,
+            max_playlist_length=max_playlist_length,
+            seed_count=seed_count,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=retry_call,
+        )
+    except _QueueJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = (
+                "Queue fill stopped. Cached calls and completed additions remain saved."
+                if not dry_run
+                else "Queue fill dry run stopped."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = (
+                review_album_limits.format_transient_spotify_failure(exc)
+                + ". Cached calls and completed additions remain saved."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
+    except (
+        the_queue.QueueError,
+        release_check.ReleaseCheckError,
+        LastFmError,
+        SpotifyException,
+    ) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Queue fill failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Queue fill error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected Queue fill error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [_queue_fill_result_entry(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "paused" if summary.paused else "completed"
+            job.result.requested_count = summary.requested_count
+            job.result.week_start = summary.week_start.isoformat()
+            job.result.history_scrobbles = summary.history_scrobbles
+            job.result.queue_history_artists = summary.history_artists
+            job.result.live_scrobbles_added = summary.live_scrobbles_added
+            job.result.queue_seed_count = summary.seed_count
+            job.result.candidate_count = summary.candidate_count
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.added = summary.selected
+            job.result.queue_fill_results = results
+            job.result.detail = (
+                "Queue fill paused; rerun to continue."
+                if summary.paused
+                else f"Selected {summary.selected} of "
+                f"{summary.requested_count} artists; "
+                f"Queue {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}."
+            )
+            for result in results:
+                target = result.spotify_artist or "no Spotify mapping"
+                if result.track:
+                    target += f" - {result.track}"
+                _append_blast_log_locked(
+                    job,
+                    f"{result.lastfm_artist} -> {target} ({result.action}).",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.queue_pending_choice = None
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
+def _run_queue_flush_job(
+    job_id: str,
+    spotify: Spotify,
+    playlists: the_queue.QueuePlaylists,
+    dry_run: bool,
+) -> None:
+    """Run the first-ten-artist Queue flush as a reconnectable web job."""
+    job = get_blast_job(job_id, command="flush_queue")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Queue flush started"
+        _append_blast_log_locked(
+            job,
+            f"Queue flush started{' in dry-run mode' if dry_run else ''}.",
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    last_progress: str | None = None
+
+    def progress_callback(completed: int, total: int, progress_status: str) -> None:
+        nonlocal last_progress
+        if job.cancel_event.is_set():
+            raise _QueueJobCancelledError
+        with _blast_jobs_lock:
+            job.result.processed = completed
+            job.result.total = total
+            job.result.detail = progress_status
+            if progress_status != last_progress:
+                _append_blast_log_locked(job, progress_status)
+                last_progress = progress_status
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise _QueueJobCancelledError
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = the_queue.flush_queue(
+            spotify,
+            playlists,
+            dry_run=dry_run,
+            echo=echo,
+            progress_callback=progress_callback,
+            retry_call=retry_call,
+        )
+    except _QueueJobCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = (
+                "Queue flush stopped. Progress was saved."
+                if not dry_run
+                else "Queue flush dry run stopped."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = (
+                review_album_limits.format_transient_spotify_failure(exc)
+                + ". Progress was saved."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
+    except (the_queue.QueueError, SpotifyException) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Queue flush failed: {exc}")
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected Queue flush error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected Queue flush error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [_queue_flush_result_entry(result) for result in summary.results]
+        with _blast_jobs_lock:
+            job.result.status = "completed"
+            job.result.run_id = summary.run_id
+            job.result.processed = summary.processed
+            job.result.total = summary.total
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.queue_resumed = summary.resumed
+            job.result.queue_flush_results = results
+            job.result.detail = (
+                f"Processed {summary.processed} of {summary.total} artists; "
+                f"Queue {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}."
+            )
+            for result in results:
+                target = result.target_track or "no replacement"
+                if result.target_release:
+                    target = f"{result.target_release} - {target}"
+                _append_blast_log_locked(
+                    job,
+                    f"{result.artist}: {result.source_track} -> {target} "
+                    f"({result.action}; top {result.top_liked_tracks}/"
+                    f"{result.top_tracks}; total {result.total_liked_tracks}).",
                 )
             _append_blast_log_locked(job, job.result.detail)
     finally:
@@ -3860,6 +4324,107 @@ def start_found_art_job(
     return snapshot
 
 
+def start_queue_fill_job(
+    spotify: Spotify,
+    playlists: the_queue.QueuePlaylists,
+    api_key: str,
+    username: str,
+    *,
+    count: int | None,
+    max_playlist_length: int | None,
+    seed_count: int,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start a Queue artist-discovery job, rejecting playlist overlap."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="fill_queue_from_lastfm",
+                requested_count=count,
+                queue_max_playlist_length=max_playlist_length,
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            f"Queue artist discovery queued{' in dry-run mode' if dry_run else ''}.",
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_queue_fill_job,
+        args=(
+            job_id,
+            spotify,
+            playlists,
+            api_key,
+            username,
+            count,
+            max_playlist_length,
+            seed_count,
+            dry_run,
+        ),
+        name=f"queue-fill-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_queue_flush_job(
+    spotify: Spotify,
+    playlists: the_queue.QueuePlaylists,
+    *,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start a Queue flush job, rejecting another playlist routine."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="flush_queue",
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            f"Queue flush queued{' in dry-run mode' if dry_run else ''}.",
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_queue_flush_job,
+        args=(job_id, spotify, playlists, dry_run),
+        name=f"queue-flush-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
 def start_new_kids_job(
     spotify: Spotify,
     new_kids_playlist_id: str,
@@ -4779,6 +5344,207 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
     job = get_blast_job(job_id, command="found_art")
     with _blast_jobs_lock:
         return _blast_job_snapshot(job)
+
+
+def _configured_queue_playlists() -> the_queue.QueuePlaylists:
+    """Parse every playlist shared by Queue fill and flush operations."""
+    configuration = Settings()
+    try:
+        return the_queue.QueuePlaylists.from_references(
+            configuration.the_queue_playlist,
+            configuration.the_queue_2_playlist,
+            configuration.new_kids_on_the_block_playlist,
+            configuration.the_queue_3_playlist,
+            configuration.unlucky_ones_playlist,
+        )
+    except the_queue.QueueConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post(
+    "/commands/fill-queue-from-lastfm",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_fill_queue_from_lastfm(
+    client: InteractiveClientDep,
+    count: Annotated[int | None, Query(ge=1)] = None,
+    max_playlist_length: Annotated[int | None, Query(ge=1)] = None,
+    seed_count: Annotated[int, Query(ge=1)] = the_queue.DEFAULT_SEED_COUNT,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start reconnectable Last.fm artist discovery for The Queue."""
+    if count is not None and max_playlist_length is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="use either count or maximum playlist length, not both",
+        )
+    configuration = Settings()
+    playlists = _configured_queue_playlists()
+    try:
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except found_art.FoundArtConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    effective_count = (
+        the_queue.DEFAULT_COUNT
+        if count is None and max_playlist_length is None
+        else count
+    )
+    return start_queue_fill_job(
+        client,
+        playlists,
+        api_key,
+        username,
+        count=effective_count,
+        max_playlist_length=max_playlist_length,
+        seed_count=seed_count,
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/fill-queue-from-lastfm-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_queue_fill_jobs() -> list[BlastJobResult]:
+    """Return active Queue fill jobs so the UI can reconnect after reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "fill_queue_from_lastfm"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/fill-queue-from-lastfm-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_queue_fill_job(job_id: str) -> BlastJobResult:
+    """Return Queue fill progress and any pending artist mapping."""
+    job = get_blast_job(job_id, command="fill_queue_from_lastfm")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/fill-queue-from-lastfm-jobs/{job_id}/choice",
+    response_model=BlastJobResult,
+)
+def cmd_choose_queue_artist(
+    job_id: str,
+    request: QueueChoiceRequest,
+) -> BlastJobResult:
+    """Submit one Spotify artist mapping, custom search, skip, or quit."""
+    job = get_blast_job(job_id, command="fill_queue_from_lastfm")
+    with _blast_jobs_lock:
+        pending = job.result.queue_pending_choice
+        if job.result.status != "waiting" or pending is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Queue fill is not waiting for an artist mapping",
+            )
+        allowed = {
+            the_queue.CHOICE_SKIP,
+            the_queue.CHOICE_QUIT,
+            *(candidate.spotify_id for candidate in pending.candidates),
+        }
+        custom_search = request.choice.startswith(the_queue.CHOICE_SEARCH_PREFIX)
+        if custom_search:
+            custom_search = bool(
+                request.choice.removeprefix(the_queue.CHOICE_SEARCH_PREFIX).strip()
+            )
+        if request.choice not in allowed and not custom_search:
+            raise HTTPException(
+                status_code=400,
+                detail="artist choice is not available",
+            )
+        job.submitted_choice = request.choice
+        job.result.queue_pending_choice = None
+        job.result.status = "running"
+        job.result.detail = "Queue artist choice submitted"
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+def _cancel_queue_job(job_id: str, command: str, label: str) -> BlastJobResult:
+    """Signal one active Queue fill or flush worker to stop cleanly."""
+    job = get_blast_job(job_id, command=command)
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(status_code=409, detail=f"{label} job is not active")
+        job.result.status = "cancelling"
+        job.result.queue_pending_choice = None
+        job.result.detail = f"Stopping {label}"
+        _append_blast_log_locked(job, job.result.detail)
+        job.cancel_event.set()
+        job.choice_event.set()
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/fill-queue-from-lastfm-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_queue_fill_job(job_id: str) -> BlastJobResult:
+    """Stop Queue artist discovery at its next safe boundary."""
+    return _cancel_queue_job(job_id, "fill_queue_from_lastfm", "Queue fill")
+
+
+@app.post(
+    "/commands/flush-queue",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_flush_queue(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start a reconnectable flush of the first ten Queue artists."""
+    return start_queue_flush_job(
+        client,
+        _configured_queue_playlists(),
+        dry_run=dry_run,
+    )
+
+
+@app.get(
+    "/commands/flush-queue-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_queue_flush_jobs() -> list[BlastJobResult]:
+    """Return active Queue flush jobs for page reload reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "flush_queue"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/flush-queue-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_queue_flush_job(job_id: str) -> BlastJobResult:
+    """Return current Queue flush progress and result details."""
+    job = get_blast_job(job_id, command="flush_queue")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/flush-queue-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_queue_flush_job(job_id: str) -> BlastJobResult:
+    """Stop a Queue flush while preserving its durable checkpoint."""
+    return _cancel_queue_job(job_id, "flush_queue", "Queue flush")
 
 
 @app.post(

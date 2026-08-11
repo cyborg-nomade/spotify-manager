@@ -109,6 +109,10 @@ blast-from-the-past *args:
 found-art *args:
     {{ cli }} found-art "$@"
 
+# Recommend unheard Last.fm artists and add one marker each to The Queue.
+fill-queue-from-lastfm *args:
+    {{ cli }} fill-queue-from-lastfm "$@"
+
 # Merge the latest Last.fm API scrobbles into the canonical export.
 update-scrobble-history *args:
     {{ cli }} update-scrobble-history "$@"
@@ -128,6 +132,10 @@ flush-new-wine *args:
 # Advance every New Kids artist once and refill it from Queue 2.
 flush-new-kids *args:
     {{ cli }} flush-new-kids "$@"
+
+# Advance the first ten artists in The Queue through their unliked top tracks.
+flush-queue *args:
+    {{ cli }} flush-queue "$@"
 
 # Fill New Kids, then advance the first ten remaining Queue 2 artists.
 flush-queue-2 *args:

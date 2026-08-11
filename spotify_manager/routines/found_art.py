@@ -218,7 +218,7 @@ def _weekly_unit_interval(
     return (integer + 1) / ((2**64) + 1)
 
 
-def _weekly_weighted_rank(
+def weekly_weighted_rank(
     week_start: date,
     namespace: str,
     key: TrackKey,
@@ -386,7 +386,7 @@ def select_seed_tracks(
         weekly_pool = sorted(
             (
                 (
-                    _weekly_weighted_rank(
+                    weekly_weighted_rank(
                         active_week,
                         f"seed:{source}",
                         track.key,
@@ -440,7 +440,7 @@ def select_seed_tracks(
         fillers = sorted(
             (
                 (
-                    _weekly_weighted_rank(
+                    weekly_weighted_rank(
                         active_week,
                         "seed:overall:fallback",
                         track.key,
@@ -678,7 +678,7 @@ def gather_candidates(
         replace(
             candidate,
             base_rank=base_rank,
-            weekly_rank=_weekly_weighted_rank(
+            weekly_rank=weekly_weighted_rank(
                 active_week,
                 "candidate",
                 candidate.key,

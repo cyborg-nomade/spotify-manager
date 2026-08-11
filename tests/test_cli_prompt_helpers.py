@@ -520,6 +520,73 @@ def test_release_check_artist_prompt_handles_no_candidates(
 
 
 @pytest.mark.parametrize(
+    ("responses", "expected"),
+    [
+        (["1"], "artist-1"),
+        (["s"], main.the_queue.CHOICE_SKIP),
+        (["q"], main.the_queue.CHOICE_QUIT),
+        (
+            ["n", "", "Alternate Artist"],
+            f"{main.the_queue.CHOICE_SEARCH_PREFIX}Alternate Artist",
+        ),
+    ],
+)
+def test_queue_artist_prompt_maps_all_actions(
+    monkeypatch: pytest.MonkeyPatch,
+    responses: list[str],
+    expected: str,
+) -> None:
+    progress = Pausable()
+    answers = iter(responses)
+    monkeypatch.setattr(main.Prompt, "ask", lambda *_args, **_kwargs: next(answers))
+    candidates = (
+        SimpleNamespace(
+            spotify_id="artist-1",
+            name="Exact Artist",
+            exact_name=True,
+            popularity=80,
+            followers=1_000,
+        ),
+        SimpleNamespace(
+            spotify_id="artist-2",
+            name="Possible Artist",
+            exact_name=False,
+            popularity=None,
+            followers=None,
+        ),
+    )
+
+    assert (
+        main.ask_queue_artist(
+            _console(),
+            SimpleNamespace(artist="Last.fm Artist"),  # type: ignore[arg-type]
+            candidates,  # type: ignore[arg-type]
+            progress,  # type: ignore[arg-type]
+        )
+        == expected
+    )
+    assert progress.calls == ["stop", "start"]
+
+
+def test_queue_artist_prompt_handles_no_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    progress = Pausable()
+    monkeypatch.setattr(main.Prompt, "ask", lambda *_args, **_kwargs: "s")
+
+    assert (
+        main.ask_queue_artist(
+            _console(),
+            SimpleNamespace(artist="Missing"),  # type: ignore[arg-type]
+            (),
+            progress,  # type: ignore[arg-type]
+        )
+        == main.the_queue.CHOICE_SKIP
+    )
+    assert progress.calls == ["stop", "start"]
+
+
+@pytest.mark.parametrize(
     ("response", "expected"),
     [("1", "release-1"), ("q", "quit")],
 )

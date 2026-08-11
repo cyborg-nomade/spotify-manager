@@ -62,6 +62,7 @@ from spotify_manager.routines import review_artists as artist_review
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines import something_old
+from spotify_manager.routines import the_queue
 from spotify_manager.routines import upload_library_files as hf_upload
 from spotify_manager.routines.convert_library_file import analyse_comparison
 from spotify_manager.routines.convert_library_file import (
@@ -907,6 +908,89 @@ def print_found_art_table(
     console.print(table)
 
 
+def print_queue_fill_table(
+    console: Console,
+    results: tuple[the_queue.FillResult, ...],
+) -> None:
+    """Render Last.fm artist recommendations resolved for The Queue."""
+    table = Table(title="Fill The Queue from Last.fm")
+    table.add_column("#", justify="right")
+    table.add_column("Last.fm artist")
+    table.add_column("Recommendation")
+    table.add_column("Spotify selection")
+    table.add_column("Result")
+    styles = {
+        "added": "bold green",
+        "would add": "bold cyan",
+        "already represented": "yellow",
+        "no Spotify match": "bold red",
+        "no unliked top track": "magenta",
+        "skipped": "yellow",
+    }
+    for index, result in enumerate(results, start=1):
+        recommendation = result.recommendation
+        detail = (
+            f"base #{recommendation.base_rank}; "
+            f"weekly {recommendation.weekly_rank:.3f}; "
+            f"score {recommendation.score:.3f}; "
+            f"{len(recommendation.supporting_seeds)} seeds"
+        )
+        if result.spotify_artist is None:
+            selection = "No Spotify mapping"
+        elif result.track is None:
+            selection = result.spotify_artist.name
+        else:
+            follow_note = " · follow" if result.followed else ""
+            selection = (
+                f"{result.spotify_artist.name} - {result.track.name}{follow_note}"
+            )
+        table.add_row(
+            str(index),
+            recommendation.artist,
+            detail,
+            selection,
+            Text(result.action, style=styles[result.action]),
+        )
+    console.print(table)
+
+
+def print_queue_flush_table(
+    console: Console,
+    results: tuple[the_queue.FlushResult, ...],
+) -> None:
+    """Render Queue top-track transitions and live-like decisions."""
+    table = Table(title="Flush The Queue")
+    table.add_column("Artist")
+    table.add_column("Current")
+    table.add_column("Likes", justify="right")
+    table.add_column("Action")
+    table.add_column("Target")
+    table.add_column("Reason")
+    styles = {
+        "advance": "cyan",
+        "promote": "bold green",
+        "unlucky": "yellow",
+        "unfollow": "bold red",
+        "blocked": "bold magenta",
+    }
+    for result in results:
+        target = result.target_track or "-"
+        if result.target_release:
+            target += f" · {result.target_release}"
+        table.add_row(
+            result.artist,
+            result.source_track,
+            (
+                f"top {result.top_liked_tracks}/{result.top_tracks}; "
+                f"total {result.total_liked_tracks}"
+            ),
+            Text(result.action, style=styles[result.action]),
+            target,
+            result.reason or "-",
+        )
+    console.print(table)
+
+
 def print_scrobble_history_summary(
     console: Console,
     summary: scrobble_history.ScrobbleHistorySummary,
@@ -1050,6 +1134,68 @@ def ask_release_check_artist(
             return release_check.CHOICE_SKIP_ARTIST
         if response == "q":
             return release_check.CHOICE_QUIT
+        return candidates[int(response) - 1].spotify_id
+    finally:
+        progress.start()
+
+
+def ask_queue_artist(
+    console: Console,
+    recommendation: the_queue.ArtistRecommendation,
+    candidates: tuple[release_check.SpotifyArtistCandidate, ...],
+    progress: Progress,
+) -> str:
+    """Prompt for an ambiguous Last.fm Queue artist mapping."""
+    progress.stop()
+    try:
+        table = Table(title=f"Map Queue artist: {recommendation.artist}")
+        table.add_column("#", justify="right")
+        table.add_column("Spotify artist")
+        table.add_column("Exact")
+        table.add_column("Popularity", justify="right")
+        table.add_column("Followers", justify="right")
+        table.add_column("Spotify id")
+        if not candidates:
+            console.print(
+                f"No Spotify artists matched {recommendation.artist}.",
+                style="bold yellow",
+            )
+        for index, candidate in enumerate(candidates, start=1):
+            table.add_row(
+                str(index),
+                candidate.name,
+                "yes" if candidate.exact_name else "no",
+                str(candidate.popularity) if candidate.popularity is not None else "?",
+                (
+                    f"{candidate.followers:,}"
+                    if candidate.followers is not None
+                    else "?"
+                ),
+                candidate.spotify_id,
+                style=None if candidate.exact_name else "dim",
+            )
+        console.print(table)
+        response = Prompt.ask(
+            "Artist number / [n]ew search / [s]kip this run / [q]uit",
+            choices=[
+                *(str(index) for index in range(1, len(candidates) + 1)),
+                "n",
+                "s",
+                "q",
+            ],
+            default="s",
+            console=console,
+        )
+        if response == "n":
+            while True:
+                search_text = Prompt.ask("New Spotify artist search", console=console)
+                if search_text.strip():
+                    return f"{the_queue.CHOICE_SEARCH_PREFIX}{search_text.strip()}"
+                console.print("Search text cannot be empty.", style="bold yellow")
+        if response == "s":
+            return the_queue.CHOICE_SKIP
+        if response == "q":
+            return the_queue.CHOICE_QUIT
         return candidates[int(response) - 1].spotify_id
     finally:
         progress.start()
@@ -1699,6 +1845,320 @@ def found_art_command(
             f"{summary.requested_count} requested tracks.",
             style="bold",
         )
+
+
+def configured_queue_playlists(configuration: Settings) -> the_queue.QueuePlaylists:
+    """Parse every playlist used by The Queue's fill and flush commands."""
+    return the_queue.QueuePlaylists.from_references(
+        configuration.the_queue_playlist,
+        configuration.the_queue_2_playlist,
+        configuration.new_kids_on_the_block_playlist,
+        configuration.the_queue_3_playlist,
+        configuration.unlucky_ones_playlist,
+    )
+
+
+@app.command(name="fill-queue-from-lastfm")
+def fill_queue_from_lastfm_command(
+    count: int | None = typer.Option(
+        None,
+        "--count",
+        min=1,
+        help="Number of unheard artists to add (default: 20).",
+    ),
+    max_playlist_length: int | None = typer.Option(
+        None,
+        "--max-playlist-length",
+        min=1,
+        help="Fill to this Queue length instead of using --count.",
+    ),
+    seed_count: int = typer.Option(
+        the_queue.DEFAULT_SEED_COUNT,
+        "--seed-count",
+        min=1,
+        help="Number of listening-history artists sent to Last.fm.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Resolve recommendations without changing Spotify.",
+    ),
+) -> None:
+    """Recommend unheard artists from Last.fm and add them to The Queue."""
+    if count is not None and max_playlist_length is not None:
+        raise typer.BadParameter(
+            "use either --count or --max-playlist-length, not both"
+        )
+    console = Console()
+    configuration = Settings()
+    try:
+        playlists = configured_queue_playlists(configuration)
+        api_key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (the_queue.QueueConfigError, found_art.FoundArtConfigError) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    effective_count = (
+        the_queue.DEFAULT_COUNT
+        if count is None and max_playlist_length is None
+        else count
+    )
+    progress_ref: Progress | None = None
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith(("Added", "Recorded", "Updated")):
+            style = "bold green"
+        elif line.startswith("Would"):
+            style = "yellow"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    lastfm_client = LastFmClient(
+        api_key,
+        username,
+        event_callback=lambda message: console.print(message, style="yellow"),
+    )
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            description = "Building Last.fm artist recommendations"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(completed: int, total: int, status: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=completed,
+                    total=max(completed, total) or None,
+                    description=status,
+                )
+
+            summary = the_queue.fill_queue_from_lastfm(
+                review_client(),
+                lastfm_client,
+                playlists,
+                choice_reader=lambda recommendation, candidates: ask_queue_artist(
+                    console,
+                    recommendation,
+                    candidates,
+                    progress,
+                ),
+                count=effective_count,
+                max_playlist_length=max_playlist_length,
+                seed_count=seed_count,
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except (
+        the_queue.QueueError,
+        release_check.ReleaseCheckError,
+        LastFmError,
+    ) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        console.print(
+            "Queue fill stopped safely. Cached calls and completed additions "
+            "remain saved.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    finally:
+        if progress_ref is not None:
+            progress_ref.stop()
+
+    print_queue_fill_table(console, summary.results)
+    console.print(
+        f"Listening week: {summary.week_start.isoformat()} through "
+        f"{(summary.week_start + timedelta(days=6)).isoformat()}",
+        style="bold cyan",
+    )
+    prefix = "Dry run" if summary.dry_run else "Fill"
+    console.print(
+        f"{prefix}: {summary.history_scrobbles:,} scrobbles across "
+        f"{summary.history_artists:,} artists; {summary.seed_count} seeds, "
+        f"{summary.candidate_count:,} candidates; Queue "
+        f"{summary.playlist_length_before} -> {summary.playlist_length_after}; "
+        f"selected {summary.selected}/{summary.requested_count}.",
+        style="bold",
+    )
+    if summary.paused:
+        console.print("Queue fill paused; rerun to continue.", style="bold yellow")
+
+
+@app.command(name="flush-queue")
+def flush_queue_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Plan the first ten Queue artists without changing Spotify or state.",
+    ),
+) -> None:
+    """Advance the first ten Queue artists through Spotify's top tracks."""
+    console = Console()
+    progress_ref: Progress | None = None
+    try:
+        playlists = configured_queue_playlists(Settings())
+    except the_queue.QueueConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = None
+        if line.startswith(("Advanced", "Promoted", "Added")):
+            style = "bold green"
+        elif line.startswith("Would"):
+            style = "yellow"
+        elif line.startswith("Unfollowed"):
+            style = "bold red"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress_ref = progress
+            description = "Planning The Queue flush"
+            if dry_run:
+                description += " (dry run)"
+            task_id = progress.add_task(description, total=None)
+
+            def update_progress(completed: int, total: int, status: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=completed,
+                    total=max(completed, total),
+                    description=status,
+                )
+
+            summary = the_queue.flush_queue(
+                review_client(),
+                playlists,
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        console.print(
+            "The active Queue flush was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        console.print(
+            "The active Queue flush was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except the_queue.QueueError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        console.print(
+            "The active Queue flush was saved and can be resumed.",
+            style="yellow",
+        )
+        raise typer.Exit(code=1) from exc
+    except KeyboardInterrupt as exc:
+        console.print(
+            "Queue flush paused. The active run was saved.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    finally:
+        if progress_ref is not None:
+            progress_ref.stop()
+
+    print_queue_flush_table(console, summary.results)
+    prefix = "Dry run" if summary.dry_run else "Flush"
+    console.print(
+        f"{prefix}: Queue {summary.playlist_length_before} -> "
+        f"{summary.playlist_length_after}; processed "
+        f"{summary.processed}/{summary.total} artists.",
+        style="bold",
+    )
+    if summary.resumed:
+        console.print("Resumed the previously saved Queue flush.", style="cyan")
 
 
 @app.command(name="flush-new-kids")

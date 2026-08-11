@@ -71,6 +71,54 @@ def test_similar_tracks_uses_documented_endpoint_and_parses_results(
     assert query["api_key"] == ["api-key"]
 
 
+def test_similar_artists_uses_documented_endpoint_and_filters_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_urls: list[str] = []
+
+    def open_request(request: object, timeout: int) -> FakeResponse:
+        requested_urls.append(request.full_url)  # type: ignore[attr-defined]
+        assert timeout == lastfm.LASTFM_TIMEOUT_SECONDS
+        return FakeResponse(
+            {
+                "similarartists": {
+                    "artist": [
+                        {"name": "Neighbor", "match": "0.91"},
+                        {"name": "", "match": 0.5},
+                        {"name": "Bad match", "match": "invalid"},
+                        {"name": "No match", "match": 0},
+                    ]
+                }
+            }
+        )
+
+    monkeypatch.setattr(lastfm, "urlopen", open_request)
+
+    artists = lastfm.LastFmClient("api-key", "listener").similar_artists(
+        "Seed Artist",
+        limit=25,
+    )
+
+    assert artists == (lastfm.LastFmSimilarArtist("Neighbor", 0.91),)
+    query = parse_qs(urlparse(requested_urls[0]).query)
+    assert query["method"] == ["artist.getSimilar"]
+    assert query["artist"] == ["Seed Artist"]
+    assert query["limit"] == ["25"]
+
+
+def test_similar_artists_validates_response_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        lastfm,
+        "urlopen",
+        lambda *_args, **_kwargs: FakeResponse({"similarartists": {}}),
+    )
+
+    with pytest.raises(lastfm.LastFmResponseError, match="invalid artist data"):
+        lastfm.LastFmClient("key", "listener").similar_artists("Artist")
+
+
 def test_recent_tracks_paginates_and_ignores_now_playing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
