@@ -6,6 +6,8 @@ from datetime import date
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
 from spotify_manager.routines import blast_from_past
@@ -404,3 +406,430 @@ def test_spotify_resolution_selects_only_one_track_per_artist() -> None:
         "added",
     ]
     assert [match.spotify_id for match in pending] == ["0", "2"]
+
+
+def test_found_art_configuration_parsing_and_validation() -> None:
+    assert (
+        found_art.parse_found_art_playlist_id("spotify:playlist:playlistid")
+        == "playlistid"
+    )
+    assert found_art.validate_lastfm_configuration(" key ", " user ") == (
+        "key",
+        "user",
+    )
+
+    with pytest.raises(found_art.FoundArtConfigError, match="FOUND_ART_PLAYLIST"):
+        found_art.parse_found_art_playlist_id(None)
+    with pytest.raises(found_art.FoundArtConfigError, match="LASTFM_API_KEY"):
+        found_art.validate_lastfm_configuration(" ", "user")
+    with pytest.raises(found_art.FoundArtConfigError, match="LASTFM_USERNAME"):
+        found_art.validate_lastfm_configuration("key", None)
+
+
+def test_listening_week_accepts_date_naive_datetime_and_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert found_art.listening_week_start(date(2026, 7, 23)) == date(2026, 7, 17)
+    assert found_art.listening_week_start(datetime(2026, 7, 23, 12)) == date(
+        2026, 7, 17
+    )
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 7, 24, 12, tzinfo=tz)
+
+    monkeypatch.setattr(found_art, "datetime", FixedDateTime)
+    assert found_art.listening_week_start() == date(2026, 7, 24)
+
+
+def test_refresh_history_translates_shared_state_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise found_art.shared_scrobble_history.ScrobbleHistoryError("bad history")
+
+    monkeypatch.setattr(
+        found_art.shared_scrobble_history,
+        "refresh_scrobble_history",
+        fail,
+    )
+
+    with pytest.raises(found_art.FoundArtStateError, match="bad history"):
+        found_art.refresh_scrobble_history(FakeLastFm())
+
+
+def test_track_history_aggregation_handles_empty_old_and_renamed_scrobbles() -> None:
+    assert found_art.aggregate_track_history(()) == ()
+    day_ms = int(24 * 60 * 60 * 1000)
+    scrobbles = (
+        blast_from_past.Scrobble("", "Ignored", "", 0),
+        blast_from_past.Scrobble("Song", "Old spelling", "", 0),
+        blast_from_past.Scrobble("Song", "OLD SPELLING", "", 300 * day_ms),
+        blast_from_past.Scrobble("Song", "Old Spelling", "", 400 * day_ms),
+    )
+
+    history = found_art.aggregate_track_history(scrobbles)
+
+    assert len(history) == 1
+    assert history[0].artist == "Old Spelling"
+    assert history[0].play_count == 3
+    assert history[0].recent_play_count == 1
+    assert history[0].annual_play_count == 2
+
+
+def test_seed_selection_rejects_invalid_or_insufficient_history() -> None:
+    with pytest.raises(found_art.FoundArtConfigError, match="at least 1"):
+        found_art.select_seed_tracks((), seed_count=0)
+    with pytest.raises(found_art.FoundArtStateError, match="No tracks"):
+        found_art.select_seed_tracks((), seed_count=1)
+
+    same_artist = tuple(
+        found_art.TrackHistory(
+            artist="Artist",
+            track=f"Track {index}",
+            key=("artist", f"track-{index}"),
+            play_count=10 - index,
+            recent_play_count=10 - index,
+            annual_play_count=10 - index,
+            last_played_ms=index,
+        )
+        for index in range(4)
+    )
+    with pytest.raises(found_art.FoundArtStateError, match="sufficiently diverse"):
+        found_art.select_seed_tracks(
+            same_artist,
+            seed_count=4,
+            week_start=date(2026, 7, 17),
+        )
+
+
+def test_similar_cache_rejects_corruption_and_unwritable_destination(
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "cache.json"
+    cache_path.write_text("not-json")
+    with pytest.raises(found_art.FoundArtStateError, match="cache is invalid"):
+        found_art._load_similar_cache(cache_path)
+
+    cache_path.write_text(json.dumps({"version": 2, "entries": []}))
+    with pytest.raises(found_art.FoundArtStateError, match="cache is invalid"):
+        found_art._load_similar_cache(cache_path)
+
+    blocked_parent = tmp_path / "blocked"
+    blocked_parent.write_text("file")
+    with pytest.raises(found_art.FoundArtStateError, match="Could not save"):
+        found_art._save_similar_cache(
+            {"version": 1, "entries": {}},
+            blocked_parent / "cache.json",
+        )
+
+
+def test_cached_similar_tracks_validates_shape_and_week() -> None:
+    week = date(2026, 7, 17)
+    assert found_art._cached_similar_tracks("bad", week_start=week) is None
+    assert (
+        found_art._cached_similar_tracks(
+            {"fetched_at": "2026-07-23T12:00:00", "tracks": []},
+            week_start=week,
+        )
+        == ()
+    )
+    assert (
+        found_art._cached_similar_tracks(
+            {"fetched_at": "2026-07-24T12:00:00+00:00", "tracks": []},
+            week_start=week,
+        )
+        is None
+    )
+    assert (
+        found_art._cached_similar_tracks(
+            {"fetched_at": "2026-07-23T12:00:00+00:00", "tracks": "bad"},
+            week_start=week,
+        )
+        is None
+    )
+    assert (
+        found_art._cached_similar_tracks(
+            {"fetched_at": "bad", "tracks": []},
+            week_start=week,
+        )
+        is None
+    )
+
+
+def test_previous_additions_are_read_and_invalid_logs_are_rejected(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing.jsonl"
+    assert found_art.previously_added_track_keys(missing) == set()
+
+    log_path = tmp_path / "found-art.jsonl"
+    log_path.write_text(
+        "\n"
+        + json.dumps(
+            {
+                "results": [
+                    "bad",
+                    {"action": "would add"},
+                    {
+                        "action": "added",
+                        "candidate": {"artist": "Artist", "track": "Track"},
+                    },
+                ]
+            }
+        )
+        + "\n"
+    )
+    assert found_art.previously_added_track_keys(log_path) == {
+        found_art.canonical_track_key("Artist", "Track")
+    }
+
+    log_path.write_text(json.dumps({"results": "bad"}) + "\n")
+    with pytest.raises(found_art.FoundArtStateError, match="at line 1"):
+        found_art.previously_added_track_keys(log_path)
+
+    log_path.write_text(
+        json.dumps({"results": [{"action": "added", "candidate": "bad"}]}) + "\n"
+    )
+    with pytest.raises(found_art.FoundArtStateError, match="at line 1"):
+        found_art.previously_added_track_keys(log_path)
+
+
+def test_gather_candidates_validates_limit_and_emits_progress(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(found_art.FoundArtConfigError, match="at least 1"):
+        found_art.gather_candidates(
+            FakeLastFm(),
+            (),
+            set(),
+            candidate_pool_size=0,
+        )
+
+    lastfm = FakeLastFm()
+    item = seed("Seed", "Track")
+    lastfm.similar[(item.artist, item.track)] = (
+        LastFmSimilarTrack("Candidate", "Track", 0.5),
+    )
+    progress: list[str] = []
+    candidates = found_art.gather_candidates(
+        lastfm,
+        (item,),
+        set(),
+        cache_path=tmp_path / "cache.json",
+        log_path=tmp_path / "log.jsonl",
+        week_start=date(2026, 7, 17),
+        now=datetime(2026, 7, 23, tzinfo=UTC),
+        progress_callback=progress.append,
+    )
+
+    assert len(candidates) == 1
+    assert progress == ["Getting Last.fm neighbors for seed 1/1"]
+
+
+def test_spotify_resolution_covers_no_match_duplicate_and_dry_run() -> None:
+    spotify = FakeSpotify()
+    candidates = (
+        candidate("No Match", "Missing", 1.0),
+        candidate("First Artist", "First", 0.9),
+        candidate("Second Artist", "Second", 0.8),
+    )
+    for item in candidates[1:]:
+        query = blast_from_past.spotify_search_query(
+            blast_from_past.Scrobble(item.track, item.artist, "", 0)
+        )
+        spotify.search_results[query] = [
+            spotify_track("same-id", item.track, item.artist)
+        ]
+    progress: list[str] = []
+
+    results, pending = found_art.resolve_spotify_candidates(
+        spotify,  # type: ignore[arg-type]
+        candidates,
+        blast_from_past.PlaylistState(0, frozenset()),
+        count=2,
+        dry_run=True,
+        progress_callback=progress.append,
+    )
+
+    assert [result.action for result in results] == [
+        "no Spotify match",
+        "would add",
+        "duplicate",
+    ]
+    assert [match.spotify_id for match in pending] == ["same-id"]
+    assert progress[-1] == "Checking candidates against Spotify Liked Songs"
+
+
+def test_found_art_log_round_trip_and_write_failure(tmp_path: Path) -> None:
+    match = blast_from_past.SpotifyTrackMatch(
+        spotify_id="track-id",
+        uri="spotify:track:track-id",
+        track="Track",
+        artists=("Artist",),
+        album="Album",
+        search_rank=1,
+        track_similarity=1.0,
+        album_similarity=None,
+        popularity=50,
+        liked=False,
+    )
+    summary = found_art.FoundArtSummary(
+        generated_at=datetime(2026, 7, 23, tzinfo=UTC),
+        week_start=date(2026, 7, 17),
+        playlist_id="playlist",
+        requested_count=1,
+        seed_count=1,
+        history_tracks=1,
+        history_scrobbles=2,
+        live_scrobbles_added=0,
+        candidate_count=1,
+        playlist_length_before=0,
+        playlist_length_after=1,
+        dry_run=False,
+        seeds=(seed("Seed", "Track"),),
+        results=(
+            found_art.FoundArtResult(
+                candidate("Artist", "Track", 1),
+                match,
+                "added",
+            ),
+        ),
+    )
+    log_path = tmp_path / "log.jsonl"
+
+    found_art.append_found_art_log(summary, log_path)
+
+    record = json.loads(log_path.read_text())
+    assert record["results"][0]["match"]["spotify_id"] == "track-id"
+    assert summary.added == 1
+    assert summary.selected == 1
+
+    blocked = tmp_path / "blocked"
+    blocked.write_text("file")
+    with pytest.raises(found_art.FoundArtStateError, match="Could not write"):
+        found_art.append_found_art_log(summary, blocked / "log.jsonl")
+
+
+@pytest.mark.parametrize(
+    ("count", "maximum", "seed_count", "message"),
+    [
+        (1, 10, 1, "either count"),
+        (0, None, 1, "Count"),
+        (None, 0, 1, "Maximum"),
+        (1, None, 0, "Seed count"),
+    ],
+)
+def test_run_found_art_rejects_invalid_limits(
+    count: int | None,
+    maximum: int | None,
+    seed_count: int,
+    message: str,
+) -> None:
+    with pytest.raises(found_art.FoundArtConfigError, match=message):
+        found_art.run_found_art(
+            object(),  # type: ignore[arg-type]
+            FakeLastFm(),
+            "playlist",
+            count=count,
+            max_playlist_length=maximum,
+            seed_count=seed_count,
+        )
+
+
+def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    history = [blast_from_past.Scrobble("Seed", "Artist", "", 1)]
+    chosen_seed = seed("Artist", "Seed")
+    chosen_candidate = candidate("New Artist", "New Track", 1)
+    match = blast_from_past.SpotifyTrackMatch(
+        spotify_id="new-id",
+        uri="spotify:track:new-id",
+        track="New Track",
+        artists=("New Artist",),
+        album="Album",
+        search_rank=1,
+        track_similarity=1,
+        album_similarity=None,
+        popularity=1,
+        liked=False,
+    )
+    playlist = blast_from_past.PlaylistState(2, frozenset())
+    calls: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        found_art,
+        "refresh_scrobble_history",
+        lambda *_args, **_kwargs: (history, 1),
+    )
+    monkeypatch.setattr(
+        found_art,
+        "select_seed_tracks",
+        lambda *_args, **_kwargs: (chosen_seed,),
+    )
+    monkeypatch.setattr(
+        found_art,
+        "gather_candidates",
+        lambda *_args, **_kwargs: (chosen_candidate,),
+    )
+    monkeypatch.setattr(
+        found_art,
+        "resolve_spotify_candidates",
+        lambda *_args, **_kwargs: (
+            (found_art.FoundArtResult(chosen_candidate, match, "added"),),
+            (match,),
+        ),
+    )
+    monkeypatch.setattr(
+        found_art.blast_from_past,
+        "load_playlist_state",
+        lambda *_args, **_kwargs: playlist,
+    )
+    monkeypatch.setattr(
+        found_art.blast_from_past,
+        "add_spotify_matches",
+        lambda _sp, playlist_id, matches: calls.append(
+            (playlist_id, [item.spotify_id for item in matches])
+        ),
+    )
+    monkeypatch.setattr(
+        found_art,
+        "append_found_art_log",
+        lambda summary, _path: calls.append(("log", summary)),
+    )
+    progress: list[str] = []
+
+    summary = found_art.run_found_art(
+        object(),  # type: ignore[arg-type]
+        FakeLastFm(),
+        "playlist",
+        count=1,
+        seed_count=1,
+        now=datetime(2026, 7, 23, tzinfo=UTC),
+        export_path=tmp_path / "history.json",
+        log_path=tmp_path / "log.jsonl",
+        progress_callback=progress.append,
+    )
+
+    assert summary.playlist_length_after == 3
+    assert calls[0] == ("playlist", ["new-id"])
+    assert "Adding 1 tracks to Found Art" in progress
+
+    calls.clear()
+    noop = found_art.run_found_art(
+        object(),  # type: ignore[arg-type]
+        FakeLastFm(),
+        "playlist",
+        count=None,
+        max_playlist_length=2,
+        seed_count=1,
+        dry_run=True,
+        now=datetime(2026, 7, 23, tzinfo=UTC),
+        log_path=tmp_path / "log.jsonl",
+    )
+    assert noop.requested_count == 0
+    assert noop.seeds == ()
+    assert noop.results == ()
+    assert calls[0][0] == "log"

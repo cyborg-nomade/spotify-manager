@@ -139,6 +139,40 @@ def test_sync_command_handles_clean_retry_cancellation(
     assert "Progress was saved" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    ("error", "exit_code", "message"),
+    [
+        (KeyboardInterrupt(), 0, "Analysis paused"),
+        (
+            main.library_sync.LibrarySyncError("invalid mirror"),
+            1,
+            "No partial staging data was published",
+        ),
+    ],
+)
+def test_analysis_command_handles_interrupt_and_sync_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: BaseException,
+    exit_code: int,
+    message: str,
+) -> None:
+    def fail(**_kwargs: Any) -> None:
+        raise error
+
+    monkeypatch.setattr(
+        main.library_sync,
+        "analyse_library_async_routine",
+        fail,
+    )
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.analyse_library_async()
+
+    assert exc.value.exit_code == exit_code
+    assert message in capsys.readouterr().out
+
+
 def test_retry_wait_can_rotate_credentials_and_retry_immediately(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -178,6 +212,75 @@ def test_retry_wait_can_rotate_credentials_and_retry_immediately(
     assert should_retry is True
     assert spotify.rotations == 1
     assert "Rotated to app5; retrying now." in output.getvalue()
+
+
+def test_retry_wait_sleeps_without_interactive_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeInput:
+        @staticmethod
+        def isatty() -> bool:
+            return False
+
+    delays: list[float] = []
+    monkeypatch.setattr(main.sys, "stdin", FakeInput())
+    monkeypatch.setattr(main, "sleep", delays.append)
+
+    should_retry = main.wait_for_library_retry(
+        Console(file=StringIO(), force_terminal=False),
+        main.library_sync.RetryNotice(None, "connecting", 1, 3),
+        object(),  # type: ignore[arg-type]
+    )
+
+    assert should_retry is True
+    assert delays == [3]
+
+
+@pytest.mark.parametrize("rotation_mode", ["quit", "unsupported", "failure"])
+def test_retry_wait_can_quit_after_rotation_problem(
+    monkeypatch: pytest.MonkeyPatch,
+    rotation_mode: str,
+) -> None:
+    responses = iter(["q"] if rotation_mode == "quit" else ["r", "q"])
+
+    class FakeTTY:
+        @staticmethod
+        def isatty() -> bool:
+            return True
+
+        @staticmethod
+        def fileno() -> int:
+            return 0
+
+        @staticmethod
+        def read(_size: int) -> str:
+            return next(responses)
+
+    class FailingRotation:
+        @staticmethod
+        def rotate_credentials() -> str:
+            raise RuntimeError("rotation failed")
+
+    stdin = FakeTTY()
+    spotify = FailingRotation() if rotation_mode == "failure" else object()
+    output = StringIO()
+    monkeypatch.setattr(main.sys, "stdin", stdin)
+    monkeypatch.setattr(main.termios, "tcgetattr", lambda _descriptor: object())
+    monkeypatch.setattr(main.termios, "tcsetattr", lambda *_args: None)
+    monkeypatch.setattr(main.tty, "setcbreak", lambda _descriptor: None)
+    monkeypatch.setattr(main.select, "select", lambda *_args: ([stdin], [], []))
+
+    should_retry = main.wait_for_library_retry(
+        Console(file=output, force_terminal=False),
+        main.library_sync.RetryNotice(502, "loading albums", 1, 60),
+        spotify,  # type: ignore[arg-type]
+    )
+
+    assert should_retry is False
+    if rotation_mode == "unsupported":
+        assert "cannot rotate credentials" in output.getvalue()
+    if rotation_mode == "failure":
+        assert "Could not rotate credentials" in output.getvalue()
 
 
 def test_restore_library_sync_command(

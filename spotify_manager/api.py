@@ -5190,6 +5190,8 @@ def cmd_choose_new_wine_release(
             new_wine.CHOICE_QUIT,
             *(release.spotify_id for release in pending.releases),
         }
+        if pending.terminal_release:
+            allowed.add(new_wine.CHOICE_FINISH)
         if request.choice not in allowed:
             raise HTTPException(
                 status_code=400,

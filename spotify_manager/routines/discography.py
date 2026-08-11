@@ -155,11 +155,6 @@ class DiscographyPlan:
         """Return total listening days at two releases per day."""
         return self.total_releases / 2
 
-    @property
-    def fills_round_week(self) -> bool:
-        """Return whether the plan ends on a positive multiple of ten."""
-        return self.total_releases > 0 and self.open_slots == 0
-
 
 @dataclass(frozen=True)
 class DiscographyRunSummary:

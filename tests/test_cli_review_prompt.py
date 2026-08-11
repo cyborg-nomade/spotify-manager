@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
+from spotipy.exceptions import SpotifyException
 
 from spotify_manager import main
 
@@ -123,6 +124,119 @@ def test_review_album_limits_command_handles_transient_server_error(
     assert "Progress was saved up to the last successful removal." in output
 
 
+def test_review_album_limits_command_validates_threshold_and_runs_callbacks(
+    monkeypatch,
+    capsys,
+) -> None:
+    with pytest.raises(main.typer.BadParameter):
+        main.review_album_limits_command(threshold=1.1)
+
+    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(main.Prompt, "ask", lambda *_args, **_kwargs: "s")
+    received: dict[str, object] = {}
+
+    def complete(*_args, **kwargs):
+        received.update(kwargs)
+        kwargs["progress_callback"](1, 1)
+        assert kwargs["action_reader"](None, SimpleNamespace(decision="keep")) == "s"
+        for line in (
+            "Followed artist A",
+            "Updated stats_history",
+            "album keep: yes",
+            "Kept anyway: Album",
+            "remove candidate: Album",
+            "Removed: Album",
+            "Live liked tracks: 0",
+            "Skipped: Album",
+            "Review complete",
+        ):
+            kwargs["echo"](line)
+
+    monkeypatch.setattr(main.review_album_limits, "review_album_limits", complete)
+
+    main.review_album_limits_command(
+        threshold=0.5,
+        no_cache=True,
+        refresh_cache=True,
+    )
+
+    assert received["use_cache"] is False
+    assert received["refresh_cache"] is True
+    assert "Review complete" in capsys.readouterr().out
+
+
+def test_review_album_limits_command_handles_rate_limit(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main.review_album_limits,
+        "review_album_limits",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            main.review_album_limits.SpotifyRateLimitError(60)
+        ),
+    )
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.review_album_limits_command()
+
+    assert exc.value.exit_code == 0
+    assert "rate limit" in capsys.readouterr().out
+
+
+def test_recover_removed_albums_command_runs_callbacks(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(main, "review_client", lambda: object())
+    received: dict[str, object] = {}
+
+    def complete(*_args, **kwargs):
+        received.update(kwargs)
+        kwargs["progress_callback"](1, 1)
+        for line in (
+            "Followed credited artist A",
+            "Would follow A",
+            "Multiple credited artists",
+            "Restored future release A",
+            "Future release already saved",
+            "Album unavailable",
+            "Dry run complete",
+        ):
+            kwargs["echo"](line)
+
+    monkeypatch.setattr(
+        main.recover_removed_albums,
+        "recover_removed_albums",
+        complete,
+    )
+
+    main.recover_removed_albums_command(dry_run=True, limit=1)
+
+    assert received["dry_run"] is True
+    assert received["limit"] == 1
+    assert "Dry run complete" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        main.recover_removed_albums.SpotifyRateLimitError(60),
+        main.recover_removed_albums.SpotifyTransientServerError(502, "recovering", 3),
+    ],
+)
+def test_recover_removed_albums_command_pauses_on_retryable_errors(
+    monkeypatch,
+    error,
+) -> None:
+    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main.recover_removed_albums,
+        "recover_removed_albums",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
+    )
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.recover_removed_albums_command(dry_run=False, limit=None)
+
+    assert exc.value.exit_code == 0
+
+
 def test_review_artists_command_uses_configured_queues_and_limit(
     monkeypatch,
     capsys,
@@ -150,6 +264,17 @@ def test_review_artists_command_uses_configured_queues_and_limit(
             }
         )
         kwargs["progress_callback"](1, 1, "Complete")
+        for line in (
+            "Auto-unfollowed Artist",
+            "Planned automatic unfollow Artist",
+            "Queued Artist",
+            "Moved Artist",
+            "Already queued Artist",
+            "Declined Artist",
+            "No eligible track",
+            "No unliked track",
+        ):
+            kwargs["echo"](line)
         return main.artist_review.ArtistReviewSummary(
             total_pending_at_start=1,
             reviewed=1,
@@ -203,3 +328,58 @@ def test_review_artists_command_handles_rate_limit(monkeypatch, capsys) -> None:
     assert "Spotify rate limit reached" in output
     assert "try again in 2 minutes (at " in output
     assert "pending automatic decisions were saved" in output
+
+
+@pytest.mark.parametrize(
+    ("error", "exit_code"),
+    [
+        (
+            main.artist_review.SpotifyTransientServerError(502, "reviewing", 3),
+            0,
+        ),
+        (main.artist_review.ArtistReviewError("review failed"), 1),
+        (SpotifyException(500, -1, "server failed"), 1),
+    ],
+)
+def test_review_artists_command_reports_remaining_operational_errors(
+    monkeypatch,
+    error,
+    exit_code,
+) -> None:
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            the_queue_playlist="queue1",
+            the_queue_2_playlist="queue2",
+            the_queue_3_playlist="queue3",
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main.artist_review,
+        "review_artists",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
+    )
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.review_artists_command(refresh_cache=False, limit=None)
+
+    assert exc.value.exit_code == exit_code
+
+
+def test_review_artists_command_reports_bad_queue_configuration(monkeypatch) -> None:
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            the_queue_playlist=None,
+            the_queue_2_playlist=None,
+            the_queue_3_playlist=None,
+        ),
+    )
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.review_artists_command(refresh_cache=False, limit=None)
+
+    assert exc.value.exit_code == 1

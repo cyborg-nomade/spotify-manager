@@ -7,8 +7,10 @@ standard library), which keeps it importable and unit-testable on its own.
 import hmac
 
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.responses import Response
 from starlette.types import ASGIApp
 
 
@@ -38,7 +40,11 @@ class PasswordMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._password = password
 
-    async def dispatch(self, request: Request, call_next):  # noqa: ANN001, ANN201
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
         """Allow open paths and preflight; otherwise check the header."""
         if (
             self._password is None

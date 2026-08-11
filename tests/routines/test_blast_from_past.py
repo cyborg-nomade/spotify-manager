@@ -6,7 +6,11 @@ import json
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from email.message import Message
+from io import BytesIO
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.error import URLError
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
@@ -278,6 +282,115 @@ def test_fetch_random_indexes_rejects_missing_timestamp(
 
     with pytest.raises(blast_from_past.RandomOrgError, match="timestamp"):
         blast_from_past.fetch_random_indexes(1, 1)
+
+
+@pytest.mark.parametrize(
+    ("population_size", "count", "message"),
+    [(0, 1, "population_size"), (2, 0, "count"), (2, 3, "count")],
+)
+def test_fetch_random_indexes_validates_requested_set(
+    population_size: int,
+    count: int,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        blast_from_past.fetch_random_indexes(population_size, count)
+
+
+def test_fetch_random_indexes_translates_http_and_connection_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = HTTPError(
+        "https://random.org",
+        503,
+        "Unavailable",
+        Message(),
+        BytesIO(b"quota exhausted\n"),
+    )
+    monkeypatch.setattr(
+        blast_from_past,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
+    )
+    with pytest.raises(blast_from_past.RandomOrgError, match="quota exhausted"):
+        blast_from_past.fetch_random_indexes(2, 1)
+
+    monkeypatch.setattr(
+        blast_from_past,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(URLError("offline")),
+    )
+    with pytest.raises(blast_from_past.RandomOrgError, match="Could not reach"):
+        blast_from_past.fetch_random_indexes(2, 1)
+
+
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        (b"Error: quota exhausted\n", "could not generate"),
+        (b"0\n", "expected 2"),
+        (b"1 1\n", "duplicate"),
+        (b"0 3\n", "out-of-range"),
+    ],
+)
+def test_fetch_random_indexes_rejects_invalid_random_org_responses(
+    monkeypatch: pytest.MonkeyPatch,
+    body: bytes,
+    message: str,
+) -> None:
+    class FakeResponse:
+        headers = {"Date": "Wed, 22 Jul 2026 13:00:52 GMT"}
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return body
+
+    monkeypatch.setattr(
+        blast_from_past,
+        "urlopen",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+
+    with pytest.raises(blast_from_past.RandomOrgError, match=message):
+        blast_from_past.fetch_random_indexes(3, 2)
+
+
+def test_fetch_random_indexes_rejects_invalid_and_normalizes_naive_timestamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        headers = {"Date": "not-a-date"}
+
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b"0\n"
+
+    monkeypatch.setattr(
+        blast_from_past,
+        "urlopen",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+    with pytest.raises(blast_from_past.RandomOrgError, match="invalid timestamp"):
+        blast_from_past.fetch_random_indexes(1, 1)
+
+    monkeypatch.setattr(
+        blast_from_past,
+        "parsedate_to_datetime",
+        lambda _value: datetime(2026, 7, 22, 13, 0, 52),
+    )
+    assert blast_from_past.fetch_random_indexes(1, 1).generated_at == datetime(
+        2026, 7, 22, 13, 0, 52, tzinfo=UTC
+    )
 
 
 def test_fetch_random_timestamp_uses_minimal_random_org_request(

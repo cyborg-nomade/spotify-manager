@@ -1,11 +1,11 @@
 """Data processors for control file items."""
 
-# Standard Library
-from unittest.mock import Mock
-
 # UFI
 from spotify_manager.loaders_savers import load_control_file
 from spotify_manager.loaders_savers import load_total_albums_file
+from spotify_manager.models.albums import SimplifiedAlbum
+from spotify_manager.models.artists import SimplifiedArtist
+from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.processors.control_file_processors import check_album_results
 from spotify_manager.processors.control_file_processors import (
     get_album_results_from_library,
@@ -15,6 +15,16 @@ from spotify_manager.processors.control_file_processors import (
 )
 from spotify_manager.processors.control_file_processors import get_starting_index
 from spotify_manager.processors.control_file_processors import get_unevaluated_albums
+
+
+def album(spotify_id: str, name: str) -> SimplifiedAlbum:
+    """Build one compact album fixture."""
+    return SimplifiedAlbum(
+        spotify_id=spotify_id,
+        name=name,
+        artist=SimplifiedArtist(spotify_id="artist", name="Artist"),
+        ordering_string=name.upper(),
+    )
 
 
 def test_get_index_for_first_unevaluated_album() -> None:
@@ -37,25 +47,47 @@ def test_get_unevaluated_albums() -> None:
     assert all(item.result == "" for item in result)
 
 
-def test_get_album_results_from_library() -> None:
+def test_get_album_results_from_library(mocker) -> None:
     """Test check against spotify library if albums have been removed or kept."""
-    control_file = load_control_file()
-    unevaluated_albums = get_unevaluated_albums(control_file)
-    result = get_album_results_from_library(unevaluated_albums)
-    print(result)
-    assert len(result) == len(unevaluated_albums)
-    assert all(item.result != "" for item in result)
+    spotify = mocker.Mock()
+    spotify.current_user_saved_albums_contains.side_effect = [[True], [False]]
+    unevaluated_albums = [
+        ControlFileItem(album=album("kept", "Kept"), result=""),
+        ControlFileItem(album=album("removed", "Removed"), result=""),
+    ]
+
+    result = get_album_results_from_library(spotify, unevaluated_albums)
+
+    assert [item.result for item in result] == ["keep", "remove"]
+    assert spotify.current_user_saved_albums_contains.call_args_list == [
+        mocker.call(["kept"]),
+        mocker.call(["removed"]),
+    ]
 
 
-def test_check_album_results(
-    mock_save_control_file: Mock, mock_get_album_results_from_library: Mock
-) -> None:
+def test_check_album_results(mocker) -> None:
     """Test check if non evaluated albums in control file are saved in library."""
-    control_file = load_control_file()
-    result = check_album_results(control_file)
-    mock_get_album_results_from_library.assert_called_once()
-    mock_save_control_file.assert_called_once()
-    print(result)
+    spotify = mocker.Mock()
+    control_file = [ControlFileItem(album=album("album", "Album"), result="")]
+    total_albums = [control_file[0].album]
+    get_results = mocker.patch(
+        "spotify_manager.processors.control_file_processors."
+        "get_album_results_from_library"
+    )
+    update_total = mocker.patch(
+        "spotify_manager.processors.control_file_processors."
+        "updated_total_albums_with_results"
+    )
+    save_control = mocker.patch(
+        "spotify_manager.processors.control_file_processors.save_control_file"
+    )
+
+    result = check_album_results(spotify, control_file, total_albums)
+
+    assert result is True
+    get_results.assert_called_once_with(spotify, control_file)
+    update_total.assert_called_once_with(total_albums, control_file)
+    save_control.assert_called_once_with(control_file)
 
 
 def test_get_starting_index() -> None:

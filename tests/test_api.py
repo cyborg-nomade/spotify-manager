@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager import api
 from spotify_manager.api import app
 from spotify_manager.api import get_analysis_client
 from spotify_manager.api import get_client
@@ -337,6 +338,524 @@ def test_count_artists_endpoint(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(api, "count_artists_in_library", lambda: 42)
     resp = client.get("/commands/count-artists")
     assert resp.json() == {"count": 42}
+
+
+def test_refresh_library_endpoint(client: TestClient) -> None:
+    response = client.post("/library/refresh")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "command": "library_refresh",
+        "status": "completed",
+        "detail": None,
+    }
+
+
+def test_legacy_command_endpoints_delegate_to_workflows(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spotify_manager import api
+
+    calls: list[tuple[str, object | None]] = []
+    monkeypatch.setattr(
+        api,
+        "compare_your_library_and_all_albums",
+        lambda: calls.append(("compare", None)),
+    )
+    monkeypatch.setattr(
+        api,
+        "convert_your_library_file",
+        lambda spotify: calls.append(("convert", spotify)),
+    )
+    monkeypatch.setattr(
+        api,
+        "run_monthly_routines",
+        lambda spotify: calls.append(("monthly", spotify)),
+    )
+    monkeypatch.setattr(
+        api,
+        "update_total_album_list",
+        lambda spotify, just_update: (
+            calls.append((f"update:{just_update}", spotify)) or [1, 2]
+        ),
+    )
+    monkeypatch.setattr(
+        api,
+        "restore_your_library_from_file",
+        lambda spotify: calls.append(("restore", spotify)),
+    )
+    monkeypatch.setattr(
+        api,
+        "analyse_comparison",
+        lambda spotify: calls.append(("analyse", spotify)),
+    )
+
+    monthly = client.post("/commands/monthly-routines")
+    update = client.post(
+        "/commands/update-total-albums",
+        params={"just_update": "true"},
+    )
+    restore = client.post("/commands/restore-your-library")
+    compare = client.post("/commands/compare-lib-files")
+    analyse = client.post("/commands/analyse-comp")
+    convert = client.post("/commands/convert-lib")
+
+    assert monthly.json()["command"] == "monthly_routines"
+    assert update.json()["detail"] == "2 albums in list"
+    assert restore.json()["command"] == "restore_your_library"
+    assert compare.json()["command"] == "compare_lib_files"
+    assert analyse.json()["command"] == "analyse_comp"
+    assert convert.json()["command"] == "convert_lib"
+    assert [name for name, _client in calls] == [
+        "compare",
+        "convert",
+        "monthly",
+        "update:True",
+        "restore",
+        "compare",
+        "analyse",
+        "convert",
+    ]
+    assert all(
+        isinstance(spotify, FakeSpotify)
+        for _name, spotify in calls
+        if spotify is not None
+    )
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "candidates"),
+    [
+        (api.ArtistNotFoundError("missing"), 404, None),
+        (
+            api.AmbiguousArtistError("ambiguous", [{"id": "artist"}]),
+            409,
+            [{"id": "artist"}],
+        ),
+        (api.SpotifyLookupResponseError("malformed"), 502, None),
+    ],
+)
+def test_artist_lookup_domain_errors_use_structured_responses(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    status_code: int,
+    candidates: list[dict[str, str]] | None,
+) -> None:
+    from spotify_manager import api
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(api, "get_live_artist_library_stats", fail)
+
+    response = client.get("/artists/stats", params={"name": "Artist"})
+
+    assert response.status_code == status_code
+    assert response.json()["detail"] == str(error)
+    if candidates is not None:
+        assert response.json()["candidates"] == candidates
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "candidates"),
+    [
+        (api.AlbumNotFoundError("missing"), 404, None),
+        (
+            api.AmbiguousAlbumError("ambiguous", [{"id": "album"}]),
+            409,
+            [{"id": "album"}],
+        ),
+    ],
+)
+def test_album_lookup_domain_errors_use_structured_responses(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    status_code: int,
+    candidates: list[dict[str, str]] | None,
+) -> None:
+    from spotify_manager import api
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(api, "evaluate_album_live", fail)
+
+    response = client.get("/albums/evaluation", params={"name": "Album"})
+
+    assert response.status_code == status_code
+    assert response.json()["detail"] == str(error)
+    if candidates is not None:
+        assert response.json()["candidates"] == candidates
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected_status"),
+    [(400, 400), (403, 403), (404, 404), (500, 502)],
+)
+def test_spotify_lookup_error_preserves_only_safe_client_statuses(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    status_code: int,
+    expected_status: int,
+) -> None:
+    from spotify_manager import api
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise SpotifyException(status_code, -1, "Spotify failed")
+
+    monkeypatch.setattr(api, "get_live_artist_library_stats", fail)
+
+    response = client.get("/artists/stats", params={"name": "Artist"})
+
+    assert response.status_code == expected_status
+    assert f"HTTP {status_code}" in response.json()["detail"]
+
+
+def test_spotify_lookup_rate_limit_returns_retry_header(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spotify_manager import api
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise SpotifyException(
+            429,
+            -1,
+            "rate limited",
+            headers={"Retry-After": "120"},
+        )
+
+    monkeypatch.setattr(api, "get_live_artist_library_stats", fail)
+
+    response = client.get("/artists/stats", params={"name": "Artist"})
+
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "120"
+    assert "in 2 minutes" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("path", "reference", "message"),
+    [
+        ("/artists/stats", "spotify:artist:bad", "invalid Spotify artist URI"),
+        ("/albums/evaluation", "spotify:album:bad", "invalid Spotify album URI"),
+    ],
+)
+def test_live_lookup_rejects_invalid_references(
+    client: TestClient,
+    path: str,
+    reference: str,
+    message: str,
+) -> None:
+    response = client.get(path, params={"reference": reference})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == message
+
+
+def test_album_evaluation_requires_an_argument(client: TestClient) -> None:
+    response = client.get("/albums/evaluation")
+
+    assert response.status_code == 400
+    assert "provide an album name" in response.json()["detail"]
+
+
+def test_album_evaluation_connection_failure_is_reported_as_bad_gateway(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spotify_manager import api
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise RequestsConnectionError("connection reset")
+
+    monkeypatch.setattr(api, "evaluate_album_live", fail)
+
+    response = client.get("/albums/evaluation", params={"name": "Album"})
+
+    assert response.status_code == 502
+    assert "could not be reached" in response.json()["detail"]
+
+
+def test_cached_dependency_factories_use_expected_client_modes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    clients = iter([object(), object(), object()])
+    monkeypatch.setattr(
+        api,
+        "get_spotipy_client",
+        lambda **kwargs: calls.append(kwargs) or next(clients),
+    )
+    monkeypatch.setattr(api, "load_your_library_file", _library)
+    for dependency in (
+        api.get_client,
+        api.get_analysis_client,
+        api.get_interactive_client,
+        api.get_library,
+    ):
+        dependency.cache_clear()
+
+    assert api.get_client() is api.get_client()
+    assert api.get_analysis_client() is api.get_analysis_client()
+    assert api.get_interactive_client() is api.get_interactive_client()
+    assert api.get_library() is api.get_library()
+    assert calls == [
+        {"allow_interactive_auth": False},
+        {
+            "retries": 0,
+            "status_retries": 0,
+            "status_forcelist": (999,),
+            "allow_interactive_auth": False,
+        },
+        {
+            "retries": 0,
+            "status_retries": 0,
+            "status_forcelist": (999,),
+            "allow_interactive_auth": False,
+        },
+    ]
+    for dependency in (
+        api.get_client,
+        api.get_analysis_client,
+        api.get_interactive_client,
+        api.get_library,
+    ):
+        dependency.cache_clear()
+
+
+def test_job_helpers_copy_bound_logs_and_reject_unknown_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    analysis = api._AnalysisJob(
+        result=api.AnalysisJobResult(
+            job_id="analysis",
+            command="async",
+            resources={},
+        ),
+        cancel_event=Event(),
+    )
+    blast = api._BlastJob(
+        result=api.BlastJobResult(job_id="blast"),
+    )
+    monkeypatch.setattr(api, "_MAX_ANALYSIS_LOGS", 2)
+    monkeypatch.setattr(api, "_MAX_BLAST_LOGS", 2)
+
+    api._append_job_log_locked(analysis, "")
+    api._append_blast_log_locked(blast, "")
+    for message in ("one", "two", "three"):
+        api._append_job_log_locked(analysis, message)
+        api._append_blast_log_locked(blast, message)
+
+    assert [entry.message for entry in analysis.result.logs] == ["two", "three"]
+    assert [entry.message for entry in blast.result.logs] == ["two", "three"]
+    analysis_copy = api._job_snapshot(analysis)
+    blast_copy = api._blast_job_snapshot(blast)
+    analysis_copy.detail = "changed"
+    blast_copy.detail = "changed"
+    assert analysis.result.detail is None
+    assert blast.result.detail is None
+
+    with pytest.raises(api.HTTPException) as analysis_error:
+        api.get_analysis_job("missing")
+    with pytest.raises(api.HTTPException) as blast_error:
+        api.get_blast_job("missing")
+    with pytest.raises(api.HTTPException):
+        with api._blast_jobs_lock:
+            api._blast_jobs["wrong"] = blast
+        api.get_blast_job("wrong", command="different")
+    with api._blast_jobs_lock:
+        api._blast_jobs.pop("wrong", None)
+    assert analysis_error.value.status_code == 404
+    assert blast_error.value.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("command", "cancel", "wakes_choice"),
+    [
+        ("flush_new_kids", api.cmd_cancel_new_kids_job, True),
+        ("flush_queue_2", api.cmd_cancel_queue_2_job, True),
+        ("flush_queue_3", api.cmd_cancel_queue_3_job, True),
+        ("flush_new_wine", api.cmd_cancel_new_wine_job, True),
+        ("flush_slow_listening", api.cmd_cancel_slow_listening_job, True),
+        ("something_old", api.cmd_cancel_something_old_job, True),
+        ("check_new_releases", api.cmd_cancel_release_check_job, True),
+        ("plan_discographies", api.cmd_cancel_discography_job, True),
+        (
+            "flush_requeue_for_a_dream",
+            api.cmd_cancel_requeue_for_a_dream_job,
+            False,
+        ),
+        ("fill_palace_of_memory", api.cmd_cancel_palace_of_memory_job, False),
+    ],
+)
+def test_playlist_job_cancellation_is_consistent(
+    command: str,
+    cancel,
+    wakes_choice: bool,
+) -> None:
+    job_id = f"job-{command}"
+    job = api._BlastJob(
+        result=api.BlastJobResult(
+            job_id=job_id,
+            command=command,
+            status="waiting",
+        )
+    )
+    with api._blast_jobs_lock:
+        api._blast_jobs[job_id] = job
+
+    snapshot = cancel(job_id)
+
+    assert snapshot.status == "cancelling"
+    assert snapshot.detail
+    assert snapshot.logs[-1].message == snapshot.detail
+    assert job.cancel_event.is_set()
+    assert job.choice_event.is_set() is wakes_choice
+    with api._blast_jobs_lock:
+        api._blast_jobs.pop(job_id, None)
+
+
+@pytest.mark.parametrize(
+    ("command", "cancel"),
+    [
+        ("flush_new_kids", api.cmd_cancel_new_kids_job),
+        ("flush_queue_2", api.cmd_cancel_queue_2_job),
+        ("flush_queue_3", api.cmd_cancel_queue_3_job),
+        ("flush_new_wine", api.cmd_cancel_new_wine_job),
+        ("flush_slow_listening", api.cmd_cancel_slow_listening_job),
+        ("something_old", api.cmd_cancel_something_old_job),
+        ("check_new_releases", api.cmd_cancel_release_check_job),
+        ("plan_discographies", api.cmd_cancel_discography_job),
+        ("flush_requeue_for_a_dream", api.cmd_cancel_requeue_for_a_dream_job),
+        ("fill_palace_of_memory", api.cmd_cancel_palace_of_memory_job),
+    ],
+)
+def test_completed_playlist_jobs_cannot_be_cancelled(command: str, cancel) -> None:
+    job_id = f"completed-{command}"
+    with api._blast_jobs_lock:
+        api._blast_jobs[job_id] = api._BlastJob(
+            result=api.BlastJobResult(
+                job_id=job_id,
+                command=command,
+                status="completed",
+            )
+        )
+
+    with pytest.raises(api.HTTPException) as exc:
+        cancel(job_id)
+
+    assert exc.value.status_code == 409
+    with api._blast_jobs_lock:
+        api._blast_jobs.pop(job_id, None)
+
+
+def test_analysis_job_cancellation_and_inactive_rejection() -> None:
+    active = api._AnalysisJob(
+        result=api.AnalysisJobResult(
+            job_id="active-analysis",
+            command="sync",
+            status="running",
+            resources={},
+        ),
+        cancel_event=Event(),
+    )
+    inactive = api._AnalysisJob(
+        result=api.AnalysisJobResult(
+            job_id="inactive-analysis",
+            command="sync",
+            status="completed",
+            resources={},
+        ),
+        cancel_event=Event(),
+    )
+    with api._analysis_jobs_lock:
+        api._analysis_jobs["active-analysis"] = active
+        api._analysis_jobs["inactive-analysis"] = inactive
+
+    snapshot = api.cmd_cancel_library_analysis_job("active-analysis")
+
+    assert snapshot.status == "cancelling"
+    assert active.cancel_event.is_set()
+    assert snapshot.logs[-1].message.startswith("Cancellation requested")
+    with pytest.raises(api.HTTPException) as exc:
+        api.cmd_cancel_library_analysis_job("inactive-analysis")
+    assert exc.value.status_code == 409
+    with api._analysis_jobs_lock:
+        api._analysis_jobs.pop("active-analysis", None)
+        api._analysis_jobs.pop("inactive-analysis", None)
+
+
+def test_server_file_status_reports_stat_failure() -> None:
+    class UnreadablePath:
+        name = "mirror.json"
+
+        @staticmethod
+        def stat() -> None:
+            raise OSError("permission denied")
+
+    with pytest.raises(api.HTTPException) as exc:
+        api._server_file_status(UnreadablePath())  # type: ignore[arg-type]
+    assert exc.value.status_code == 500
+    assert "mirror.json" in exc.value.detail
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/commands/blast-from-the-past",
+        "/commands/daily-mind-radio",
+        "/commands/found-art",
+        "/commands/flush-new-kids",
+        "/commands/flush-queue-2",
+        "/commands/flush-queue-3",
+        "/commands/flush-new-wine",
+        "/commands/flush-slow-listening",
+        "/commands/something-old",
+        "/commands/check-new-releases",
+        "/commands/plan-discographies",
+        "/commands/flush-requeue-for-a-dream",
+        "/commands/fill-palace-of-memory",
+        "/commands/update-scrobble-history",
+    ],
+)
+def test_routine_endpoints_report_missing_configuration(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    settings = SimpleNamespace(
+        blast_from_the_past_playlist=None,
+        daily_mind_radio_playlist=None,
+        found_art_playlist=None,
+        lastfm_api_key=None,
+        lastfm_username=None,
+        new_kids_on_the_block_playlist=None,
+        the_queue_2_playlist=None,
+        the_queue_3_playlist=None,
+        great_discoveries_2026_playlist=None,
+        unlucky_ones_playlist=None,
+        discography_newfoundland_playlist=None,
+        discography_memory_lane_playlist=None,
+        discography_requeue_playlist=None,
+        new_wine_from_old_bottles_playlist=None,
+        sauvignon_terre_neuve_playlist=None,
+        wine_cellar_playlist=None,
+        slow_listening_playlist=None,
+        something_old_new_playlist=None,
+        new_vintage_playlist=None,
+        reqeueue_for_a_dream_playlist=None,
+        palace_of_memory_playlist=None,
+    )
+    monkeypatch.setattr(api, "Settings", lambda: settings)
+
+    response = client.post(path)
+
+    assert response.status_code == 500
+    assert "not configured" in response.json()["detail"].casefold()
 
 
 def test_blast_from_the_past_endpoint_runs_background_job(
@@ -1313,6 +1832,80 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
         entry["message"] == "Selected alternative" for entry in completed["logs"]
     )
     assert client.get("/commands/flush-new-wine-jobs").json() == []
+
+
+def test_new_wine_web_job_accepts_finish_at_album_endpoint(
+    client: TestClient,
+) -> None:
+    from spotify_manager import api
+
+    job_id = "new-wine-finish"
+    pending = api.NewWinePendingChoice(
+        artist="Artist",
+        source_track="Last Track",
+        terminal_release=True,
+        releases=[
+            api.NewWineReleaseOption(
+                spotify_id="follow-up",
+                name="Follow-up Album",
+                release_type="Album",
+                release_date="2026-06-01",
+                total_tracks=8,
+                primary_artist_name="Artist",
+            )
+        ],
+    )
+    with api._blast_jobs_lock:
+        api._blast_jobs[job_id] = api._BlastJob(
+            result=api.BlastJobResult(
+                job_id=job_id,
+                command="flush_new_wine",
+                status="waiting",
+                pending_choice=pending,
+            )
+        )
+
+    response = client.post(
+        f"/commands/flush-new-wine-jobs/{job_id}/choice",
+        json={"choice": api.new_wine.CHOICE_FINISH},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "running"
+    with api._blast_jobs_lock:
+        job = api._blast_jobs[job_id]
+        assert job.submitted_choice == api.new_wine.CHOICE_FINISH
+        assert job.choice_event.is_set()
+
+
+def test_new_wine_web_job_rejects_finish_before_an_endpoint(
+    client: TestClient,
+) -> None:
+    from spotify_manager import api
+
+    job_id = "new-wine-premature-finish"
+    pending = api.NewWinePendingChoice(
+        artist="Artist",
+        source_track="Single",
+        terminal_release=False,
+    )
+    with api._blast_jobs_lock:
+        api._blast_jobs[job_id] = api._BlastJob(
+            result=api.BlastJobResult(
+                job_id=job_id,
+                command="flush_new_wine",
+                status="waiting",
+                pending_choice=pending,
+            )
+        )
+
+    response = client.post(
+        f"/commands/flush-new-wine-jobs/{job_id}/choice",
+        json={"choice": api.new_wine.CHOICE_FINISH},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "release choice is not available"
 
 
 def test_slow_listening_web_job_handles_all_interactive_choices(
