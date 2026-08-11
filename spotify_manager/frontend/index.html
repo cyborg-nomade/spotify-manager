@@ -76,7 +76,7 @@
   .card::before { top: 6px; left: 6px; }
   .card::after { right: 6px; bottom: 6px; }
   #blastCard, #dailyMindRadioCard, #foundArtCard, #genreRevealCard { --panel-accent: var(--lime); }
-  #newKidsCard, #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
+  #newKidsCard, #queue2Card, #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
   #requeueForADreamCard, #palaceOfMemoryCard { --panel-accent: var(--amber); }
   #releaseCheckCard, #discographyCard { --panel-accent: var(--green); }
   #artistStatsCard, #albumEvaluationCard { --panel-accent: #73856a; }
@@ -333,6 +333,11 @@
   .recovery-grid, .discovery-grid, .listening-grid, .albums-grid, .lookup-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+  .discovery-grid #foundArtCard { order: 1; }
+  .discovery-grid #genreRevealCard { order: 2; }
+  .discovery-grid #newKidsCard { order: 3; }
+  .discovery-grid #newWineCard { order: 4; }
+  .discovery-grid #queue2Card { order: 5; }
   .recovery-grid {
     min-height: calc(100% - 28px);
     grid-template-rows: auto auto minmax(24px, 1fr);
@@ -704,6 +709,19 @@
       </div>
       <div class="analysis-progress" id="newWineProgress"></div>
     </section>
+
+    <section class="card" id="queue2Card">
+      <h2>The queue 2</h2>
+      <label class="inline">
+        <input type="checkbox" id="queue2DryRun" checked />
+        Dry run
+      </label>
+      <div class="analysis-actions">
+        <button class="primary" data-action="startQueue2">Run</button>
+        <button class="danger cancel" data-action="cancelQueue2" hidden title="Stop flush">×</button>
+      </div>
+      <div class="analysis-progress" id="queue2Progress"></div>
+    </section>
       </div>
     </section>
 
@@ -858,6 +876,7 @@
   var dailyMindRadioJob = null;
   var foundArtJob = null;
   var newKidsJob = null;
+  var queue2Job = null;
   var newWineJob = null;
   var slowListeningJob = null;
   var somethingOldJob = null;
@@ -1416,12 +1435,19 @@
     return restoreActivePlaylistJobs("found");
   }
 
-  function renderNewKidsJob(job) {
-    newKidsJob = job;
-    var out = document.getElementById("newKidsProgress");
-    var start = document.querySelector('[data-action="startNewKids"]');
-    var cancel = document.querySelector('[data-action="cancelNewKids"]');
-    document.getElementById("newKidsDryRun").checked = Boolean(job.dry_run);
+  function renderAlbumDiscoveryJob(kind, job) {
+    var isQueue2 = kind === "queue2";
+    var progressId = isQueue2 ? "queue2Progress" : "newKidsProgress";
+    var dryRunId = isQueue2 ? "queue2DryRun" : "newKidsDryRun";
+    var startAction = isQueue2 ? "startQueue2" : "startNewKids";
+    var cancelAction = isQueue2 ? "cancelQueue2" : "cancelNewKids";
+    var choiceAction = isQueue2 ? "queue2Choice" : "newKidsChoice";
+    if (isQueue2) queue2Job = job;
+    else newKidsJob = job;
+    var out = document.getElementById(progressId);
+    var start = document.querySelector('[data-action="' + startAction + '"]');
+    var cancel = document.querySelector('[data-action="' + cancelAction + '"]');
+    document.getElementById(dryRunId).checked = Boolean(job.dry_run);
     var processed = typeof job.processed === "number" ? job.processed : 0;
     var total = typeof job.total === "number" ? Math.max(job.total, processed) : null;
     var pct = total === null
@@ -1480,8 +1506,9 @@
     (job.new_kids_postfill || []).forEach(function (item) {
       transferRows.push({ stage: "after", item: item });
     });
+    var transferTitle = isQueue2 ? "New Kids prefill" : "Queue 2 transfer";
     var transfers = transferRows.length
-      ? '<div class="new-wine-refill"><div class="new-wine-choice-title">Queue 2 transfer</div>' +
+      ? '<div class="new-wine-refill"><div class="new-wine-choice-title">' + transferTitle + '</div>' +
           transferRows.map(function (entry) {
             return '<div class="blast-selection new-wine-cellar-result">' +
               '<div class="blast-selection-title">' + esc(entry.item.artist) + ' · ' +
@@ -1496,7 +1523,7 @@
         var rank = typeof release.popularity === "number"
           ? "popularity " + release.popularity
           : (release.top_track_rank ? "top track #" + release.top_track_rank : "unranked");
-        return '<button class="ghost" data-action="newKidsChoice" data-choice="' +
+        return '<button class="ghost" data-action="' + choiceAction + '" data-choice="' +
           esc(release.spotify_id) + '">' +
           '<span class="new-wine-option-name">' + esc(release.name) + '</span>' +
           '<span class="new-wine-option-meta">' + esc(release.release_type) + ' · ' +
@@ -1508,8 +1535,8 @@
           esc(job.new_kids_pending_choice.artist) + '</div>' +
         '<div class="new-wine-options">' + releaseButtons + '</div>' +
         '<div class="new-wine-controls">' +
-          '<button class="ghost" data-action="newKidsChoice" data-choice="__skip__">Skip</button>' +
-          '<button class="danger" data-action="newKidsChoice" data-choice="__quit__">Quit</button>' +
+          '<button class="ghost" data-action="' + choiceAction + '" data-choice="__skip__">Skip</button>' +
+          '<button class="danger" data-action="' + choiceAction + '" data-choice="__quit__">Quit</button>' +
         '</div></div>';
     }
     var logRows = (job.logs || []).map(function (entry) {
@@ -1548,37 +1575,69 @@
     }
   }
 
-  async function pollNewKidsJob(jobId) {
+  function renderNewKidsJob(job) {
+    renderAlbumDiscoveryJob("newKids", job);
+  }
+
+  function renderQueue2Job(job) {
+    renderAlbumDiscoveryJob("queue2", job);
+  }
+
+  async function pollAlbumDiscoveryJob(kind, jobId) {
+    var isQueue2 = kind === "queue2";
+    var route = isQueue2 ? "flush-queue-2" : "flush-new-kids";
+    var label = isQueue2 ? "Queue 2" : "New Kids";
+    var progressId = isQueue2 ? "queue2Progress" : "newKidsProgress";
+    var startAction = isQueue2 ? "startQueue2" : "startNewKids";
     try {
-      var job = await api("/commands/flush-new-kids-jobs/" + jobId);
-      renderNewKidsJob(job);
+      var job = await api("/commands/" + route + "-jobs/" + jobId);
+      renderAlbumDiscoveryJob(kind, job);
       if (isAnalysisActive(job.status)) {
-        setTimeout(function () { pollNewKidsJob(jobId); }, 1500);
+        setTimeout(function () { pollAlbumDiscoveryJob(kind, jobId); }, 1500);
       } else if (job.status === "completed") {
-        showToast("New Kids flush finished", "ok");
+        showToast(label + " flush finished", "ok");
       } else if (job.status === "paused" || job.status === "cancelled") {
-        showToast(job.detail || "New Kids flush stopped", "ok");
+        showToast(job.detail || label + " flush stopped", "ok");
       } else {
-        showToast("New Kids flush " + job.status, "err");
+        showToast(label + " flush " + job.status, "err");
       }
     } catch (e) {
-      renderError(document.getElementById("newKidsProgress"), e);
-      setBusy(document.querySelector('[data-action="startNewKids"]'), false);
-      showToast("Could not read New Kids progress", "err");
+      renderError(document.getElementById(progressId), e);
+      setBusy(document.querySelector('[data-action="' + startAction + '"]'), false);
+      showToast("Could not read " + label + " progress", "err");
     }
   }
 
-  async function restoreActiveNewKidsJobs() {
+  function pollNewKidsJob(jobId) {
+    return pollAlbumDiscoveryJob("newKids", jobId);
+  }
+
+  function pollQueue2Job(jobId) {
+    return pollAlbumDiscoveryJob("queue2", jobId);
+  }
+
+  async function restoreActiveAlbumDiscoveryJobs(kind) {
+    var isQueue2 = kind === "queue2";
+    var route = isQueue2 ? "flush-queue-2" : "flush-new-kids";
+    var label = isQueue2 ? "Queue 2" : "New Kids";
     try {
-      var jobs = await api("/commands/flush-new-kids-jobs");
+      var jobs = await api("/commands/" + route + "-jobs");
       if (!jobs.length) return;
       var job = jobs[jobs.length - 1];
-      renderNewKidsJob(job);
-      pollNewKidsJob(job.job_id);
-      showToast("Reconnected to New Kids flush", "ok");
+      renderAlbumDiscoveryJob(kind, job);
+      pollAlbumDiscoveryJob(kind, job.job_id);
+      showToast("Reconnected to " + label + " flush", "ok");
     } catch (e) {
-      if (e.status !== 401) showToast("Could not restore New Kids progress", "err");
+      if (e.status !== 401) showToast("Could not restore " + label + " progress", "err");
     }
+  }
+
+  function restoreActiveNewKidsJobs() {
+    return restoreActiveAlbumDiscoveryJobs("newKids");
+  }
+
+  function restoreActiveQueue2Jobs() {
+    return restoreActiveAlbumDiscoveryJobs("queue2");
   }
 
   function renderNewWineJob(job) {
@@ -2792,6 +2851,74 @@
   }
 
   // ---- Actions -----------------------------------------------------------
+  async function startAlbumDiscovery(kind, btn) {
+    var isQueue2 = kind === "queue2";
+    var dryRunId = isQueue2 ? "queue2DryRun" : "newKidsDryRun";
+    var progressId = isQueue2 ? "queue2Progress" : "newKidsProgress";
+    var route = isQueue2 ? "flush-queue-2" : "flush-new-kids";
+    var command = isQueue2 ? "flush_queue_2" : "flush_new_kids";
+    var label = isQueue2 ? "Queue 2" : "New Kids";
+    var dryRun = document.getElementById(dryRunId).checked;
+    var out = document.getElementById(progressId);
+    if (!dryRun && !confirm("Apply the " + label + " flush to Spotify?")) return;
+    var q = new URLSearchParams();
+    q.set("dry_run", dryRun ? "true" : "false");
+    setBusy(btn, true, "Starting…");
+    try {
+      var job = await api("/commands/" + route + "?" + q.toString(), { method: "POST" });
+      renderAlbumDiscoveryJob(kind, job);
+      pollAlbumDiscoveryJob(kind, job.job_id);
+    } catch (e) {
+      var detail = e.data && e.data.detail;
+      var activeJobId = e.status === 409 && detail && detail.job_id;
+      if (activeJobId && detail.command === command) {
+        await pollAlbumDiscoveryJob(kind, activeJobId);
+        showToast("Reconnected to " + label + " flush", "ok");
+        return;
+      }
+      renderError(out, e);
+      setBusy(btn, false);
+      showToast("Could not start " + label + " flush", "err");
+    }
+  }
+
+  async function submitAlbumDiscoveryChoice(kind, btn) {
+    var isQueue2 = kind === "queue2";
+    var currentJob = isQueue2 ? queue2Job : newKidsJob;
+    var route = isQueue2 ? "flush-queue-2" : "flush-new-kids";
+    if (!currentJob || !currentJob.job_id) return;
+    btn.disabled = true;
+    try {
+      var job = await api(
+        "/commands/" + route + "-jobs/" + currentJob.job_id + "/choice",
+        { method: "POST", json: { choice: btn.dataset.choice } }
+      );
+      renderAlbumDiscoveryJob(kind, job);
+    } catch (e) {
+      btn.disabled = false;
+      showToast(e.detail || "Could not submit release choice", "err");
+    }
+  }
+
+  async function cancelAlbumDiscovery(kind, btn) {
+    var isQueue2 = kind === "queue2";
+    var currentJob = isQueue2 ? queue2Job : newKidsJob;
+    var route = isQueue2 ? "flush-queue-2" : "flush-new-kids";
+    var label = isQueue2 ? "Queue 2" : "New Kids";
+    if (!currentJob || !currentJob.job_id) return;
+    btn.disabled = true;
+    try {
+      var job = await api(
+        "/commands/" + route + "-jobs/" + currentJob.job_id + "/cancel",
+        { method: "POST" }
+      );
+      renderAlbumDiscoveryJob(kind, job);
+    } catch (e) {
+      btn.disabled = false;
+      showToast(e.detail || "Could not stop " + label + " flush", "err");
+    }
+  }
+
   var actions = {
     mirrorMode(btn) {
       setMirrorMode(btn.dataset.resource, btn.dataset.mirrorMode);
@@ -3062,58 +3189,27 @@
     },
 
     async startNewKids(btn) {
-      var dryRun = document.getElementById("newKidsDryRun").checked;
-      var out = document.getElementById("newKidsProgress");
-      if (!dryRun && !confirm("Apply the New Kids flush to Spotify?")) return;
-      var q = new URLSearchParams();
-      q.set("dry_run", dryRun ? "true" : "false");
-      setBusy(btn, true, "Starting…");
-      try {
-        var job = await api("/commands/flush-new-kids?" + q.toString(), { method: "POST" });
-        renderNewKidsJob(job);
-        pollNewKidsJob(job.job_id);
-      } catch (e) {
-        var detail = e.data && e.data.detail;
-        var activeJobId = e.status === 409 && detail && detail.job_id;
-        if (activeJobId && detail.command === "flush_new_kids") {
-          await pollNewKidsJob(activeJobId);
-          showToast("Reconnected to New Kids flush", "ok");
-          return;
-        }
-        renderError(out, e);
-        setBusy(btn, false);
-        showToast("Could not start New Kids flush", "err");
-      }
+      return startAlbumDiscovery("newKids", btn);
     },
 
     async newKidsChoice(btn) {
-      if (!newKidsJob || !newKidsJob.job_id) return;
-      btn.disabled = true;
-      try {
-        var job = await api(
-          "/commands/flush-new-kids-jobs/" + newKidsJob.job_id + "/choice",
-          { method: "POST", json: { choice: btn.dataset.choice } }
-        );
-        renderNewKidsJob(job);
-      } catch (e) {
-        btn.disabled = false;
-        showToast(e.detail || "Could not submit release choice", "err");
-      }
+      return submitAlbumDiscoveryChoice("newKids", btn);
     },
 
     async cancelNewKids(btn) {
-      if (!newKidsJob || !newKidsJob.job_id) return;
-      btn.disabled = true;
-      try {
-        var job = await api(
-          "/commands/flush-new-kids-jobs/" + newKidsJob.job_id + "/cancel",
-          { method: "POST" }
-        );
-        renderNewKidsJob(job);
-      } catch (e) {
-        btn.disabled = false;
-        showToast(e.detail || "Could not stop New Kids flush", "err");
-      }
+      return cancelAlbumDiscovery("newKids", btn);
+    },
+
+    async startQueue2(btn) {
+      return startAlbumDiscovery("queue2", btn);
+    },
+
+    async queue2Choice(btn) {
+      return submitAlbumDiscoveryChoice("queue2", btn);
+    },
+
+    async cancelQueue2(btn) {
+      return cancelAlbumDiscovery("queue2", btn);
     },
 
     async startNewWine(btn) {
@@ -3716,6 +3812,7 @@
     restoreActiveReleaseCheckJobs();
     restoreActiveDiscographyJobs();
     restoreActiveNewKidsJobs();
+    restoreActiveQueue2Jobs();
     restoreActiveNewWineJobs();
     restoreActiveSlowListeningJobs();
     restoreActiveSomethingOldJobs();

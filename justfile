@@ -129,6 +129,10 @@ flush-new-wine *args:
 flush-new-kids *args:
     {{ cli }} flush-new-kids "$@"
 
+# Fill New Kids, then advance the first ten remaining Queue 2 artists.
+flush-queue-2 *args:
+    {{ cli }} flush-queue-2 "$@"
+
 # Advance the first two Slow Listening tracks through studio releases.
 flush-slow-listening *args:
     {{ cli }} flush-slow-listening "$@"

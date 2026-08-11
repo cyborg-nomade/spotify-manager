@@ -605,6 +605,55 @@ POST /commands/flush-new-kids-jobs/{job_id}/choice
 POST /commands/flush-new-kids-jobs/{job_id}/cancel
 ```
 
+### `flush-queue-2`
+
+Fills *New Kids on the Block* to 10 tracks from the top of *The Queue 2*, then
+advances the first 10 artists still in Queue 2 once. The track and release
+rules are the same as `flush-new-kids`: only primary-artist tracks are used,
+three consecutive unliked tracks jump to the next later liked track when one
+exists, release boundaries apply the live 50% library decision, and the next
+ranked release is chosen interactively.
+
+Artist progress is shared with New Kids in
+`spotify_manager/files/new_kids_state.json`. An artist transferred after two
+reviewed releases therefore continues with release three instead of restarting.
+Queue 2 has its own resumable active-run checkpoint inside that state file and
+its own audit trail at `spotify_manager/files/queue_2_log.jsonl`. A saved Queue
+2 run and a saved New Kids run cannot be advanced simultaneously.
+
+Artists completing their fourth selected release while still in Queue 2 are
+assessed immediately using the same four criteria as New Kids. Qualifying
+artists reach the current year's *Great Discoveries* and *Newfoundland*;
+artists with likes that do not qualify reach *Unlucky Ones* and are unfollowed,
+while artists without likes are simply unfollowed. The special 1200-track cap
+mode is intentionally not part of this command yet.
+
+Preview the next daily run:
+
+```console
+uv run spotify-manager flush-queue-2 --dry-run
+just flush-queue-2 --dry-run
+```
+
+Apply it:
+
+```console
+uv run spotify-manager flush-queue-2
+just flush-queue-2
+```
+
+The web card sits directly below New Wine in *Discovery Tracks*. It uses the
+same dry-run-first release chooser, progress meter, terminal log, cancellation,
+and reload reconnection behavior:
+
+```text
+POST /commands/flush-queue-2?dry_run=true
+GET  /commands/flush-queue-2-jobs
+GET  /commands/flush-queue-2-jobs/{job_id}
+POST /commands/flush-queue-2-jobs/{job_id}/choice
+POST /commands/flush-queue-2-jobs/{job_id}/cancel
+```
+
 ### `flush-new-wine`
 
 Advances every track present at the start of a *New Wine from Old Bottles*
