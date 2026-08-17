@@ -11,24 +11,50 @@ short_description: Personal Spotify library manager web UI
 
 # Spotify Manager
 
-A small mobile-first web UI over the Spotify Manager FastAPI backend, so the
-library lookups and maintenance commands are usable from a phone.
+A personal music-library automation system with three interfaces over the same
+domain routines:
 
-This Space runs the app defined in `spotify_manager/web.py` (the pure API lives
-in `spotify_manager/api.py`). It is protected by a shared password and talks to
-Spotify with a pre-seeded OAuth token.
+- a Typer CLI for local, interactive work;
+- a FastAPI service for programmatic access and background jobs; and
+- a responsive, password-gated control cockpit deployed as a private Hugging
+  Face Docker Space.
 
-See **DEPLOY.md** for full setup: required secrets, how to generate the token
-cache, and security notes.
+The project combines live Spotify state, exported Spotify library data, Last.fm
+scrobbles, Random.org selections, and a set of listening rules into cautious,
+resumable playlist and library-maintenance workflows. Destructive routines
+prefer dry runs, checkpoint their progress, and keep JSON-lines audit logs.
+
+## Documentation
+
+| Guide | Contents |
+| --- | --- |
+| [Documentation index](docs/README.md) | Reading paths and project glossary. |
+| [Architecture](docs/ARCHITECTURE.md) | Components, data flow, integrations, failure handling, and repository structure. |
+| [Configuration](docs/CONFIGURATION.md) | Requirements, installation, Spotify OAuth, every environment variable, and local execution. |
+| [Data and state](docs/DATA_AND_STATE.md) | Source exports, live mirrors, checkpoints, caches, logs, backups, and ownership rules. |
+| [Web application and API](docs/WEB_APP.md) | Local servers, authentication, endpoint families, background jobs, and UI behavior. |
+| [Hugging Face deployment](DEPLOY.md) | Private Space setup, secrets, token seeding, state-preserving releases, verification, and rollback. |
+| [Listening rules](THE%20RULES%20OF%20MUSIC%20LISTENING.md) | Behavioral source of truth for the named listening routines. |
+
+The rest of this README is the command reference. `just --list` and
+`uv run spotify-manager COMMAND --help` remain the authoritative sources for
+the currently installed command-line options.
 
 ## Local setup
 
-Install [uv](https://docs.astral.sh/uv/) and
-[just](https://just.systems/), then sync the locked environment:
+Install Python 3.14, [uv](https://docs.astral.sh/uv/), and optionally
+[just](https://just.systems/), then create `.env` from `.env.example`, fill in
+the required values, and sync the locked environment:
 
 ```console
+cp .env.example .env
 just install
 ```
+
+Without `just`, use `uv sync` directly. See
+[Configuration](docs/CONFIGURATION.md) for Spotify application setup, OAuth
+scopes, playlist settings, Last.fm credentials, and the exact commands for
+running the CLI, API, and web cockpit locally.
 
 The CLI reads Spotify credentials and application settings from `.env`. See
 the secrets table below for the required names. The three queue playlist
@@ -1307,6 +1333,8 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `GREAT_DISCOVERIES_2026_PLAYLIST` | Spotify URL or id seeding the yearly Great Discoveries destinations. |
 | `UNLUCKY_ONES_PLAYLIST` | Spotify URL or id receiving the most popular liked track from unsuccessful artist reviews. |
 | `DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST` | Spotify URL or id receiving qualifying completed New Kids artists. |
+| `DISCOGRAPHY_MEMORY_LANE_PLAYLIST` | Spotify URL or id for the Memory Lane discography queue. |
+| `DISCOGRAPHY_REQUEUE_PLAYLIST` | Spotify URL or id for The Requeue discography queue. |
 | `BLAST_FROM_THE_PAST_PLAYLIST` | Spotify URL or id for Friday Routine recovery tracks. |
 | `DAILY_MIND_RADIO_PLAYLIST` | Spotify URL or id for anniversary recovery tracks. |
 | `GENRE_REVEAL_PLAYLIST` | Spotify URL or id that receives each genre playlist's first ten tracks. |
@@ -1322,5 +1350,5 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 | `LASTFM_API_KEY` | Read-only Last.fm API key used to refresh scrobble history. |
 | `LASTFM_USERNAME` | Last.fm username associated with the canonical scrobble export. |
 
-> This Space should be **Private** — the repository contains your personal
+> This Space should be **Private**: the repository contains your personal
 > library export files.
