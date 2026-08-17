@@ -140,6 +140,9 @@ replaced by the persistent JSON-lines audit trail.
 
 Starting a second active instance of the same command returns HTTP 409. This
 prevents two workers from mutating one playlist or state file concurrently.
+Blast from the Past and Daily Mind Radio use bounded, cancellable Spotify
+requests; their cancel controls stop retry waits immediately and stop an active
+HTTP request at its configured timeout boundary.
 
 ## Endpoint families
 
@@ -212,6 +215,19 @@ boundaries or select catalog alternatives also expose `/choice`.
 
 Both families expose choice and cancel endpoints and persist durable progress
 through their routine state files.
+
+New Release Check also exposes a protected restart-recovery handshake:
+
+```text
+GET /commands/check-new-releases-state[?known_fingerprint=...]
+PUT /commands/check-new-releases-state
+```
+
+The cockpit keeps the latest full snapshot in browser storage. Polls send the
+known fingerprint, so an unchanged response omits the large state body. A PUT
+requires the fingerprint of the server copy that was compared, accepts only a
+newer semantic timestamp, refuses to run beside an active release check, and
+creates a server-side backup before replacement.
 
 ### Genre Reveal routes
 
@@ -287,6 +303,8 @@ the job with a concise recoverable error while preserving routine state.
   collection and resumes polling.
 - Server restart is different from browser reload. The worker thread ends, and
   only routine files survive if they were preserved by storage or deployment.
+  New Release Check is the exception: the same browser automatically restores
+  its newer checkpoint mirror after reconnecting.
 - Do not deploy while jobs are active or waiting for a choice.
 - The cockpit is a single-user control surface. It does not provide per-user
   authorization, CSRF tokens, or multi-user job isolation.

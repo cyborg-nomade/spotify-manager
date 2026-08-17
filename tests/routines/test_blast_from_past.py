@@ -112,6 +112,78 @@ def test_playlist_state_includes_edition_tolerant_track_keys() -> None:
     assert state.track_keys == frozenset({("beyonce", "song")})
 
 
+def test_playlist_state_stops_at_explicit_last_page_despite_stale_total() -> None:
+    calls = 0
+
+    class StaleTotalSpotify(FakeSpotify):
+        def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+            nonlocal calls
+            calls += 1
+            return {
+                "items": [
+                    {
+                        "item": spotify_track(
+                            "existing",
+                            "Track",
+                            "Artist",
+                            "Album",
+                        )
+                    }
+                ],
+                "total": 10_000,
+                "next": None,
+            }
+
+    state = blast_from_past.load_playlist_state(
+        StaleTotalSpotify(),  # type: ignore[arg-type]
+        "blast",
+    )
+
+    assert calls == 1
+    assert state.total_items == 1
+
+
+def test_playlist_state_rejects_a_repeated_next_page() -> None:
+    class RepeatedPageSpotify(FakeSpotify):
+        def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+            return {
+                "items": [
+                    {
+                        "item": spotify_track(
+                            f"track-{offset}",
+                            "Track",
+                            "Artist",
+                            "Album",
+                        )
+                    }
+                ],
+                "total": 100,
+                "next": "same-page",
+            }
+
+    with pytest.raises(
+        blast_from_past.SpotifyTrackResolutionError,
+        match="repeated a playlist page",
+    ):
+        blast_from_past.load_playlist_state(
+            RepeatedPageSpotify(),  # type: ignore[arg-type]
+            "blast",
+        )
+
+
+def test_playlist_state_honors_cancellation_before_spotify_call() -> None:
+    class UnexpectedSpotify(FakeSpotify):
+        def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+            pytest.fail("Spotify should not be called after cancellation")
+
+    with pytest.raises(blast_from_past.BlastFromPastCancelledError):
+        blast_from_past.load_playlist_state(
+            UnexpectedSpotify(),  # type: ignore[arg-type]
+            "blast",
+            cancel_check=lambda: True,
+        )
+
+
 def test_load_scrobbles_uses_berlin_dates_and_newest_first(tmp_path: Path) -> None:
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(

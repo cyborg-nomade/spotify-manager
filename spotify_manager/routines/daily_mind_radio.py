@@ -132,14 +132,18 @@ def add_daily_mind_radio_to_spotify(
         blast_from_past.fetch_random_timestamp
     ),
     progress_callback: blast_from_past.ProgressCallback | None = None,
+    retry_call: blast_from_past.RetryCall = blast_from_past._direct_retry,
+    cancel_check: blast_from_past.CancelCheck | None = None,
 ) -> DailyMindRadioSpotifySummary:
     """Select anniversary scrobbles and append their Spotify matches."""
+    blast_from_past.check_cancel(cancel_check)
     batch = select_daily_mind_radio(
         path=path,
         today=today,
         random_timestamp_reader=random_timestamp_reader,
         progress_callback=progress_callback,
     )
+    blast_from_past.check_cancel(cancel_check)
     if not batch.selections:
         return DailyMindRadioSpotifySummary(
             playlist_id=playlist_id,
@@ -151,12 +155,19 @@ def add_daily_mind_radio_to_spotify(
 
     if progress_callback is not None:
         progress_callback("Loading the Spotify playlist")
-    playlist = blast_from_past.load_playlist_state(sp, playlist_id)
+    playlist = blast_from_past.load_playlist_state(
+        sp,
+        playlist_id,
+        retry_call,
+        cancel_check,
+    )
     resolution = blast_from_past.resolve_spotify_selections(
         sp,
         batch.selections,
         playlist,
         progress_callback,
+        retry_call,
+        cancel_check,
     )
 
     if resolution.pending_matches:
@@ -168,6 +179,8 @@ def add_daily_mind_radio_to_spotify(
             sp,
             playlist_id,
             list(resolution.pending_matches),
+            retry_call,
+            cancel_check,
         )
 
     return DailyMindRadioSpotifySummary(

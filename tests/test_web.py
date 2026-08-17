@@ -65,6 +65,21 @@ def test_new_wine_web_labels_jump_to_later_liked_track(client: TestClient) -> No
     assert "Boolean(job.no_discovery)" in response.text
 
 
+def test_blast_and_daily_controls_support_cancellation_and_release_restore(
+    client: TestClient,
+) -> None:
+    response = client.get("/")
+
+    assert 'data-action="cancelBlast"' in response.text
+    assert 'data-action="cancelDailyMindRadio"' in response.text
+    assert 'cancelAction: "cancelBlast"' in response.text
+    assert 'cancelAction: "cancelDailyMindRadio"' in response.text
+    assert 'config.basePath + "-jobs/" + job.job_id + "/cancel"' in response.text
+    assert "spotify-manager-release-check-state-v1" in response.text
+    assert "reconcileReleaseCheckState" in response.text
+    assert 'await syncReleaseCheckStateCache()' in response.text
+
+
 def test_genre_reveal_page_preserves_route_and_server_sync(client: TestClient) -> None:
     response = client.get("/genre-reveal")
 

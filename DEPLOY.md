@@ -253,6 +253,19 @@ curl -H 'X-App-Password: YOUR_PASSWORD' \
   > PREDEPLOY_DIR/genre_reveal_state.json
 ```
 
+New Release Check exposes its current versioned snapshot as well. The response
+contains metadata plus the state under the `state` key:
+
+```console
+curl -H 'X-App-Password: YOUR_PASSWORD' \
+  https://cyborg-nomade-spotify-manager.hf.space/commands/check-new-releases-state \
+  > PREDEPLOY_DIR/release_check_state_snapshot.json
+```
+
+The cockpit automatically mirrors this payload in the authenticated browser,
+but an explicit deployment snapshot remains necessary in case browser site data
+is cleared or deployment is performed from another device.
+
 Validate every downloaded JSON file before using it. Record file sizes and
 SHA-256 digests. Never overwrite the local copy until verification is complete.
 

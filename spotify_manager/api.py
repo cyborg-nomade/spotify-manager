@@ -13,6 +13,7 @@ by legacy endpoints is cached; call ``POST /library/refresh`` after replacing
 """
 
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -25,6 +26,7 @@ from threading import Event
 from threading import Lock
 from threading import Thread
 from typing import Annotated
+from typing import Any
 from typing import Literal
 from uuid import uuid4
 
@@ -655,6 +657,22 @@ class ReleaseCheckChoiceRequest(BaseModel):
     choice: str
 
 
+class ReleaseCheckStateSnapshot(BaseModel):
+    """Versioned release-check state mirrored by the authenticated browser."""
+
+    updated_at: str | None
+    fingerprint: str
+    state: dict[str, Any] | None = None
+    backup_path: str | None = None
+
+
+class ReleaseCheckStateRestoreRequest(BaseModel):
+    """Optimistic restore request for a newer browser-held state copy."""
+
+    expected_server_fingerprint: str
+    state: dict[str, Any]
+
+
 class DiscographyReleaseOption(BaseModel):
     """One canonical release offered in a discography checklist."""
 
@@ -893,6 +911,15 @@ LIBRARY_MIRROR_FILE_PATHS = (
     library_analysis.DEFAULT_LIVE_MIRROR_PATHS.artists_total,
     scrobble_history.DEFAULT_SCROBBLES_PATH,
 )
+RELEASE_CHECK_STATE_PATH = Path(
+    os.environ.get("RELEASE_CHECK_STATE_PATH", release_check.DEFAULT_STATE_PATH)
+)
+RELEASE_CHECK_STATE_BACKUP_DIR = Path(
+    os.environ.get(
+        "RELEASE_CHECK_STATE_BACKUP_DIR",
+        release_check.DEFAULT_STATE_BACKUP_DIR,
+    )
+)
 SPOTIFY_CONNECTION_FAILURE_DETAIL = (
     "Spotify connection remained unavailable after automatic retries. "
     "Please try again shortly."
@@ -981,6 +1008,47 @@ def _append_blast_log_locked(job: _BlastJob, message: str) -> None:
         del job.result.logs[: len(job.result.logs) - _MAX_BLAST_LOGS]
 
 
+def _release_check_state_snapshot(
+    known_fingerprint: str | None = None,
+    *,
+    backup_path: Path | None = None,
+) -> ReleaseCheckStateSnapshot:
+    """Load one state snapshot, omitting its body when the browser is current."""
+    state = release_check.load_state(RELEASE_CHECK_STATE_PATH)
+    fingerprint = release_check.state_fingerprint(state)
+    return ReleaseCheckStateSnapshot(
+        updated_at=release_check.state_updated_at(state),
+        fingerprint=fingerprint,
+        state=None if fingerprint == known_fingerprint else state,
+        backup_path=str(backup_path) if backup_path is not None else None,
+    )
+
+
+def _state_timestamp(value: str | None) -> datetime | None:
+    """Parse one state freshness timestamp as UTC."""
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _release_state_is_newer(
+    candidate: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    """Return whether a browser-held state is semantically newer."""
+    candidate_at = _state_timestamp(release_check.state_updated_at(candidate))
+    current_at = _state_timestamp(release_check.state_updated_at(current))
+    return candidate_at is not None and (
+        current_at is None or candidate_at > current_at
+    )
+
+
 def get_analysis_job(job_id: str) -> _AnalysisJob:
     """Return one job or raise a conventional API 404."""
     with _analysis_jobs_lock:
@@ -997,6 +1065,24 @@ def get_blast_job(job_id: str, command: str | None = None) -> _BlastJob:
     if job is None or (command is not None and job.result.command != command):
         raise HTTPException(status_code=404, detail="playlist job not found")
     return job
+
+
+def _cancel_simple_playlist_job(
+    job_id: str,
+    *,
+    command: str,
+    detail: str,
+) -> BlastJobResult:
+    """Signal a non-interactive playlist worker to stop cleanly."""
+    job = get_blast_job(job_id, command=command)
+    with _blast_jobs_lock:
+        if job.result.status not in _ACTIVE_JOB_STATUSES:
+            raise HTTPException(status_code=409, detail="Playlist job is not active")
+        job.result.status = "cancelling"
+        job.result.detail = detail
+        _append_blast_log_locked(job, detail)
+        job.cancel_event.set()
+        return _blast_job_snapshot(job)
 
 
 def _run_analysis_job(
@@ -1273,6 +1359,37 @@ def _blast_selection_result(
     )
 
 
+def _playlist_job_retry(
+    job: _BlastJob,
+    echo: Callable[[str], None],
+) -> blast_from_past.RetryCall:
+    """Build a bounded Spotify retry policy with interruptible waits."""
+
+    def interruptible_sleep(seconds: float) -> None:
+        if job.cancel_event.wait(seconds):
+            raise blast_from_past.BlastFromPastCancelledError(
+                "Playlist routine cancelled."
+            )
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        blast_from_past.check_cancel(job.cancel_event.is_set)
+        result = review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=interruptible_sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+        blast_from_past.check_cancel(job.cancel_event.is_set)
+        return result
+
+    return retry_call
+
+
 def _run_blast_job(
     job_id: str,
     spotify: Spotify,
@@ -1305,7 +1422,33 @@ def _run_blast_job(
             count=count,
             max_playlist_length=max_playlist_length,
             progress_callback=echo,
+            retry_call=_playlist_job_retry(job, echo),
+            cancel_check=job.cancel_event.is_set,
         )
+    except blast_from_past.BlastFromPastCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = "A blast from the past was cancelled."
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = review_album_limits.format_transient_spotify_failure(
+                exc
+            )
+            _append_blast_log_locked(job, job.result.detail)
     except (blast_from_past.BlastFromPastError, SpotifyException) as exc:
         with _blast_jobs_lock:
             job.result.status = "failed"
@@ -1382,7 +1525,33 @@ def _run_daily_mind_radio_job(
             spotify,
             playlist_id,
             progress_callback=echo,
+            retry_call=_playlist_job_retry(job, echo),
+            cancel_check=job.cancel_event.is_set,
         )
+    except blast_from_past.BlastFromPastCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = "Daily Mind Radio was cancelled."
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = review_album_limits.format_transient_spotify_failure(
+                exc
+            )
+            _append_blast_log_locked(job, job.result.detail)
     except (blast_from_past.BlastFromPastError, SpotifyException) as exc:
         with _blast_jobs_lock:
             job.result.status = "failed"
@@ -3709,6 +3878,7 @@ def _run_release_check_job(
             artist_choice_reader=artist_choice_reader,
             release_choice_reader=release_choice_reader,
             dry_run=dry_run,
+            state_path=RELEASE_CHECK_STATE_PATH,
             progress_callback=update_progress,
             retry_call=retry_call,
         )
@@ -5555,7 +5725,7 @@ def cmd_count_artists() -> CountResult:
     status_code=status.HTTP_202_ACCEPTED,
 )
 def cmd_blast_from_the_past(
-    client: ClientDep,
+    client: InteractiveClientDep,
     count: Annotated[int | None, Query(ge=1)] = None,
     max_playlist_length: Annotated[int | None, Query(ge=1)] = None,
 ) -> BlastJobResult:
@@ -5607,11 +5777,24 @@ def cmd_blast_job(job_id: str) -> BlastJobResult:
 
 
 @app.post(
+    "/commands/blast-from-the-past-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_blast_job(job_id: str) -> BlastJobResult:
+    """Stop a Blast job at the next bounded network-operation boundary."""
+    return _cancel_simple_playlist_job(
+        job_id,
+        command="blast_from_the_past",
+        detail="Stopping A blast from the past",
+    )
+
+
+@app.post(
     "/commands/daily-mind-radio",
     response_model=BlastJobResult,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def cmd_daily_mind_radio(client: ClientDep) -> BlastJobResult:
+def cmd_daily_mind_radio(client: InteractiveClientDep) -> BlastJobResult:
     """Start a background Daily Mind Radio anniversary update."""
     try:
         playlist_id = blast_from_past.parse_playlist_id(
@@ -5647,6 +5830,19 @@ def cmd_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     job = get_blast_job(job_id, command="daily_mind_radio")
     with _blast_jobs_lock:
         return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/daily-mind-radio-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_daily_mind_radio_job(job_id: str) -> BlastJobResult:
+    """Stop Daily Mind Radio at the next bounded network-operation boundary."""
+    return _cancel_simple_playlist_job(
+        job_id,
+        command="daily_mind_radio",
+        detail="Stopping Daily Mind Radio",
+    )
 
 
 @app.post(
@@ -6766,6 +6962,62 @@ def cmd_check_new_releases(
         username,
         dry_run=dry_run,
     )
+
+
+@app.get(
+    "/commands/check-new-releases-state",
+    response_model=ReleaseCheckStateSnapshot,
+)
+def cmd_release_check_state(
+    known_fingerprint: str | None = None,
+) -> ReleaseCheckStateSnapshot:
+    """Return restart state, omitting the payload when the browser is current."""
+    try:
+        return _release_check_state_snapshot(known_fingerprint)
+    except release_check.ReleaseCheckStateError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.put(
+    "/commands/check-new-releases-state",
+    response_model=ReleaseCheckStateSnapshot,
+)
+def cmd_restore_release_check_state(
+    request: ReleaseCheckStateRestoreRequest,
+) -> ReleaseCheckStateSnapshot:
+    """Restore a newer browser mirror without overwriting concurrent progress."""
+    with _blast_jobs_lock:
+        if any(
+            job.result.command == "check_new_releases"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+            for job in _blast_jobs.values()
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="New-release check is active; state restore was not applied",
+            )
+        try:
+            candidate = release_check.validate_state(request.state)
+            current = release_check.load_state(RELEASE_CHECK_STATE_PATH)
+            current_fingerprint = release_check.state_fingerprint(current)
+            if current_fingerprint != request.expected_server_fingerprint:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Release-check state changed; reload before restoring",
+                )
+            if not _release_state_is_newer(candidate, current):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Browser release-check state is not newer",
+                )
+            backup_path = release_check.restore_state(
+                candidate,
+                RELEASE_CHECK_STATE_PATH,
+                RELEASE_CHECK_STATE_BACKUP_DIR,
+            )
+            return _release_check_state_snapshot(backup_path=backup_path)
+        except release_check.ReleaseCheckStateError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get(

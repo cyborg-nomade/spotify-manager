@@ -3,6 +3,7 @@
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from datetime import timedelta
 from pathlib import Path
 from threading import Event
 from time import monotonic
@@ -183,6 +184,110 @@ def client() -> TestClient:
 
 def test_health(client: TestClient) -> None:
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_release_check_state_browser_restore_is_versioned_and_backup_first(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "release-check-state.json"
+    backup_dir = tmp_path / "backups"
+    monkeypatch.setattr(api, "RELEASE_CHECK_STATE_PATH", state_path)
+    monkeypatch.setattr(api, "RELEASE_CHECK_STATE_BACKUP_DIR", backup_dir)
+    state = api.release_check._default_state()
+    api.release_check.save_state(state, state_path)
+
+    first = client.get("/commands/check-new-releases-state")
+    fingerprint = first.json()["fingerprint"]
+    unchanged = client.get(
+        "/commands/check-new-releases-state",
+        params={"known_fingerprint": fingerprint},
+    )
+    candidate = first.json()["state"]
+    current_updated_at = datetime.fromisoformat(candidate["updated_at"])
+    candidate["updated_at"] = (current_updated_at + timedelta(minutes=1)).isoformat()
+    candidate["artist_mappings"]["artist"] = {"spotify_id": "spotify-artist"}
+
+    restored = client.put(
+        "/commands/check-new-releases-state",
+        json={
+            "expected_server_fingerprint": fingerprint,
+            "state": candidate,
+        },
+    )
+
+    assert first.status_code == 200
+    assert first.json()["state"] is not None
+    assert unchanged.json()["state"] is None
+    assert restored.status_code == 200
+    assert restored.json()["state"]["artist_mappings"]["artist"] == {
+        "spotify_id": "spotify-artist"
+    }
+    assert restored.json()["backup_path"] is not None
+    assert Path(restored.json()["backup_path"]).exists()
+
+    stale = client.put(
+        "/commands/check-new-releases-state",
+        json={
+            "expected_server_fingerprint": restored.json()["fingerprint"],
+            "state": first.json()["state"],
+        },
+    )
+    assert stale.status_code == 409
+
+
+def test_release_check_state_restore_rejects_an_active_job(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "release-check-state.json"
+    monkeypatch.setattr(api, "RELEASE_CHECK_STATE_PATH", state_path)
+    state = api.release_check._default_state()
+    api.release_check.save_state(state, state_path)
+    snapshot = client.get("/commands/check-new-releases-state").json()
+    snapshot["state"]["updated_at"] = (
+        datetime.now(UTC) + timedelta(minutes=1)
+    ).isoformat()
+    job = api._BlastJob(
+        result=api.BlastJobResult(
+            job_id="active-release-check",
+            command="check_new_releases",
+            status="running",
+        )
+    )
+    with api._blast_jobs_lock:
+        api._blast_jobs[job.result.job_id] = job
+
+    response = client.put(
+        "/commands/check-new-releases-state",
+        json={
+            "expected_server_fingerprint": snapshot["fingerprint"],
+            "state": snapshot["state"],
+        },
+    )
+
+    assert response.status_code == 409
+    assert "active" in response.json()["detail"]
+
+
+def test_release_state_timestamp_and_freshness_helpers() -> None:
+    assert api._state_timestamp(None) is None
+    assert api._state_timestamp("not-a-timestamp") is None
+    assert api._state_timestamp("2026-08-17T12:00:00") == datetime(
+        2026,
+        8,
+        17,
+        12,
+        tzinfo=UTC,
+    )
+    candidate = api.release_check._default_state()
+    candidate["updated_at"] = "2026-08-17T12:00:00+00:00"
+    current = api.release_check._default_state()
+
+    assert api._release_state_is_newer(candidate, current) is True
+    assert api._release_state_is_newer(current, candidate) is False
 
 
 def test_auth_check(client: TestClient) -> None:
@@ -676,6 +781,8 @@ def test_job_helpers_copy_bound_logs_and_reject_unknown_ids(
 @pytest.mark.parametrize(
     ("command", "cancel", "wakes_choice"),
     [
+        ("blast_from_the_past", api.cmd_cancel_blast_job, False),
+        ("daily_mind_radio", api.cmd_cancel_daily_mind_radio_job, False),
         ("flush_new_kids", api.cmd_cancel_new_kids_job, True),
         ("flush_queue_2", api.cmd_cancel_queue_2_job, True),
         ("flush_queue_3", api.cmd_cancel_queue_3_job, True),
@@ -722,6 +829,8 @@ def test_playlist_job_cancellation_is_consistent(
 @pytest.mark.parametrize(
     ("command", "cancel"),
     [
+        ("blast_from_the_past", api.cmd_cancel_blast_job),
+        ("daily_mind_radio", api.cmd_cancel_daily_mind_radio_job),
         ("flush_new_kids", api.cmd_cancel_new_kids_job),
         ("flush_queue_2", api.cmd_cancel_queue_2_job),
         ("flush_queue_3", api.cmd_cancel_queue_3_job),
