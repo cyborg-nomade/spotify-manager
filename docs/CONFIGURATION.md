@@ -192,6 +192,8 @@ These are read directly by startup or runtime modules rather than by
 | `APP5_SPOTIPY_CACHE_JSON` ... `APP8_SPOTIPY_CACHE_JSON` | None | Full alternate cache JSON secrets seeded by `start.sh`. |
 | `GENRE_REVEAL_STATE_PATH` | Package files directory | Move Genre Reveal state to another writable or persistent path. |
 | `GENRE_REVEAL_LOG_PATH` | Package files directory | Move the Genre Reveal audit log. |
+| `RELEASE_CHECK_STATE_PATH` | Package files directory | Move New Release Check state to another writable or persistent path. |
+| `RELEASE_CHECK_STATE_BACKUP_DIR` | Package files directory | Move backups created before a browser state restore. |
 | `PORT` | `7860` | Container listen port used by `start.sh`. |
 | `PYTEST_REPORT_PATH` | `test_report.xml` | JUnit output path for `just ci-test`. |
 

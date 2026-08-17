@@ -613,7 +613,12 @@ tracks and duplicate selections are not added twice.
 
 The web card follows the same dry-run default and exposes artist mappings,
 custom Spotify searches, and release approvals as a reconnectable background
-job. Reloading the page restores its current prompt and logs.
+job. Reloading the page restores its current prompt and logs. The authenticated
+browser also stores the latest versioned state checkpoint and restores it when
+it is newer than the copy loaded after a Space restart. Server fingerprint
+checks prevent stale or concurrent restoration, and the replaced server state
+is backed up first. Keep the deployment state snapshot process as well: clearing
+browser site data removes this additional recovery copy.
 
 ```text
 POST /commands/check-new-releases?dry_run=true
@@ -621,6 +626,8 @@ GET  /commands/check-new-releases-jobs
 GET  /commands/check-new-releases-jobs/{job_id}
 POST /commands/check-new-releases-jobs/{job_id}/choice
 POST /commands/check-new-releases-jobs/{job_id}/cancel
+GET  /commands/check-new-releases-state
+PUT  /commands/check-new-releases-state
 ```
 
 ### `fill-queue-from-lastfm`

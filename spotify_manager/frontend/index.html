@@ -663,16 +663,20 @@
         <label for="blastMaximum">Maximum playlist length</label>
         <input id="blastMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
       </div>
-      <div class="btns">
+      <div class="analysis-actions">
         <button class="primary" data-action="startBlast">Run</button>
+        <button class="danger cancel" data-action="cancelBlast" hidden
+          title="Stop routine" aria-label="Stop A blast from the past">×</button>
       </div>
       <div class="analysis-progress" id="blastProgress"></div>
     </section>
 
     <section class="card" id="dailyMindRadioCard">
       <h2>Daily mind radio</h2>
-      <div class="btns">
+      <div class="analysis-actions">
         <button class="primary" data-action="startDailyMindRadio">Run</button>
+        <button class="danger cancel" data-action="cancelDailyMindRadio" hidden
+          title="Stop routine" aria-label="Stop Daily Mind Radio">×</button>
       </div>
       <div class="analysis-progress" id="dailyMindRadioProgress"></div>
     </section>
@@ -941,6 +945,7 @@
   "use strict";
   var API = ""; // same origin
   var STORAGE_KEY = "sm_pw";
+  var RELEASE_CHECK_STATE_KEY = "spotify-manager-release-check-state-v1";
   var pw = null;
 
   var gate = document.getElementById("gate");
@@ -964,6 +969,8 @@
   var requeueForADreamJob = null;
   var palaceOfMemoryJob = null;
   var scrobbleHistoryJob = null;
+  var releaseCheckStateFingerprint = null;
+  var releaseCheckStateSync = null;
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -1012,6 +1019,74 @@
       throw { status: res.status, detail: d, data: data };
     }
     return data;
+  }
+
+  function cachedReleaseCheckState() {
+    try {
+      var cached = JSON.parse(localStorage.getItem(RELEASE_CHECK_STATE_KEY) || "null");
+      return cached && cached.state && cached.fingerprint ? cached : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function cacheReleaseCheckState(snapshot) {
+    if (!snapshot || !snapshot.state) return;
+    releaseCheckStateFingerprint = snapshot.fingerprint;
+    try {
+      localStorage.setItem(RELEASE_CHECK_STATE_KEY, JSON.stringify(snapshot));
+    } catch (e) {
+      showToast("Release state backup could not be saved in this browser", "err");
+    }
+  }
+
+  function releaseStateTime(snapshot) {
+    var value = snapshot && snapshot.updated_at;
+    var parsed = value ? new Date(value).getTime() : NaN;
+    return isNaN(parsed) ? 0 : parsed;
+  }
+
+  async function syncReleaseCheckStateCache() {
+    if (releaseCheckStateSync) return releaseCheckStateSync;
+    releaseCheckStateSync = (async function () {
+      var query = releaseCheckStateFingerprint
+        ? "?known_fingerprint=" + encodeURIComponent(releaseCheckStateFingerprint)
+        : "";
+      var snapshot = await api("/commands/check-new-releases-state" + query);
+      releaseCheckStateFingerprint = snapshot.fingerprint;
+      if (snapshot.state) cacheReleaseCheckState(snapshot);
+      return snapshot;
+    })();
+    try {
+      return await releaseCheckStateSync;
+    } finally {
+      releaseCheckStateSync = null;
+    }
+  }
+
+  async function reconcileReleaseCheckState() {
+    var server = await api("/commands/check-new-releases-state");
+    var cached = cachedReleaseCheckState();
+    releaseCheckStateFingerprint = server.fingerprint;
+    if (cached && releaseStateTime(cached) > releaseStateTime(server)) {
+      try {
+        var restored = await api("/commands/check-new-releases-state", {
+          method: "PUT",
+          json: {
+            expected_server_fingerprint: server.fingerprint,
+            state: cached.state,
+          },
+        });
+        cacheReleaseCheckState(restored);
+        showToast("New-release progress restored after server restart", "ok");
+        return restored;
+      } catch (e) {
+        if (e.status !== 409) throw e;
+        server = await api("/commands/check-new-releases-state");
+      }
+    }
+    cacheReleaseCheckState(server);
+    return server;
   }
 
   function setBusy(btn, busy, label) {
@@ -1323,6 +1398,7 @@
       return {
         progressId: "dailyMindRadioProgress",
         action: "startDailyMindRadio",
+        cancelAction: "cancelDailyMindRadio",
         basePath: "/commands/daily-mind-radio",
         command: "daily_mind_radio",
         finished: "Daily Mind Radio finished",
@@ -1340,6 +1416,7 @@
     return {
       progressId: "blastProgress",
       action: "startBlast",
+      cancelAction: "cancelBlast",
       basePath: "/commands/blast-from-the-past",
       command: "blast_from_the_past",
       finished: "Blast from the Past finished",
@@ -1356,6 +1433,9 @@
     var config = playlistJobConfig(kind);
     var out = document.getElementById(config.progressId);
     var start = document.querySelector('[data-action="' + config.action + '"]');
+    var cancel = config.cancelAction
+      ? document.querySelector('[data-action="' + config.cancelAction + '"]')
+      : null;
     var summary = "";
     if (typeof job.added === "number" &&
         typeof job.playlist_length_before === "number" &&
@@ -1444,8 +1524,13 @@
     out.classList.add("show");
     var log = out.querySelector(".analysis-log");
     if (log) log.scrollTop = log.scrollHeight;
-    if (isAnalysisActive(job.status) && !start.disabled) setBusy(start, true, "Running…");
-    if (!isAnalysisActive(job.status)) setBusy(start, false);
+    var active = isAnalysisActive(job.status);
+    if (cancel) {
+      cancel.hidden = !active;
+      cancel.disabled = job.status === "cancelling";
+    }
+    if (active && !start.disabled) setBusy(start, true, "Running…");
+    if (!active) setBusy(start, false);
   }
 
   function renderBlastJob(job) {
@@ -1466,6 +1551,8 @@
         setTimeout(function () { pollPlaylistJob(kind, jobId); }, 1500);
       } else if (job.status === "completed") {
         showToast(config.finished, "ok");
+      } else if (job.status === "cancelled" || job.status === "paused") {
+        showToast(job.detail || "Playlist routine stopped", "ok");
       } else {
         showToast("Playlist routine " + job.status, "err");
       }
@@ -1512,6 +1599,24 @@
 
   function restoreActiveFoundArtJobs() {
     return restoreActivePlaylistJobs("found");
+  }
+
+  async function cancelPlaylistJob(kind, btn) {
+    var config = playlistJobConfig(kind);
+    var job = kind === "daily" ? dailyMindRadioJob : blastJob;
+    if (!job || !job.job_id || !config.cancelAction) return;
+    btn.disabled = true;
+    try {
+      var updated = await api(
+        config.basePath + "-jobs/" + job.job_id + "/cancel",
+        { method: "POST" }
+      );
+      rememberPlaylistJob(kind, updated);
+      renderPlaylistJob(kind, updated);
+    } catch (e) {
+      btn.disabled = false;
+      showToast(e.detail || "Could not stop playlist routine", "err");
+    }
   }
 
   function renderSauvignonJob(job) {
@@ -2853,6 +2958,7 @@
   async function pollReleaseCheckJob(jobId) {
     try {
       var job = await api("/commands/check-new-releases-jobs/" + jobId);
+      await syncReleaseCheckStateCache();
       renderReleaseCheckJob(job);
       if (isAnalysisActive(job.status)) {
         setTimeout(function () { pollReleaseCheckJob(jobId); }, 1500);
@@ -3625,6 +3731,14 @@
       }
     },
 
+    async cancelBlast(btn) {
+      return cancelPlaylistJob("blast", btn);
+    },
+
+    async cancelDailyMindRadio(btn) {
+      return cancelPlaylistJob("daily", btn);
+    },
+
     async startFoundArt(btn) {
       var input = document.getElementById("foundArtCount");
       var count = Number(input.value);
@@ -3845,6 +3959,7 @@
       q.set("dry_run", dryRun ? "true" : "false");
       setBusy(btn, true, "Starting...");
       try {
+        await reconcileReleaseCheckState();
         var job = await api(
           "/commands/check-new-releases?" + q.toString(),
           { method: "POST" }
@@ -4633,6 +4748,11 @@
     app.classList.remove("hidden");
     checkHealth();
     loadServerFilesStatus();
+    try {
+      await reconcileReleaseCheckState();
+    } catch (e) {
+      showToast(e.detail || "Could not reconcile new-release progress", "err");
+    }
     restoreActiveAnalysisJobs();
     restoreActiveBlastJobs();
     restoreActiveDailyMindRadioJobs();

@@ -104,7 +104,7 @@ mappings, permanent skips, annual imports, or a pending interactive decision.
 | `queue_state.json` | The Queue recommendation/flush state and processed artists. |
 | `queue_3_state.json` | Queue 3 active run, composer playlist mappings, annual import, and release progress. |
 | `slow_listening_flush_state.json` | Current two-item batch, skipped track candidates, and release ordering. |
-| `release_check_state.json` | Last successful check date, artist mappings, permanent artist/release skips, processed release ids, pending singles, and active run. |
+| `release_check_state.json` | Last successful check date, state update timestamp, artist mappings, permanent artist/release skips, processed release ids, pending singles, and active run. |
 | `palace_of_memory_state.json` | Persisted alphabetical cursor. |
 | `discography_routine_state.json` | Next source queue in the round-robin plan. |
 
@@ -213,6 +213,15 @@ The running container is authoritative after a live routine has changed its
 state. Before deployment, snapshot it and never replace it with an older local
 copy. See [DEPLOY.md](../DEPLOY.md#state-preserving-update) for the required
 preflight and verification process.
+
+The web New Release Check additionally mirrors its versioned state into the
+authenticated browser after each checkpoint. When the same browser reconnects
+after a Space restart, it compares semantic timestamps and automatically
+restores the newer copy. The API uses a fingerprint precondition, refuses a
+restore while a release-check worker is active, and backs up the server file
+before replacement. This protects routine progress from ordinary Space
+restarts; it does not replace a mounted persistent volume or deployment backup,
+and clearing that browser's site data removes the mirror.
 
 For robust long-term operation, mount persistent Hugging Face storage and point
 runtime paths there where the application exposes a path override. Until all

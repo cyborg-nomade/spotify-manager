@@ -52,6 +52,8 @@ DASHED_SUFFIX = re.compile(r"\s+[-\N{EN DASH}\N{EM DASH}]\s+(.+?)\s*$")
 
 Direction = Literal["top down", "bottom up"]
 ProgressCallback = Callable[[str], None]
+RetryCall = Callable[[Callable[[], object], str], object]
+CancelCheck = Callable[[], bool]
 
 
 class BlastFromPastError(Exception):
@@ -72,6 +74,21 @@ class BlastFromPastConfigError(BlastFromPastError):
 
 class SpotifyTrackResolutionError(BlastFromPastError):
     """Raised when Spotify returns unusable track or playlist data."""
+
+
+class BlastFromPastCancelledError(BlastFromPastError):
+    """Raised when a playlist update is cancelled at a safe boundary."""
+
+
+def _direct_retry(operation: Callable[[], object], _description: str) -> object:
+    """Call Spotify directly when no outer retry policy is supplied."""
+    return operation()
+
+
+def check_cancel(cancel_check: CancelCheck | None) -> None:
+    """Stop promptly between network operations when cancellation is requested."""
+    if cancel_check is not None and cancel_check():
+        raise BlastFromPastCancelledError("Playlist routine cancelled.")
 
 
 @dataclass(frozen=True)
@@ -432,14 +449,21 @@ def matching_spotify_track(
 def search_spotify_matches(
     sp: Spotify,
     scrobble: Scrobble,
+    retry_call: RetryCall = _direct_retry,
+    cancel_check: CancelCheck | None = None,
 ) -> tuple[SpotifyTrackMatch, ...]:
     """Search Spotify once and return every qualifying result in rank order."""
-    response = sp.search(
-        q=spotify_search_query(scrobble),
-        type="track",
-        limit=SPOTIFY_SEARCH_LIMIT,
-        offset=0,
+    check_cancel(cancel_check)
+    response = retry_call(
+        lambda: sp.search(
+            q=spotify_search_query(scrobble),
+            type="track",
+            limit=SPOTIFY_SEARCH_LIMIT,
+            offset=0,
+        ),
+        f"searching Spotify for {scrobble.artist} - {scrobble.track}",
     )
+    check_cancel(cancel_check)
     if not isinstance(response, dict):
         raise SpotifyTrackResolutionError(
             f"Spotify returned invalid search data for {scrobble.artist} - "
@@ -466,6 +490,8 @@ def search_spotify_matches(
 def liked_spotify_track_ids(
     sp: Spotify,
     match_groups: list[tuple[SpotifyTrackMatch, ...]],
+    retry_call: RetryCall = _direct_retry,
+    cancel_check: CancelCheck | None = None,
 ) -> set[str]:
     """Return live liked status for all unique qualifying candidates in batches."""
     track_ids = list(
@@ -473,8 +499,17 @@ def liked_spotify_track_ids(
     )
     liked_ids: set[str] = set()
     for start in range(0, len(track_ids), SPOTIFY_LIKED_BATCH_SIZE):
+        check_cancel(cancel_check)
         batch = track_ids[start : start + SPOTIFY_LIKED_BATCH_SIZE]
-        statuses = sp.current_user_saved_tracks_contains(batch)
+        statuses = retry_call(
+            lambda batch=batch: sp.current_user_saved_tracks_contains(batch),
+            "checking live liked-track status",
+        )
+        check_cancel(cancel_check)
+        if not isinstance(statuses, list):
+            raise SpotifyTrackResolutionError(
+                "Spotify returned invalid liked-track statuses."
+            )
         if len(statuses) != len(batch):
             raise SpotifyTrackResolutionError(
                 "Spotify returned incomplete liked-track statuses."
@@ -703,17 +738,28 @@ def select_blast_from_past(
     )
 
 
-def load_playlist_state(sp: Spotify, playlist_id: str) -> PlaylistState:
+def load_playlist_state(
+    sp: Spotify,
+    playlist_id: str,
+    retry_call: RetryCall = _direct_retry,
+    cancel_check: CancelCheck | None = None,
+) -> PlaylistState:
     """Load the complete target playlist once."""
     offset = 0
     track_ids: set[str] = set()
     track_keys: set[tuple[str, str]] = set()
+    seen_next_pages: set[str] = set()
     while True:
-        response = sp._get(
-            f"playlists/{playlist_id}/items",
-            limit=SPOTIFY_PLAYLIST_PAGE_SIZE,
-            offset=offset,
+        check_cancel(cancel_check)
+        response = retry_call(
+            lambda offset=offset: sp._get(
+                f"playlists/{playlist_id}/items",
+                limit=SPOTIFY_PLAYLIST_PAGE_SIZE,
+                offset=offset,
+            ),
+            f"loading Spotify playlist items at offset {offset}",
         )
+        check_cancel(cancel_check)
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):
@@ -743,11 +789,18 @@ def load_playlist_state(sp: Spotify, playlist_id: str) -> PlaylistState:
 
         offset += len(raw_items)
         total = response.get("total")
-        has_more = bool(response.get("next"))
-        if isinstance(total, int):
-            has_more = has_more or offset < total
+        next_page = response.get("next")
+        has_more = bool(next_page)
+        if "next" not in response and isinstance(total, int):
+            has_more = offset < total
         if not has_more:
-            total_items = total if isinstance(total, int) else offset
+            total_items = (
+                offset
+                if "next" in response
+                else total
+                if isinstance(total, int)
+                else offset
+            )
             return PlaylistState(
                 total_items=total_items,
                 track_ids=frozenset(track_ids),
@@ -757,21 +810,34 @@ def load_playlist_state(sp: Spotify, playlist_id: str) -> PlaylistState:
             raise SpotifyTrackResolutionError(
                 f"Spotify returned an empty playlist page for {playlist_id}."
             )
+        if isinstance(next_page, str):
+            if next_page in seen_next_pages:
+                raise SpotifyTrackResolutionError(
+                    f"Spotify repeated a playlist page for {playlist_id}."
+                )
+            seen_next_pages.add(next_page)
 
 
 def add_spotify_matches(
     sp: Spotify,
     playlist_id: str,
     matches: list[SpotifyTrackMatch],
+    retry_call: RetryCall = _direct_retry,
+    cancel_check: CancelCheck | None = None,
 ) -> None:
     """Append Spotify matches to the playlist in API-sized batches."""
     uris = [match.uri for match in matches]
     for start in range(0, len(uris), SPOTIFY_PLAYLIST_ADD_BATCH_SIZE):
+        check_cancel(cancel_check)
         batch = uris[start : start + SPOTIFY_PLAYLIST_ADD_BATCH_SIZE]
-        sp._post(
-            f"playlists/{playlist_id}/items",
-            payload={"uris": batch},
+        retry_call(
+            lambda batch=batch: sp._post(
+                f"playlists/{playlist_id}/items",
+                payload={"uris": batch},
+            ),
+            f"adding {len(batch)} tracks to the Spotify playlist",
         )
+        check_cancel(cancel_check)
 
 
 def resolve_spotify_selections(
@@ -779,17 +845,32 @@ def resolve_spotify_selections(
     selections: tuple[ScrobbleSelection, ...],
     playlist: PlaylistState,
     progress_callback: ProgressCallback | None = None,
+    retry_call: RetryCall = _direct_retry,
+    cancel_check: CancelCheck | None = None,
 ) -> SpotifySelectionResolution:
     """Resolve selected scrobbles and identify new playlist tracks."""
     match_groups: list[tuple[SpotifyTrackMatch, ...]] = []
     for index, selection in enumerate(selections, start=1):
+        check_cancel(cancel_check)
         if progress_callback is not None:
             progress_callback(f"Searching Spotify track {index}/{len(selections)}")
-        match_groups.append(search_spotify_matches(sp, selection.scrobble))
+        match_groups.append(
+            search_spotify_matches(
+                sp,
+                selection.scrobble,
+                retry_call,
+                cancel_check,
+            )
+        )
 
     if progress_callback is not None:
         progress_callback("Checking liked Spotify matches")
-    liked_ids = liked_spotify_track_ids(sp, match_groups)
+    liked_ids = liked_spotify_track_ids(
+        sp,
+        match_groups,
+        retry_call,
+        cancel_check,
+    )
 
     pending_matches: list[SpotifyTrackMatch] = []
     pending_ids: set[str] = set()
@@ -833,6 +914,8 @@ def add_blast_from_past_to_spotify(
     today: date | None = None,
     random_index_reader: RandomIndexReader = fetch_random_indexes,
     progress_callback: ProgressCallback | None = None,
+    retry_call: RetryCall = _direct_retry,
+    cancel_check: CancelCheck | None = None,
 ) -> BlastFromPastSpotifySummary:
     """Select, resolve, and append a blast-from-the-past batch to Spotify."""
     if count is not None and max_playlist_length is not None:
@@ -844,9 +927,15 @@ def add_blast_from_past_to_spotify(
     if max_playlist_length is not None and max_playlist_length < 1:
         raise BlastFromPastConfigError("Maximum playlist length must be at least 1.")
 
+    check_cancel(cancel_check)
     if progress_callback is not None:
         progress_callback("Loading the Spotify playlist")
-    playlist = load_playlist_state(sp, playlist_id)
+    playlist = load_playlist_state(
+        sp,
+        playlist_id,
+        retry_call,
+        cancel_check,
+    )
     requested_count = count if count is not None else 10
     if max_playlist_length is not None:
         requested_count = max(0, max_playlist_length - playlist.total_items)
@@ -867,12 +956,15 @@ def add_blast_from_past_to_spotify(
         random_index_reader=random_index_reader,
         progress_callback=progress_callback,
     )
+    check_cancel(cancel_check)
 
     resolution = resolve_spotify_selections(
         sp,
         batch.selections,
         playlist,
         progress_callback,
+        retry_call,
+        cancel_check,
     )
 
     if resolution.pending_matches:
@@ -880,7 +972,13 @@ def add_blast_from_past_to_spotify(
             progress_callback(
                 f"Adding {len(resolution.pending_matches)} tracks to Spotify"
             )
-        add_spotify_matches(sp, playlist_id, list(resolution.pending_matches))
+        add_spotify_matches(
+            sp,
+            playlist_id,
+            list(resolution.pending_matches),
+            retry_call,
+            cancel_check,
+        )
 
     return BlastFromPastSpotifySummary(
         playlist_id=playlist_id,

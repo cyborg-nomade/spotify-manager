@@ -1,6 +1,7 @@
 """Discover new Spotify releases from the user's most-scrobbled artists."""
 
 import calendar
+import hashlib
 import json
 import re
 from collections import Counter
@@ -28,6 +29,7 @@ from spotify_manager.routines import scrobble_history
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_STATE_PATH = FILES_DIR / "release_check_state.json"
+DEFAULT_STATE_BACKUP_DIR = FILES_DIR / "release_check_state_backups"
 DEFAULT_LOG_PATH = FILES_DIR / "release_check_log.jsonl"
 STATE_VERSION = 1
 MIN_ARTIST_SCROBBLES = 100
@@ -694,6 +696,7 @@ def _default_state() -> dict[str, Any]:
     """Return an empty versioned release-check state."""
     return {
         "version": STATE_VERSION,
+        "updated_at": None,
         "last_successful_check_at": None,
         "last_checked_through": None,
         "artist_mappings": {},
@@ -704,16 +707,12 @@ def _default_state() -> dict[str, Any]:
     }
 
 
-def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
-    """Load restart state without silently discarding malformed data."""
-    if not path.exists():
-        return _default_state()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ReleaseCheckStateError(f"Release-check state is invalid: {path}") from exc
+def validate_state(raw: object) -> dict[str, Any]:
+    """Validate and normalize one release-check state payload."""
     if isinstance(raw, dict):
-        # Version 1 state predates durable artist skips.
+        raw = deepcopy(raw)
+        # Earlier version 1 payloads predate these additive durability fields.
+        raw.setdefault("updated_at", None)
         raw.setdefault("skipped_artists", {})
     if (
         not isinstance(raw, dict)
@@ -727,17 +726,61 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
             and not isinstance(raw["active_run"], dict)
         )
     ):
-        raise ReleaseCheckStateError(f"Release-check state is invalid: {path}")
+        raise ReleaseCheckStateError("Release-check state is invalid.")
     return raw
+
+
+def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
+    """Load restart state without silently discarding malformed data."""
+    if not path.exists():
+        return _default_state()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return validate_state(raw)
+    except (OSError, json.JSONDecodeError, ReleaseCheckStateError) as exc:
+        raise ReleaseCheckStateError(f"Release-check state is invalid: {path}") from exc
+
+
+def state_updated_at(state: dict[str, Any]) -> str | None:
+    """Return the best semantic timestamp available for freshness comparison."""
+    candidates = [state.get("updated_at"), state.get("last_successful_check_at")]
+    active = state.get("active_run")
+    if isinstance(active, dict):
+        candidates.append(active.get("started_at"))
+    parsed: list[tuple[datetime, str]] = []
+    for candidate in candidates:
+        if not isinstance(candidate, str):
+            continue
+        try:
+            timestamp = datetime.fromisoformat(candidate)
+        except ValueError:
+            continue
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
+        parsed.append((timestamp.astimezone(UTC), candidate))
+    return max(parsed, default=(datetime.min.replace(tzinfo=UTC), None))[1]
+
+
+def state_fingerprint(state: dict[str, Any]) -> str:
+    """Return a stable digest used by the web restart-recovery handshake."""
+    serialized = json.dumps(
+        state,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
 
 
 def save_state(state: dict[str, Any], path: Path = DEFAULT_STATE_PATH) -> None:
     """Persist release-check state atomically."""
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
+        state["updated_at"] = datetime.now(UTC).isoformat()
+        normalized = validate_state(state)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary.write_text(
-            json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+            json.dumps(normalized, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
         temporary.replace(path)
@@ -745,6 +788,28 @@ def save_state(state: dict[str, Any], path: Path = DEFAULT_STATE_PATH) -> None:
         raise ReleaseCheckStateError(
             f"Could not save release-check state: {path}"
         ) from exc
+
+
+def restore_state(
+    state: dict[str, Any],
+    path: Path = DEFAULT_STATE_PATH,
+    backup_dir: Path = DEFAULT_STATE_BACKUP_DIR,
+) -> Path | None:
+    """Restore a newer state payload after backing up the server copy."""
+    normalized = validate_state(state)
+    backup_path: Path | None = None
+    try:
+        if path.exists():
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+            backup_path = backup_dir / f"release-check-before-restore-{stamp}.json"
+            backup_path.write_bytes(path.read_bytes())
+        save_state(normalized, path)
+    except OSError as exc:
+        raise ReleaseCheckStateError(
+            f"Could not restore release-check state: {path}"
+        ) from exc
+    return backup_path
 
 
 def append_event(

@@ -54,6 +54,8 @@ RUNNERS = (
         api.blast_from_past,
         "add_blast_from_past_to_spotify",
         lambda: api.blast_from_past.BlastFromPastError("blast failed"),
+        api.blast_from_past.BlastFromPastCancelledError,
+        True,
     ),
     RunnerSpec(
         "daily",
@@ -66,6 +68,8 @@ RUNNERS = (
         api.daily_mind_radio,
         "add_daily_mind_radio_to_spotify",
         lambda: api.blast_from_past.BlastFromPastError("daily failed"),
+        api.blast_from_past.BlastFromPastCancelledError,
+        True,
     ),
     RunnerSpec(
         "found-art",

@@ -803,3 +803,29 @@ def test_dry_run_persists_only_history_and_artist_mappings(
     assert state["last_checked_through"] is None
     assert history_dry_runs == [False]
     assert not log_path.exists()
+
+
+def test_state_save_fingerprints_and_restore_backup(tmp_path: Path) -> None:
+    state_path = tmp_path / "release-state.json"
+    backup_dir = tmp_path / "backups"
+    original = release_check._default_state()
+    release_check.save_state(original, state_path)
+    saved_original = state_path.read_bytes()
+    loaded = release_check.load_state(state_path)
+
+    assert release_check.state_updated_at(loaded) is not None
+    original_fingerprint = release_check.state_fingerprint(loaded)
+
+    replacement = release_check.validate_state(loaded)
+    replacement["artist_mappings"]["artist"] = {"spotify_id": "spotify-artist"}
+    backup_path = release_check.restore_state(
+        replacement,
+        state_path,
+        backup_dir,
+    )
+    restored = release_check.load_state(state_path)
+
+    assert backup_path is not None
+    assert backup_path.read_bytes() == saved_original
+    assert restored["artist_mappings"]["artist"]["spotify_id"] == "spotify-artist"
+    assert release_check.state_fingerprint(restored) != original_fingerprint

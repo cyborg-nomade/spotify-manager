@@ -164,6 +164,7 @@ spotify_manager/files/queue_3_log.jsonl
 # Restart-safe new-release discovery state and audit log
 spotify_manager/files/release_check_state.json
 spotify_manager/files/release_check_state.json.tmp
+spotify_manager/files/release_check_state_backups/
 spotify_manager/files/release_check_log.jsonl
 
 # Restart-safe Slow Listening flush state and audit log
