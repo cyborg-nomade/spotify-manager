@@ -189,7 +189,7 @@ analyse-library-sync *args:
 restore-library-sync *args:
     {{ cli }} restore-library-sync "$@"
 
-# Show local liked-track and saved-release counts for an artist.
+# Show live liked-track and saved-release counts for an artist.
 artist-stats *args:
     {{ cli }} artist-stats "$@"
 
