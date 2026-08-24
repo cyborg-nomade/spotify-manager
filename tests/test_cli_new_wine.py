@@ -78,6 +78,50 @@ def test_new_wine_album_endpoint_prompt_accepts_finish(monkeypatch) -> None:
     assert "[f]inish" in prompts[0]
 
 
+def test_new_wine_canonical_endpoint_prompt_defaults_to_continue(monkeypatch) -> None:
+    """The optional endpoint prompt should map its conservative default."""
+    release = main.new_wine.ReleaseCandidate(
+        spotify_id="release",
+        uri="spotify:album:release",
+        name="Deluxe Album",
+        release_type="Album",
+        release_date="2026-01-01",
+        total_tracks=8,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+    )
+    source = main.new_wine.PlaylistTrack(
+        spotify_id="track",
+        uri="spotify:track:track",
+        name="Canonical Finale",
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        release=release,
+    )
+    tracks = tuple(
+        main.new_wine.ReleaseTrack(
+            spotify_id=f"t{index}",
+            uri=f"spotify:track:t{index}",
+            name=f"Track {index}",
+            disc_number=1,
+            track_number=index,
+        )
+        for index in range(1, 9)
+    )
+    received: dict[str, object] = {}
+    monkeypatch.setattr(
+        main.Prompt,
+        "ask",
+        lambda prompt, **kwargs: received.update(prompt=prompt, **kwargs) or "n",
+    )
+
+    choice = main.ask_new_wine_endpoint_choice(Console(), source, tracks, 4)
+
+    assert choice == main.new_wine.CHOICE_CONTINUE
+    assert "track 5/8" in str(received["prompt"])
+    assert received["default"] == "n"
+
+
 def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
     """The CLI should pass both parsed playlists and dry-run mode."""
     received: dict[str, object] = {}
@@ -88,6 +132,7 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
             sauvignon_playlist=sauvignon_playlist,
             wine_cellar_playlist=kwargs["wine_cellar_playlist_id"],
             no_discovery=kwargs["no_discovery"],
+            choose_album_endpoints=kwargs["choose_album_endpoints"],
             dry_run=kwargs["dry_run"],
         )
         return main.new_wine.FlushSummary(
@@ -132,7 +177,12 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
 
     result = CliRunner().invoke(
         main.app,
-        ["flush-new-wine", "--dry-run", "--no-discovery"],
+        [
+            "flush-new-wine",
+            "--dry-run",
+            "--no-discovery",
+            "--choose-album-endpoints",
+        ],
     )
 
     assert result.exit_code == 0
@@ -141,6 +191,7 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
         "sauvignon_playlist": "sauv",
         "wine_cellar_playlist": "cellar",
         "no_discovery": True,
+        "choose_album_endpoints": True,
         "dry_run": True,
     }
     assert "Dry run: 1/1 processed" in result.output

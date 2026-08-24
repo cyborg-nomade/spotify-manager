@@ -45,11 +45,17 @@ CHOICE_SKIP = "skip"
 CHOICE_QUIT = "quit"
 CHOICE_DROP = "drop"
 CHOICE_FINISH = "finish"
+CHOICE_CUTOFF = "cutoff"
+CHOICE_CONTINUE = "continue"
 
 Echo = Callable[[str], None]
 ProgressCallback = Callable[[int, int, str], None]
 RetryCall = Callable[[Callable[[], object], str], object]
 ReleaseChoiceReader = Callable[["PlaylistTrack", tuple["ReleaseCandidate", ...]], str]
+EndpointChoiceReader = Callable[
+    ["PlaylistTrack", tuple["ReleaseTrack", ...], int],
+    str,
+]
 FlushAction = Literal[
     "advance",
     "drop",
@@ -127,6 +133,8 @@ class FlushResult:
     drop_reason: str | None = None
     continuation_release: str | None = None
     continuation_track: str | None = None
+    canonical_track_count: int | None = None
+    canonical_cutoff_track: str | None = None
     dry_run: bool = False
 
 
@@ -709,6 +717,7 @@ def _new_run(
     tracks: tuple[PlaylistTrack, ...],
     wine_cellar_playlist_id: str | None,
     no_discovery: bool,
+    choose_album_endpoints: bool,
 ) -> dict[str, object]:
     """Build a durable snapshot so each original entry advances once."""
     return {
@@ -716,6 +725,7 @@ def _new_run(
         "playlist_id": playlist_id,
         "wine_cellar_playlist_id": wine_cellar_playlist_id,
         "no_discovery": no_discovery,
+        "choose_album_endpoints": choose_album_endpoints,
         "status": "active",
         "created_at": datetime.now(UTC).isoformat(),
         "entries": [
@@ -723,6 +733,7 @@ def _new_run(
                 "source": asdict(track),
                 "status": "pending",
                 "plan": None,
+                "endpoint_choice": None,
             }
             for track in tracks
         ],
@@ -1069,6 +1080,16 @@ def _plan_result(
         continuation_track=(
             continuation_target.name if continuation_target is not None else None
         ),
+        canonical_track_count=(
+            cast(int, plan["canonical_track_count"])
+            if plan.get("canonical_track_count") is not None
+            else None
+        ),
+        canonical_cutoff_track=(
+            str(plan["canonical_cutoff_track"])
+            if plan.get("canonical_cutoff_track") is not None
+            else None
+        ),
         dry_run=dry_run,
     )
 
@@ -1103,6 +1124,8 @@ def flush_new_wine(
     sauvignon_playlist_id: str,
     choice_reader: ReleaseChoiceReader,
     *,
+    endpoint_choice_reader: EndpointChoiceReader | None = None,
+    choose_album_endpoints: bool = False,
     wine_cellar_playlist_id: str | None = None,
     no_discovery: bool = False,
     dry_run: bool = False,
@@ -1143,6 +1166,7 @@ def flush_new_wine(
             live_tracks,
             wine_cellar_playlist_id,
             no_discovery,
+            choose_album_endpoints,
         )
         if not dry_run:
             state["active_run"] = run
@@ -1162,6 +1186,13 @@ def flush_new_wine(
     results: list[FlushResult] = []
     refill: CellarRefillSummary | None = None
     paused = False
+    active_endpoint_mode = bool(
+        run.get("choose_album_endpoints", choose_album_endpoints)
+    )
+    if active_endpoint_mode and endpoint_choice_reader is None:
+        raise NewWineConfigError(
+            "Album endpoint selection requires an endpoint choice reader."
+        )
 
     def release_tracks(release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
         if release.spotify_id not in release_track_cache:
@@ -1191,6 +1222,7 @@ def flush_new_wine(
         if plan is None:
             base_tracks = release_tracks(source.release)
             base_index = _track_index(base_tracks, source)
+            endpoint_choice = raw_entry.get("endpoint_choice")
             get_liked_statuses(
                 sp,
                 [source.spotify_id],
@@ -1219,6 +1251,52 @@ def flush_new_wine(
                             break
                         prior_streak += 1
             consecutive_unliked = 0 if current_liked else prior_streak + 1
+
+            if (
+                active_endpoint_mode
+                and source.release.release_type in {"Album", "EP"}
+                and base_index is not None
+            ):
+                if endpoint_choice not in {CHOICE_CUTOFF, CHOICE_CONTINUE}:
+                    assert endpoint_choice_reader is not None
+                    endpoint_choice = endpoint_choice_reader(
+                        source,
+                        base_tracks,
+                        base_index,
+                    )
+                    if endpoint_choice == CHOICE_QUIT:
+                        paused = True
+                        break
+                    if endpoint_choice == CHOICE_SKIP:
+                        raw_entry["status"] = "skipped"
+                        result = FlushResult(
+                            source_track=source.name,
+                            artist=source.primary_artist_name,
+                            release=source.release.name,
+                            release_type=source.release.release_type,
+                            current_liked=current_liked,
+                            consecutive_unliked=consecutive_unliked,
+                            action="skip",
+                            dry_run=dry_run,
+                        )
+                        results.append(result)
+                        append_log(run_id, result, log_path)
+                        if not dry_run:
+                            state_access.save(state)
+                        continue
+                    if endpoint_choice not in {CHOICE_CUTOFF, CHOICE_CONTINUE}:
+                        raise NewWineError(
+                            "The album endpoint choice is not available."
+                        )
+                    raw_entry["endpoint_choice"] = endpoint_choice
+                    if not dry_run:
+                        state_access.save(state)
+                if endpoint_choice == CHOICE_CUTOFF:
+                    base_tracks = base_tracks[: base_index + 1]
+                    echo(
+                        f"Using {source.name} as the canonical endpoint of "
+                        f"{source.release.name} ({len(base_tracks)} tracks)."
+                    )
 
             if consecutive_unliked >= 3:
                 get_liked_statuses(
@@ -1370,6 +1448,12 @@ def flush_new_wine(
 
                 if plan is None:
                     selected_tracks = release_tracks(selected_release)
+                    if (
+                        selected_release.spotify_id == source.release.spotify_id
+                        and endpoint_choice == CHOICE_CUTOFF
+                        and base_index is not None
+                    ):
+                        selected_tracks = selected_tracks[: base_index + 1]
                     if not selected_tracks:
                         echo(
                             f"{selected_release.name} has no available tracks; "
@@ -1421,6 +1505,10 @@ def flush_new_wine(
                         "advance_reason": None,
                         "drop_reason": None,
                     }
+
+            if endpoint_choice == CHOICE_CUTOFF:
+                plan["canonical_track_count"] = len(base_tracks)
+                plan["canonical_cutoff_track"] = source.name
 
             if str(plan["action"]) in {
                 "drop",

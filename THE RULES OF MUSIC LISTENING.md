@@ -124,6 +124,7 @@ Track lists have evolved from the need to allow single tracks to be listened wit
       2. Follow the release by track. In case of upcoming releases, follow the tracking list (if available) or the release order of the singles.
       3. Skip album after 3 unliked tracks
       4. After reaching the last track of an album or EP (but not singles), add it to *sauvignon terre-neuve* album list
+      5. During an explicit canonical-endpoint review, the current track may be designated as the release's last track. Later bonus, live, remix, deluxe-disc, or otherwise non-canonical tracks are then excluded from the keep/remove calculation, and that track triggers both *sauvignon terre-neuve* completion and the follow-up-release choice.
    4. **Cap**: 10 tracks (10 listened/day)
 7. *the queue* contains tracks by artists waiting to be discovered
    1. **Type**: DISCOVERY

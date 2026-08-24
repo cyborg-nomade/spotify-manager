@@ -183,6 +183,7 @@
   .new-wine-option-meta { display: block; margin-top: 2px; color: var(--muted); font-size: .68rem; font-weight: 500; }
   .new-wine-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 9px; }
   .new-wine-controls button { border-radius: 6px; padding: 10px 8px; font-size: .78rem; }
+  .new-wine-controls.endpoint-controls { grid-template-columns: 1fr 1fr; }
   .new-wine-result.drop .blast-action { color: var(--red); }
   .new-wine-result.advance .blast-action { color: var(--green); }
   .new-wine-result.sauvignon .blast-action { color: var(--lime); }
@@ -838,6 +839,10 @@
       <label class="inline">
         <input type="checkbox" id="newWineNoDiscovery" />
         No discovery
+      </label>
+      <label class="inline">
+        <input type="checkbox" id="newWineChooseEndpoints" />
+        Choose album endpoints
       </label>
       <div class="analysis-actions" style="margin-top:12px">
         <button class="primary" data-action="startNewWine">Run</button>
@@ -2838,6 +2843,7 @@
     var cancel = document.querySelector('[data-action="cancelNewWine"]');
     document.getElementById("newWineDryRun").checked = Boolean(job.dry_run);
     document.getElementById("newWineNoDiscovery").checked = Boolean(job.no_discovery);
+    document.getElementById("newWineChooseEndpoints").checked = Boolean(job.choose_album_endpoints);
     var processed = typeof job.processed === "number" ? job.processed : 0;
     var total = typeof job.total === "number" ? Math.max(job.total, processed) : null;
     var pct = total === null ? null : (total === 0 ? 100 : Math.min(100, Math.round(processed * 100 / total)));
@@ -2887,6 +2893,9 @@
       if (item.advance_reason === "next_liked_track") action += " · next liked";
       if (item.drop_reason) action += " · " + (dropLabels[item.drop_reason] || item.drop_reason);
       if (item.album_unsaved) action += " · unsaved";
+      if (item.canonical_cutoff_track) {
+        action += " · canonical end at " + item.canonical_cutoff_track;
+      }
       var nextTrack = item.continuation_track
         ? item.continuation_release + " · " + item.continuation_track
         : item.target_track;
@@ -2900,25 +2909,40 @@
     }).join("");
     var pending = "";
     if (job.pending_choice) {
-      var releaseButtons = (job.pending_choice.releases || []).map(function (release) {
-        return '<button class="ghost" data-action="newWineChoice" data-choice="' +
-          esc(release.spotify_id) + '">' +
-          '<span class="new-wine-option-name">' + esc(release.name) + '</span>' +
-          '<span class="new-wine-option-meta">' + esc(release.release_type) + ' · ' +
-            esc(release.release_date) + ' · ' + esc(release.total_tracks) + ' tracks · ' +
-            esc(release.primary_artist_name) + '</span></button>';
-      }).join("");
-      pending = '<div class="new-wine-choice">' +
-        '<div class="new-wine-choice-title">' + esc(job.pending_choice.artist) + ' · ' +
-          esc(job.pending_choice.source_track) + '</div>' +
-        '<div class="new-wine-options">' + releaseButtons + '</div>' +
-        '<div class="new-wine-controls">' +
-          (job.pending_choice.terminal_release
-            ? '<button class="danger" data-action="newWineChoice" data-choice="finish">Finish</button>'
-            : '<button class="danger" data-action="newWineChoice" data-choice="drop">Drop</button>') +
-          '<button class="ghost" data-action="newWineChoice" data-choice="skip">Skip</button>' +
-          '<button class="ghost" data-action="newWineChoice" data-choice="quit">Quit</button>' +
-        '</div></div>';
+      if (job.pending_choice.kind === "album_endpoint") {
+        pending = '<div class="new-wine-choice">' +
+          '<div class="new-wine-choice-title">Last canonical track?</div>' +
+          '<div class="blast-selection-match">' + esc(job.pending_choice.artist) + ' · ' +
+            esc(job.pending_choice.release) + ' · ' + esc(job.pending_choice.source_track) + '</div>' +
+          '<div class="blast-selection-meta">Track ' + esc(job.pending_choice.track_position) +
+            ' / ' + esc(job.pending_choice.total_tracks) + '</div>' +
+          '<div class="new-wine-controls endpoint-controls">' +
+            '<button class="danger" data-action="newWineChoice" data-choice="cutoff">Yes, finish</button>' +
+            '<button class="ghost" data-action="newWineChoice" data-choice="continue">No, continue</button>' +
+            '<button class="ghost" data-action="newWineChoice" data-choice="skip">Skip</button>' +
+            '<button class="ghost" data-action="newWineChoice" data-choice="quit">Quit</button>' +
+          '</div></div>';
+      } else {
+        var releaseButtons = (job.pending_choice.releases || []).map(function (release) {
+          return '<button class="ghost" data-action="newWineChoice" data-choice="' +
+            esc(release.spotify_id) + '">' +
+            '<span class="new-wine-option-name">' + esc(release.name) + '</span>' +
+            '<span class="new-wine-option-meta">' + esc(release.release_type) + ' · ' +
+              esc(release.release_date) + ' · ' + esc(release.total_tracks) + ' tracks · ' +
+              esc(release.primary_artist_name) + '</span></button>';
+        }).join("");
+        pending = '<div class="new-wine-choice">' +
+          '<div class="new-wine-choice-title">' + esc(job.pending_choice.artist) + ' · ' +
+            esc(job.pending_choice.source_track) + '</div>' +
+          '<div class="new-wine-options">' + releaseButtons + '</div>' +
+          '<div class="new-wine-controls">' +
+            (job.pending_choice.terminal_release
+              ? '<button class="danger" data-action="newWineChoice" data-choice="finish">Finish</button>'
+              : '<button class="danger" data-action="newWineChoice" data-choice="drop">Drop</button>') +
+            '<button class="ghost" data-action="newWineChoice" data-choice="skip">Skip</button>' +
+            '<button class="ghost" data-action="newWineChoice" data-choice="quit">Quit</button>' +
+          '</div></div>';
+      }
     }
     var logRows = (job.logs || []).map(function (entry) {
       var timestamp = new Date(entry.timestamp);
@@ -2934,7 +2958,9 @@
         '<span class="analysis-log-message">Waiting for activity…</span></div>';
     }
     var state = (job.dry_run ? "Dry run · " : "") +
-      (job.no_discovery ? "No discovery · " : "") + (job.detail || job.status);
+      (job.no_discovery ? "No discovery · " : "") +
+      (job.choose_album_endpoints ? "Album endpoints · " : "") +
+      (job.detail || job.status);
     if (job.retry_at) {
       var retryDate = new Date(job.retry_at);
       if (!isNaN(retryDate.getTime())) state += " · retry at " + retryDate.toLocaleString();
@@ -4763,11 +4789,13 @@
     async startNewWine(btn) {
       var dryRun = document.getElementById("newWineDryRun").checked;
       var noDiscovery = document.getElementById("newWineNoDiscovery").checked;
+      var chooseAlbumEndpoints = document.getElementById("newWineChooseEndpoints").checked;
       var out = document.getElementById("newWineProgress");
       if (!dryRun && !confirm("Apply the New Wine flush to Spotify?")) return;
       var q = new URLSearchParams();
       q.set("dry_run", dryRun ? "true" : "false");
       q.set("no_discovery", noDiscovery ? "true" : "false");
+      q.set("choose_album_endpoints", chooseAlbumEndpoints ? "true" : "false");
       setBusy(btn, true, "Starting…");
       try {
         var job = await api("/commands/flush-new-wine?" + q.toString(), { method: "POST" });

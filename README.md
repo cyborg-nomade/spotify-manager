@@ -970,6 +970,10 @@ Inspect the full plan first:
 ```console
 uv run spotify-manager flush-new-wine --dry-run
 just flush-new-wine --dry-run
+
+# Ask whether each current Album/EP track is its canonical endpoint.
+uv run spotify-manager flush-new-wine --dry-run --choose-album-endpoints
+just flush-new-wine --dry-run --choose-album-endpoints
 ```
 
 Then apply it:
@@ -1001,13 +1005,16 @@ Every real or dry-run result is appended to
 Spotify, the generated library mirrors, or restart state.
 
 The web UI places New Wine immediately below Genre Reveal and defaults to
-dry-run mode. It also exposes the no-discovery refill as a checkbox and shows
-the Wine Cellar transfer summary when the run finishes. Its background job
-retains the selected mode, logs, pending release choices, and refill results
-across page reloads:
+dry-run mode. It also exposes the no-discovery refill and album-endpoint modes
+as checkboxes and shows the Wine Cellar transfer summary when the run finishes.
+An early canonical endpoint excludes later bonus, live, remix, deluxe-disc,
+and other non-canonical tracks from the keep/remove calculation, completes the
+album or EP into Sauvignon, and enables the usual follow-up-release choice.
+Its background job retains the selected mode, logs, pending choices, and refill
+results across page reloads:
 
 ```text
-POST /commands/flush-new-wine?dry_run=true&no_discovery=false
+POST /commands/flush-new-wine?dry_run=true&no_discovery=false&choose_album_endpoints=false
 GET  /commands/flush-new-wine-jobs
 GET  /commands/flush-new-wine-jobs/{job_id}
 POST /commands/flush-new-wine-jobs/{job_id}/choice

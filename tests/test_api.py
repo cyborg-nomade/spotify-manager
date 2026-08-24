@@ -2485,6 +2485,122 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
     assert client.get("/commands/flush-new-wine-jobs").json() == []
 
 
+def test_new_wine_web_job_accepts_canonical_album_endpoint(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from spotify_manager import api
+
+    release = api.new_wine.ReleaseCandidate(
+        spotify_id="album",
+        uri="spotify:album:album",
+        name="Deluxe Album",
+        release_type="Album",
+        release_date="2026-01-01",
+        total_tracks=8,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+    )
+    source = api.new_wine.PlaylistTrack(
+        spotify_id="track",
+        uri="spotify:track:track",
+        name="Canonical Finale",
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        release=release,
+    )
+    tracks = tuple(
+        api.new_wine.ReleaseTrack(
+            spotify_id=f"t{index}",
+            uri=f"spotify:track:t{index}",
+            name=f"Track {index}",
+            disc_number=1,
+            track_number=index,
+        )
+        for index in range(1, 9)
+    )
+    received: dict[str, object] = {}
+
+    def flush(_spotify, _new_playlist, _sauvignon_playlist, **kwargs):
+        received["enabled"] = kwargs["choose_album_endpoints"]
+        received["choice"] = kwargs["endpoint_choice_reader"](
+            source,
+            tracks,
+            4,
+        )
+        return api.new_wine.FlushSummary(
+            run_id="run",
+            total=1,
+            processed=1,
+            advanced=0,
+            dropped=0,
+            sent_to_sauvignon=1,
+            completed_singles=0,
+            skipped=0,
+            albums_unsaved=0,
+            paused=False,
+            dry_run=kwargs["dry_run"],
+            resumed=False,
+            results=(
+                api.new_wine.FlushResult(
+                    source_track=source.name,
+                    artist=source.primary_artist_name,
+                    release=source.release.name,
+                    release_type=source.release.release_type,
+                    current_liked=True,
+                    consecutive_unliked=0,
+                    action="sauvignon",
+                    target_track="Track 1",
+                    canonical_track_count=5,
+                    canonical_cutoff_track=source.name,
+                    dry_run=kwargs["dry_run"],
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(
+            new_wine_from_old_bottles_playlist="new",
+            sauvignon_terre_neuve_playlist="sauv",
+            wine_cellar_playlist="cellar",
+        ),
+    )
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
+
+    started = client.post(
+        "/commands/flush-new-wine",
+        params={"dry_run": "true", "choose_album_endpoints": "true"},
+    )
+    assert started.status_code == 202
+    job_id = started.json()["job_id"]
+    waiting = wait_for_new_wine_status(client, job_id, {"waiting"})
+    assert waiting["choose_album_endpoints"] is True
+    assert waiting["pending_choice"] == {
+        "kind": "album_endpoint",
+        "artist": "Artist",
+        "source_track": "Canonical Finale",
+        "release": "Deluxe Album",
+        "track_position": 5,
+        "total_tracks": 8,
+        "terminal_release": False,
+        "releases": [],
+    }
+
+    response = client.post(
+        f"/commands/flush-new-wine-jobs/{job_id}/choice",
+        json={"choice": api.new_wine.CHOICE_CUTOFF},
+    )
+    assert response.status_code == 200
+    completed = wait_for_new_wine_status(client, job_id, {"completed"})
+    assert received == {"enabled": True, "choice": api.new_wine.CHOICE_CUTOFF}
+    assert completed["new_wine_results"][0]["canonical_track_count"] == 5
+    assert completed["new_wine_results"][0]["canonical_cutoff_track"] == (
+        "Canonical Finale"
+    )
+
+
 def test_new_wine_web_job_accepts_finish_at_album_endpoint(
     client: TestClient,
 ) -> None:

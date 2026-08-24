@@ -356,8 +356,12 @@ class NewWineReleaseOption(BaseModel):
 class NewWinePendingChoice(BaseModel):
     """Current interactive choice exposed to the web client."""
 
+    kind: Literal["release", "album_endpoint"] = "release"
     artist: str
     source_track: str
+    release: str | None = None
+    track_position: int | None = None
+    total_tracks: int | None = None
     terminal_release: bool = False
     releases: list[NewWineReleaseOption] = Field(default_factory=list)
 
@@ -378,6 +382,8 @@ class NewWineTrackResult(BaseModel):
     drop_reason: str | None = None
     continuation_release: str | None = None
     continuation_track: str | None = None
+    canonical_track_count: int | None = None
+    canonical_cutoff_track: str | None = None
 
 
 class NewWineCellarTrackResult(BaseModel):
@@ -823,6 +829,7 @@ class BlastJobResult(BaseModel):
     sauvignon_pending_choice: SauvignonPendingChoice | None = None
     dry_run: bool = False
     no_discovery: bool = False
+    choose_album_endpoints: bool = False
     processed: int | None = None
     total: int | None = None
     advanced: int | None = None
@@ -2964,6 +2971,8 @@ def _new_wine_track_result(result: new_wine.FlushResult) -> NewWineTrackResult:
         drop_reason=result.drop_reason,
         continuation_release=result.continuation_release,
         continuation_track=result.continuation_track,
+        canonical_track_count=result.canonical_track_count,
+        canonical_cutoff_track=result.canonical_cutoff_track,
     )
 
 
@@ -3003,6 +3012,7 @@ def _run_new_wine_job(
     wine_cellar_playlist_id: str,
     dry_run: bool,
     no_discovery: bool,
+    choose_album_endpoints: bool = False,
 ) -> None:
     """Execute one interactive New Wine flush as a reconnectable web job."""
     job = get_blast_job(job_id, command="flush_new_wine")
@@ -3075,6 +3085,46 @@ def _run_new_wine_job(
                 _append_blast_log_locked(job, f"Release choice received: {choice}.")
                 return choice
 
+    def endpoint_choice_reader(
+        source: new_wine.PlaylistTrack,
+        tracks: tuple[new_wine.ReleaseTrack, ...],
+        current_index: int,
+    ) -> str:
+        with _blast_jobs_lock:
+            if job.cancel_event.is_set():
+                raise _NewWineJobCancelledError
+            job.submitted_choice = None
+            job.choice_event.clear()
+            job.result.pending_choice = NewWinePendingChoice(
+                kind="album_endpoint",
+                artist=source.primary_artist_name,
+                source_track=source.name,
+                release=source.release.name,
+                track_position=current_index + 1,
+                total_tracks=len(tracks),
+            )
+            job.result.status = "waiting"
+            job.result.detail = (
+                f"Is {source.name} the last canonical track of {source.release.name}?"
+            )
+            _append_blast_log_locked(job, job.result.detail)
+
+        while True:
+            job.choice_event.wait(0.5)
+            with _blast_jobs_lock:
+                if job.cancel_event.is_set():
+                    raise _NewWineJobCancelledError
+                choice = job.submitted_choice
+                if choice is None:
+                    continue
+                job.submitted_choice = None
+                job.choice_event.clear()
+                job.result.pending_choice = None
+                job.result.status = "running"
+                job.result.detail = "Applying album endpoint choice"
+                _append_blast_log_locked(job, f"Endpoint choice received: {choice}.")
+                return choice
+
     def interruptible_sleep(seconds: float) -> None:
         if job.cancel_event.wait(seconds):
             raise _NewWineJobCancelledError
@@ -3103,6 +3153,8 @@ def _run_new_wine_job(
             new_wine_playlist_id,
             sauvignon_playlist_id,
             choice_reader=choice_reader,
+            endpoint_choice_reader=endpoint_choice_reader,
+            choose_album_endpoints=choose_album_endpoints,
             wine_cellar_playlist_id=wine_cellar_playlist_id,
             no_discovery=no_discovery,
             dry_run=dry_run,
@@ -5204,6 +5256,7 @@ def start_new_wine_job(
     *,
     dry_run: bool,
     no_discovery: bool,
+    choose_album_endpoints: bool = False,
 ) -> BlastJobResult:
     """Start one New Wine web job, rejecting another playlist routine."""
     with _blast_jobs_lock:
@@ -5224,6 +5277,7 @@ def start_new_wine_job(
                 command="flush_new_wine",
                 dry_run=dry_run,
                 no_discovery=no_discovery,
+                choose_album_endpoints=choose_album_endpoints,
             )
         )
         _append_blast_log_locked(
@@ -5243,6 +5297,7 @@ def start_new_wine_job(
             wine_cellar_playlist_id,
             dry_run,
             no_discovery,
+            choose_album_endpoints,
         ),
         name=f"new-wine-flush-{job_id[:8]}",
         daemon=True,
@@ -6791,6 +6846,7 @@ def cmd_flush_new_wine(
     client: InteractiveClientDep,
     dry_run: bool = True,
     no_discovery: bool = False,
+    choose_album_endpoints: bool = False,
 ) -> BlastJobResult:
     """Start an interactive New Wine flush with reconnectable web state."""
     configuration = Settings()
@@ -6816,6 +6872,7 @@ def cmd_flush_new_wine(
         wine_cellar_playlist_id,
         dry_run=dry_run,
         no_discovery=no_discovery,
+        choose_album_endpoints=choose_album_endpoints,
     )
 
 
@@ -6862,14 +6919,22 @@ def cmd_choose_new_wine_release(
                 status_code=409,
                 detail="New Wine job is not waiting for a release choice",
             )
-        allowed = {
-            new_wine.CHOICE_DROP,
-            new_wine.CHOICE_SKIP,
-            new_wine.CHOICE_QUIT,
-            *(release.spotify_id for release in pending.releases),
-        }
-        if pending.terminal_release:
-            allowed.add(new_wine.CHOICE_FINISH)
+        if pending.kind == "album_endpoint":
+            allowed = {
+                new_wine.CHOICE_CUTOFF,
+                new_wine.CHOICE_CONTINUE,
+                new_wine.CHOICE_SKIP,
+                new_wine.CHOICE_QUIT,
+            }
+        else:
+            allowed = {
+                new_wine.CHOICE_DROP,
+                new_wine.CHOICE_SKIP,
+                new_wine.CHOICE_QUIT,
+                *(release.spotify_id for release in pending.releases),
+            }
+            if pending.terminal_release:
+                allowed.add(new_wine.CHOICE_FINISH)
         if request.choice not in allowed:
             raise HTTPException(
                 status_code=400,

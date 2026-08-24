@@ -191,6 +191,182 @@ def test_flush_advances_every_snapshotted_album_track(tmp_path: Path) -> None:
     assert state["track_progress"]["t2"]["prior_unliked_streak"] == 1
 
 
+def test_canonical_cutoff_completes_album_and_offers_follow_up(
+    tmp_path: Path,
+) -> None:
+    spotify = FakeSpotify()
+    release = raw_release(
+        "album", "Canonical Album", artist_id="artist", total_tracks=5
+    )
+    follow_up = raw_release(
+        "follow-up",
+        "Next Release",
+        artist_id="artist",
+        release_date="2026-06-01",
+    )
+    tracks = [
+        raw_track(
+            f"t{index}",
+            f"Track {index}",
+            release,
+            artist_id="artist",
+            track_number=index,
+        )
+        for index in range(1, 6)
+    ]
+    spotify.release_tracks = {
+        "album": tracks,
+        "follow-up": [
+            raw_track("f1", "Follow-up Opener", follow_up, artist_id="artist")
+        ],
+    }
+    spotify.artist_releases["artist"] = [release, follow_up]
+    spotify.playlists["new"] = [tracks[1]]
+    spotify.liked_ids = {"t2"}
+    endpoint_calls: list[tuple[int, int]] = []
+    release_calls: list[tuple[str, ...]] = []
+
+    summary = new_wine.flush_new_wine(
+        spotify,
+        "new",
+        "sauv",
+        choice_reader=lambda _source, candidates: (
+            release_calls.append(tuple(item.spotify_id for item in candidates))
+            or new_wine.CHOICE_FINISH
+        ),
+        endpoint_choice_reader=lambda _source, album_tracks, current_index: (
+            endpoint_calls.append((len(album_tracks), current_index))
+            or new_wine.CHOICE_CUTOFF
+        ),
+        choose_album_endpoints=True,
+        year=2026,
+        **paths(tmp_path),
+    )
+
+    result = summary.results[0]
+    assert endpoint_calls == [(5, 1)]
+    assert release_calls == [("follow-up",)]
+    assert result.action == "sauvignon"
+    assert result.canonical_track_count == 2
+    assert result.canonical_cutoff_track == "Track 2"
+    assert [track["id"] for track in spotify.playlists["sauv"]] == ["t1"]
+    assert spotify.playlists["new"] == []
+
+
+def test_canonical_cutoff_governs_drop_evaluation_and_unsaving(
+    tmp_path: Path,
+) -> None:
+    spotify = FakeSpotify()
+    release = raw_release("album", "Deluxe Album", artist_id="artist", total_tracks=6)
+    tracks = [
+        raw_track(
+            f"t{index}",
+            f"Track {index}",
+            release,
+            artist_id="artist",
+            track_number=index,
+        )
+        for index in range(1, 7)
+    ]
+    spotify.release_tracks["album"] = tracks
+    spotify.artist_releases["artist"] = [release]
+    spotify.playlists["new"] = [tracks[3]]
+    spotify.liked_ids = {"t1", "t5", "t6"}
+    spotify.saved_album_ids = {"album"}
+
+    summary = new_wine.flush_new_wine(
+        spotify,
+        "new",
+        "sauv",
+        choice_reader=lambda *_args: pytest.fail("no follow-up should be offered"),
+        endpoint_choice_reader=lambda *_args: new_wine.CHOICE_CUTOFF,
+        choose_album_endpoints=True,
+        **paths(tmp_path),
+    )
+
+    result = summary.results[0]
+    assert result.action == "drop"
+    assert result.album_liked_tracks == 1
+    assert result.album_total_tracks == 4
+    assert result.canonical_track_count == 4
+    assert result.canonical_cutoff_track == "Track 4"
+    assert result.album_unsaved is True
+    assert ("unsave", "library", "album") in spotify.mutations
+    assert not ({"t5", "t6"} & set(spotify.liked_contains_calls[-1]))
+
+
+def test_canonical_endpoint_review_can_skip_one_entry(tmp_path: Path) -> None:
+    spotify = FakeSpotify()
+    release = raw_release("album", "Album", artist_id="artist")
+    track = raw_track("t1", "Track", release, artist_id="artist")
+    spotify.release_tracks["album"] = [track]
+    spotify.playlists["new"] = [track]
+
+    summary = new_wine.flush_new_wine(
+        spotify,
+        "new",
+        "sauv",
+        choice_reader=lambda *_args: pytest.fail("skipped entries do not continue"),
+        endpoint_choice_reader=lambda *_args: new_wine.CHOICE_SKIP,
+        choose_album_endpoints=True,
+        **paths(tmp_path),
+    )
+
+    assert summary.skipped == 1
+    assert summary.results[0].action == "skip"
+    assert [item["id"] for item in spotify.playlists["new"]] == ["t1"]
+    state = json.loads((tmp_path / "state.json").read_text())
+    assert state["active_run"]["entries"][0]["status"] == "skipped"
+
+
+def test_canonical_endpoint_review_can_continue_the_full_tracklist(
+    tmp_path: Path,
+) -> None:
+    spotify = FakeSpotify()
+    release = raw_release("album", "Album", artist_id="artist")
+    tracks = [
+        raw_track("t1", "Current", release, artist_id="artist", track_number=1),
+        raw_track("t2", "Next", release, artist_id="artist", track_number=2),
+    ]
+    spotify.release_tracks["album"] = tracks
+    spotify.playlists["new"] = [tracks[0]]
+
+    summary = new_wine.flush_new_wine(
+        spotify,
+        "new",
+        "sauv",
+        choice_reader=lambda *_args: pytest.fail("the release is not complete"),
+        endpoint_choice_reader=lambda *_args: new_wine.CHOICE_CONTINUE,
+        choose_album_endpoints=True,
+        **paths(tmp_path),
+    )
+
+    assert summary.results[0].action == "advance"
+    assert summary.results[0].target_track == "Next"
+    assert summary.results[0].canonical_track_count is None
+    assert [item["id"] for item in spotify.playlists["new"]] == ["t2"]
+
+
+def test_canonical_endpoint_mode_requires_an_interactive_reader(
+    tmp_path: Path,
+) -> None:
+    spotify = FakeSpotify()
+    release = raw_release("album", "Album", artist_id="artist")
+    track = raw_track("t1", "Track", release, artist_id="artist")
+    spotify.release_tracks["album"] = [track]
+    spotify.playlists["new"] = [track]
+
+    with pytest.raises(new_wine.NewWineConfigError, match="choice reader"):
+        new_wine.flush_new_wine(
+            spotify,
+            "new",
+            "sauv",
+            choice_reader=lambda *_args: new_wine.CHOICE_FINISH,
+            choose_album_endpoints=True,
+            **paths(tmp_path),
+        )
+
+
 def test_flush_refills_new_wine_to_ten_from_top_of_wine_cellar(
     tmp_path: Path,
 ) -> None:
