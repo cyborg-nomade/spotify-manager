@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
@@ -19,6 +20,9 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
@@ -193,11 +197,12 @@ class PlaylistMembership:
 
 @dataclass
 class ArtistReviewState:
-    """Completed work and pending automatic unfollows reconstructed from logs."""
+    """Completed work and pending automatic Spotify operations."""
 
     completed_artist_ids: set[str]
     pending_unfollows: dict[str, dict[str, object]]
     pending_queue_moves: dict[str, dict[str, object]]
+    persist: Callable[[], None] = field(default=lambda: None, repr=False)
 
 
 @dataclass
@@ -352,6 +357,92 @@ def load_review_state(log_path: Path) -> ArtistReviewState:
                 state.pending_unfollows.pop(artist_id, None)
                 state.pending_queue_moves.pop(artist_id, None)
     return state
+
+
+def _default_state() -> dict[str, object]:
+    """Return empty serialized artist-review progress."""
+    return {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {},
+    }
+
+
+def validate_state(raw: object) -> dict[str, object]:
+    """Validate artist-review progress independently of storage."""
+    if (
+        not isinstance(raw, dict)
+        or raw.get("version") != 1
+        or not isinstance(raw.get("completed_artist_ids"), list)
+        or not all(
+            isinstance(artist_id, str) for artist_id in raw["completed_artist_ids"]
+        )
+        or not isinstance(raw.get("pending_unfollows"), dict)
+        or not isinstance(raw.get("pending_queue_moves"), dict)
+    ):
+        raise ArtistReviewError("Artist-review state is invalid.")
+    return raw
+
+
+def _serialize_state(state: ArtistReviewState) -> dict[str, object]:
+    """Serialize mutable review progress for the central state document."""
+    return {
+        "version": 1,
+        "completed_artist_ids": sorted(state.completed_artist_ids),
+        "pending_unfollows": state.pending_unfollows,
+        "pending_queue_moves": state.pending_queue_moves,
+    }
+
+
+def _deserialize_state(raw: object) -> ArtistReviewState:
+    """Create mutable review progress from validated serialized state."""
+    normalized = validate_state(raw)
+    completed = normalized["completed_artist_ids"]
+    pending_unfollows = normalized["pending_unfollows"]
+    pending_queue_moves = normalized["pending_queue_moves"]
+    assert isinstance(completed, list)
+    assert isinstance(pending_unfollows, dict)
+    assert isinstance(pending_queue_moves, dict)
+    return ArtistReviewState(
+        completed_artist_ids=set(completed),
+        pending_unfollows={
+            str(key): value
+            for key, value in pending_unfollows.items()
+            if isinstance(value, dict)
+        },
+        pending_queue_moves={
+            str(key): value
+            for key, value in pending_queue_moves.items()
+            if isinstance(value, dict)
+        },
+    )
+
+
+def _load_log_state(log_path: Path) -> dict[str, object]:
+    """Reconstruct the legacy state representation from its audit log."""
+    return _serialize_state(load_review_state(log_path))
+
+
+def _save_log_state(_state: dict[str, object], _log_path: Path) -> None:
+    """Keep explicit legacy paths log-backed; events are written separately."""
+
+
+def _state_access(
+    paths: ArtistReviewPaths,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test log."""
+    return routine_state(
+        name="review_artists",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=paths.log,
+        default_legacy_path=DEFAULT_PATHS.log,
+        legacy_loader=_load_log_state,
+        legacy_saver=_save_log_state,
+        service=state_service,
+    )
 
 
 def load_cache(path: Path, refresh: bool) -> dict[str, dict[str, object]]:
@@ -896,6 +987,7 @@ def complete_artist(
     state.completed_artist_ids.add(artist.spotify_id)
     state.pending_unfollows.pop(artist.spotify_id, None)
     state.pending_queue_moves.pop(artist.spotify_id, None)
+    state.persist()
     counts.reviewed += 1
     if action in {"auto_unfollow", "auto_unfollow_reconciled"}:
         counts.unfollowed += 1
@@ -1139,13 +1231,20 @@ def review_artists(
     sleep: Sleep = default_sleep,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
+    state_service: StateService | None = None,
 ) -> ArtistReviewSummary:
     """Review followed artists using local counts and targeted Spotify calls."""
     artists = load_models(paths.artists, YourLibraryArtist)
     liked_tracks = load_models(paths.liked_tracks, YourLibraryTrack)
     liked_counts = Counter(normalize_name(track.artist) for track in liked_tracks)
     liked_track_ids = {track.spotify_id for track in liked_tracks}
-    state = load_review_state(paths.log)
+    state_access = _state_access(paths, state_service)
+    state = _deserialize_state(state_access.load())
+
+    def persist_state() -> None:
+        state_access.save(_serialize_state(state))
+
+    state.persist = persist_state
     cache = load_cache(paths.cache, refresh=refresh_cache)
     run_id = new_run_id()
     counts = ReviewCounts()
@@ -1306,6 +1405,7 @@ def review_artists(
                 )
                 append_events(paths.log, [plan])
                 state.pending_unfollows[artist.spotify_id] = plan
+                state.persist()
                 echo(f"Planned automatic unfollow: {artist.name} ({reason})")
                 if len(state.pending_unfollows) >= UNFOLLOW_BATCH_SIZE:
                     artists = flush_pending_unfollows(
@@ -1542,6 +1642,7 @@ def review_artists(
             )
             append_events(paths.log, [plan])
             state.pending_queue_moves[artist.spotify_id] = plan
+            state.persist()
             flush_pending_queue_moves(
                 sp,
                 artists,

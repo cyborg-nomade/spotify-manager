@@ -37,6 +37,7 @@ from fastapi import Query
 from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 from pydantic import Field
 from requests.exceptions import RequestException
@@ -47,6 +48,17 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.core.state.editor import state_editor_schema
+from spotify_manager.core.state.editor import validate_namespace_editor_change
+from spotify_manager.core.state.models import StateConfigurationError
+from spotify_manager.core.state.models import StateConflictError
+from spotify_manager.core.state.models import StateDocumentError
+from spotify_manager.core.state.models import StateError
+from spotify_manager.core.state.models import canonical_json
+from spotify_manager.core.state.models import namespace_value
+from spotify_manager.core.state.runtime import get_state_service
+from spotify_manager.core.state.service import StateFactory
+from spotify_manager.core.state.service import StateValidator
 from spotify_manager.loaders_savers import load_your_library_file
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import ArtistLibraryStats
@@ -65,13 +77,16 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
+from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import queue_3
+from spotify_manager.routines import recover_removed_albums
 from spotify_manager.routines import release_check
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import review_album_limits
+from spotify_manager.routines import review_artists
 from spotify_manager.routines import sauvignon
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
@@ -94,6 +109,60 @@ class CommandResult(BaseModel):
     command: str
     status: str = "completed"
     detail: str | None = None
+
+
+class SharedStateSnapshot(BaseModel):
+    """One revision-guarded snapshot of the complete shared state."""
+
+    revision: str
+    document: dict[str, Any]
+
+
+class SharedStateReplaceRequest(BaseModel):
+    """Guarded manual replacement of the complete shared state."""
+
+    expected_revision: str
+    document: dict[str, Any]
+
+
+class SharedStateNamespaceReplaceRequest(BaseModel):
+    """Guarded manual replacement of one validated state namespace."""
+
+    expected_revision: str
+    value: dict[str, Any]
+
+
+class SharedStateSummary(BaseModel):
+    """Compact metadata for the cockpit state indicator."""
+
+    revision: str
+    updated_at: str
+    namespaces: dict[str, str]
+
+
+STATE_NAMESPACE_DEFINITIONS: dict[
+    str,
+    tuple[StateFactory, StateValidator],
+] = {
+    "discography": (discography._default_state, discography.validate_state),
+    "genre_reveal": (genre_reveal._default_state, genre_reveal.validate_state),
+    "new_kids": (new_kids._default_state, new_kids.validate_state),
+    "new_wine": (new_wine._default_state, new_wine.validate_state),
+    "palace_of_memory": (
+        palace_of_memory._default_state,
+        palace_of_memory.validate_state,
+    ),
+    "queue": (the_queue._default_state, the_queue.validate_state),
+    "queue_3": (queue_3._default_state, queue_3.validate_state),
+    "recover_removed_albums": (
+        recover_removed_albums._default_state,
+        recover_removed_albums.validate_state,
+    ),
+    "release_check": (release_check._default_state, release_check.validate_state),
+    "review_album_limits": (dict, review_album_limits.validate_review_decisions),
+    "review_artists": (review_artists._default_state, review_artists.validate_state),
+    "slow_listening": (slow_listening._default_state, slow_listening.validate_state),
+}
 
 
 class CountResult(BaseModel):
@@ -1014,7 +1083,15 @@ def _release_check_state_snapshot(
     backup_path: Path | None = None,
 ) -> ReleaseCheckStateSnapshot:
     """Load one state snapshot, omitting its body when the browser is current."""
-    state = release_check.load_state(RELEASE_CHECK_STATE_PATH)
+    state = (
+        get_state_service()
+        .namespace(
+            "release_check",
+            release_check._default_state,
+            release_check.validate_state,
+        )
+        .load()
+    )
     fingerprint = release_check.state_fingerprint(state)
     return ReleaseCheckStateSnapshot(
         updated_at=release_check.state_updated_at(state),
@@ -3879,6 +3956,7 @@ def _run_release_check_job(
             release_choice_reader=release_choice_reader,
             dry_run=dry_run,
             state_path=RELEASE_CHECK_STATE_PATH,
+            state_service=get_state_service(),
             progress_callback=update_progress,
             retry_call=retry_call,
         )
@@ -5580,6 +5658,141 @@ def auth_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/state/summary", response_model=SharedStateSummary)
+def shared_state_summary() -> SharedStateSummary:
+    """Return state freshness without transferring the complete document."""
+    try:
+        snapshot = get_state_service().snapshot()
+    except StateConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except StateError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    namespaces = snapshot.document["namespaces"]
+    return SharedStateSummary(
+        revision=snapshot.revision,
+        updated_at=snapshot.document["updated_at"],
+        namespaces={
+            name: str(envelope["updated_at"]) for name, envelope in namespaces.items()
+        },
+    )
+
+
+@app.get("/state", response_model=SharedStateSnapshot)
+def shared_state() -> SharedStateSnapshot:
+    """Return the complete shared application state and revision guard."""
+    try:
+        snapshot = get_state_service().snapshot()
+    except StateConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except StateError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return SharedStateSnapshot(
+        revision=snapshot.revision,
+        document=snapshot.document,
+    )
+
+
+@app.get("/state/schema")
+def shared_state_editor_schema() -> dict[str, Any]:
+    """Return backend-owned controls and constraints for manual state edits."""
+    schema = state_editor_schema()
+    if set(schema["namespaces"]) != set(STATE_NAMESPACE_DEFINITIONS):
+        raise HTTPException(
+            status_code=500,
+            detail="State editor schema and namespace validators are out of sync.",
+        )
+    return schema
+
+
+@app.put(
+    "/state/namespaces/{namespace}",
+    response_model=SharedStateSnapshot,
+)
+def replace_shared_state_namespace(
+    namespace: str,
+    request: SharedStateNamespaceReplaceRequest,
+) -> SharedStateSnapshot:
+    """Validate and replace only one namespace at the viewed revision."""
+    definition = STATE_NAMESPACE_DEFINITIONS.get(namespace)
+    if definition is None:
+        raise HTTPException(status_code=404, detail="Unknown state namespace.")
+    default_factory, validator = definition
+    service = get_state_service()
+    try:
+        current_snapshot = service.snapshot()
+        current = namespace_value(current_snapshot.document, namespace)
+        validate_namespace_editor_change(
+            namespace,
+            current if current is not None else default_factory(),
+            request.value,
+        )
+        snapshot = service.replace_namespace(
+            namespace,
+            request.value,
+            expected_revision=request.expected_revision,
+            validator=validator,
+            message=f"Edit {namespace} state from web app",
+        )
+    except StateConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except StateDocumentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except StateConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return SharedStateSnapshot(
+        revision=snapshot.revision,
+        document=snapshot.document,
+    )
+
+
+@app.put("/state", response_model=SharedStateSnapshot)
+def replace_shared_state(request: SharedStateReplaceRequest) -> SharedStateSnapshot:
+    """Manually replace shared state only when the viewed revision is current."""
+    try:
+        snapshot = get_state_service().replace(
+            request.document,
+            expected_revision=request.expected_revision,
+            message="Edit Spotify Manager state from web app",
+        )
+    except StateConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except StateDocumentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except StateConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return SharedStateSnapshot(
+        revision=snapshot.revision,
+        document=snapshot.document,
+    )
+
+
+@app.get("/state/export")
+def export_shared_state() -> Response:
+    """Download the current shared state as a JSON snapshot."""
+    try:
+        snapshot = get_state_service().snapshot()
+    except StateConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except StateError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return Response(
+        canonical_json(
+            {
+                "revision": snapshot.revision,
+                "document": snapshot.document,
+            }
+        )
+        + "\n",
+        media_type="application/json",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="spotify-manager-state-{timestamp}.json"'
+            )
+        },
+    )
+
+
 @app.post("/library/refresh", response_model=CommandResult)
 def refresh_library() -> CommandResult:
     """Drop the cached library so the next request re-reads YourLibrary.json."""
@@ -6974,7 +7187,7 @@ def cmd_release_check_state(
     """Return restart state, omitting the payload when the browser is current."""
     try:
         return _release_check_state_snapshot(known_fingerprint)
-    except release_check.ReleaseCheckStateError as exc:
+    except (release_check.ReleaseCheckStateError, StateError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
@@ -6998,7 +7211,12 @@ def cmd_restore_release_check_state(
             )
         try:
             candidate = release_check.validate_state(request.state)
-            current = release_check.load_state(RELEASE_CHECK_STATE_PATH)
+            state_access = get_state_service().namespace(
+                "release_check",
+                release_check._default_state,
+                release_check.validate_state,
+            )
+            current = state_access.load()
             current_fingerprint = release_check.state_fingerprint(current)
             if current_fingerprint != request.expected_server_fingerprint:
                 raise HTTPException(
@@ -7010,12 +7228,15 @@ def cmd_restore_release_check_state(
                     status_code=409,
                     detail="Browser release-check state is not newer",
                 )
-            backup_path = release_check.restore_state(
+            state_access.save(
                 candidate,
-                RELEASE_CHECK_STATE_PATH,
-                RELEASE_CHECK_STATE_BACKUP_DIR,
+                message="Restore newer browser release-check state",
             )
-            return _release_check_state_snapshot(backup_path=backup_path)
+            return _release_check_state_snapshot()
+        except StateConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except StateConfigurationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         except release_check.ReleaseCheckStateError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

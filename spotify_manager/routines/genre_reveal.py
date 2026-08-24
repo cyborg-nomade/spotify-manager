@@ -20,6 +20,9 @@ from pydantic import field_validator
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import blast_from_past
 
 
@@ -192,20 +195,58 @@ class _EveryNoisePlaylistParser(HTMLParser):
             self.links.append((href, title))
 
 
-def load_genre_reveal_state(
-    path: Path = DEFAULT_STATE_PATH,
-) -> GenreRevealState:
-    """Load persisted progress, returning a new empty state when absent."""
-    if not path.exists():
-        return GenreRevealState()
+def _default_state() -> dict[str, object]:
+    """Return empty serialized Genre Reveal progress."""
+    return GenreRevealState().model_dump(mode="json")
+
+
+def validate_state(raw: object) -> dict[str, object]:
+    """Validate Genre Reveal progress independently of storage."""
     try:
-        return GenreRevealState.model_validate_json(path.read_text(encoding="utf-8"))
+        return GenreRevealState.model_validate(raw).model_dump(mode="json")
+    except ValidationError as exc:
+        raise GenreRevealStateError("Genre-reveal state is invalid.") from exc
+
+
+def _load_state_dict(path: Path) -> dict[str, object]:
+    """Load serialized progress from one legacy file."""
+    if not path.exists():
+        return _default_state()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
         raise GenreRevealStateError(
             f"Could not read genre-reveal state from {path}: {exc}"
         ) from exc
-    except ValidationError as exc:
+    except json.JSONDecodeError as exc:
         raise GenreRevealStateError(f"Genre-reveal state is invalid: {path}") from exc
+    return validate_state(raw)
+
+
+def _state_access(
+    path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="genre_reveal",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=_load_state_dict,
+        legacy_saver=_save_state_dict,
+        service=state_service,
+    )
+
+
+def load_genre_reveal_state(
+    path: Path = DEFAULT_STATE_PATH,
+    *,
+    state_service: StateService | None = None,
+) -> GenreRevealState:
+    """Load persisted progress, returning a new empty state when absent."""
+    return GenreRevealState.model_validate(_state_access(path, state_service).load())
 
 
 def _backup_genre_reveal_state(path: Path, contents: str) -> None:
@@ -228,44 +269,24 @@ def _backup_genre_reveal_state(path: Path, contents: str) -> None:
         ) from exc
 
 
-def save_genre_reveal_state(
-    update: GenreRevealStateUpdate,
-    path: Path = DEFAULT_STATE_PATH,
-) -> GenreRevealState:
-    """Back up the current state, then replace it atomically."""
+def _save_state_dict(state: dict[str, object], path: Path) -> None:
+    """Back up and atomically replace one legacy state file."""
+    normalized = validate_state(state)
     existing_contents: str | None = None
     if path.exists():
         try:
             existing_contents = path.read_text(encoding="utf-8")
-            existing_state = GenreRevealState.model_validate_json(existing_contents)
         except OSError as exc:
             raise GenreRevealStateError(
                 f"Could not read genre-reveal state from {path}: {exc}"
             ) from exc
-        except ValidationError as exc:
-            raise GenreRevealStateError(
-                f"Genre-reveal state is invalid: {path}"
-            ) from exc
-
-        if (
-            existing_state.completed == update.completed
-            and existing_state.hide_done == update.hide_done
-        ):
-            return existing_state
-
-    state = GenreRevealState(
-        completed=update.completed,
-        hide_done=update.hide_done,
-        updated_at=datetime.now(UTC),
-    )
     temporary_path = path.with_suffix(f"{path.suffix}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         if existing_contents is not None:
             _backup_genre_reveal_state(path, existing_contents)
         temporary_path.write_text(
-            json.dumps(state.model_dump(mode="json"), ensure_ascii=False, indent=2)
-            + "\n",
+            json.dumps(normalized, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
         temporary_path.replace(path)
@@ -275,7 +296,36 @@ def save_genre_reveal_state(
         ) from exc
     finally:
         temporary_path.unlink(missing_ok=True)
+
+
+def _persist_update(
+    state_access: RoutineState,
+    update: GenreRevealStateUpdate,
+) -> GenreRevealState:
+    """Replace user-editable progress while preserving server metadata."""
+    existing = GenreRevealState.model_validate(state_access.load())
+    if (
+        existing.completed == update.completed
+        and existing.hide_done == update.hide_done
+    ):
+        return existing
+    state = GenreRevealState(
+        completed=update.completed,
+        hide_done=update.hide_done,
+        updated_at=datetime.now(UTC),
+    )
+    state_access.save(state.model_dump(mode="json"))
     return state
+
+
+def save_genre_reveal_state(
+    update: GenreRevealStateUpdate,
+    path: Path = DEFAULT_STATE_PATH,
+    *,
+    state_service: StateService | None = None,
+) -> GenreRevealState:
+    """Replace persisted progress through the shared state interface."""
+    return _persist_update(_state_access(path, state_service), update)
 
 
 def load_genre_route(
@@ -335,17 +385,20 @@ def first_incomplete_genre(
 def mark_genre_completed(
     slug: str,
     path: Path = DEFAULT_STATE_PATH,
+    *,
+    state_service: StateService | None = None,
 ) -> GenreRevealState:
     """Add one slug to the latest persisted state without changing its settings."""
-    state = load_genre_reveal_state(path)
+    state_access = _state_access(path, state_service)
+    state = GenreRevealState.model_validate(state_access.load())
     if slug not in state.completed:
         state.completed.append(slug)
-    return save_genre_reveal_state(
+    return _persist_update(
+        state_access,
         GenreRevealStateUpdate(
             completed=state.completed,
             hide_done=state.hide_done,
         ),
-        path,
     )
 
 

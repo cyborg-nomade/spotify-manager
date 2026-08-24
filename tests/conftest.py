@@ -1,10 +1,26 @@
 """Test configuration."""
 
+from collections.abc import Iterator
+
 # pytest
 import pytest
 from pytest_mock import MockerFixture
 
+from spotify_manager.core.state.runtime import reset_state_service
 from spotify_manager.processors import library_lookups
+
+
+@pytest.fixture(autouse=True)
+def isolated_central_state(monkeypatch, tmp_path) -> Iterator[None]:
+    """Keep production-default central state local and isolated in tests."""
+    monkeypatch.setenv("SPOTIFY_MANAGER_STATE_BACKEND", "local")
+    monkeypatch.setenv(
+        "SPOTIFY_MANAGER_STATE_LOCAL_PATH",
+        str(tmp_path / "central-state.json"),
+    )
+    reset_state_service()
+    yield
+    reset_state_service()
 
 
 @pytest.fixture(autouse=True)

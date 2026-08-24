@@ -190,10 +190,12 @@ These are read directly by startup or runtime modules rather than by
 | `APP5_SPOTIPY_CACHE_PATH` ... `APP8_SPOTIPY_CACHE_PATH` | Adjacent `*_appN.json` files | Override alternate cache paths. |
 | `SPOTIPY_CACHE_JSON` | None | Full primary cache JSON seeded by `start.sh` in the Space. |
 | `APP5_SPOTIPY_CACHE_JSON` ... `APP8_SPOTIPY_CACHE_JSON` | None | Full alternate cache JSON secrets seeded by `start.sh`. |
-| `GENRE_REVEAL_STATE_PATH` | Package files directory | Move Genre Reveal state to another writable or persistent path. |
 | `GENRE_REVEAL_LOG_PATH` | Package files directory | Move the Genre Reveal audit log. |
-| `RELEASE_CHECK_STATE_PATH` | Package files directory | Move New Release Check state to another writable or persistent path. |
-| `RELEASE_CHECK_STATE_BACKUP_DIR` | Package files directory | Move backups created before a browser state restore. |
+| `SPOTIFY_MANAGER_STATE_BACKEND` | `hub` | Shared state adapter: `hub` in normal operation or `local` for isolated development. |
+| `SPOTIFY_MANAGER_STATE_REPO` | `cyborg-nomade/spotify-manager-state` | Private HF dataset containing the single `state.json`. |
+| `SPOTIFY_MANAGER_STATE_FILENAME` | `state.json` | Dataset path for the shared state document. |
+| `SPOTIFY_MANAGER_STATE_TOKEN` | `HF_TOKEN` or cached local token | Token with read/write access to the private state dataset. Required in the Space. |
+| `SPOTIFY_MANAGER_STATE_LOCAL_PATH` | `spotify_manager/files/state.json` | File used only when the backend is explicitly `local`. |
 | `PORT` | `7860` | Container listen port used by `start.sh`. |
 | `PYTEST_REPORT_PATH` | `test_report.xml` | JUnit output path for `just ci-test`. |
 
@@ -252,9 +254,10 @@ uv run --env-file .env uvicorn spotify_manager.web:app \
   --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open `http://127.0.0.1:8000`, enter the configured password, and use the
-responsive cockpit. Protected API requests send the password in the
-`X-App-Password` header.
+Open `http://127.0.0.1:8000` and enter any non-empty text. Requests whose direct
+socket peer is loopback accept that local sign-in; LAN clients and the deployed
+Space still require the configured `APP_PASSWORD`. Protected API requests send
+the entered value in the `X-App-Password` header.
 
 If `APP_PASSWORD` is absent from the process environment, the gate is disabled
 and a warning is logged. That is acceptable only on a trusted loopback

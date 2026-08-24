@@ -60,6 +60,10 @@ check health:
 Every other route is protected when `APP_PASSWORD` is configured. A missing or
 incorrect header returns HTTP 401 with `{"detail":"unauthorized"}`.
 
+For local cockpit development, a direct loopback request accepts any non-empty
+header when the process is not running in an HF Space. This convenience does
+not trust forwarded-client headers and does not apply to LAN or Space requests.
+
 Example:
 
 ```console
@@ -134,9 +138,9 @@ retains the latest 250 entries per in-memory job. The frontend uses sequence
 numbers to avoid duplicating lines while polling.
 
 An active-job collection allows the page to reconnect after a browser reload.
-It does not survive a server-process restart. Routine state files provide
-cross-process resumability where implemented; displayed in-memory logs are
-replaced by the persistent JSON-lines audit trail.
+It does not survive a server-process restart. Shared routine-state namespaces
+provide cross-process resumability where implemented; displayed in-memory logs
+are replaced by the JSON-lines audit trail.
 
 Starting a second active instance of the same command returns HTTP 409. This
 prevents two workers from mutating one playlist or state file concurrently.
@@ -155,6 +159,10 @@ map rather than a replacement for the request/response models.
 | --- | --- |
 | `GET /health` | Public liveness response. |
 | `GET /auth/check` | Verify the supplied app password. |
+| `GET /state/summary` | Return shared-state revision, update time, and namespace timestamps. |
+| `GET /state` | Return the complete shared state plus its guarded revision. |
+| `PUT /state` | Validate and replace the complete state when the revision still matches. |
+| `GET /state/export` | Download a revisioned JSON snapshot. |
 | `POST /library/refresh` | Clear and reload the cached parsed `YourLibrary.json` used by legacy endpoints. |
 | `GET /library-mirrors/status` | Return existence and update time for canonical server files. |
 | `GET /artists/stats` | Live liked-track and saved-release counts for an artist reference. |
@@ -214,7 +222,7 @@ boundaries or select catalog alternatives also expose `/choice`.
 ```
 
 Both families expose choice and cancel endpoints and persist durable progress
-through their routine state files.
+through their shared state namespaces.
 
 New Release Check also exposes a protected restart-recovery handshake:
 
@@ -223,11 +231,12 @@ GET /commands/check-new-releases-state[?known_fingerprint=...]
 PUT /commands/check-new-releases-state
 ```
 
-The cockpit keeps the latest full snapshot in browser storage. Polls send the
-known fingerprint, so an unchanged response omits the large state body. A PUT
-requires the fingerprint of the server copy that was compared, accepts only a
-newer semantic timestamp, refuses to run beside an active release check, and
-creates a server-side backup before replacement.
+The cockpit keeps the latest release-check namespace in browser storage as a
+compatibility recovery layer. Polls send the known fingerprint, so an unchanged
+response omits the body. A PUT requires the fingerprint of the compared copy,
+accepts only a newer timestamp, refuses to run beside an active release check,
+and writes through the central state service. Hub revision history retains the
+replaced document.
 
 ### Genre Reveal routes
 
@@ -237,7 +246,7 @@ These routes are added by `spotify_manager.web:app`:
 | --- | --- |
 | `GET /genre-reveal` | Serve the preserved nearest-neighbor interface. |
 | `GET /genre-reveal/state` | Read completed genres and view preferences. |
-| `PUT /genre-reveal/state` | Atomically replace route state with backup. |
+| `PUT /genre-reveal/state` | Atomically replace the central Genre Reveal namespace. |
 | `GET /genre-reveal/source` | Resolve a genre's source Spotify playlist. |
 | `POST /genre-reveal/run-next` | Save and sample the first incomplete genre. |
 

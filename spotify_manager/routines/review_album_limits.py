@@ -18,6 +18,9 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.loaders_savers import load_stats_history_file
 from spotify_manager.loaders_savers import load_total_albums_new_file
 from spotify_manager.loaders_savers import load_total_artists_file
@@ -451,6 +454,17 @@ def load_review_decisions(
     }
 
 
+def validate_review_decisions(raw: object) -> ReviewDecisions:
+    """Validate album-review decisions independently of storage."""
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(album_id): entry
+        for album_id, entry in raw.items()
+        if isinstance(entry, dict)
+    }
+
+
 def save_review_decisions(
     decisions: ReviewDecisions,
     decisions_path: Path = REVIEW_DECISIONS_PATH,
@@ -464,6 +478,23 @@ def save_review_decisions(
     temporary_path.replace(decisions_path)
 
 
+def _state_access(
+    decisions_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="review_album_limits",
+        default_factory=dict,
+        validator=validate_review_decisions,
+        legacy_path=decisions_path,
+        default_legacy_path=REVIEW_DECISIONS_PATH,
+        legacy_loader=load_review_decisions,
+        legacy_saver=save_review_decisions,
+        service=state_service,
+    )
+
+
 def record_review_decision(
     decisions: ReviewDecisions,
     album: YourLibraryAlbum,
@@ -471,6 +502,7 @@ def record_review_decision(
     decision: str,
     decisions_path: Path = REVIEW_DECISIONS_PATH,
     live_liked_tracks: int | None = None,
+    state_access: RoutineState | None = None,
 ) -> None:
     """Persist a user review decision for restart-safe reviews."""
     entry = {
@@ -489,7 +521,10 @@ def record_review_decision(
     if live_liked_tracks is not None:
         entry["live_liked_tracks"] = live_liked_tracks
     decisions[album.spotify_id] = entry
-    save_review_decisions(decisions, decisions_path)
+    if state_access is None:
+        save_review_decisions(decisions, decisions_path)
+    else:
+        state_access.save(decisions)
 
 
 def has_persisted_keep_decision(
@@ -653,6 +688,7 @@ def review_album_limits(
     echo: Echo = print,
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
     decisions_path: Path | None = None,
+    state_service: StateService | None = None,
     progress_callback: ProgressCallback | None = None,
     sleep: Sleep = default_sleep,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
@@ -663,7 +699,8 @@ def review_album_limits(
     total_albums = load_total_albums_new_file()
     library = load_your_library_file()
     remaining_albums = list(total_albums)
-    review_decisions = load_review_decisions(decisions_path)
+    state_access = _state_access(decisions_path, state_service)
+    review_decisions = state_access.load()
     total_count = len(total_albums)
 
     removed_count = 0
@@ -775,6 +812,7 @@ def review_album_limits(
                 "keep",
                 decisions_path,
                 live_liked_tracks=live_liked_tracks,
+                state_access=state_access,
             )
             kept_count += 1
             echo(f"Kept anyway: {label}")

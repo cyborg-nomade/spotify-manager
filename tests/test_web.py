@@ -80,6 +80,25 @@ def test_blast_and_daily_controls_support_cancellation_and_release_restore(
     assert 'await syncReleaseCheckStateCache()' in response.text
 
 
+def test_cockpit_exposes_shared_state_controls(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'id="sharedStateCard"' in response.text
+    assert 'data-action="openSharedState"' in response.text
+    assert 'data-action="exportSharedState"' in response.text
+    assert 'id="stateDialog"' in response.text
+    assert 'id="stateNamespaceSelect"' in response.text
+    assert 'data-action="saveSharedState"' in response.text
+    assert 'data-action="stateEditorMode"' in response.text
+    assert 'id="stateGuidedEditor"' in response.text
+    assert "switchSharedStateNamespace" in response.text
+    assert "documentState.namespaces[namespace]" in response.text
+    assert 'api("/state/summary")' in response.text
+    assert 'api("/state/schema")' in response.text
+    assert '"/state/namespaces/" + encodeURIComponent(namespace)' in response.text
+
+
 def test_genre_reveal_page_preserves_route_and_server_sync(client: TestClient) -> None:
     response = client.get("/genre-reveal")
 

@@ -3,6 +3,7 @@
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
@@ -14,6 +15,9 @@ from typing import cast
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.loaders_savers import load_stats_history_file
 from spotify_manager.loaders_savers import load_total_albums_new_file
 from spotify_manager.loaders_savers import load_total_artists_file
@@ -60,10 +64,11 @@ class RemovedAlbumRecord:
 
 @dataclass
 class RecoveryState:
-    """Restart-safe progress reconstructed from the recovery log."""
+    """Restart-safe recovery progress."""
 
     processed_album_ids: set[str]
     checked_artist_ids: set[str]
+    persist: Callable[[], None] = field(default=lambda: None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -135,6 +140,74 @@ def load_recovery_state(log_path: Path = RECOVERY_LOG_PATH) -> RecoveryState:
                 state.checked_artist_ids.add(spotify_id)
 
     return state
+
+
+def _default_state() -> dict[str, object]:
+    """Return empty serialized recovery progress."""
+    return {
+        "version": 1,
+        "processed_album_ids": [],
+        "checked_artist_ids": [],
+    }
+
+
+def validate_state(raw: object) -> dict[str, object]:
+    """Validate removed-album recovery progress independently of storage."""
+    if (
+        not isinstance(raw, dict)
+        or raw.get("version") != 1
+        or not isinstance(raw.get("processed_album_ids"), list)
+        or not isinstance(raw.get("checked_artist_ids"), list)
+        or not all(isinstance(item, str) for item in raw["processed_album_ids"])
+        or not all(isinstance(item, str) for item in raw["checked_artist_ids"])
+    ):
+        raise ValueError("Removed-album recovery state is invalid.")
+    return raw
+
+
+def _serialize_state(state: RecoveryState) -> dict[str, object]:
+    """Serialize mutable recovery progress for central persistence."""
+    return {
+        "version": 1,
+        "processed_album_ids": sorted(state.processed_album_ids),
+        "checked_artist_ids": sorted(state.checked_artist_ids),
+    }
+
+
+def _deserialize_state(raw: object) -> RecoveryState:
+    """Create mutable recovery progress from validated state."""
+    normalized = validate_state(raw)
+    processed = normalized["processed_album_ids"]
+    checked = normalized["checked_artist_ids"]
+    assert isinstance(processed, list)
+    assert isinstance(checked, list)
+    return RecoveryState(set(processed), set(checked))
+
+
+def _load_log_state(log_path: Path) -> dict[str, object]:
+    """Reconstruct legacy state from the append-only audit log."""
+    return _serialize_state(load_recovery_state(log_path))
+
+
+def _save_log_state(_state: dict[str, object], _log_path: Path) -> None:
+    """Keep explicit legacy paths log-backed; events are written separately."""
+
+
+def _state_access(
+    recovery_log_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test log."""
+    return routine_state(
+        name="recover_removed_albums",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=recovery_log_path,
+        default_legacy_path=RECOVERY_LOG_PATH,
+        legacy_loader=_load_log_state,
+        legacy_saver=_save_log_state,
+        service=state_service,
+    )
 
 
 def append_recovery_events(
@@ -399,6 +472,7 @@ def ensure_artists_followed(
         checked_count += len(artist_batch)
         if not dry_run:
             append_recovery_events(events, recovery_log_path)
+            state.persist()
 
     return checked_count, followed_count
 
@@ -441,10 +515,17 @@ def recover_removed_albums(
     sleep: Sleep = default_sleep,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
+    state_service: StateService | None = None,
 ) -> RecoverySummary:
     """Recover artist follows and future releases from removed-album history."""
     records = load_removed_album_records(removal_log_path)
-    state = load_recovery_state(recovery_log_path)
+    state_access = _state_access(recovery_log_path, state_service)
+    state = _deserialize_state(state_access.load())
+
+    def persist_state() -> None:
+        state_access.save(_serialize_state(state))
+
+    state.persist = persist_state
     total_artists = load_total_artists_file()
     total_albums = load_total_albums_new_file()
     known_artist_ids = {artist.spotify_id for artist in total_artists}
@@ -622,6 +703,8 @@ def recover_removed_albums(
             if not dry_run:
                 append_recovery_events([event], recovery_log_path)
             state.processed_album_ids.add(record.spotify_id)
+            if not dry_run:
+                state.persist()
             completed_count += 1
             processed_count += 1
             if progress_callback is not None:

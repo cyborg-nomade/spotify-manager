@@ -84,6 +84,27 @@ just album-decision "Kind of Blue" --artist "Miles Davis"
 Use `--help` through either interface to see the authoritative options for a
 command, for example `just review-artists --help`.
 
+## Shared state commands
+
+Routine progress, cursors, mappings, and pending actions live in one versioned
+`state.json` in the private Hugging Face dataset
+`cyborg-nomade/spotify-manager-state`. Local CLI, local web, and the deployed
+Space use the same state service.
+
+```console
+just state-show
+just state-show --namespace new_wine
+just state-export spotify-manager-state.json
+just state-edit spotify-manager-state.json
+```
+
+The edit command validates the complete document, refuses stale snapshots by
+default, asks for confirmation, and writes with an optimistic revision guard.
+Use `--force` only for an intentional rollback. The web Data Signal Board has
+matching View, Save, Reload, and Export controls. Its guided editor uses
+dropdowns, checkboxes, numeric inputs, read-only generated fields, and lazy
+collapsible objects; Advanced JSON remains available for deliberate repairs.
+
 ## Library mirror commands
 
 The library mirror is built through two deliberately separate commands.
@@ -175,14 +196,10 @@ just genre-reveal --no-open-pages
 
 Completed genres and the **Hide completed** setting are synchronized through
 the password-protected `/genre-reveal/state` API and cached in the browser as a
-fallback. The browser retains the latest 50 snapshots, and the server backs up
-the current file before every replacement. The server writes progress atomically to
-`spotify_manager/files/genre_reveal_state.json`. This file survives page
-reloads and can be shared across browsers while the Space container is
-running, but it follows the same ephemeral-filesystem limitation as other
-runtime files and is reset when an unpersisted HF container is replaced.
-Set `GENRE_REVEAL_STATE_PATH` to a mounted persistent-storage path if the Space
-has persistent storage enabled.
+fallback. The browser retains the latest 50 snapshots. Authoritative progress
+lives in the `genre_reveal` namespace of the shared Hub-backed `state.json`, so
+it is visible to local and deployed clients and survives Space replacement.
+Hugging Face dataset revisions provide the server-side backup history.
 
 Successful Spotify operations are appended to
 `spotify_manager/files/genre_reveal_log.jsonl`, including the source playlist
@@ -554,7 +571,7 @@ mapping. Choose `n` from that prompt to enter a different Spotify search string;
 the new candidates can be searched repeatedly and do not need to match the
 Last.fm spelling. Choose `p` to permanently skip an artist that has no useful
 Spotify mapping; durable skips live under `skipped_artists` in
-`spotify_manager/files/release_check_state.json`, where they can also be removed
+the shared `release_check` state namespace, where they can also be removed
 manually. Artist mappings and permanent artist skips are saved during dry runs.
 
 For every eligible release, its first track in Spotify track-list order is
@@ -603,8 +620,8 @@ uv run spotify-manager check-new-releases
 just check-new-releases
 ```
 
-Real runs checkpoint after artist mappings and every release decision in
-`spotify_manager/files/release_check_state.json`. Quitting from an artist
+Real runs checkpoint artist mappings and every release decision in the shared
+`release_check` namespace. Quitting from an artist
 prompt, pressing Ctrl-C, or encountering an API failure leaves the active run
 ready to resume. Exact playlist actions and filtered-release reasons are kept
 in `spotify_manager/files/release_check_log.jsonl`. Track ids and normalized
@@ -615,10 +632,10 @@ The web card follows the same dry-run default and exposes artist mappings,
 custom Spotify searches, and release approvals as a reconnectable background
 job. Reloading the page restores its current prompt and logs. The authenticated
 browser also stores the latest versioned state checkpoint and restores it when
-it is newer than the copy loaded after a Space restart. Server fingerprint
-checks prevent stale or concurrent restoration, and the replaced server state
-is backed up first. Keep the deployment state snapshot process as well: clearing
-browser site data removes this additional recovery copy.
+it is newer than the shared copy. Server fingerprint checks prevent stale or
+concurrent restoration, and any accepted restore writes through the central
+state service. Clearing browser site data removes this additional recovery copy;
+the authoritative namespace and its Hub revision history remain intact.
 
 ```text
 POST /commands/check-new-releases?dry_run=true
@@ -701,9 +718,9 @@ just flush-queue
 ```
 
 The 2,400-track emergency cap mode is intentionally excluded for now. Real
-runs checkpoint every planned artist transition in
-`spotify_manager/files/queue_state.json`; recommendations and exact flush
-outcomes are appended to `spotify_manager/files/queue_log.jsonl`.
+runs checkpoint every planned artist transition in the shared `queue`
+namespace; recommendations and exact flush outcomes are appended to
+`spotify_manager/files/queue_log.jsonl`.
 
 ### `flush-new-kids`
 
@@ -749,14 +766,14 @@ uv run spotify-manager flush-new-kids
 just flush-new-kids
 ```
 
-Real runs use `spotify_manager/files/new_kids_state.json` only to resume active
-playlist mutations and unliked-track streaks after interruption; it no longer
-records the played-release count. The routine reads
+Real runs use the shared `new_kids` namespace to resume active playlist
+mutations and unliked-track streaks after interruption; it does not record the
+played-release count. The routine reads
 `spotify_manager/files/lastfmstats-man-et-arms.json`, so refresh that shared
 history before a run when recent scrobbles matter. Decisions and mutations are
 appended to `spotify_manager/files/new_kids_log.jsonl`. Beginning in 2027, the
 routine creates `Great Discoveries YEAR` automatically and stores its id in the
-state file. Spotify's API cannot place playlists in folders, so a new yearly
+same namespace. Spotify's API cannot place playlists in folders, so a new yearly
 playlist must be moved into the desired folder manually.
 
 The web card appears in *Discovery Tracks* immediately above New Wine. It
@@ -785,7 +802,7 @@ Played-release progress is shared with New Kids through the current calendar
 year in `spotify_manager/files/lastfmstats-man-et-arms.json`. An artist with two
 releases satisfying the scrobble rule therefore continues with release three
 instead of restarting. Queue 2 has its own resumable active-run checkpoint in
-`spotify_manager/files/new_kids_state.json` and its own audit trail at
+the shared `new_kids` namespace and its own audit trail at
 `spotify_manager/files/queue_2_log.jsonl`. A saved Queue 2 run and a saved New
 Kids run cannot be advanced simultaneously.
 
@@ -863,9 +880,9 @@ just flush-queue-3
 
 The replacement track is added before the previous marker is removed. Reaching
 the final track of the final eligible release removes the artist from Queue 3.
-Runs checkpoint after every completed artist in
-`spotify_manager/files/queue_3_state.json`; annual imports and transitions are
-recorded in `spotify_manager/files/queue_3_log.jsonl`.
+Runs checkpoint after every completed artist in the shared `queue_3` namespace;
+annual imports and transitions are recorded in
+`spotify_manager/files/queue_3_log.jsonl`.
 
 The web app exposes the same reconnectable dry-run and live workflow, including
 release-boundary confirmations, owned composer-playlist choices, progress, and
@@ -941,10 +958,10 @@ uv run spotify-manager flush-new-wine --no-discovery
 just flush-new-wine --no-discovery
 ```
 
-Real runs snapshot their starting playlist in
-`spotify_manager/files/new_wine_flush_state.json`, save after every mutation,
-and resume that batch after an interruption without advancing completed entries
-again. Consecutive-unliked streaks are carried to the next selected track.
+Real runs snapshot their starting playlist in the shared `new_wine` namespace,
+save after every mutation, and resume that batch after an interruption without
+advancing completed entries again. Consecutive-unliked streaks are carried to
+the next selected track.
 Every real or dry-run result is appended to
 `spotify_manager/files/new_wine_flush_log.jsonl`; dry runs do not change
 Spotify, the generated library mirrors, or restart state.
@@ -999,8 +1016,7 @@ The replacement is added before the previous track is removed. After the final
 track of the final eligible release, the artist leaves Slow Listening without
 any follow or library changes, and the CLI pauses while you add a replacement
 artist. Real runs resume from
-`spotify_manager/files/slow_listening_flush_state.json`; every real or dry-run
-transition is appended to
+the shared `slow_listening` namespace; every real or dry-run transition is appended to
 `spotify_manager/files/slow_listening_flush_log.jsonl`.
 
 The web UI places Slow Listening directly below New Wine. It exposes the same
@@ -1091,7 +1107,7 @@ removed from Newfoundland, any primary-artist markers in
 `THE_QUEUE_3_PLAYLIST` are removed in the same operation. Each completed
 removal is logged in `spotify_manager/files/discography_routine_log.jsonl`,
 including the exact selected releases. The next queue is saved atomically in
-`spotify_manager/files/discography_routine_state.json`.
+the shared `discography` namespace.
 
 ```console
 uv run spotify-manager plan-discographies
@@ -1125,8 +1141,8 @@ Refresh counts are recorded in `palace_of_memory_album_refresh_log.jsonl`, even
 when the mirror is already current. This preflight also happens during a dry
 run so the alphabetical selection always uses live data.
 
-The alphabetical half resumes from `palace_of_memory_state.json`, wrapping at
-the end of the saved list. The cursor advances only after a successful real
+The alphabetical half resumes from the shared `palace_of_memory` namespace,
+wrapping at the end of the saved list. The cursor advances only after a successful real
 playlist update. Override its starting point with `--alphabetical-start`, using
 a 1-based position in the refreshed mirror, a Spotify album id/URI/URL, an exact
 album title, or `Artist - Album`. A successful real run persists the position
@@ -1182,8 +1198,8 @@ album matches, exact first tracks, and playlist counts.
 The web card sits directly below Requeue for a Dream. It supports dry runs,
 manual alphabetical starts, cursor-only adjustments, cancellation, live album
 refresh and retry logs, and restoration of an active job after a page reload.
-Cursor-only adjustments update the same `palace_of_memory_state.json` used by
-the CLI and do not read or change the playlist.
+Cursor-only adjustments update the same shared namespace used by the CLI and do
+not read or change the playlist.
 
 ```text
 POST /commands/fill-palace-of-memory

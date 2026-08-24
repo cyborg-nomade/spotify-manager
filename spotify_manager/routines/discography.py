@@ -17,6 +17,9 @@ from typing import cast
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening
 
@@ -208,13 +211,47 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
         state = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise DiscographyStateError(f"Discography state is invalid: {path}") from exc
+    try:
+        return validate_state(state)
+    except DiscographyStateError as exc:
+        raise DiscographyStateError(f"Discography state is invalid: {path}") from exc
+
+
+def validate_state(state: object) -> dict[str, object]:
+    """Validate discography queue rotation independently of storage."""
     if (
         not isinstance(state, dict)
         or state.get("version") != STATE_VERSION
         or state.get("next_queue") not in QUEUE_ORDER
     ):
-        raise DiscographyStateError(f"Discography state is invalid: {path}")
+        raise DiscographyStateError("Discography state is invalid.")
     return state
+
+
+def save_state(
+    state: dict[str, object],
+    path: Path = DEFAULT_STATE_PATH,
+) -> None:
+    """Persist complete discography rotation state."""
+    normalized = validate_state(state)
+    save_next_queue(cast(QueueName, normalized["next_queue"]), path)
+
+
+def _state_access(
+    state_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="discography",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=state_path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=load_state,
+        legacy_saver=save_state,
+        service=state_service,
+    )
 
 
 def save_next_queue(
@@ -547,10 +584,11 @@ def build_discography_plan(
     retry_call: RetryCall | None = None,
     progress_callback: ProgressCallback | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
 ) -> DiscographyPlan:
     """Build the next round-week batch without changing Spotify or state."""
     retry = retry_call or (lambda operation, _description: operation())
-    state = load_state(state_path)
+    state = _state_access(state_path, state_service).load()
     start_queue = cast(QueueName, state["next_queue"])
     if progress_callback is not None:
         progress_callback("Loading discography artist queues")
@@ -708,6 +746,7 @@ def apply_discography_plan(
     retry_call: RetryCall | None = None,
     progress_callback: ProgressCallback | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
 ) -> DiscographyRunSummary:
     """Remove confirmed artists' markers and advance priority after each artist."""
@@ -733,7 +772,10 @@ def apply_discography_plan(
                 )
                 removed_markers += len(batch)
         _append_log(selection, plan.next_queue, log_path)
-    save_next_queue(plan.next_queue, state_path)
+    state_access = _state_access(state_path, state_service)
+    state = state_access.load()
+    state["next_queue"] = plan.next_queue
+    state_access.save(state)
     return DiscographyRunSummary(
         removed_artists=len(plan.artists),
         removed_markers=removed_markers,

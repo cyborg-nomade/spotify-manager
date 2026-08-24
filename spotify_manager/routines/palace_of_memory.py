@@ -16,6 +16,9 @@ from typing import Literal
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
@@ -327,10 +330,27 @@ def refresh_saved_albums(
     return refreshed, refresh
 
 
-def _load_cursor(path: Path, albums: tuple[YourLibraryAlbum, ...]) -> int:
-    """Resolve the next alphabetical index from durable state."""
+def _default_state() -> dict[str, object]:
+    """Return an empty Palace cursor state."""
+    return {}
+
+
+def validate_state(payload: object) -> dict[str, object]:
+    """Validate the Palace cursor namespace independently of storage."""
+    if not isinstance(payload, dict):
+        raise PalaceOfMemoryStateError("Palace state must be an object.")
+    fallback = payload.get("next_alphabetical_index", 0)
+    if not isinstance(fallback, int) or fallback < 0:
+        raise PalaceOfMemoryStateError(
+            "Palace state has an invalid alphabetical index."
+        )
+    return payload
+
+
+def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
+    """Load legacy Palace state for migration and explicit-path tests."""
     if not path.exists():
-        return 0
+        return _default_state()
     try:
         with path.open(encoding="utf-8") as state_file:
             payload = json.load(state_file)
@@ -341,8 +361,18 @@ def _load_cursor(path: Path, albums: tuple[YourLibraryAlbum, ...]) -> int:
             f"Palace state is invalid JSON at line {exc.lineno}, "
             f"column {exc.colno}: {path}"
         ) from exc
-    if not isinstance(payload, dict):
-        raise PalaceOfMemoryStateError(f"Palace state must be an object: {path}")
+    try:
+        return validate_state(payload)
+    except PalaceOfMemoryStateError as exc:
+        raise PalaceOfMemoryStateError(f"Palace state is invalid: {path}") from exc
+
+
+def _cursor_index(
+    payload: dict[str, object],
+    albums: tuple[YourLibraryAlbum, ...],
+) -> int:
+    """Resolve the next alphabetical index against the current album mirror."""
+    validate_state(payload)
 
     last_album_id = str(payload.get("last_alphabetical_album_id") or "")
     if last_album_id:
@@ -352,10 +382,13 @@ def _load_cursor(path: Path, albums: tuple[YourLibraryAlbum, ...]) -> int:
 
     fallback = payload.get("next_alphabetical_index", 0)
     if not isinstance(fallback, int) or fallback < 0:
-        raise PalaceOfMemoryStateError(
-            f"Palace state has an invalid alphabetical index: {path}"
-        )
+        raise PalaceOfMemoryStateError("Palace state has an invalid index.")
     return fallback % len(albums)
+
+
+def _load_cursor(path: Path, albums: tuple[YourLibraryAlbum, ...]) -> int:
+    """Resolve the next alphabetical index from legacy durable state."""
+    return _cursor_index(load_state(path), albums)
 
 
 def select_alphabetical_albums(
@@ -679,22 +712,55 @@ def _save_cursor(
     last_album: YourLibraryAlbum,
 ) -> None:
     """Atomically persist the next alphabetical position."""
-    payload = {
+    save_state(_cursor_payload(next_index, last_album), path)
+
+
+def _cursor_payload(
+    next_index: int,
+    last_album: YourLibraryAlbum,
+) -> dict[str, object]:
+    """Build the complete durable Palace cursor payload."""
+    return {
         "updated_at": datetime.now(UTC).isoformat(),
         "next_alphabetical_index": next_index,
         "last_alphabetical_album_id": last_album.spotify_id,
         "last_alphabetical_artist": last_album.artist,
         "last_alphabetical_album": last_album.album,
     }
+
+
+def save_state(
+    payload: dict[str, object],
+    path: Path = DEFAULT_STATE_PATH,
+) -> None:
+    """Persist legacy Palace state atomically."""
+    normalized = validate_state(payload)
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with temporary.open("w", encoding="utf-8") as state_file:
-            json.dump(payload, state_file, ensure_ascii=False, indent=2)
+            json.dump(normalized, state_file, ensure_ascii=False, indent=2)
             state_file.write("\n")
         temporary.replace(path)
     except OSError as exc:
         raise PalaceOfMemoryStateError(f"Could not save Palace state: {path}") from exc
+
+
+def _state_access(
+    state_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="palace_of_memory",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=state_path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=load_state,
+        legacy_saver=save_state,
+        service=state_service,
+    )
 
 
 def set_alphabetical_cursor(
@@ -703,6 +769,7 @@ def set_alphabetical_cursor(
     *,
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     album_backups_dir: Path = DEFAULT_ALBUM_BACKUPS_DIR,
     album_refresh_log_path: Path = DEFAULT_ALBUM_REFRESH_LOG_PATH,
     retry_call: RetryCall | None = None,
@@ -727,7 +794,9 @@ def set_alphabetical_cursor(
 
     next_index = position - 1
     previous_album = albums[(next_index - 1) % len(albums)]
-    _save_cursor(state_path, next_index, previous_album)
+    state_access = _state_access(state_path, state_service)
+    state_access.load()
+    state_access.save(_cursor_payload(next_index, previous_album))
     return AlphabeticalCursorUpdate(
         next_index=next_index,
         next_album=albums[next_index],
@@ -762,6 +831,7 @@ def fill_palace_of_memory(
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
     album_backups_dir: Path = DEFAULT_ALBUM_BACKUPS_DIR,
     album_refresh_log_path: Path = DEFAULT_ALBUM_REFRESH_LOG_PATH,
@@ -782,10 +852,12 @@ def fill_palace_of_memory(
         retry_call=retry,
         progress_callback=progress_callback,
     )
+    state_access = _state_access(state_path, state_service)
+    cursor_state = state_access.load()
     start_index = (
         resolve_alphabetical_start(saved_albums, alphabetical_start)
         if alphabetical_start is not None
-        else _load_cursor(state_path, saved_albums)
+        else _cursor_index(cursor_state, saved_albums)
     )
     alphabetical = select_alphabetical_albums(saved_albums, start_index)
     next_index = (start_index + len(alphabetical)) % len(saved_albums)
@@ -914,6 +986,6 @@ def fill_palace_of_memory(
         results=results,
     )
     if not dry_run:
-        _save_cursor(state_path, next_index, alphabetical[-1])
+        state_access.save(_cursor_payload(next_index, alphabetical[-1]))
         _append_log(log_path, summary)
     return summary

@@ -306,6 +306,7 @@
   .source-light { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
   .source-light { box-shadow: 0 0 0 3px #203024, 0 0 8px rgba(52,199,107,.28); }
   .source-light.lastfm { background: var(--yellow); box-shadow: 0 0 0 3px #342e19, 0 0 8px rgba(216,184,74,.24); }
+  .source-light.state { background: #8eb8a0; box-shadow: 0 0 0 3px #23332a, 0 0 8px rgba(142,184,160,.24); }
   .source-tag {
     color: var(--yellow); font-size: .66rem; text-transform: uppercase;
     letter-spacing: 0;
@@ -318,9 +319,94 @@
     box-shadow: inset 0 2px 5px rgba(0,0,0,.35);
   }
   #scrobbleHistoryFileStatus .server-file-date { border-color: #66582d; background: #241f11; color: #e2c96d; }
+  #sharedStateCard .server-file-date { border-color: #496052; background: #17221b; color: #aed1bb; }
+  .state-file-command { grid-template-columns: auto auto; }
   .server-file-date.missing { border-color: #6d3b4b; background: #2a171d; color: #ef8fac; }
   .server-files-error { color: var(--red); font-size: .78rem; }
   .signal-file-group > .analysis-progress { margin: 0; padding: 10px 16px 14px; background: #0d110e; }
+
+  #stateDialog {
+    width: min(920px, calc(100vw - 24px)); height: min(760px, calc(100dvh - 24px));
+    padding: 0; color: var(--text); border: 1px solid var(--border-strong);
+    border-radius: var(--radius); background: var(--surface); box-shadow: 0 18px 60px rgba(0,0,0,.72);
+  }
+  #stateDialog::backdrop { background: rgba(0,0,0,.78); }
+  .state-dialog-shell {
+    display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; height: 100%;
+  }
+  .state-dialog-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface-deep);
+  }
+  .state-dialog-heading {
+    display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto;
+  }
+  .state-dialog-header h2 { margin: 0; font-size: .86rem; }
+  #stateNamespaceSelect {
+    width: min(280px, 42vw); min-width: 0; height: 30px; margin: 0; padding: 3px 24px 3px 7px;
+    border: 1px solid #4a5549; border-radius: 4px; background: var(--inlay); color: var(--text);
+    font: .72rem/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.38);
+  }
+  #stateNamespaceSelect:focus { border-color: var(--green); outline: none; }
+  #stateRevision { color: var(--yellow); font-size: .66rem; overflow-wrap: anywhere; text-align: right; }
+  .state-editor-toolbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 38px; padding: 4px 12px; border-bottom: 1px solid var(--border);
+    background: #111612;
+  }
+  .state-editor-toolbar .mode-switch { width: 190px; max-width: 100%; }
+  #stateEditorStatus { color: var(--muted); font-size: .66rem; text-align: right; }
+  #stateGuidedEditor {
+    min-height: 0; overflow: auto; padding: 8px 12px 16px; background: #090d0a;
+  }
+  #stateEditor {
+    width: 100%; min-height: 0; resize: none; padding: 12px; border: 0; outline: none;
+    background: #090d0a; color: #dce6d9; font: .72rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    tab-size: 2;
+  }
+  .state-tree { display: grid; gap: 3px; }
+  .state-tree details {
+    min-width: 0; border: 1px solid #2f3930; border-radius: 3px; background: #0f1510;
+  }
+  .state-tree details > summary {
+    display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 5px 8px;
+    color: var(--text); cursor: pointer; font-size: .72rem; overflow-wrap: anywhere;
+  }
+  .state-tree details[open] > summary { border-bottom: 1px solid #2f3930; color: var(--yellow); }
+  .state-tree-children { padding: 5px; }
+  .state-tree-count {
+    margin-left: auto; color: var(--muted); font-size: .62rem; white-space: nowrap;
+  }
+  .state-field-row {
+    display: grid; grid-template-columns: minmax(150px, .45fr) minmax(0, 1fr); gap: 10px;
+    align-items: center; min-height: 34px; padding: 4px 7px; border-bottom: 1px solid #202820;
+  }
+  .state-field-row:last-child { border-bottom: 0; }
+  .state-field-name {
+    min-width: 0; color: var(--muted); font: .68rem/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+  }
+  .state-field-control {
+    width: 100%; min-width: 0; margin: 0; padding: 5px 7px; border: 1px solid #3d483c;
+    border-radius: 3px; background: var(--inlay); color: var(--text);
+    font: .72rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.32);
+  }
+  .state-field-row input.state-field-control { font-size: .72rem; padding: 5px 7px; }
+  .state-field-control:focus { border-color: var(--green); outline: none; }
+  .state-field-boolean { display: flex; justify-content: flex-end; align-items: center; }
+  .state-field-boolean input { width: 18px; height: 18px; margin: 0; accent-color: var(--green); }
+  .state-field-readonly {
+    min-width: 0; padding: 5px 7px; border-left: 2px solid #485248; color: #9ba59a;
+    background: #0c110d; font: .68rem/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+  }
+  .state-tree-empty { padding: 10px 7px; color: var(--muted); font-size: .7rem; }
+  .state-dialog-actions {
+    display: flex; justify-content: flex-end; gap: 6px; padding: 9px 12px;
+    border-top: 1px solid var(--border); background: var(--surface-deep);
+  }
 
   .macro-module {
     min-width: 0; padding: 5px; border: 1px solid #3f473f; border-radius: var(--radius);
@@ -487,6 +573,7 @@
   @media (max-width: 980px) {
     .signal-file-row { grid-template-columns: minmax(0, 1fr) auto; }
     .signal-file-command { grid-column: 1 / -1; grid-template-columns: minmax(160px, 1fr) var(--control-half) auto; }
+    .signal-file-command.state-file-command { grid-template-columns: var(--control-half) auto; }
   }
   @media (max-width: 759px) {
     .wrap { padding: 14px; }
@@ -494,6 +581,7 @@
     .macro-grid { grid-template-columns: minmax(0, 1fr); }
     .signal-file-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
     .signal-file-command { grid-column: auto; grid-template-columns: minmax(0, 1fr) auto; }
+    .signal-file-command.state-file-command { grid-template-columns: var(--control-half) auto; }
     .signal-file-command .mode-switch { grid-column: 1 / -1; }
     .signal-file-command:has(.inline) { grid-template-columns: minmax(0, 1fr) var(--control-half) auto; }
     .signal-file-command .mode-switch { width: 100%; }
@@ -510,6 +598,15 @@
       overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
     }
     #blastCard .blast-control input { width: 56px; }
+    .state-dialog-header { align-items: flex-start; flex-wrap: wrap; }
+    .state-dialog-heading { width: 100%; }
+    #stateNamespaceSelect { width: auto; flex: 1 1 auto; }
+    #stateRevision { width: 100%; text-align: left; }
+    .state-editor-toolbar { align-items: stretch; flex-direction: column; }
+    .state-editor-toolbar .mode-switch { width: 100%; }
+    #stateEditorStatus { text-align: left; }
+    .state-field-row { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+    .state-field-boolean { justify-content: flex-start; }
   }
   @media (max-width: 380px) {
     .resource-progress { grid-template-columns: 88px 1fr 52px; }
@@ -544,7 +641,7 @@
   <div class="box">
     <div class="dot"></div>
     <h1>Spotify Manager</h1>
-    <p>Enter your access password to continue.</p>
+    <p id="gatePrompt">Enter your access password to continue.</p>
     <input id="pw" type="password" placeholder="Password" autocomplete="current-password" enterkeyhint="go" />
     <div style="height:12px"></div>
     <button class="primary" id="pwBtn">Unlock</button>
@@ -642,6 +739,19 @@
             </div>
           </div>
           <div class="analysis-progress" id="scrobbleHistoryProgress"></div>
+        </section>
+
+        <section class="signal-file-group" id="sharedStateCard" aria-label="Shared application state">
+          <div class="signal-file-row">
+            <div class="signal-file-name"><span class="source-light state"></span><span>state.json</span><span class="source-tag">Hugging Face</span></div>
+            <span class="server-file-date" id="sharedStateUpdatedAt">Checking…</span>
+            <div class="signal-file-command state-file-command">
+              <div class="analysis-actions">
+                <button class="ghost" data-action="openSharedState">View</button>
+                <button class="primary" data-action="exportSharedState">Export</button>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     </section>
@@ -935,6 +1045,33 @@
       <div style="height:10px"></div>
       Spotify Manager · runs your own API
     </div>
+    <dialog id="stateDialog" aria-labelledby="stateDialogTitle">
+      <div class="state-dialog-shell">
+        <div class="state-dialog-header">
+          <div class="state-dialog-heading">
+            <h2 id="stateDialogTitle">Shared state</h2>
+            <select id="stateNamespaceSelect" aria-label="State namespace">
+              <option value="">Entire state</option>
+            </select>
+          </div>
+          <span id="stateRevision">Loading…</span>
+        </div>
+        <div class="state-editor-toolbar">
+          <div class="mode-switch" role="group" aria-label="State editor mode">
+            <button class="active" aria-pressed="true" data-action="stateEditorMode" data-state-editor-mode="guided">Guided</button>
+            <button aria-pressed="false" data-action="stateEditorMode" data-state-editor-mode="advanced">Advanced JSON</button>
+          </div>
+          <span id="stateEditorStatus">Saved snapshot</span>
+        </div>
+        <div id="stateGuidedEditor" aria-label="Guided state editor"></div>
+        <textarea id="stateEditor" spellcheck="false" aria-label="Shared state JSON" hidden></textarea>
+        <div class="state-dialog-actions">
+          <button class="ghost" data-action="closeSharedState">Close</button>
+          <button class="ghost" data-action="reloadSharedState">Reload</button>
+          <button class="primary" data-action="saveSharedState">Save</button>
+        </div>
+      </div>
+    </dialog>
   </div>
 </div>
 
@@ -947,6 +1084,14 @@
   var STORAGE_KEY = "sm_pw";
   var RELEASE_CHECK_STATE_KEY = "spotify-manager-release-check-state-v1";
   var pw = null;
+  var loopbackHost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(
+    window.location.hostname.toLowerCase()
+  );
+  if (loopbackHost) {
+    document.getElementById("gatePrompt").textContent =
+      "Enter any non-empty text to continue locally.";
+    document.getElementById("pw").placeholder = "Any text";
+  }
 
   var gate = document.getElementById("gate");
   var app = document.getElementById("app");
@@ -971,6 +1116,12 @@
   var scrobbleHistoryJob = null;
   var releaseCheckStateFingerprint = null;
   var releaseCheckStateSync = null;
+  var sharedStateSnapshot = null;
+  var sharedStateEditorSchema = null;
+  var sharedStateEditorBaseline = "";
+  var sharedStateEditorNamespace = "";
+  var sharedStateEditorMode = "guided";
+  var sharedStateWorkingValue = {};
 
   function showToast(msg, kind) {
     toast.textContent = msg;
@@ -1272,6 +1423,372 @@
       });
       document.getElementById("serverFilesSummary").textContent = "Status unavailable";
     }
+    try {
+      renderSharedStateStatus(await api("/state/summary"));
+    } catch (e) {
+      var stateDate = document.getElementById("sharedStateUpdatedAt");
+      stateDate.className = "server-file-date missing";
+      stateDate.textContent = "Unavailable";
+    }
+  }
+
+  function stateEditorValue(documentState, namespace) {
+    if (!namespace) return documentState;
+    var envelope = documentState && documentState.namespaces
+      ? documentState.namespaces[namespace]
+      : null;
+    return envelope ? envelope.value : {};
+  }
+
+  function cloneStateValue(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function populateStateNamespaceSelect(documentState, preferredNamespace) {
+    var select = document.getElementById("stateNamespaceSelect");
+    var namespaces = (documentState && documentState.namespaces) || {};
+    select.replaceChildren(new Option("Entire state", ""));
+    Object.keys(namespaces).sort(function (left, right) {
+      return left.localeCompare(right);
+    }).forEach(function (namespace) {
+      var definition = sharedStateEditorSchema && sharedStateEditorSchema.namespaces
+        ? sharedStateEditorSchema.namespaces[namespace]
+        : null;
+      var label = definition && definition.label
+        ? namespace + " · " + definition.label
+        : namespace;
+      select.add(new Option(label, namespace));
+    });
+    select.value = Object.prototype.hasOwnProperty.call(namespaces, preferredNamespace)
+      ? preferredNamespace
+      : "";
+    return select.value;
+  }
+
+  function stateEditorDefinition() {
+    if (!sharedStateEditorSchema) return { rules: [] };
+    if (!sharedStateEditorNamespace) return sharedStateEditorSchema.document || { rules: [] };
+    return sharedStateEditorSchema.namespaces[sharedStateEditorNamespace] || { rules: [] };
+  }
+
+  function statePointer(path) {
+    return "/" + path.map(function (segment) {
+      return String(segment).replace(/~/g, "~0").replace(/\//g, "~1");
+    }).join("/");
+  }
+
+  function stateRuleMatches(pattern, path) {
+    var expected = pattern.split("/").slice(1);
+    if (expected.length !== path.length) return false;
+    return expected.every(function (segment, index) {
+      return segment === "*" || segment === String(path[index])
+        .replace(/~/g, "~0").replace(/\//g, "~1");
+    });
+  }
+
+  function stateEditorRule(path) {
+    var rules = (stateEditorDefinition().rules || []).slice();
+    var rulePath = path;
+    if (!sharedStateEditorNamespace && path.length >= 3 &&
+        path[0] === "namespaces" && path[2] === "value") {
+      var namespaceDefinition = sharedStateEditorSchema.namespaces[path[1]];
+      if (namespaceDefinition) rules = rules.concat(namespaceDefinition.rules || []);
+      rulePath = path.slice(3);
+    }
+    return rules.find(function (rule) { return stateRuleMatches(rule.path, rulePath); }) || {};
+  }
+
+  function stateValueLabel(value) {
+    if (value === null) return "null";
+    if (typeof value === "string") return value;
+    return JSON.stringify(value);
+  }
+
+  function setStateWorkingValue(path, value) {
+    var target = sharedStateWorkingValue;
+    for (var index = 0; index < path.length - 1; index += 1) {
+      target = target[path[index]];
+    }
+    target[path[path.length - 1]] = value;
+    document.getElementById("stateEditor").value = JSON.stringify(
+      sharedStateWorkingValue,
+      null,
+      2
+    );
+    updateStateEditorStatus();
+  }
+
+  function createStateScalarControl(value, path, readOnly) {
+    var rule = stateEditorRule(path);
+    if (readOnly || rule.read_only || value === null) {
+      var output = document.createElement("div");
+      output.className = "state-field-readonly";
+      output.textContent = stateValueLabel(value);
+      return output;
+    }
+    if (rule.control === "select") {
+      var select = document.createElement("select");
+      select.className = "state-field-control";
+      (rule.options || []).forEach(function (optionValue) {
+        var option = document.createElement("option");
+        option.value = JSON.stringify(optionValue);
+        option.textContent = stateValueLabel(optionValue);
+        option.selected = optionValue === value;
+        select.appendChild(option);
+      });
+      select.addEventListener("change", function () {
+        setStateWorkingValue(path, JSON.parse(select.value));
+      });
+      return select;
+    }
+    if (typeof value === "boolean") {
+      var booleanWrap = document.createElement("div");
+      booleanWrap.className = "state-field-boolean";
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = value;
+      checkbox.setAttribute("aria-label", String(path[path.length - 1]));
+      checkbox.addEventListener("change", function () {
+        setStateWorkingValue(path, checkbox.checked);
+      });
+      booleanWrap.appendChild(checkbox);
+      return booleanWrap;
+    }
+    var input = document.createElement("input");
+    input.className = "state-field-control";
+    if (typeof value === "number") {
+      input.type = "number";
+      input.step = Number.isInteger(value) ? "1" : "any";
+      input.value = String(value);
+      input.addEventListener("change", function () {
+        var next = Number(input.value);
+        if (!Number.isFinite(next)) {
+          input.value = String(value);
+          showToast("Enter a valid number", "err");
+          return;
+        }
+        setStateWorkingValue(path, next);
+      });
+    } else {
+      input.type = "text";
+      input.value = String(value);
+      input.addEventListener("input", function () {
+        setStateWorkingValue(path, input.value);
+      });
+    }
+    return input;
+  }
+
+  function stateContainerCount(value) {
+    return Array.isArray(value) ? value.length : Object.keys(value).length;
+  }
+
+  function renderStateTreeEntries(container, value, path, readOnly) {
+    var entries = Array.isArray(value)
+      ? value.map(function (item, index) { return [index, item]; })
+      : Object.entries(value);
+    if (!entries.length) {
+      var empty = document.createElement("div");
+      empty.className = "state-tree-empty";
+      empty.textContent = Array.isArray(value) ? "Empty array" : "Empty object";
+      container.appendChild(empty);
+      return;
+    }
+    entries.forEach(function (entry) {
+      var key = entry[0];
+      var child = entry[1];
+      var childPath = path.concat([key]);
+      var rule = stateEditorRule(childPath);
+      var childReadOnly = readOnly || Boolean(rule.read_only);
+      if (child !== null && typeof child === "object") {
+        var details = document.createElement("details");
+        var summary = document.createElement("summary");
+        var name = document.createElement("span");
+        name.textContent = String(key);
+        var count = document.createElement("span");
+        count.className = "state-tree-count";
+        count.textContent = (Array.isArray(child) ? "array" : "object") +
+          " · " + stateContainerCount(child);
+        summary.appendChild(name);
+        summary.appendChild(count);
+        details.appendChild(summary);
+        details.addEventListener("toggle", function () {
+          if (!details.open || details.dataset.loaded === "true") return;
+          var children = document.createElement("div");
+          children.className = "state-tree state-tree-children";
+          renderStateTreeEntries(children, child, childPath, childReadOnly);
+          details.appendChild(children);
+          details.dataset.loaded = "true";
+        });
+        container.appendChild(details);
+        return;
+      }
+      var row = document.createElement("div");
+      row.className = "state-field-row";
+      var label = document.createElement("div");
+      label.className = "state-field-name";
+      label.textContent = String(key);
+      label.title = statePointer(childPath);
+      row.appendChild(label);
+      row.appendChild(createStateScalarControl(child, childPath, childReadOnly));
+      container.appendChild(row);
+    });
+  }
+
+  function renderGuidedStateEditor() {
+    var guided = document.getElementById("stateGuidedEditor");
+    guided.replaceChildren();
+    var tree = document.createElement("div");
+    tree.className = "state-tree";
+    renderStateTreeEntries(tree, sharedStateWorkingValue, [], false);
+    guided.appendChild(tree);
+  }
+
+  function updateStateEditorStatus() {
+    var status = document.getElementById("stateEditorStatus");
+    var changed = stateEditorHasUnsavedChanges();
+    status.textContent = changed ? "Unsaved changes" : "Saved snapshot";
+    status.style.color = changed ? "var(--yellow)" : "var(--muted)";
+  }
+
+  function renderStateEditor(documentState, namespace) {
+    sharedStateEditorNamespace = namespace;
+    sharedStateWorkingValue = cloneStateValue(stateEditorValue(documentState, namespace));
+    sharedStateEditorBaseline = JSON.stringify(sharedStateWorkingValue);
+    document.getElementById("stateEditor").value = JSON.stringify(
+      sharedStateWorkingValue,
+      null,
+      2
+    );
+    renderGuidedStateEditor();
+    updateStateEditorStatus();
+  }
+
+  function stateEditorHasUnsavedChanges() {
+    if (sharedStateEditorMode === "advanced") {
+      try {
+        return JSON.stringify(JSON.parse(document.getElementById("stateEditor").value)) !==
+          sharedStateEditorBaseline;
+      } catch (e) {
+        return true;
+      }
+    }
+    return JSON.stringify(sharedStateWorkingValue) !== sharedStateEditorBaseline;
+  }
+
+  function setStateEditorMode(mode) {
+    if (mode === sharedStateEditorMode) return true;
+    if (mode === "guided") {
+      try {
+        sharedStateWorkingValue = JSON.parse(document.getElementById("stateEditor").value);
+      } catch (e) {
+        showToast("Fix the invalid JSON before returning to Guided mode", "err");
+        return false;
+      }
+      renderGuidedStateEditor();
+    } else {
+      document.getElementById("stateEditor").value = JSON.stringify(
+        sharedStateWorkingValue,
+        null,
+        2
+      );
+    }
+    sharedStateEditorMode = mode;
+    document.getElementById("stateGuidedEditor").hidden = mode !== "guided";
+    document.getElementById("stateEditor").hidden = mode !== "advanced";
+    document.querySelectorAll('[data-action="stateEditorMode"]').forEach(function (button) {
+      var active = button.dataset.stateEditorMode === mode;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    updateStateEditorStatus();
+    return true;
+  }
+
+  function readStateEditorValue() {
+    if (sharedStateEditorMode === "advanced") {
+      return JSON.parse(document.getElementById("stateEditor").value);
+    }
+    return cloneStateValue(sharedStateWorkingValue);
+  }
+
+  function renderSharedState(snapshot, updateEditor, preferredNamespace) {
+    sharedStateSnapshot = snapshot;
+    var documentState = snapshot && snapshot.document;
+    renderSharedStateStatus({
+      revision: snapshot.revision,
+      updated_at: documentState && documentState.updated_at,
+      namespaces: (documentState && documentState.namespaces) || {},
+    });
+    document.getElementById("stateRevision").textContent = snapshot.revision || "Unknown revision";
+    if (updateEditor !== false) {
+      var namespace = populateStateNamespaceSelect(
+        documentState,
+        preferredNamespace == null ? sharedStateEditorNamespace : preferredNamespace
+      );
+      renderStateEditor(documentState, namespace);
+    }
+  }
+
+  function renderSharedStateStatus(summary) {
+    var updatedAt = summary && summary.updated_at;
+    var namespaceCount = summary && summary.namespaces
+      ? Object.keys(summary.namespaces).length
+      : 0;
+    var stateDate = document.getElementById("sharedStateUpdatedAt");
+    var updated = updatedAt ? new Date(updatedAt) : null;
+    stateDate.className = "server-file-date";
+    stateDate.textContent = updated && !isNaN(updated.getTime())
+      ? updated.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + " · " + namespaceCount
+      : namespaceCount + " namespaces";
+  }
+
+  async function loadSharedStateEditor(preferredNamespace) {
+    var requests = [api("/state")];
+    if (!sharedStateEditorSchema) requests.push(api("/state/schema"));
+    var responses = await Promise.all(requests);
+    var snapshot = responses[0];
+    if (responses[1]) sharedStateEditorSchema = responses[1];
+    renderSharedState(snapshot, true, preferredNamespace);
+    return snapshot;
+  }
+
+  function switchSharedStateNamespace(select) {
+    var nextNamespace = select.value;
+    if (stateEditorHasUnsavedChanges() &&
+        !confirm("Discard unsaved state edits and change namespace?")) {
+      select.value = sharedStateEditorNamespace;
+      return;
+    }
+    renderStateEditor(sharedStateSnapshot.document, nextNamespace);
+  }
+
+  async function downloadSharedState() {
+    var response;
+    try {
+      response = await fetch(API + "/state/export", { headers: headers() });
+    } catch (e) {
+      throw { status: 0, detail: "Network error — is the server awake?" };
+    }
+    if (!response.ok) {
+      var data = null;
+      try { data = await response.json(); } catch (e) {}
+      throw {
+        status: response.status,
+        detail: (data && data.detail) || ("HTTP " + response.status),
+      };
+    }
+    var disposition = response.headers.get("Content-Disposition") || "";
+    var match = disposition.match(/filename="([^"]+)"/);
+    var filename = match ? match[1] : "spotify-manager-state.json";
+    var url = URL.createObjectURL(await response.blob());
+    var anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
   function isAnalysisActive(status) {
@@ -3650,6 +4167,94 @@
   }
 
   var actions = {
+    async openSharedState(btn) {
+      setBusy(btn, true, "Loading state…");
+      try {
+        await loadSharedStateEditor(sharedStateEditorNamespace);
+        document.getElementById("stateDialog").showModal();
+      } catch (e) {
+        showToast(e.detail || "Could not load shared state", "err");
+      }
+      setBusy(btn, false);
+    },
+
+    closeSharedState() {
+      if (stateEditorHasUnsavedChanges() && !confirm("Discard unsaved state edits?")) {
+        return;
+      }
+      document.getElementById("stateDialog").close();
+    },
+
+    stateEditorMode(btn) {
+      setStateEditorMode(btn.dataset.stateEditorMode);
+    },
+
+    async reloadSharedState(btn) {
+      if (stateEditorHasUnsavedChanges() && !confirm("Discard unsaved state edits and reload?")) {
+        return;
+      }
+      setBusy(btn, true, "Reloading state…");
+      try {
+        await loadSharedStateEditor(sharedStateEditorNamespace);
+        showToast("Shared state reloaded", "ok");
+      } catch (e) {
+        showToast(e.detail || "Could not reload shared state", "err");
+      }
+      setBusy(btn, false);
+    },
+
+    async saveSharedState(btn) {
+      if (!sharedStateSnapshot) return;
+      var editedValue;
+      try {
+        editedValue = readStateEditorValue();
+      } catch (e) {
+        showToast("State editor contains invalid JSON", "err");
+        return;
+      }
+      var namespace = document.getElementById("stateNamespaceSelect").value;
+      if (namespace) {
+        if (!editedValue || typeof editedValue !== "object" || Array.isArray(editedValue)) {
+          showToast("A state namespace must contain a JSON object", "err");
+          return;
+        }
+      }
+      var confirmation = namespace
+        ? "Replace the shared state namespace “" + namespace + "”?"
+        : "Replace the complete shared application state?";
+      if (!confirm(confirmation)) return;
+      setBusy(btn, true, "Saving state…");
+      try {
+        var path = namespace
+          ? "/state/namespaces/" + encodeURIComponent(namespace)
+          : "/state";
+        var payload = { expected_revision: sharedStateSnapshot.revision };
+        if (namespace) payload.value = editedValue;
+        else payload.document = editedValue;
+        var saved = await api(path, { method: "PUT", json: payload });
+        renderSharedState(saved, true, namespace);
+        showToast(namespace ? namespace + " state saved" : "Shared state saved", "ok");
+      } catch (e) {
+        if (e.status === 409) {
+          showToast("State changed elsewhere. Reload before saving.", "err");
+        } else {
+          showToast(e.detail || "Could not save shared state", "err");
+        }
+      }
+      setBusy(btn, false);
+    },
+
+    async exportSharedState(btn) {
+      setBusy(btn, true, "Exporting state…");
+      try {
+        await downloadSharedState();
+        showToast("State snapshot downloaded", "ok");
+      } catch (e) {
+        showToast(e.detail || "Could not export shared state", "err");
+      }
+      setBusy(btn, false);
+    },
+
     mirrorMode(btn) {
       setMirrorMode(btn.dataset.resource, btn.dataset.mirrorMode);
     },
@@ -4702,6 +5307,14 @@
     if (!btn) return;
     var fn = actions[btn.dataset.action];
     if (fn) fn(btn);
+  });
+
+  document.getElementById("stateNamespaceSelect").addEventListener("change", function () {
+    switchSharedStateNamespace(this);
+  });
+
+  document.getElementById("stateEditor").addEventListener("input", function () {
+    if (sharedStateEditorMode === "advanced") updateStateEditorStatus();
   });
 
   // Enter-to-submit on the two main inputs

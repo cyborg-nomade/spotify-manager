@@ -29,6 +29,7 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager._auth import PasswordMiddleware
 from spotify_manager.api import ClientDep
 from spotify_manager.api import app
+from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.routines import genre_reveal
 from spotify_manager.routines.review_album_limits import format_retry_delay
 from spotify_manager.routines.review_album_limits import get_retry_after_seconds
@@ -55,13 +56,20 @@ _genre_reveal_run_lock = Lock()
 
 
 _password = os.environ.get("APP_PASSWORD") or None
+_allow_any_loopback_password = not any(
+    os.environ.get(name) for name in ("SPACE_ID", "SPACE_HOST")
+)
 if _password is None:
     logging.getLogger("uvicorn.error").warning(
         "APP_PASSWORD is not set — the password gate is DISABLED. "
         "Set APP_PASSWORD before deploying."
     )
 
-app.add_middleware(PasswordMiddleware, password=_password)
+app.add_middleware(
+    PasswordMiddleware,
+    password=_password,
+    allow_any_loopback_password=_allow_any_loopback_password,
+)
 
 
 @app.get("/", include_in_schema=False)
@@ -84,7 +92,10 @@ def get_genre_reveal_state() -> genre_reveal.GenreRevealState:
     """Return persisted Every Noise route progress."""
     try:
         with _genre_reveal_state_lock:
-            return genre_reveal.load_genre_reveal_state(GENRE_REVEAL_STATE_PATH)
+            return genre_reveal.load_genre_reveal_state(
+                GENRE_REVEAL_STATE_PATH,
+                state_service=get_state_service(),
+            )
     except genre_reveal.GenreRevealStateError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -102,6 +113,7 @@ def put_genre_reveal_state(
             return genre_reveal.save_genre_reveal_state(
                 update,
                 GENRE_REVEAL_STATE_PATH,
+                state_service=get_state_service(),
             )
     except genre_reveal.GenreRevealStateError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -139,7 +151,10 @@ def run_next_genre_reveal(
 
     try:
         with _genre_reveal_state_lock:
-            state = genre_reveal.load_genre_reveal_state(GENRE_REVEAL_STATE_PATH)
+            state = genre_reveal.load_genre_reveal_state(
+                GENRE_REVEAL_STATE_PATH,
+                state_service=get_state_service(),
+            )
             if request.slug in state.completed:
                 raise HTTPException(
                     status_code=409,
@@ -161,6 +176,7 @@ def run_next_genre_reveal(
             genre_reveal.mark_genre_completed(
                 request.slug,
                 GENRE_REVEAL_STATE_PATH,
+                state_service=get_state_service(),
             )
         return result
     except HTTPException:

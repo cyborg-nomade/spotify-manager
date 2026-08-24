@@ -12,11 +12,15 @@ from datetime import UTC
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import Any
 from typing import Literal
 
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.core.state import RoutineState
+from spotify_manager.core.state import StateService
+from spotify_manager.core.state.compat import routine_state
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
@@ -676,7 +680,7 @@ def played_releases_from_history(
     return tuple(played)
 
 
-def _default_state() -> dict[str, object]:
+def _default_state() -> dict[str, Any]:
     return {
         "version": STATE_VERSION,
         "artists": {},
@@ -686,7 +690,19 @@ def _default_state() -> dict[str, object]:
     }
 
 
-def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
+def validate_state(raw: object) -> dict[str, Any]:
+    """Validate the New Kids namespace independently of its storage."""
+    if (
+        not isinstance(raw, dict)
+        or raw.get("version") != STATE_VERSION
+        or not isinstance(raw.get("artists"), dict)
+        or not isinstance(raw.get("great_discoveries_playlists"), dict)
+    ):
+        raise NewKidsStateError("New Kids state is invalid.")
+    return raw
+
+
+def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
     """Load durable artist and active-run progress."""
     if not path.exists():
         return _default_state()
@@ -694,17 +710,13 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise NewKidsStateError(f"Could not read New Kids state: {path}") from exc
-    if (
-        not isinstance(raw, dict)
-        or raw.get("version") != STATE_VERSION
-        or not isinstance(raw.get("artists"), dict)
-        or not isinstance(raw.get("great_discoveries_playlists"), dict)
-    ):
-        raise NewKidsStateError(f"New Kids state is invalid: {path}")
-    return raw
+    try:
+        return validate_state(raw)
+    except NewKidsStateError as exc:
+        raise NewKidsStateError(f"New Kids state is invalid: {path}") from exc
 
 
-def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> None:
+def save_state(state: dict[str, Any], path: Path = DEFAULT_STATE_PATH) -> None:
     """Atomically save durable artist and active-run progress."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(f"{path.suffix}.tmp")
@@ -716,6 +728,23 @@ def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> Non
         temporary.replace(path)
     except OSError as exc:
         raise NewKidsStateError(f"Could not save New Kids state: {path}") from exc
+
+
+def _state_access(
+    state_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="new_kids",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=state_path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=load_state,
+        legacy_saver=save_state,
+        service=state_service,
+    )
 
 
 def append_event(path: Path, event: str, **details: object) -> None:
@@ -1101,13 +1130,13 @@ def _playlist_artist_ids(
 
 def _great_discoveries_playlist(
     sp: Spotify,
-    state: dict[str, object],
+    state: dict[str, Any],
     year: int,
     seed_2026_playlist_id: str,
     *,
     dry_run: bool,
     retry_call: RetryCall,
-    state_path: Path,
+    state_access: RoutineState,
     echo: Echo,
 ) -> str | None:
     playlists = state["great_discoveries_playlists"]
@@ -1118,7 +1147,7 @@ def _great_discoveries_playlist(
     if year == 2026:
         if not dry_run:
             playlists[str(year)] = seed_2026_playlist_id
-            save_state(state, state_path)
+            state_access.save(state)
         return seed_2026_playlist_id
     if dry_run:
         echo(
@@ -1146,7 +1175,7 @@ def _great_discoveries_playlist(
     if not playlist_id:
         raise NewKidsError("Spotify did not return the created playlist id.")
     playlists[str(year)] = playlist_id
-    save_state(state, state_path)
+    state_access.save(state)
     echo(
         f"Created Great Discoveries {year}. Move it into the intended folder "
         "manually; Spotify's API does not expose playlist folders."
@@ -1317,6 +1346,7 @@ def _flush_review_playlist(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     artists_path: Path = DEFAULT_ARTISTS_PATH,
@@ -1338,7 +1368,8 @@ def _flush_review_playlist(
         scrobbles_path,
         year=active_year,
     )
-    state = _default_state() if dry_run else load_state(state_path)
+    state_access = _state_access(state_path, state_service)
+    state = _default_state() if dry_run else state_access.load()
     blocking_run = state.get(_blocking_active_run_key)
     if (
         not dry_run
@@ -1388,7 +1419,7 @@ def _flush_review_playlist(
         run = _new_run(new_kids_playlist_id, initial)
         if not dry_run:
             state[_active_run_key] = run
-            save_state(state, state_path)
+            state_access.save(state)
 
     raw_entries = run.get("entries")
     if not isinstance(raw_entries, list):
@@ -1657,7 +1688,7 @@ def _flush_review_playlist(
                                 dry_run=dry_run,
                             )
                             if not dry_run:
-                                save_state(state, state_path)
+                                state_access.save(state)
                             continue
                         selected = next(
                             (
@@ -1697,7 +1728,7 @@ def _flush_review_playlist(
 
             raw_entry["plan"] = plan
             if not dry_run:
-                save_state(state, state_path)
+                state_access.save(state)
 
         assert plan is not None
         action = str(plan["action"])
@@ -1775,7 +1806,7 @@ def _flush_review_playlist(
                     great_discoveries_2026_playlist_id,
                     dry_run=dry_run,
                     retry_call=retry,
-                    state_path=state_path,
+                    state_access=state_access,
                     echo=echo,
                 )
                 for playlist_id, label in (
@@ -1881,7 +1912,7 @@ def _flush_review_playlist(
                 )
                 progress["updated_at"] = datetime.now(UTC).isoformat()
             raw_entry["status"] = "completed"
-            save_state(state, state_path)
+            state_access.save(state)
 
         result = _plan_result(source, plan, dry_run)
         results.append(result)
@@ -1898,7 +1929,7 @@ def _flush_review_playlist(
     if not paused and _fill_from_queue:
         if not dry_run:
             run["status"] = "refilling"
-            save_state(state, state_path)
+            state_access.save(state)
         current_after = list(
             new_wine.load_playlist_tracks(sp, new_kids_playlist_id, retry)
         )
@@ -1914,12 +1945,12 @@ def _flush_review_playlist(
         )
         if not dry_run:
             state[_active_run_key] = None
-            save_state(state, state_path)
+            state_access.save(state)
         length_after = len(current_after)
     elif not paused:
         if not dry_run:
             state[_active_run_key] = None
-            save_state(state, state_path)
+            state_access.save(state)
         length_after = len(live_ids)
     else:
         length_after = len(live_ids)
@@ -1951,6 +1982,7 @@ def flush_new_kids(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     artists_path: Path = DEFAULT_ARTISTS_PATH,
@@ -1972,6 +2004,7 @@ def flush_new_kids(
         progress_callback=progress_callback,
         retry_call=retry_call,
         state_path=state_path,
+        state_service=state_service,
         log_path=log_path,
         albums_path=albums_path,
         artists_path=artists_path,
@@ -1995,6 +2028,7 @@ def flush_queue_2(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_QUEUE_2_LOG_PATH,
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     artists_path: Path = DEFAULT_ARTISTS_PATH,
@@ -2003,7 +2037,14 @@ def flush_queue_2(
 ) -> Queue2Summary:
     """Fill New Kids, then advance the first ten remaining Queue 2 artists."""
     retry = retry_call or (lambda operation, _description: operation())
-    state = _default_state() if dry_run else load_state(state_path)
+    state = (
+        _default_state()
+        if dry_run
+        else _state_access(
+            state_path,
+            state_service,
+        ).load()
+    )
     queue_run = state.get("queue_2_active_run")
     resumed = bool(
         not dry_run
@@ -2068,6 +2109,7 @@ def flush_queue_2(
         progress_callback=progress_callback,
         retry_call=retry,
         state_path=state_path,
+        state_service=state_service,
         log_path=log_path,
         albums_path=albums_path,
         artists_path=artists_path,
