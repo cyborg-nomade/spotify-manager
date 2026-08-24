@@ -8,7 +8,8 @@ modular monolith:
 
 - one Python package contains the interfaces and domain routines;
 - one process serves the web UI and API;
-- local JSON and JSON-lines files provide mirrors, checkpoints, and audit logs;
+- working JSON and JSON-lines files provide mirrors, checkpoints, and audit logs;
+- private Hub datasets durably share routine state and canonical data files;
 - Spotify remains authoritative for the live library and playlists;
 - Last.fm remains authoritative for scrobbles; and
 - there is no database or external task queue.
@@ -33,6 +34,8 @@ flowchart LR
     Random["Random.org"]
     EveryNoise["Every Noise pages"]
     HF["Private Hugging Face Space"]
+    HubData["Private state and data datasets"]
+    Actions["GitHub Actions nightly trigger"]
 
     User --> CLI
     User --> Web
@@ -45,6 +48,8 @@ flowchart LR
     Routines --> Random
     Routines --> EveryNoise
     Web --- HF
+    Actions --> HF
+    Routines <--> HubData
 ```
 
 ## Runtime surfaces
@@ -238,10 +243,10 @@ into the configured destination.
 ### Hugging Face Hub and Spaces
 
 The `huggingface_hub` client uploads refreshed source exports. The production
-web app runs in a private Docker Space. Durable routine state is stored
-separately in a private dataset, while the Space container holds replaceable
-mirrors, caches, logs, and staging data. Deployments use explicit file lists so
-those data families are not accidentally overwritten.
+web app runs in a private Docker Space. Durable routine state and canonical
+Spotify/Last.fm data use separate private datasets. The Space container holds
+hydrated working copies plus replaceable caches, logs, backups, and staging.
+Deployments use explicit file lists and never overwrite either dataset.
 
 ## Data flow and authority
 
@@ -254,11 +259,14 @@ flowchart TD
     Mirrors["Canonical Spotify mirrors"]
     Routines["Routine planning and decisions"]
     SharedState["Private Hub state.json"]
+    SharedData["Private Hub canonical-data manifest and blobs"]
     Runtime["Local cache, log, staging, and backup files"]
 
     SpotifyLive -->|live analysis| Mirrors
     SpotifyExport -->|async analysis only| Offline["Suffixed async outputs"]
     LastFMApi -->|incremental refresh| LastFMExport
+    Mirrors <--> SharedData
+    LastFMExport <--> SharedData
     Mirrors --> Routines
     LastFMExport --> Routines
     SpotifyLive <--> Routines

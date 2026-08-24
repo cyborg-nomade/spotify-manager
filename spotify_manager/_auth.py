@@ -41,11 +41,13 @@ class PasswordMiddleware(BaseHTTPMiddleware):
         app: ASGIApp,
         password: str | None,
         *,
+        automation_token: str | None = None,
         allow_any_loopback_password: bool = False,
     ) -> None:
         """Store the configured password (or ``None`` to disable the gate)."""
         super().__init__(app)
         self._password = password
+        self._automation_token = automation_token
         self._allow_any_loopback_password = allow_any_loopback_password
 
     @staticmethod
@@ -75,6 +77,13 @@ class PasswordMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         supplied = request.headers.get("x-app-password", "")
+        automation_token = request.headers.get("x-automation-token", "")
+        if (
+            automation_token
+            and self._automation_token
+            and hmac.compare_digest(automation_token, self._automation_token)
+        ):
+            return await call_next(request)
         if (
             supplied
             and self._allow_any_loopback_password

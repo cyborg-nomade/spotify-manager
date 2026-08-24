@@ -6,6 +6,7 @@ from collections.abc import Iterator
 import pytest
 from pytest_mock import MockerFixture
 
+from spotify_manager.core.library_data.runtime import reset_library_data_service
 from spotify_manager.core.state.runtime import reset_state_service
 from spotify_manager.processors import library_lookups
 
@@ -21,6 +22,19 @@ def isolated_central_state(monkeypatch, tmp_path) -> Iterator[None]:
     reset_state_service()
     yield
     reset_state_service()
+
+
+@pytest.fixture(autouse=True)
+def isolated_library_data(monkeypatch, tmp_path) -> Iterator[None]:
+    """Keep durable library-data tests local and isolated."""
+    monkeypatch.setenv("SPOTIFY_MANAGER_DATA_BACKEND", "local")
+    monkeypatch.setenv(
+        "SPOTIFY_MANAGER_DATA_LOCAL_ROOT",
+        str(tmp_path / "library-data"),
+    )
+    reset_library_data_service()
+    yield
+    reset_library_data_service()
 
 
 @pytest.fixture(autouse=True)

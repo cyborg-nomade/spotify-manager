@@ -187,6 +187,9 @@ spotify_manager/files/library_analysis_mirrors/
 spotify_manager/files/library_analysis_mirrors_backups/
 spotify_manager/files/library_analysis_mirrors_log.jsonl
 
+# Local adapter for the shared canonical-file data service
+spotify_manager/files/library_data_store/
+
 # Local/deployment OAuth token caches. Seed from Space secrets instead.
 spotify_manager/auth/spotipy_token_cache*.json
 

@@ -20,6 +20,7 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
+from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
@@ -326,6 +327,7 @@ def save_artists(path: Path, artists: list[YourLibraryArtist]) -> None:
     """Persist followed artists in the established sort order."""
     artists.sort(key=artist_sort_key)
     write_json_atomic(path, [artist.model_dump() for artist in artists])
+    publish_managed_path(path, source="artist review")
 
 
 def load_review_state(log_path: Path) -> ArtistReviewState:

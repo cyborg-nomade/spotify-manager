@@ -18,6 +18,7 @@ from typing import Literal
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
 from spotify_manager.core.state.compat import routine_state
@@ -879,6 +880,7 @@ def _write_json_list(path: Path, values: list[object]) -> None:
         temporary.replace(path)
     except OSError as exc:
         raise NewKidsStateError(f"Could not update local mirror: {path}") from exc
+    publish_managed_path(path, source="New Kids library reconciliation")
 
 
 def _sync_local_album(

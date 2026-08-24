@@ -14,7 +14,9 @@ by legacy endpoints is cached; call ``POST /library/refresh`` after replacing
 
 import logging
 import os
+from collections.abc import AsyncIterator
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from datetime import UTC
@@ -48,6 +50,9 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.core.library_data import LibraryDataError
+from spotify_manager.core.library_data.runtime import get_library_data_service
+from spotify_manager.core.library_data.runtime import hydrate_runtime_library_data
 from spotify_manager.core.state.editor import state_editor_schema
 from spotify_manager.core.state.editor import validate_namespace_editor_change
 from spotify_manager.core.state.models import StateConfigurationError
@@ -4727,7 +4732,13 @@ def _run_scrobble_history_job(
             expected_username=username,
             dry_run=dry_run,
             progress_callback=echo,
+            cancel_check=job.cancel_event.is_set,
         )
+    except scrobble_history.ScrobbleHistoryCancelledError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, job.result.detail)
     except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:
         with _blast_jobs_lock:
             job.result.status = "failed"
@@ -5582,7 +5593,14 @@ def start_scrobble_history_job(
     return snapshot
 
 
-app = FastAPI(title="Spotify Manager", version="0.1.0")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Hydrate durable data once whenever an API process starts."""
+    hydrate_runtime_library_data()
+    yield
+
+
+app = FastAPI(title="Spotify Manager", version="0.1.0", lifespan=_lifespan)
 
 
 @app.exception_handler(ArtistNotFoundError)
@@ -7686,9 +7704,26 @@ def _server_file_status(path: Path) -> ServerFileStatus:
     response_model=LibraryMirrorFilesStatus,
 )
 def library_mirror_files_status() -> LibraryMirrorFilesStatus:
-    """Return update timestamps for New Wine's canonical mirror files."""
+    """Return durable update metadata for all canonical data files."""
+    try:
+        statuses = get_library_data_service().statuses()
+    except LibraryDataError:
+        return LibraryMirrorFilesStatus(
+            files=[_server_file_status(path) for path in LIBRARY_MIRROR_FILE_PATHS]
+        )
+    if not any(item.exists for item in statuses):
+        return LibraryMirrorFilesStatus(
+            files=[_server_file_status(path) for path in LIBRARY_MIRROR_FILE_PATHS]
+        )
     return LibraryMirrorFilesStatus(
-        files=[_server_file_status(path) for path in LIBRARY_MIRROR_FILE_PATHS]
+        files=[
+            ServerFileStatus(
+                filename=item.filename,
+                exists=item.exists,
+                updated_at=item.updated_at,
+            )
+            for item in statuses
+        ]
     )
 
 
@@ -7716,6 +7751,19 @@ def cmd_scrobble_history_job(job_id: str) -> BlastJobResult:
     job = get_blast_job(job_id, command="update_scrobble_history")
     with _blast_jobs_lock:
         return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/update-scrobble-history-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_scrobble_history_job(job_id: str) -> BlastJobResult:
+    """Request a clean history stop before its next persistence boundary."""
+    return _cancel_simple_playlist_job(
+        job_id,
+        command="update_scrobble_history",
+        detail="Stopping Last.fm scrobble history update",
+    )
 
 
 @app.post(
