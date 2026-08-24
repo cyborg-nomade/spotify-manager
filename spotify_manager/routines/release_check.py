@@ -23,6 +23,9 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 
@@ -790,6 +793,29 @@ def save_state(state: dict[str, Any], path: Path = DEFAULT_STATE_PATH) -> None:
         ) from exc
 
 
+def _state_access(
+    state_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="release_check",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=state_path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=load_state,
+        legacy_saver=save_state,
+        service=state_service,
+    )
+
+
+def _persist_state(state_access: RoutineState, state: dict[str, Any]) -> None:
+    """Checkpoint release state while retaining its semantic freshness field."""
+    state["updated_at"] = datetime.now(UTC).isoformat()
+    state_access.save(state)
+
+
 def restore_state(
     state: dict[str, Any],
     path: Path = DEFAULT_STATE_PATH,
@@ -1068,7 +1094,7 @@ def _record_result(
     checked_at: datetime,
     run_id: str,
     log_path: Path,
-    state_path: Path,
+    state_access: RoutineState,
     dry_run: bool,
     *,
     terminal: bool,
@@ -1080,7 +1106,7 @@ def _record_result(
     if terminal:
         _mark_processed(state, result, checked_at)
         _remove_pending(state, result.release_id)
-    save_state(state, state_path)
+    _persist_state(state_access, state)
 
 
 def _summary(
@@ -1121,6 +1147,7 @@ def run_release_check(
     release_choice_reader: ReleaseChoiceReader | None = None,
     dry_run: bool = False,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
     export_path: Path = scrobble_history.DEFAULT_SCROBBLES_PATH,
     legacy_delta_path: Path | None = scrobble_history.DEFAULT_LEGACY_DELTA_PATH,
@@ -1133,7 +1160,8 @@ def run_release_check(
     """Refresh Last.fm, discover releases, and update both playlists safely."""
     generated_at = (now or datetime.now(UTC)).astimezone(UTC)
     today = generated_at.astimezone(blast_from_past.SCROBBLE_TIMEZONE).date()
-    persisted_state = load_state(state_path)
+    state_access = _state_access(state_path, state_service)
+    persisted_state = state_access.load()
     state = deepcopy(persisted_state)
     raw_active = state.get("active_run")
     resumed = isinstance(raw_active, dict)
@@ -1195,7 +1223,7 @@ def run_release_check(
         }
         state["active_run"] = active
         if not dry_run:
-            save_state(state, state_path)
+            _persist_state(state_access, state)
             append_event(
                 log_path,
                 run_id,
@@ -1243,7 +1271,7 @@ def run_release_check(
             completed.add(artist.key)
             active["completed_artist_keys"] = sorted(completed)
             if not dry_run:
-                save_state(state, state_path)
+                _persist_state(state_access, state)
             if progress_callback is not None:
                 progress_callback(
                     len(completed),
@@ -1295,7 +1323,7 @@ def run_release_check(
                     persisted_skips = persisted_state["skipped_artists"]
                     assert isinstance(persisted_skips, dict)
                     persisted_skips[artist.key] = skip_record
-                    save_state(persisted_state, state_path)
+                    _persist_state(state_access, persisted_state)
                 else:
                     append_event(
                         log_path,
@@ -1303,7 +1331,7 @@ def run_release_check(
                         "artist_permanently_skipped",
                         artist=artist.name,
                     )
-                    save_state(state, state_path)
+                    _persist_state(state_access, state)
                 continue
             if resolved in {None, CHOICE_SKIP}:
                 completed.add(artist.key)
@@ -1320,7 +1348,7 @@ def run_release_check(
                             else "interactive skip"
                         ),
                     )
-                    save_state(state, state_path)
+                    _persist_state(state_access, state)
                 continue
             assert isinstance(resolved, SpotifyArtistCandidate)
             spotify_artist = resolved
@@ -1329,9 +1357,9 @@ def run_release_check(
                 persisted_mappings = persisted_state["artist_mappings"]
                 assert isinstance(persisted_mappings, dict)
                 persisted_mappings[artist.key] = asdict(spotify_artist)
-                save_state(persisted_state, state_path)
+                _persist_state(state_access, persisted_state)
             else:
-                save_state(state, state_path)
+                _persist_state(state_access, state)
 
         if progress_callback is not None:
             progress_callback(
@@ -1387,7 +1415,7 @@ def run_release_check(
                 generated_at,
                 run_id,
                 log_path,
-                state_path,
+                state_access,
                 dry_run,
                 terminal=True,
             )
@@ -1426,7 +1454,7 @@ def run_release_check(
                 continue
             active["pending_release_id"] = release.spotify_id
             if not dry_run:
-                save_state(state, state_path)
+                _persist_state(state_access, state)
 
             track: ReleaseTrack | None = pending.first_track if pending else None
             linked_future: ReleaseCandidate | None = None
@@ -1559,13 +1587,13 @@ def run_release_check(
                         generated_at,
                         run_id,
                         log_path,
-                        state_path,
+                        state_access,
                         dry_run,
                         terminal=False,
                     )
                     active["pending_release_id"] = None
                     if not dry_run:
-                        save_state(state, state_path)
+                        _persist_state(state_access, state)
                     continue
                 if choice == CHOICE_SKIP:
                     result = _result(
@@ -1584,13 +1612,13 @@ def run_release_check(
                         generated_at,
                         run_id,
                         log_path,
-                        state_path,
+                        state_access,
                         dry_run,
                         terminal=True,
                     )
                     active["pending_release_id"] = None
                     if not dry_run:
-                        save_state(state, state_path)
+                        _persist_state(state_access, state)
                     continue
 
                 wine_action = _add_to_playlist(
@@ -1628,18 +1656,18 @@ def run_release_check(
                 generated_at,
                 run_id,
                 log_path,
-                state_path,
+                state_access,
                 dry_run,
                 terminal=terminal,
             )
             active["pending_release_id"] = None
             if not dry_run:
-                save_state(state, state_path)
+                _persist_state(state_access, state)
 
         completed.add(artist.key)
         active["completed_artist_keys"] = sorted(completed)
         if not dry_run:
-            save_state(state, state_path)
+            _persist_state(state_access, state)
         if progress_callback is not None:
             progress_callback(
                 len(completed),
@@ -1651,7 +1679,7 @@ def run_release_check(
         state["last_successful_check_at"] = datetime.now(UTC).isoformat()
         state["last_checked_through"] = checked_through.isoformat()
         state["active_run"] = None
-        save_state(state, state_path)
+        _persist_state(state_access, state)
         append_event(
             log_path,
             run_id,

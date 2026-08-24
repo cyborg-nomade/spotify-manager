@@ -2,12 +2,13 @@
 
 ## Why this directory matters
 
-`spotify_manager/files/` is both the application's data directory and its
-lightweight persistence layer. It contains very different kinds of files:
+`spotify_manager/files/` is the application's data directory. Durable routine
+state is stored separately in one shared, versioned `state.json` document. The
+files directory still contains several other kinds of data:
 
 - externally produced source exports;
 - generated mirrors of Spotify and Last.fm;
-- restart-safe routine state;
+- legacy routine-state sources retained for migration and audit;
 - caches that reduce API cost;
 - append-only audit logs; and
 - backups and analysis staging data.
@@ -25,8 +26,9 @@ deployed routine.
    listening history.
 3. Canonical Spotify mirrors are snapshots used when a routine needs a complete
    inventory or when repeated live lookups would be too expensive.
-4. Routine state files are authoritative for application-owned cursors,
-   mappings, processed ids, pending choices, and resumable batches.
+4. The private Hugging Face state dataset is authoritative for
+   application-owned cursors, mappings, processed ids, pending choices, and
+   resumable batches.
 5. Audit logs record what was planned or changed and support review and manual
    recovery; they are not normally replayed automatically.
 6. `YourLibrary.json` is an offline source export. It is used deliberately by
@@ -88,29 +90,50 @@ Use the printed run id to undo a completed analysis publication:
 just restore-library-sync RUN_ID --yes
 ```
 
-### Routine state
+### Shared routine state
 
-State files are small JSON documents written atomically through a sibling
-temporary file. Depending on the routine they may contain a cursor, active run,
-starting playlist snapshot, completed item ids, release ordering, artist
-mappings, permanent skips, annual imports, or a pending interactive decision.
+All production state access goes through `StateService`. Its default adapter
+stores one `state.json` file in the private Hugging Face dataset
+`cyborg-nomade/spotify-manager-state`. The document has a schema version,
+document timestamps, and independently timestamped namespace envelopes. A
+namespace write reloads the latest document, merges only that namespace, and
+uses the dataset commit as an optimistic concurrency guard.
 
-| State file | Important contents |
+| Namespace | Important contents |
 | --- | --- |
-| `genre_reveal_state.json` | Completed genre slugs and display preference. |
-| `review_album_limits_decisions.json` | Persisted keep decisions across album-review runs. |
-| `new_wine_flush_state.json` | Starting batch, completed transitions, liked-tail progress, and Wine Cellar refill state. |
-| `new_kids_state.json` | New Kids and Queue 2 active runs, unliked-track streaks, and yearly playlist ids. Played-release progress comes from the current year's Last.fm history. |
-| `queue_state.json` | The Queue recommendation/flush state and processed artists. |
-| `queue_3_state.json` | Queue 3 active run, composer playlist mappings, annual import, and release progress. |
-| `slow_listening_flush_state.json` | Current two-item batch, skipped track candidates, and release ordering. |
-| `release_check_state.json` | Last successful check date, state update timestamp, artist mappings, permanent artist/release skips, processed release ids, pending singles, and active run. |
-| `palace_of_memory_state.json` | Persisted alphabetical cursor. |
-| `discography_routine_state.json` | Next source queue in the round-robin plan. |
+| `genre_reveal` | Completed genre slugs and display preference. |
+| `review_album_limits` | Persisted keep decisions across album-review runs. |
+| `review_artists` | Completed artists and pending unfollow/queue-move plans. |
+| `recover_removed_albums` | Processed albums and checked credited artists. |
+| `new_wine` | Starting batch, completed transitions, liked-tail progress, and Wine Cellar refill state. |
+| `new_kids` | New Kids and Queue 2 active runs, streaks, and yearly playlist ids. Played-release progress comes from the current year's Last.fm history. |
+| `queue` | The Queue artist mappings and resumable flush. |
+| `queue_3` | Active run, composer routes, annual import, and release ordering. |
+| `slow_listening` | Current two-item batch, skipped candidates, and release ordering. |
+| `release_check` | Last check date, mappings, permanent skips, processed releases, pending singles, and active run. |
+| `palace_of_memory` | Persisted alphabetical cursor and last album identity. |
+| `discography` | Next source queue in the round-robin plan. |
 
-Some state files are intentionally absent until the first run. Their
-conventional paths are declared as `DEFAULT_STATE_PATH` in the corresponding
-routine module.
+The former per-routine JSON files and log-derived progress are legacy migration
+inputs. Explicit non-default paths remain supported for tests and recovery, but
+normal CLI and web execution never treats them as production state.
+
+Use the same controls from local CLI or the authenticated web cockpit:
+
+```console
+just state-show
+just state-show --namespace release_check
+just state-export spotify-manager-state.json
+just state-edit spotify-manager-state.json
+```
+
+`state-edit` validates the whole document, rejects stale exports unless
+`--force` is explicit, asks for confirmation, and uses the current store
+revision as a final write guard. The Data Signal Board provides the same view,
+edit, and export operations. Guided mode renders finite choices as dropdowns,
+booleans as checkboxes, numbers as numeric inputs, and large objects as lazy
+collapsible branches. Generated fields are read-only there; Advanced JSON is
+the explicit escape hatch. Hugging Face commit history is the backup chain.
 
 ### Audit logs
 
@@ -154,7 +177,6 @@ derivable.
 | Directory | Purpose |
 | --- | --- |
 | `lastfm_history_backups/` | Gzip snapshots before canonical scrobble replacement. |
-| `genre_reveal_state_backups/` | Snapshots before Genre Reveal state replacement. |
 | `palace_of_memory_album_backups/` | Saved-album mirrors replaced by Palace preflight refresh. |
 | `library_analysis_*_backups/` | Undo snapshots for published analysis/mirror files. |
 | `library_analysis_*/staging/` | Page-level temporary data for resumable analysis. |
@@ -192,46 +214,31 @@ read-only.
 
 ### Local execution
 
-The repository working tree is the runtime filesystem. State, logs, caches, and
-backups persist until they are moved or deleted. Most runtime files are ignored
-by Git to prevent accidental commits and merge conflicts.
+The CLI and local web app use the same Hub-backed state service as production,
+so their durable routine state is immediately shared with the HF web app. Logs,
+caches, mirrors, and backups still live in the local working tree.
 
 ### Hugging Face execution
 
-The Space repository supplies the files present at container startup. The
-running container then modifies its own writable copy. Unless the Space has a
-mounted persistent volume or the file is exported before a rebuild, those live
-writes are not automatically committed back to the Space repository.
+The Space reads and writes the same private dataset. Container rebuilds do not
+roll back routine state, and code deployment must not upload a replacement
+`state.json` into the Space repository. `SPOTIFY_MANAGER_STATE_TOKEN` must have
+read/write access to the private dataset.
 
-This creates three potentially different versions:
+The old New Release Check browser mirror remains as a compatibility recovery
+layer. Any accepted restore now writes through `StateService`, and the replaced
+state remains available in Hub commit history.
 
-1. local workstation state;
-2. state stored in the Space repository revision; and
-3. newer state in the running Space container.
-
-The running container is authoritative after a live routine has changed its
-state. Before deployment, snapshot it and never replace it with an older local
-copy. See [DEPLOY.md](../DEPLOY.md#state-preserving-update) for the required
-preflight and verification process.
-
-The web New Release Check additionally mirrors its versioned state into the
-authenticated browser after each checkpoint. When the same browser reconnects
-after a Space restart, it compares semantic timestamps and automatically
-restores the newer copy. The API uses a fingerprint precondition, refuses a
-restore while a release-check worker is active, and backs up the server file
-before replacement. This protects routine progress from ordinary Space
-restarts; it does not replace a mounted persistent volume or deployment backup,
-and clearing that browser's site data removes the mirror.
-
-For robust long-term operation, mount persistent Hugging Face storage and point
-runtime paths there where the application exposes a path override. Until all
-routine paths are configurable, state snapshots remain part of every release.
+Container-local logs, caches, mirrors, backups, and analysis staging are still
+ephemeral unless copied to the Space repository or another persistent store.
+Deployment snapshots remain important for those data families, but no longer
+for routine state.
 
 ## Recovery playbook
 
 ### Interrupted routine
 
-1. Do not delete its state file or cache.
+1. Inspect the namespace with `state-show`; do not clear it or its cache.
 2. Check the corresponding JSON-lines log for the last successful mutation.
 3. Re-run the same command and mode. Resumable routines detect their active run.
 4. If the playlist was edited manually, start with a dry run and compare the
@@ -248,22 +255,20 @@ keep its checkpoint and resume rather than deleting its staging directory.
 Use `restore-library-sync RUN_ID --yes` with the run id from the summary or
 event log. This restores the files from the analysis backup manifest.
 
-### Invalid or corrupt state JSON
+### Invalid or corrupt shared state
 
-1. Stop the routine and make a byte-for-byte copy of the file and adjacent
-   `.tmp` file.
-2. Inspect the routine's backup directory and audit log.
-3. Prefer restoring a known snapshot over hand-editing.
-4. If manual repair is necessary, preserve ids and completed-item lists and
-   validate the result with the routine's `load_state` function or tests before
-   a live run.
+1. Stop active routines and export the current state if it is readable.
+2. Inspect the private dataset commit history and the corresponding audit log.
+3. Restore a known Hub revision or repair an exported snapshot.
+4. Apply a repair with `state-edit`; validation and revision guards run before
+   the shared document is replaced.
 
 ### Deployment state mismatch
 
-Do not immediately redeploy. Keep the pre-deployment backup and the old Space
-revision. Compare path lists, sizes, blob ids, and LFS hashes. Roll the Space
-repository back to the previous revision if code or state changed outside the
-approved deployment set.
+Do not immediately redeploy. Compare the state dataset revision shown by local
+and web `state-show` controls. The same revision should be visible from both.
+Use Hub history to inspect or restore a bad state write; roll back the Space
+repository only when the mismatch is in code or container-local data.
 
 ## Privacy and version control
 

@@ -1,5 +1,6 @@
 """Interface file."""
 
+import json
 import select
 import sys
 import termios
@@ -36,6 +37,9 @@ from spotify_manager.client import SpotifyRedirectURIError
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.core.state.models import StateDocumentError
+from spotify_manager.core.state.models import StateError
+from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
 from spotify_manager.processors.library_lookups import AmbiguousArtistError
@@ -699,6 +703,109 @@ def convert_lib() -> None:
 def count_artists() -> None:
     """Print the number of artists in the YourLibrary file."""
     print(count_artists_in_library())
+
+
+@app.command(name="state-show")
+def state_show_command(
+    namespace: str | None = typer.Option(
+        None,
+        "--namespace",
+        "-n",
+        help="Show one namespace value instead of the complete state.",
+    ),
+) -> None:
+    """Print the current shared state and its guarded revision."""
+    try:
+        snapshot = get_state_service().snapshot()
+        payload: object = snapshot.document
+        if namespace is not None:
+            envelope = snapshot.document["namespaces"].get(namespace)
+            if envelope is None:
+                raise StateDocumentError(
+                    f"State namespace {namespace!r} was not found."
+                )
+            payload = envelope
+        Console().print_json(
+            json.dumps(
+                {"revision": snapshot.revision, "state": payload},
+                ensure_ascii=False,
+            )
+        )
+    except StateError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command(name="state-export")
+def state_export_command(
+    destination: Annotated[
+        Path,
+        typer.Argument(help="Destination JSON file."),
+    ] = Path("spotify-manager-state.json"),
+) -> None:
+    """Export a readable snapshot of the complete shared state."""
+    try:
+        snapshot = get_state_service().export(destination)
+    except (OSError, StateError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Exported revision {snapshot.revision} to {destination.resolve()}.")
+
+
+@app.command(name="state-edit")
+def state_edit_command(
+    source: Annotated[
+        Path,
+        typer.Argument(help="Edited JSON state snapshot to apply."),
+    ],
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Allow an older exported snapshot to replace the current state.",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Apply without the confirmation prompt.",
+    ),
+) -> None:
+    """Validate and apply an edited shared-state snapshot safely."""
+    try:
+        raw = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise StateDocumentError("Edited state must be a JSON object.")
+        document = raw.get("document", raw)
+        source_revision = raw.get("revision") if "document" in raw else None
+        if not isinstance(document, dict):
+            raise StateDocumentError("Edited state document must be a JSON object.")
+        service = get_state_service()
+        current = service.snapshot()
+        source_updated_at = document.get("updated_at")
+        current_updated_at = current.document.get("updated_at")
+        stale = (
+            source_revision != current.revision
+            if isinstance(source_revision, str)
+            else source_updated_at != current_updated_at
+        )
+        if not force and stale:
+            raise StateDocumentError(
+                "Edited snapshot is stale. Export the current state or use --force."
+            )
+        if not yes and not typer.confirm(
+            f"Replace shared state revision {current.revision}?"
+        ):
+            typer.echo("State was not changed.")
+            return
+        saved = service.replace(
+            document,
+            expected_revision=current.revision,
+            message=f"Edit Spotify Manager state from {source.name}",
+        )
+    except (OSError, json.JSONDecodeError, StateError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Shared state updated at revision {saved.revision}.")
 
 
 def format_file_size(size_bytes: int) -> str:

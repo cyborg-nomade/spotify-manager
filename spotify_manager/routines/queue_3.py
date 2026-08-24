@@ -18,6 +18,9 @@ from spotipy import Spotify
 from unidecode import unidecode
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
@@ -156,6 +159,14 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise Queue3StateError(f"Queue 3 state is invalid: {path}") from exc
+    try:
+        return validate_state(raw)
+    except Queue3StateError as exc:
+        raise Queue3StateError(f"Queue 3 state is invalid: {path}") from exc
+
+
+def validate_state(raw: object) -> dict[str, object]:
+    """Validate and upgrade the Queue 3 namespace independently of storage."""
     if isinstance(raw, dict) and raw.get("version") == STATE_VERSION:
         raw.setdefault("composer_routes", {})
     if (
@@ -169,7 +180,7 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
             and not isinstance(raw.get("active_run"), dict)
         )
     ):
-        raise Queue3StateError(f"Queue 3 state is invalid: {path}")
+        raise Queue3StateError("Queue 3 state is invalid.")
     return raw
 
 
@@ -187,6 +198,23 @@ def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> Non
         raise Queue3StateError(f"Could not save Queue 3 state: {path}") from exc
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _state_access(
+    state_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="queue_3",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=state_path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=load_state,
+        legacy_saver=save_state,
+        service=state_service,
+    )
 
 
 def append_event(path: Path, event_type: str, **details: object) -> None:
@@ -400,11 +428,13 @@ def _annual_import(
     active_year: int,
     dry_run: bool,
     retry_call: RetryCall,
-    state_path: Path,
     log_path: Path,
     echo: Echo,
+    state_access: RoutineState | None = None,
+    state_path: Path = DEFAULT_STATE_PATH,
 ) -> tuple[list[new_wine.PlaylistTrack], tuple[AnnualImportResult, ...]]:
     """Copy unique artists from the previous year's Great Discoveries once."""
+    state_access = state_access or _state_access(state_path, None)
     annual_imports = cast(dict[str, object], state["annual_imports"])
     year_key = str(active_year)
     if isinstance(annual_imports.get(year_key), dict) and bool(
@@ -483,7 +513,7 @@ def _annual_import(
             "artists_seen": len(source_seen),
             "artists_added": len(additions),
         }
-        save_state(state, state_path)
+        state_access.save(state)
     echo(
         f"{'Would import' if dry_run else 'Imported'} {len(additions)} artists "
         f"from Great Discoveries {source_year}; "
@@ -987,6 +1017,7 @@ def flush_queue_3(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
@@ -1000,7 +1031,8 @@ def flush_queue_3(
     except new_wine.NewWineError as exc:
         raise Queue3Error(str(exc)) from exc
 
-    persisted_state = load_state(state_path)
+    state_access = _state_access(state_path, state_service)
+    persisted_state = state_access.load()
     state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
     live_tracks, annual_import = _annual_import(
         sp,
@@ -1011,7 +1043,7 @@ def flush_queue_3(
         active_year=year,
         dry_run=dry_run,
         retry_call=retry,
-        state_path=state_path,
+        state_access=state_access,
         log_path=log_path,
         echo=echo,
     )
@@ -1031,7 +1063,7 @@ def flush_queue_3(
         run = _new_run(playlist_id, live_tracks, state)
         if not dry_run:
             state["active_run"] = run
-            save_state(state, state_path)
+            state_access.save(state)
 
     raw_entries = run.get("entries")
     if not isinstance(raw_entries, list):
@@ -1057,7 +1089,7 @@ def flush_queue_3(
 
     def persist_order() -> None:
         if not dry_run:
-            save_state(state, state_path)
+            state_access.save(state)
 
     for index, raw_entry in enumerate(raw_entries, start=1):
         if not isinstance(raw_entry, dict):
@@ -1131,7 +1163,7 @@ def flush_queue_3(
                 break
             raw_entry["plan"] = plan
             if not dry_run:
-                save_state(state, state_path)
+                state_access.save(state)
 
         action = str(plan["action"])
         current_release = _release_from_record(plan.get("current_release"))
@@ -1263,7 +1295,7 @@ def flush_queue_3(
                     route["current_track_id"] = target.spotify_id
                     route["updated_at"] = datetime.now(UTC).isoformat()
             raw_entry["status"] = "skipped" if action == "skip" else "completed"
-            save_state(state, state_path)
+            state_access.save(state)
         if progress_callback is not None:
             progress_callback(index, total, f"Completed {artist_name}")
 
@@ -1277,7 +1309,7 @@ def flush_queue_3(
     ):
         run["status"] = "completed"
         run["completed_at"] = datetime.now(UTC).isoformat()
-        save_state(state, state_path)
+        state_access.save(state)
 
     return FlushSummary(
         run_id=run_id,

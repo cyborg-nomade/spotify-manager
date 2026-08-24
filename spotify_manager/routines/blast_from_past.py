@@ -13,6 +13,7 @@ from datetime import date
 from datetime import datetime
 from difflib import SequenceMatcher
 from email.utils import parsedate_to_datetime
+from functools import partial
 from pathlib import Path
 from typing import Literal
 from urllib.error import HTTPError
@@ -502,7 +503,7 @@ def liked_spotify_track_ids(
         check_cancel(cancel_check)
         batch = track_ids[start : start + SPOTIFY_LIKED_BATCH_SIZE]
         statuses = retry_call(
-            lambda batch=batch: sp.current_user_saved_tracks_contains(batch),
+            partial(sp.current_user_saved_tracks_contains, batch),
             "checking live liked-track status",
         )
         check_cancel(cancel_check)
@@ -752,7 +753,8 @@ def load_playlist_state(
     while True:
         check_cancel(cancel_check)
         response = retry_call(
-            lambda offset=offset: sp._get(
+            partial(
+                sp._get,
                 f"playlists/{playlist_id}/items",
                 limit=SPOTIFY_PLAYLIST_PAGE_SIZE,
                 offset=offset,
@@ -831,7 +833,8 @@ def add_spotify_matches(
         check_cancel(cancel_check)
         batch = uris[start : start + SPOTIFY_PLAYLIST_ADD_BATCH_SIZE]
         retry_call(
-            lambda batch=batch: sp._post(
+            partial(
+                sp._post,
                 f"playlists/{playlist_id}/items",
                 payload={"uris": batch},
             ),

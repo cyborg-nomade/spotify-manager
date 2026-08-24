@@ -5,6 +5,7 @@ standard library), which keeps it importable and unit-testable on its own.
 """
 
 import hmac
+from ipaddress import ip_address
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.base import RequestResponseEndpoint
@@ -35,10 +36,30 @@ class PasswordMiddleware(BaseHTTPMiddleware):
     deployment. Open paths and CORS preflight requests are never gated.
     """
 
-    def __init__(self, app: ASGIApp, password: str | None) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        password: str | None,
+        *,
+        allow_any_loopback_password: bool = False,
+    ) -> None:
         """Store the configured password (or ``None`` to disable the gate)."""
         super().__init__(app)
         self._password = password
+        self._allow_any_loopback_password = allow_any_loopback_password
+
+    @staticmethod
+    def _is_loopback(request: Request) -> bool:
+        """Trust only the direct socket peer, never forwarded client headers."""
+        if request.client is None:
+            return False
+        host = request.client.host.casefold()
+        if host == "localhost":
+            return True
+        try:
+            return ip_address(host).is_loopback
+        except ValueError:
+            return False
 
     async def dispatch(
         self,
@@ -54,6 +75,12 @@ class PasswordMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         supplied = request.headers.get("x-app-password", "")
+        if (
+            supplied
+            and self._allow_any_loopback_password
+            and self._is_loopback(request)
+        ):
+            return await call_next(request)
         if hmac.compare_digest(supplied, self._password):
             return await call_next(request)
 

@@ -55,4 +55,5 @@ and a responsive web cockpit.
 | Audit log | An append-only `.jsonl` record of decisions and Spotify mutations. |
 | Dry run | A preview that avoids playlist or library mutations. A few routines deliberately persist safe metadata such as artist mappings or refreshed scrobbles; their README sections call this out. |
 | Interactive job | A web background job that may pause for a choice and resume through a choice endpoint. |
-| Live server state | Runtime files currently held by the deployed Space. They can be newer than both GitHub and the Space repository revision. |
+| Central state | The versioned `state.json` in the private Hub dataset, shared by CLI, local web, and deployed web. |
+| Container data | Replaceable mirrors, caches, logs, backups, and staging currently held by the deployed Space. |

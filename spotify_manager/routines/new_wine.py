@@ -9,12 +9,16 @@ from datetime import UTC
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import Any
 from typing import Literal
 from typing import cast
 
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.core.state import RoutineState
+from spotify_manager.core.state import StateService
+from spotify_manager.core.state.compat import routine_state
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import AlbumTrackLikedStatus
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -517,7 +521,7 @@ def _live_evaluation(
     )
 
 
-def _default_state() -> dict[str, object]:
+def _default_state() -> dict[str, Any]:
     """Return an empty versioned restart state."""
     return {
         "version": STATE_VERSION,
@@ -526,7 +530,18 @@ def _default_state() -> dict[str, object]:
     }
 
 
-def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
+def validate_state(raw: object) -> dict[str, Any]:
+    """Validate the New Wine namespace independently of storage."""
+    if (
+        not isinstance(raw, dict)
+        or raw.get("version") != STATE_VERSION
+        or not isinstance(raw.get("track_progress"), dict)
+    ):
+        raise NewWineStateError("New Wine state is invalid.")
+    return raw
+
+
+def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
     """Load restart state, rejecting malformed data instead of discarding it."""
     if not path.exists():
         return _default_state()
@@ -534,16 +549,13 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise NewWineStateError(f"New Wine state is invalid: {path}") from exc
-    if (
-        not isinstance(raw, dict)
-        or raw.get("version") != STATE_VERSION
-        or not isinstance(raw.get("track_progress"), dict)
-    ):
-        raise NewWineStateError(f"New Wine state is invalid: {path}")
-    return raw
+    try:
+        return validate_state(raw)
+    except NewWineStateError as exc:
+        raise NewWineStateError(f"New Wine state is invalid: {path}") from exc
 
 
-def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> None:
+def save_state(state: dict[str, Any], path: Path = DEFAULT_STATE_PATH) -> None:
     """Persist restart state atomically after each successful boundary."""
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
@@ -555,6 +567,23 @@ def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> Non
         temporary.replace(path)
     except OSError as exc:
         raise NewWineStateError(f"Could not save New Wine state: {path}") from exc
+
+
+def _state_access(
+    state_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="new_wine",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=state_path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=load_state,
+        legacy_saver=save_state,
+        service=state_service,
+    )
 
 
 def append_log(
@@ -803,16 +832,18 @@ def _refill_new_wine(
     no_discovery: bool,
     dry_run: bool,
     retry_call: RetryCall,
-    state: dict[str, object],
+    state: dict[str, Any],
     run: dict[str, object],
-    state_path: Path,
     log_path: Path,
     liked_tracks_path: Path,
     albums_path: Path,
     echo: Echo,
+    state_access: RoutineState | None = None,
+    state_path: Path = DEFAULT_STATE_PATH,
     projected_new_wine_ids: set[str] | None = None,
 ) -> CellarRefillSummary:
     """Fill New Wine from Wine Cellar with resumable add-before-remove moves."""
+    state_access = state_access or _state_access(state_path, None)
     raw_pending = run.get("refill_pending")
     has_pending = (
         isinstance(raw_pending, dict) and raw_pending.get("source") is not None
@@ -913,7 +944,7 @@ def _refill_new_wine(
         )
         if not dry_run:
             run["refill_pending"] = None
-            save_state(state, state_path)
+            state_access.save(state)
         results.append(pending_result)
         append_cellar_log(run_id, pending_result, log_path)
 
@@ -966,11 +997,11 @@ def _refill_new_wine(
                 "liked_tracks": liked_count,
                 "saved_albums": album_count,
             }
-            save_state(state, state_path)
+            state_access.save(state)
         result = transfer(source, liked_count, album_count)
         if not dry_run:
             run["refill_pending"] = None
-            save_state(state, state_path)
+            state_access.save(state)
         results.append(result)
         append_cellar_log(run_id, result, log_path)
 
@@ -1078,6 +1109,7 @@ def flush_new_wine(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     liked_tracks_path: Path = DEFAULT_LIKED_TRACKS_PATH,
@@ -1092,7 +1124,8 @@ def flush_new_wine(
     sauvignon_ids = {track.spotify_id for track in sauvignon_tracks}
 
     resumed = False
-    state = _default_state() if dry_run else load_state(state_path)
+    state_access = _state_access(state_path, state_service)
+    state = _default_state() if dry_run else state_access.load()
     active_run = state.get("active_run")
     if (
         not dry_run
@@ -1111,7 +1144,7 @@ def flush_new_wine(
         )
         if not dry_run:
             state["active_run"] = run
-            save_state(state, state_path)
+            state_access.save(state)
 
     run_id = str(run["run_id"])
     raw_entries = run.get("entries")
@@ -1263,7 +1296,7 @@ def flush_new_wine(
                         results.append(result)
                         append_log(run_id, result, log_path)
                         if not dry_run:
-                            save_state(state, state_path)
+                            state_access.save(state)
                         continue
                     only_current_single = (
                         len(candidates) == 1
@@ -1299,7 +1332,7 @@ def flush_new_wine(
                         results.append(result)
                         append_log(run_id, result, log_path)
                         if not dry_run:
-                            save_state(state, state_path)
+                            state_access.save(state)
                         continue
                     if choice == CHOICE_DROP:
                         get_liked_statuses(
@@ -1354,7 +1387,7 @@ def flush_new_wine(
                         results.append(result)
                         append_log(run_id, result, log_path)
                         if not dry_run:
-                            save_state(state, state_path)
+                            state_access.save(state)
                         continue
                     selected_index = _track_index(selected_tracks, source)
                     switched_release = (
@@ -1425,7 +1458,7 @@ def flush_new_wine(
                         results.append(result)
                         append_log(run_id, result, log_path)
                         if not dry_run:
-                            save_state(state, state_path)
+                            state_access.save(state)
                         continue
                     if choice not in {CHOICE_FINISH, CHOICE_DROP}:
                         selected_continuation = next(
@@ -1450,7 +1483,7 @@ def flush_new_wine(
 
             raw_entry["plan"] = plan
             if not dry_run:
-                save_state(state, state_path)
+                state_access.save(state)
 
         release = _release_from_record(plan["release"])
         target = _track_from_record(plan.get("target"))
@@ -1526,7 +1559,7 @@ def flush_new_wine(
                 )
                 album_unsaved = True
                 plan["album_unsaved"] = True
-                save_state(state, state_path)
+                state_access.save(state)
             if is_saved:
                 echo(
                     f"{'Would unsave' if dry_run else 'Unsave check complete for'} "
@@ -1592,7 +1625,7 @@ def flush_new_wine(
                     "updated_at": datetime.now(UTC).isoformat(),
                 }
             raw_entry["status"] = "completed"
-            save_state(state, state_path)
+            state_access.save(state)
 
         result = _plan_result(
             source,
@@ -1621,7 +1654,7 @@ def flush_new_wine(
             retry_call=retry,
             state=state,
             run=run,
-            state_path=state_path,
+            state_access=state_access,
             log_path=log_path,
             liked_tracks_path=liked_tracks_path,
             albums_path=albums_path,
@@ -1636,7 +1669,7 @@ def flush_new_wine(
         ):
             run["status"] = "completed"
             run["completed_at"] = datetime.now(UTC).isoformat()
-            save_state(state, state_path)
+            state_access.save(state)
 
     return FlushSummary(
         run_id=run_id,

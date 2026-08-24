@@ -132,7 +132,7 @@ venv.bak/
 spotify_manager/files/album_tracks_cache.json
 spotify_manager/files/artist_review_cache.json
 
-# Protected Genre Reveal runtime state, browser-mirrored and backed up before writes
+# Legacy per-routine state files retained only for migration and explicit tests
 spotify_manager/files/genre_reveal_state.json
 spotify_manager/files/genre_reveal_state.json.tmp
 spotify_manager/files/genre_reveal_state_backups/
@@ -147,12 +147,12 @@ spotify_manager/files/lastfm_history_backups/
 spotify_manager/files/scrobble_history_update_log.jsonl
 spotify_manager/files/something_old_log.jsonl
 
-# Restart-safe New Wine flush state and audit log
+# New Wine audit log and legacy state file
 spotify_manager/files/new_wine_flush_state.json
 spotify_manager/files/new_wine_flush_state.json.tmp
 spotify_manager/files/new_wine_flush_log.jsonl
 
-# Restart-safe New Kids flush state and audit log
+# Queue audit logs and legacy state files
 spotify_manager/files/new_kids_state.json
 spotify_manager/files/new_kids_state.json.tmp
 spotify_manager/files/new_kids_log.jsonl
@@ -161,19 +161,19 @@ spotify_manager/files/queue_3_state.json
 spotify_manager/files/queue_3_state.json.tmp
 spotify_manager/files/queue_3_log.jsonl
 
-# Restart-safe new-release discovery state and audit log
+# New-release audit log, backups, and legacy state file
 spotify_manager/files/release_check_state.json
 spotify_manager/files/release_check_state.json.tmp
 spotify_manager/files/release_check_state_backups/
 spotify_manager/files/release_check_log.jsonl
 
-# Restart-safe Slow Listening flush state and audit log
+# Slow Listening audit log and legacy state file
 spotify_manager/files/slow_listening_flush_state.json
 spotify_manager/files/slow_listening_flush_state.json.tmp
 spotify_manager/files/slow_listening_flush_log.jsonl
 spotify_manager/files/requeue_for_a_dream_log.jsonl
 
-# Palace of Memory cursor, audit logs, and saved-album refresh backups
+# Palace of Memory audit logs, backups, and legacy cursor state
 spotify_manager/files/palace_of_memory_state.json
 spotify_manager/files/palace_of_memory_state.json.tmp
 spotify_manager/files/palace_of_memory_log.jsonl

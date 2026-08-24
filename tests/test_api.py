@@ -186,17 +186,18 @@ def test_health(client: TestClient) -> None:
     assert client.get("/health").json() == {"status": "ok"}
 
 
-def test_release_check_state_browser_restore_is_versioned_and_backup_first(
+def test_release_check_state_browser_restore_uses_central_revision_history(
     client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
-    state_path = tmp_path / "release-check-state.json"
-    backup_dir = tmp_path / "backups"
-    monkeypatch.setattr(api, "RELEASE_CHECK_STATE_PATH", state_path)
-    monkeypatch.setattr(api, "RELEASE_CHECK_STATE_BACKUP_DIR", backup_dir)
+    state_access = api.get_state_service().namespace(
+        "release_check",
+        api.release_check._default_state,
+        api.release_check.validate_state,
+    )
     state = api.release_check._default_state()
-    api.release_check.save_state(state, state_path)
+    state["updated_at"] = datetime.now(UTC).isoformat()
+    state_access.load()
+    state_access.save(state)
 
     first = client.get("/commands/check-new-releases-state")
     fingerprint = first.json()["fingerprint"]
@@ -224,8 +225,7 @@ def test_release_check_state_browser_restore_is_versioned_and_backup_first(
     assert restored.json()["state"]["artist_mappings"]["artist"] == {
         "spotify_id": "spotify-artist"
     }
-    assert restored.json()["backup_path"] is not None
-    assert Path(restored.json()["backup_path"]).exists()
+    assert restored.json()["backup_path"] is None
 
     stale = client.put(
         "/commands/check-new-releases-state",
@@ -235,6 +235,103 @@ def test_release_check_state_browser_restore_is_versioned_and_backup_first(
         },
     )
     assert stale.status_code == 409
+
+
+def test_shared_state_can_be_viewed_edited_and_exported(client: TestClient) -> None:
+    initial = client.get("/state")
+    summary = client.get("/state/summary")
+    payload = initial.json()
+    document = payload["document"]
+    timestamp = datetime.now(UTC).isoformat()
+    document["namespaces"]["manual_test"] = {
+        "updated_at": timestamp,
+        "value": {"enabled": True},
+    }
+    document["updated_at"] = timestamp
+
+    saved = client.put(
+        "/state",
+        json={
+            "expected_revision": payload["revision"],
+            "document": document,
+        },
+    )
+    stale = client.put(
+        "/state",
+        json={
+            "expected_revision": payload["revision"],
+            "document": document,
+        },
+    )
+    exported = client.get("/state/export")
+
+    assert initial.status_code == 200
+    assert summary.status_code == 200
+    assert summary.json()["revision"] == payload["revision"]
+    assert saved.status_code == 200
+    assert saved.json()["document"]["namespaces"]["manual_test"]["value"] == {
+        "enabled": True
+    }
+    assert stale.status_code == 409
+    assert exported.status_code == 200
+    assert exported.headers["content-type"].startswith("application/json")
+    assert "attachment; filename=" in exported.headers["content-disposition"]
+    assert exported.json()["document"]["namespaces"]["manual_test"]["value"]["enabled"]
+
+
+def test_shared_state_namespace_editor_is_schema_driven_and_guarded(
+    client: TestClient,
+) -> None:
+    initial = client.get("/state").json()
+    schema = client.get("/state/schema")
+    saved = client.put(
+        "/state/namespaces/discography",
+        json={
+            "expected_revision": initial["revision"],
+            "value": {"version": 1, "next_queue": "memory_lane"},
+        },
+    )
+    invalid_choice = client.put(
+        "/state/namespaces/discography",
+        json={
+            "expected_revision": saved.json()["revision"],
+            "value": {"version": 1, "next_queue": "unknown"},
+        },
+    )
+    read_only = client.put(
+        "/state/namespaces/discography",
+        json={
+            "expected_revision": saved.json()["revision"],
+            "value": {"version": 2, "next_queue": "requeue"},
+        },
+    )
+    stale = client.put(
+        "/state/namespaces/discography",
+        json={
+            "expected_revision": initial["revision"],
+            "value": {"version": 1, "next_queue": "requeue"},
+        },
+    )
+    unknown = client.put(
+        "/state/namespaces/missing",
+        json={"expected_revision": saved.json()["revision"], "value": {}},
+    )
+
+    assert schema.status_code == 200
+    assert schema.json()["namespaces"]["discography"]["rules"][1]["options"] == [
+        "newfoundland",
+        "requeue",
+        "memory_lane",
+    ]
+    assert saved.status_code == 200
+    assert saved.json()["document"]["namespaces"]["discography"]["value"] == {
+        "version": 1,
+        "next_queue": "memory_lane",
+    }
+    assert invalid_choice.status_code == 422
+    assert read_only.status_code == 422
+    assert stale.status_code == 409
+    assert unknown.status_code == 404
 
 
 def test_release_check_state_restore_rejects_an_active_job(

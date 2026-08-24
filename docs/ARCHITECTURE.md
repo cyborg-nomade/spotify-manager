@@ -115,7 +115,8 @@ nearest-neighbor route with server-backed completion state.
 | Models | `spotify_manager/models/` | Pydantic models for exports, mirrors, lookups, albums, artists, tracks, and statistics. |
 | Persistence helpers | `spotify_manager/loaders_savers/` | Load and save canonical and legacy JSON files. |
 | Utilities | `spotify_manager/utils/` | Sorting, comparison, and growth calculations. |
-| Data and runtime state | `spotify_manager/files/` | Exports, mirrors, caches, checkpoints, backups, decisions, and audit logs. |
+| Central state | `spotify_manager/core/state/`, `spotify_manager/infrastructure/` | State interface, schema, concurrency, local adapter, and private-Hub adapter. |
+| Local data | `spotify_manager/files/` | Exports, mirrors, caches, staging, backups, and audit logs. |
 
 The interface modules should not reimplement routine rules. Interactive choices
 are passed into routines as callbacks in the CLI and as pause/resume state in
@@ -146,6 +147,12 @@ the user-visible behavior and safety rules for every command.
 The CLI executes a routine in the foreground. A routine can emit progress or
 retry events through callbacks and can call a prompt callback when a decision
 is required. Interruptible routines save their active state at safe boundaries.
+
+All durable routine state is accessed through `core.state.StateService`.
+Routines own validation for their namespace; the service owns document schema,
+namespace merge, optimistic concurrency, visibility, manual replacement, and
+export. `infrastructure.huggingface.HubStateStore` persists the single document
+in a private dataset, while `JsonStateStore` provides isolated local/test use.
 
 ### Threaded web jobs
 
@@ -231,9 +238,10 @@ into the configured destination.
 ### Hugging Face Hub and Spaces
 
 The `huggingface_hub` client uploads refreshed source exports. The production
-web app runs in a private Docker Space. The Space repository and its running
-container can both hold state newer than GitHub, so deployments use explicit
-file lists and state snapshots rather than a blanket repository replacement.
+web app runs in a private Docker Space. Durable routine state is stored
+separately in a private dataset, while the Space container holds replaceable
+mirrors, caches, logs, and staging data. Deployments use explicit file lists so
+those data families are not accidentally overwritten.
 
 ## Data flow and authority
 
@@ -245,7 +253,8 @@ flowchart TD
     LastFMExport["Canonical scrobble export"]
     Mirrors["Canonical Spotify mirrors"]
     Routines["Routine planning and decisions"]
-    Runtime["State, cache, log, and backup files"]
+    SharedState["Private Hub state.json"]
+    Runtime["Local cache, log, staging, and backup files"]
 
     SpotifyLive -->|live analysis| Mirrors
     SpotifyExport -->|async analysis only| Offline["Suffixed async outputs"]
@@ -253,6 +262,7 @@ flowchart TD
     Mirrors --> Routines
     LastFMExport --> Routines
     SpotifyLive <--> Routines
+    Routines <--> SharedState
     Routines <--> Runtime
 ```
 
@@ -282,13 +292,15 @@ spotify-manager/
 |   |-- settings.py              Pydantic environment settings
 |   |-- web.py                   Gated frontend deployment wrapper
 |   |-- client/                  Spotify and Last.fm clients
+|   |-- core/state/              Central state service and contracts
 |   |-- frontend/                Cockpit and Genre Reveal HTML applications
+|   |-- infrastructure/          Hugging Face and local persistence adapters
 |   |-- loaders_savers/          Canonical JSON persistence helpers
 |   |-- models/                  Pydantic data models
 |   |-- processors/              Shared transformations and lookups
 |   |-- routines/                Domain workflows
 |   |-- utils/                   Sorting and calculations
-|   `-- files/                   Exports, mirrors, and runtime state
+|   `-- files/                   Exports, mirrors, caches, logs, and staging
 `-- tests/                       Unit, CLI, API, web, and routine tests
 ```
 

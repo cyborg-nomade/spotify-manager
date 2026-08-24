@@ -24,6 +24,9 @@ from spotipy import Spotify
 
 # UFI
 from spotify_manager.client.lastfm import LastFmSimilarArtist
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_kids
@@ -277,6 +280,14 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise QueueStateError(f"Queue state is invalid: {path}") from exc
+    try:
+        return validate_state(raw)
+    except QueueStateError as exc:
+        raise QueueStateError(f"Queue state is invalid: {path}") from exc
+
+
+def validate_state(raw: object) -> dict[str, object]:
+    """Validate The Queue namespace independently of storage."""
     if (
         not isinstance(raw, dict)
         or raw.get("version") != STATE_VERSION
@@ -286,7 +297,7 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
             and not isinstance(raw.get("active_flush"), dict)
         )
     ):
-        raise QueueStateError(f"Queue state is invalid: {path}")
+        raise QueueStateError("Queue state is invalid.")
     return raw
 
 
@@ -304,6 +315,23 @@ def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> Non
         raise QueueStateError(f"Could not save Queue state: {path}") from exc
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _state_access(
+    state_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="queue",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=state_path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=load_state,
+        legacy_saver=save_state,
+        service=state_service,
+    )
 
 
 def append_event(path: Path, event: str, **details: object) -> None:
@@ -725,6 +753,7 @@ def fill_queue_from_lastfm(
     export_path: Path = DEFAULT_SCROBBLES_PATH,
     recent_path: Path = DEFAULT_RECENT_PATH,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     cache_path: Path = DEFAULT_CACHE_PATH,
     log_path: Path = DEFAULT_LOG_PATH,
     now: datetime | None = None,
@@ -794,7 +823,8 @@ def fill_queue_from_lastfm(
         (playlists.queue, playlists.queue_2, playlists.new_kids, playlists.queue_3),
         retry,
     )
-    state = load_state(state_path)
+    state_access = _state_access(state_path, state_service)
+    state = state_access.load()
     mappings = state["artist_mappings"]
     assert isinstance(mappings, dict)
     results: list[FillResult] = []
@@ -841,7 +871,7 @@ def fill_queue_from_lastfm(
                 continue
             spotify_artist = resolved
             mappings[recommendation.key] = asdict(spotify_artist)
-            save_state(state, state_path)
+            state_access.save(state)
         if spotify_artist.spotify_id in represented:
             result = FillResult(
                 recommendation,
@@ -1129,12 +1159,14 @@ def flush_queue(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
     artists_path: Path = DEFAULT_ARTISTS_PATH,
 ) -> FlushSummary:
     """Advance the first ten Queue artists through their unliked top tracks."""
     retry = retry_call or (lambda operation, _description: operation())
-    state = _default_state() if dry_run else load_state(state_path)
+    state_access = _state_access(state_path, state_service)
+    state = _default_state() if dry_run else state_access.load()
     active = state.get("active_flush")
     resumed = bool(
         not dry_run
@@ -1150,7 +1182,7 @@ def flush_queue(
         run = _new_flush_run(playlists.queue, tuple(live_tracks))
         if not dry_run:
             state["active_flush"] = run
-            save_state(state, state_path)
+            state_access.save(state)
     raw_entries = run.get("entries")
     if not isinstance(raw_entries, list):
         raise QueueStateError("Queue active flush has invalid entries.")
@@ -1187,7 +1219,7 @@ def flush_queue(
             plan = _plan_flush_entry(sp, source, source_uris, retry)
             raw_entry["plan"] = plan
             if not dry_run:
-                save_state(state, state_path)
+                state_access.save(state)
         action = str(plan.get("action") or "")
         target = _catalog_track_from_record(plan.get("target"))
         raw_source_uris = plan.get("source_uris")
@@ -1291,12 +1323,12 @@ def flush_queue(
         )
         if not dry_run:
             raw_entry["status"] = "completed"
-            save_state(state, state_path)
+            state_access.save(state)
         if progress_callback is not None:
             progress_callback(index, total, f"Completed {source.primary_artist_name}")
     if not dry_run:
         state["active_flush"] = None
-        save_state(state, state_path)
+        state_access.save(state)
     return FlushSummary(
         run_id=str(run.get("run_id") or "dry-run"),
         playlist_length_before=length_before,

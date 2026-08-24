@@ -19,6 +19,9 @@ from spotipy import Spotify
 from unidecode import unidecode
 
 # UFI
+from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import new_wine
 
 
@@ -561,12 +564,22 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
         raise SlowListeningStateError(
             f"Slow Listening state is invalid: {path}"
         ) from exc
+    try:
+        return validate_state(raw)
+    except SlowListeningStateError as exc:
+        raise SlowListeningStateError(
+            f"Slow Listening state is invalid: {path}"
+        ) from exc
+
+
+def validate_state(raw: object) -> dict[str, object]:
+    """Validate the Slow Listening namespace independently of storage."""
     if (
         not isinstance(raw, dict)
         or raw.get("version") != STATE_VERSION
         or not isinstance(raw.get("release_orders"), dict)
     ):
-        raise SlowListeningStateError(f"Slow Listening state is invalid: {path}")
+        raise SlowListeningStateError("Slow Listening state is invalid.")
     return raw
 
 
@@ -587,6 +600,23 @@ def save_state(
         raise SlowListeningStateError(
             f"Could not save Slow Listening state: {path}"
         ) from exc
+
+
+def _state_access(
+    state_path: Path,
+    state_service: StateService | None,
+) -> RoutineState:
+    """Resolve shared production state or an explicit legacy test path."""
+    return routine_state(
+        name="slow_listening",
+        default_factory=_default_state,
+        validator=validate_state,
+        legacy_path=state_path,
+        default_legacy_path=DEFAULT_STATE_PATH,
+        legacy_loader=load_state,
+        legacy_saver=save_state,
+        service=state_service,
+    )
 
 
 def append_log(
@@ -859,6 +889,7 @@ def flush_slow_listening(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
 ) -> FlushSummary:
     """Advance the first two Slow Listening entries once each."""
@@ -871,7 +902,8 @@ def flush_slow_listening(
     live_ids = {track.spotify_id for track in live_tracks}
 
     resumed = False
-    state = _default_state() if dry_run else load_state(state_path)
+    state_access = _state_access(state_path, state_service)
+    state = _default_state() if dry_run else state_access.load()
     active_run = state.get("active_run")
     if (
         not dry_run
@@ -885,7 +917,7 @@ def flush_slow_listening(
         run = _new_run(playlist_id, live_tracks)
         if not dry_run:
             state["active_run"] = run
-            save_state(state, state_path)
+            state_access.save(state)
 
     raw_entries = run.get("entries")
     if not isinstance(raw_entries, list):
@@ -903,7 +935,7 @@ def flush_slow_listening(
 
     def persist_order() -> None:
         if not dry_run:
-            save_state(state, state_path)
+            state_access.save(state)
 
     def persist_skipped_candidate(
         spotify_id: str,
@@ -911,7 +943,7 @@ def flush_slow_listening(
     ) -> None:
         skipped_candidates.append(spotify_id)
         if not dry_run:
-            save_state(state, state_path)
+            state_access.save(state)
 
     for index, raw_entry in enumerate(raw_entries, start=1):
         if not isinstance(raw_entry, dict):
@@ -976,7 +1008,7 @@ def flush_slow_listening(
         if raw_entry.get("plan") is None:
             raw_entry["plan"] = plan
             if not dry_run:
-                save_state(state, state_path)
+                state_access.save(state)
 
         action = str(plan["action"])
         target = _track_from_record(plan.get("target"))
@@ -992,7 +1024,7 @@ def flush_slow_listening(
             )
             if not dry_run:
                 raw_entry["status"] = "skipped"
-                save_state(state, state_path)
+                state_access.save(state)
             continue
 
         source_present = source.spotify_id in live_ids
@@ -1039,7 +1071,7 @@ def flush_slow_listening(
         ):
             completion_notifier(source)
             plan["completion_acknowledged"] = True
-            save_state(state, state_path)
+            state_access.save(state)
             try:
                 refreshed_tracks = new_wine.load_playlist_tracks(
                     sp,
@@ -1055,7 +1087,7 @@ def flush_slow_listening(
         append_log(run_id, result, log_path)
         if not dry_run:
             raw_entry["status"] = "completed"
-            save_state(state, state_path)
+            state_access.save(state)
         if progress_callback is not None:
             progress_callback(index, total, f"Completed {source.name}")
 
@@ -1069,7 +1101,7 @@ def flush_slow_listening(
     ):
         run["status"] = "completed"
         run["completed_at"] = datetime.now(UTC).isoformat()
-        save_state(state, state_path)
+        state_access.save(state)
 
     return FlushSummary(
         run_id=run_id,

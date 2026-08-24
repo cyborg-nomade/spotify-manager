@@ -97,6 +97,18 @@ convert-lib *args:
 count-artists *args:
     {{ cli }} count-artists "$@"
 
+# Print the complete shared state or one namespace.
+state-show *args:
+    {{ cli }} state-show "$@"
+
+# Export the complete shared state to a JSON snapshot.
+state-export *args:
+    {{ cli }} state-export "$@"
+
+# Validate and apply a manually edited state snapshot.
+state-edit *args:
+    {{ cli }} state-edit "$@"
+
 # Upload refreshed Spotify and Last.fm exports to the HF Space.
 upload-library-files-to-hf *args:
     {{ cli }} upload-library-files-to-hf "$@"
