@@ -1,6 +1,8 @@
 """Tests for the New Kids on the Block flush."""
 
 import json
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -192,13 +194,53 @@ class FakeSpotify:
 
 def isolated_paths(tmp_path: Path) -> dict[str, Path]:
     """Return isolated state, log, and mirror paths."""
+    scrobbles_path = tmp_path / "scrobbles.json"
+    if not scrobbles_path.exists():
+        scrobbles_path.write_text(json.dumps({"scrobbles": []}))
     return {
         "state_path": tmp_path / "state.json",
         "log_path": tmp_path / "log.jsonl",
         "albums_path": tmp_path / "albums.json",
         "artists_path": tmp_path / "artists.json",
         "removed_albums_log_path": tmp_path / "removed.jsonl",
+        "scrobbles_path": scrobbles_path,
     }
+
+
+def write_played_release_history(
+    tmp_path: Path,
+    release_tracks: list[list[dict[str, object]]],
+    *,
+    year: int = 2026,
+    liked_track_ids: set[str] | None = None,
+) -> Path:
+    """Write three scrobbles per release plus every requested liked track."""
+    liked_ids = liked_track_ids or set()
+    records: list[dict[str, object]] = []
+    timestamp_ms = int(datetime(year, 6, 1, tzinfo=UTC).timestamp() * 1000)
+    for tracks in release_tracks:
+        selected = list(tracks[:3])
+        selected_ids = {str(track["id"]) for track in selected}
+        selected.extend(
+            track
+            for track in tracks
+            if str(track["id"]) in liked_ids and str(track["id"]) not in selected_ids
+        )
+        for track in selected:
+            album = track["album"]
+            assert isinstance(album, dict)
+            records.append(
+                {
+                    "artist": "Artist",
+                    "track": track["name"],
+                    "album": album["name"],
+                    "date": timestamp_ms,
+                }
+            )
+            timestamp_ms += 1_000
+    path = tmp_path / "scrobbles.json"
+    path.write_text(json.dumps({"scrobbles": records}))
+    return path
 
 
 def seed_artist(
@@ -253,6 +295,98 @@ def flush(
         choice_reader,
         year=2026,
         **isolated_paths(tmp_path),
+    )
+
+
+def test_annual_scrobble_index_uses_only_the_requested_calendar_year(
+    tmp_path: Path,
+) -> None:
+    """The same release heard outside the active year does not count."""
+    path = tmp_path / "history.json"
+    path.write_text(
+        json.dumps(
+            {
+                "scrobbles": [
+                    {
+                        "artist": "Artist",
+                        "track": "Current",
+                        "album": "Album (Deluxe)",
+                        "date": int(
+                            datetime(2026, 1, 1, tzinfo=UTC).timestamp() * 1000
+                        ),
+                    },
+                    {
+                        "artist": "Artist",
+                        "track": "Previous",
+                        "album": "Album",
+                        "date": int(
+                            datetime(2025, 12, 31, tzinfo=UTC).timestamp() * 1000
+                        ),
+                    },
+                ]
+            }
+        )
+    )
+
+    index = new_kids.load_annual_scrobble_index(path, year=2026)
+
+    assert index == {("artist", "album"): frozenset({"current"})}
+
+
+def test_played_release_requires_three_tracks_and_every_liked_track() -> None:
+    """Three scrobbles are insufficient when another liked track is unheard."""
+    release = new_kids.RankedRelease(
+        spotify_id="release",
+        uri="spotify:album:release",
+        name="Album",
+        release_type="Album",
+        release_date="2026-01-01",
+        total_tracks=4,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        popularity=50,
+        top_track_rank=1,
+        tier=0,
+        identity="album",
+        saved=False,
+        plain=True,
+    )
+    tracks = tuple(
+        new_kids.CatalogTrack(
+            spotify_id=f"t{index}",
+            uri=f"spotify:track:t{index}",
+            name=f"Track {index}",
+            disc_number=1,
+            track_number=index,
+            primary_artist_id="guest" if index == 4 else "artist",
+            primary_artist_name="Guest" if index == 4 else "Artist",
+        )
+        for index in range(1, 5)
+    )
+    annual_scrobbles = {
+        ("artist", "album"): frozenset({"track 1", "track 2", "track 3"})
+    }
+
+    assert new_kids.release_was_played_this_year(
+        release,
+        tracks,
+        {"t1": True, "t2": False, "t3": False, "t4": False},
+        annual_scrobbles,
+    )
+    assert not new_kids.release_was_played_this_year(
+        release,
+        tracks,
+        {"t1": True, "t2": False, "t3": False, "t4": True},
+        annual_scrobbles,
+    )
+    assert new_kids.release_was_played_this_year(
+        release,
+        tracks,
+        {"t1": True, "t2": False, "t3": False, "t4": True},
+        {
+            **annual_scrobbles,
+            ("guest", "album"): frozenset({"track 4"}),
+        },
     )
 
 
@@ -399,36 +533,21 @@ def test_release_boundary_prompts_only_with_preferred_release_type(
 def test_zero_likes_override_saved_release_promotion(tmp_path: Path) -> None:
     """An artist with no liked tracks is unfollowed even with three saves."""
     spotify = FakeSpotify()
-    releases = [
-        raw_release(
-            f"r{index}",
-            f"Release {index}",
-            total_tracks=1,
-            release_date=f"202{index}-01-01",
-        )
-        for index in range(1, 5)
-    ]
-    for index, release in enumerate(releases, start=1):
-        spotify.release_tracks[f"r{index}"] = [
-            raw_track(f"t{index}", f"Track {index}", release)
-        ]
-    spotify.artist_releases["artist"] = releases
-    spotify.playlists["new"] = [spotify.release_tracks["r4"][0]]
-    spotify.saved_album_ids.update({"r1", "r2", "r3"})
+    tracks = seed_artist(spotify, "artist", release_count=4, tracks_per_release=3)
+    spotify.playlists["new"] = [tracks[3][-1]]
+    spotify.saved_album_ids.update({"artist-r1", "artist-r2", "artist-r3"})
+    write_played_release_history(tmp_path, tracks)
     state = {
         "version": new_kids.STATE_VERSION,
         "artists": {
             "artist": {
                 "artist_name": "Artist",
-                "selected_release_ids": ["r1", "r2", "r3", "r4"],
+                "selected_release_ids": ["stale-state-must-not-decide-progress"],
                 "selected_release_identities": [
-                    "RELEASE1",
-                    "RELEASE2",
-                    "RELEASE3",
-                    "RELEASE4",
+                    "stale-state-must-not-decide-progress",
                 ],
                 "completed_release_ids": [],
-                "current_release_id": "r4",
+                "current_release_id": "artist-r4",
                 "prior_unliked_streak": 0,
                 "updated_at": "2026-01-01T00:00:00+00:00",
             }
@@ -453,37 +572,24 @@ def test_qualifying_artist_reaches_both_destination_playlists(
 ) -> None:
     """One like plus three saved releases satisfies the four-criteria rule."""
     spotify = FakeSpotify()
-    releases = [
-        raw_release(
-            f"r{index}",
-            f"Release {index}",
-            total_tracks=1,
-            release_date=f"202{index}-01-01",
-        )
-        for index in range(1, 5)
-    ]
-    for index, release in enumerate(releases, start=1):
-        spotify.release_tracks[f"r{index}"] = [
-            raw_track(f"t{index}", f"Track {index}", release)
-        ]
-    spotify.artist_releases["artist"] = releases
-    spotify.playlists["new"] = [spotify.release_tracks["r4"][0]]
-    spotify.saved_album_ids.update({"r1", "r2", "r3"})
-    spotify.liked_ids.add("t1")
+    tracks = seed_artist(spotify, "artist", release_count=4, tracks_per_release=3)
+    spotify.playlists["new"] = [tracks[3][-1]]
+    spotify.saved_album_ids.update({"artist-r1", "artist-r2", "artist-r3"})
+    spotify.liked_ids.add("artist-r1-t1")
+    write_played_release_history(
+        tmp_path,
+        tracks,
+        liked_track_ids=spotify.liked_ids,
+    )
     state = {
         "version": new_kids.STATE_VERSION,
         "artists": {
             "artist": {
                 "artist_name": "Artist",
-                "selected_release_ids": ["r1", "r2", "r3", "r4"],
-                "selected_release_identities": [
-                    "RELEASE1",
-                    "RELEASE2",
-                    "RELEASE3",
-                    "RELEASE4",
-                ],
+                "selected_release_ids": ["stale"],
+                "selected_release_identities": ["stale"],
                 "completed_release_ids": [],
-                "current_release_id": "r4",
+                "current_release_id": "artist-r4",
                 "prior_unliked_streak": 0,
                 "updated_at": "2026-01-01T00:00:00+00:00",
             }
@@ -496,8 +602,10 @@ def test_qualifying_artist_reaches_both_destination_playlists(
     summary = flush(spotify, tmp_path)
 
     assert summary.results[0].action == "great discovery"
-    assert [track["id"] for track in spotify.playlists["great"]] == ["t1"]
-    assert [track["id"] for track in spotify.playlists["newfoundland"]] == ["t1"]
+    assert [track["id"] for track in spotify.playlists["great"]] == ["artist-r1-t1"]
+    assert [track["id"] for track in spotify.playlists["newfoundland"]] == [
+        "artist-r1-t1"
+    ]
     assert "artist" in spotify.followed_artist_ids
 
 
@@ -664,19 +772,17 @@ def test_queue_2_dry_run_excludes_simulated_new_kids_transfers(
 
 
 def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
-    """A transferred marker continues at release three instead of restarting."""
+    """A transferred marker uses annual scrobbles to choose release three."""
     spotify = FakeSpotify()
-    tracks = seed_artist(spotify, "artist", release_count=3, tracks_per_release=1)
-    spotify.playlists["queue"] = [tracks[1][0]]
+    tracks = seed_artist(spotify, "artist", release_count=3, tracks_per_release=3)
+    spotify.playlists["queue"] = [tracks[1][-1]]
+    write_played_release_history(tmp_path, tracks[:2])
     state = new_kids._default_state()
     state["artists"] = {
         "artist": {
             "artist_name": "Artist",
-            "selected_release_ids": ["artist-r1", "artist-r2"],
-            "selected_release_identities": [
-                new_kids.release_identity("artist Release 1"),
-                new_kids.release_identity("artist Release 2"),
-            ],
+            "selected_release_ids": ["unrelated-stale-release"],
+            "selected_release_identities": ["unrelated-stale-release"],
             "completed_release_ids": [],
             "current_release_id": "artist-r2",
             "prior_unliked_streak": 0,
@@ -696,7 +802,7 @@ def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
         year=2026,
         **isolated_paths(tmp_path),
     )
-    spotify.liked_ids.add("artist-r2-t1")
+    spotify.liked_ids.add("artist-r2-t3")
     new_summary = flush(
         spotify,
         tmp_path,
@@ -708,11 +814,8 @@ def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
     assert new_summary.results[0].action == "next release"
     assert new_summary.results[0].release_number == 3
     persisted = json.loads((tmp_path / "state.json").read_text())
-    assert persisted["artists"]["artist"]["selected_release_ids"] == [
-        "artist-r1",
-        "artist-r2",
-        "artist-r3",
-    ]
+    assert "selected_release_ids" not in persisted["artists"]["artist"]
+    assert "selected_release_identities" not in persisted["artists"]["artist"]
 
 
 def test_queue_2_finishes_fourth_release_without_waiting_for_new_kids(
@@ -722,26 +825,21 @@ def test_queue_2_finishes_fourth_release_without_waiting_for_new_kids(
     spotify = FakeSpotify()
     for index in range(10):
         spotify.playlists["new"].append(seed_artist(spotify, f"new-{index}")[0][0])
-    tracks = seed_artist(spotify, "artist", release_count=4, tracks_per_release=1)
-    spotify.playlists["queue"] = [tracks[3][0]]
+    tracks = seed_artist(spotify, "artist", release_count=4, tracks_per_release=3)
+    spotify.playlists["queue"] = [tracks[3][-1]]
     spotify.liked_ids.add("artist-r1-t1")
     spotify.saved_album_ids.update({"artist-r1", "artist-r2", "artist-r3"})
+    write_played_release_history(
+        tmp_path,
+        tracks,
+        liked_track_ids=spotify.liked_ids,
+    )
     state = new_kids._default_state()
     state["artists"] = {
         "artist": {
             "artist_name": "Artist",
-            "selected_release_ids": [
-                "artist-r1",
-                "artist-r2",
-                "artist-r3",
-                "artist-r4",
-            ],
-            "selected_release_identities": [
-                "ARTISTRELEASE1",
-                "ARTISTRELEASE2",
-                "ARTISTRELEASE3",
-                "ARTISTRELEASE4",
-            ],
+            "selected_release_ids": ["stale"],
+            "selected_release_identities": ["stale"],
             "completed_release_ids": [],
             "current_release_id": "artist-r4",
             "prior_unliked_streak": 0,

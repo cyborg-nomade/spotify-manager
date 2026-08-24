@@ -20,6 +20,7 @@ from spotipy import Spotify
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
+from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import new_wine
 from spotify_manager.routines.recover_removed_albums import sync_stats_history_counts
 from spotify_manager.routines.review_album_limits import REMOVED_ALBUMS_LOG_PATH
@@ -38,11 +39,13 @@ DEFAULT_LOG_PATH = FILES_DIR / "new_kids_log.jsonl"
 DEFAULT_QUEUE_2_LOG_PATH = FILES_DIR / "queue_2_log.jsonl"
 DEFAULT_ALBUMS_PATH = FILES_DIR / "albums_total_new.json"
 DEFAULT_ARTISTS_PATH = FILES_DIR / "artists_total.json"
+DEFAULT_SCROBBLES_PATH = blast_from_past.DEFAULT_SCROBBLES_PATH
 
 STATE_VERSION = 1
 PLAYLIST_CAP = 10
 QUEUE_2_DAILY_LIMIT = 10
 RELEASES_PER_ARTIST = 4
+MIN_SCROBBLED_TRACKS_PER_RELEASE = 3
 ARTIST_RELEASE_PAGE_SIZE = 50
 ALBUM_BATCH_SIZE = 20
 CONTAINS_BATCH_SIZE = 20
@@ -192,6 +195,10 @@ class Queue2Summary:
     dry_run: bool
 
 
+AnnualReleaseKey = tuple[str, str]
+AnnualScrobbleIndex = dict[AnnualReleaseKey, frozenset[str]]
+
+
 def parse_playlist_id(value: str | None, variable: str) -> str:
     """Parse a required Spotify playlist setting."""
     try:
@@ -204,6 +211,44 @@ def _positive_int(value: object, fallback: int = 0) -> int:
     if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
         return value
     return fallback
+
+
+def _annual_release_key(artist: str, release: str) -> AnnualReleaseKey:
+    """Return the edition-tolerant Last.fm identity for one artist release."""
+    return (
+        blast_from_past.normalize_name(artist),
+        release_identity(release),
+    )
+
+
+def _scrobble_track_identity(name: str) -> str:
+    """Normalize one Last.fm or Spotify track title across edition suffixes."""
+    return release_identity(blast_from_past.without_sliding_qualifiers(name))
+
+
+def load_annual_scrobble_index(
+    path: Path = DEFAULT_SCROBBLES_PATH,
+    *,
+    year: int,
+) -> AnnualScrobbleIndex:
+    """Index distinct release tracks scrobbled in one Berlin calendar year."""
+    try:
+        scrobbles_by_date = blast_from_past.load_scrobbles_by_date(path)
+    except blast_from_past.LastFmExportError as exc:
+        raise NewKidsStateError(
+            f"Could not load the {year} Last.fm scrobble history: {exc}"
+        ) from exc
+
+    indexed: dict[AnnualReleaseKey, set[str]] = defaultdict(set)
+    for scrobble_date, scrobbles in scrobbles_by_date.items():
+        if scrobble_date.year != year:
+            continue
+        for scrobble in scrobbles:
+            key = _annual_release_key(scrobble.artist, scrobble.album)
+            track = _scrobble_track_identity(scrobble.track)
+            if all(key) and track:
+                indexed[key].add(track)
+    return {key: frozenset(tracks) for key, tracks in indexed.items()}
 
 
 def _artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
@@ -565,6 +610,72 @@ def load_release_tracks(
     )
 
 
+def release_was_played_this_year(
+    release: RankedRelease,
+    tracks: tuple[CatalogTrack, ...],
+    liked: dict[str, bool],
+    annual_scrobbles: AnnualScrobbleIndex,
+) -> bool:
+    """Return whether current-year scrobbles satisfy the played-release rule."""
+    matched_names = {
+        track_name
+        for track in tracks
+        if (track_name := _scrobble_track_identity(track.name))
+        in annual_scrobbles.get(
+            _annual_release_key(track.primary_artist_name, release.name),
+            frozenset(),
+        )
+    }
+    if len(matched_names) < MIN_SCROBBLED_TRACKS_PER_RELEASE:
+        return False
+    liked_names = {
+        _scrobble_track_identity(track.name)
+        for track in tracks
+        if liked.get(track.spotify_id, False)
+    }
+    return liked_names <= matched_names
+
+
+def played_releases_from_history(
+    sp: Spotify,
+    catalog: tuple[RankedRelease, ...],
+    annual_scrobbles: AnnualScrobbleIndex,
+    retry_call: RetryCall,
+    track_cache: dict[str, tuple[CatalogTrack, ...]],
+    liked_cache: dict[str, bool],
+) -> tuple[RankedRelease, ...]:
+    """Return catalog releases completed according to current-year Last.fm data."""
+    played: list[RankedRelease] = []
+    for release in catalog:
+        scrobbled_names = set().union(
+            *(
+                names
+                for (_artist, album), names in annual_scrobbles.items()
+                if album == release.identity
+            )
+        )
+        if len(scrobbled_names) < MIN_SCROBBLED_TRACKS_PER_RELEASE:
+            continue
+        tracks = track_cache.get(release.spotify_id)
+        if tracks is None:
+            tracks = load_release_tracks(sp, release, retry_call)
+            track_cache[release.spotify_id] = tracks
+        new_wine.get_liked_statuses(
+            sp,
+            [track.spotify_id for track in tracks],
+            liked_cache,
+            retry_call,
+        )
+        if release_was_played_this_year(
+            release,
+            tracks,
+            liked_cache,
+            annual_scrobbles,
+        ):
+            played.append(release)
+    return tuple(played)
+
+
 def _default_state() -> dict[str, object]:
     return {
         "version": STATE_VERSION,
@@ -660,14 +771,17 @@ def _artist_progress(
         release = _source_release(source)
         raw = {
             "artist_name": source.primary_artist_name,
-            "selected_release_ids": [release.spotify_id],
-            "selected_release_identities": [release.identity],
-            "completed_release_ids": [],
             "current_release_id": release.spotify_id,
             "prior_unliked_streak": None,
             "updated_at": datetime.now(UTC).isoformat(),
         }
         artists[source.primary_artist_id] = raw
+    for legacy_key in (
+        "selected_release_ids",
+        "selected_release_identities",
+        "completed_release_ids",
+    ):
+        raw.pop(legacy_key, None)
     return raw
 
 
@@ -1137,13 +1251,6 @@ def _new_run(
     }
 
 
-def _selected_values(progress: dict[str, object], key: str) -> list[str]:
-    raw = progress.get(key)
-    if not isinstance(raw, list):
-        raise NewKidsStateError(f"Artist progress has invalid {key}.")
-    return [str(value) for value in raw]
-
-
 def next_release_options(
     releases: tuple[RankedRelease, ...],
 ) -> tuple[RankedRelease, ...]:
@@ -1214,6 +1321,7 @@ def _flush_review_playlist(
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     artists_path: Path = DEFAULT_ARTISTS_PATH,
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
     _playlist_label: str = "New Kids",
     _active_run_key: str = "active_run",
     _blocking_active_run_key: str = "queue_2_active_run",
@@ -1224,6 +1332,12 @@ def _flush_review_playlist(
     """Advance one playlist snapshot using the shared four-release rules."""
     retry = retry_call or (lambda operation, _description: operation())
     active_year = year or datetime.now().year
+    if progress_callback:
+        progress_callback(0, 0, f"Loading {active_year} Last.fm release history")
+    annual_scrobbles = load_annual_scrobble_index(
+        scrobbles_path,
+        year=active_year,
+    )
     state = _default_state() if dry_run else load_state(state_path)
     blocking_run = state.get(_blocking_active_run_key)
     if (
@@ -1421,15 +1535,33 @@ def _flush_review_playlist(
                     current_tracks,
                     liked_cache,
                 )
-                selected_ids = _selected_values(progress, "selected_release_ids")
-                selected_identity_set = set(
-                    _selected_values(progress, "selected_release_identities")
+                played_releases = played_releases_from_history(
+                    sp,
+                    catalog,
+                    annual_scrobbles,
+                    retry,
+                    track_cache,
+                    liked_cache,
                 )
-                if current_release.spotify_id not in selected_ids:
-                    selected_ids.append(current_release.spotify_id)
-                    selected_identity_set.add(current_release.identity)
+                played_identity_set = {release.identity for release in played_releases}
+                echo(
+                    f"{source.primary_artist_name}: {len(played_releases)} "
+                    f"release(s) completed from {active_year} Last.fm scrobbles."
+                )
+                append_event(
+                    log_path,
+                    "annual_release_progress_checked",
+                    artist=source.primary_artist_name,
+                    artist_id=source.primary_artist_id,
+                    year=active_year,
+                    played_release_ids=[
+                        release.spotify_id for release in played_releases
+                    ],
+                    played_release_names=[release.name for release in played_releases],
+                    dry_run=dry_run,
+                )
 
-                if len(selected_ids) >= RELEASES_PER_ARTIST:
+                if len(played_releases) >= RELEASES_PER_ARTIST:
                     assessment = assess_artist(
                         sp,
                         source.primary_artist_id,
@@ -1460,7 +1592,8 @@ def _flush_review_playlist(
                     remaining = tuple(
                         release
                         for release in catalog
-                        if release.identity not in selected_identity_set
+                        if release.identity not in played_identity_set
+                        and release.identity != current_release.identity
                     )
                     viable: list[RankedRelease] = []
                     for candidate in remaining:
@@ -1558,7 +1691,7 @@ def _flush_review_playlist(
                             "current_liked": current_liked,
                             "consecutive_unliked": streak,
                             "next_prior_unliked_streak": 0,
-                            "release_number": len(selected_ids) + 1,
+                            "release_number": len(played_releases) + 1,
                             "evaluation": evaluation.model_dump(mode="json"),
                         }
 
@@ -1741,19 +1874,8 @@ def _flush_review_playlist(
                 assert isinstance(artists, dict)
                 artists.pop(source.primary_artist_id, None)
             else:
-                selected_ids = _selected_values(progress, "selected_release_ids")
-                selected_identities = _selected_values(
-                    progress,
-                    "selected_release_identities",
-                )
                 if action == "next_release" and target_release is not None:
-                    if target_release.spotify_id not in selected_ids:
-                        selected_ids.append(target_release.spotify_id)
-                    if target_release.identity not in selected_identities:
-                        selected_identities.append(target_release.identity)
                     progress["current_release_id"] = target_release.spotify_id
-                progress["selected_release_ids"] = selected_ids
-                progress["selected_release_identities"] = selected_identities
                 progress["prior_unliked_streak"] = _positive_int(
                     plan.get("next_prior_unliked_streak")
                 )
@@ -1833,6 +1955,7 @@ def flush_new_kids(
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     artists_path: Path = DEFAULT_ARTISTS_PATH,
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
 ) -> FlushSummary:
     """Advance every snapshotted artist once, then refill New Kids to ten."""
     return _flush_review_playlist(
@@ -1853,6 +1976,7 @@ def flush_new_kids(
         albums_path=albums_path,
         artists_path=artists_path,
         removed_albums_log_path=removed_albums_log_path,
+        scrobbles_path=scrobbles_path,
     )
 
 
@@ -1875,6 +1999,7 @@ def flush_queue_2(
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     artists_path: Path = DEFAULT_ARTISTS_PATH,
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
 ) -> Queue2Summary:
     """Fill New Kids, then advance the first ten remaining Queue 2 artists."""
     retry = retry_call or (lambda operation, _description: operation())
@@ -1947,6 +2072,7 @@ def flush_queue_2(
         albums_path=albums_path,
         artists_path=artists_path,
         removed_albums_log_path=removed_albums_log_path,
+        scrobbles_path=scrobbles_path,
         _playlist_label="Queue 2",
         _active_run_key="queue_2_active_run",
         _blocking_active_run_key="active_run",
