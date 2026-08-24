@@ -27,6 +27,8 @@ def _settings() -> SimpleNamespace:
         slow_listening_playlist="slow",
         reqeueue_for_a_dream_playlist="dream",
         palace_of_memory_playlist="palace",
+        lastfm_api_key="lastfm-key",
+        lastfm_username="lastfm-user",
     )
 
 

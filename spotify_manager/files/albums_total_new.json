@@ -180,6 +180,11 @@
     "uri": "spotify:album:28gL6vjKVFaO7UG0ImRzkY"
   },
   {
+    "artist": "Souls Of Mischief",
+    "album": "93 'til Infinity",
+    "uri": "spotify:album:7aSjaEi3OQ2aZemcJDhMb1"
+  },
+  {
     "artist": "Streetlight Manifesto",
     "album": "99 Songs of Revolution Vol. 1",
     "uri": "spotify:album:38HGFXuY2NjAgKC9qr8Bya"
@@ -573,6 +578,11 @@
     "artist": "Karnivool",
     "album": "All It Takes",
     "uri": "spotify:album:7FHDnfP9sVG2oVzOa72klc"
+  },
+  {
+    "artist": "Tremonti",
+    "album": "All I Was",
+    "uri": "spotify:album:5ZLNeAlhWtIxjQ2FnD4neR"
   },
   {
     "artist": "Sum 41",
@@ -17068,6 +17078,11 @@
     "artist": "Matanza",
     "album": "Santa Madre Cassino",
     "uri": "spotify:album:1ChglvkJZ286JnEJzdXI7A"
+  },
+  {
+    "artist": "Santigold",
+    "album": "Santigold",
+    "uri": "spotify:album:4yATru0hY3VgRHSreswbGj"
   },
   {
     "artist": "Sapataria",

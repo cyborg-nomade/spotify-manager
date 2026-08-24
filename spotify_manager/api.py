@@ -2587,6 +2587,16 @@ def _run_new_kids_job(
         previous_spotify_event_callback = spotify_event_setter(echo)
 
     try:
+        configuration = Settings()
+        lastfm_api_key, lastfm_username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+        lastfm = LastFmClient(
+            lastfm_api_key,
+            lastfm_username,
+            event_callback=echo,
+        )
         routine = (
             new_kids.flush_queue_2
             if command == "flush_queue_2"
@@ -2604,6 +2614,8 @@ def _run_new_kids_job(
             echo=echo,
             progress_callback=progress_callback,
             retry_call=retry_call,
+            lastfm=lastfm,
+            lastfm_username=lastfm_username,
         )
     except _NewKidsJobCancelledError:
         with _blast_jobs_lock:
@@ -2643,7 +2655,13 @@ def _run_new_kids_job(
             job.result.new_kids_pending_choice = None
             job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
             _append_blast_log_locked(job, job.result.detail)
-    except (new_kids.NewKidsError, SpotifyException) as exc:
+    except (
+        new_kids.NewKidsError,
+        found_art.FoundArtConfigError,
+        scrobble_history.ScrobbleHistoryError,
+        LastFmError,
+        SpotifyException,
+    ) as exc:
         with _blast_jobs_lock:
             job.result.status = "failed"
             job.result.new_kids_pending_choice = None

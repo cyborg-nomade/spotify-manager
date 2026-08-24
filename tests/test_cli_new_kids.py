@@ -97,6 +97,8 @@ def test_flush_new_kids_dry_run_uses_all_configured_playlists(monkeypatch) -> No
             great_discoveries_2026_playlist="spotify:playlist:great",
             unlucky_ones_playlist="spotify:playlist:unlucky",
             discography_newfoundland_playlist="spotify:playlist:newfoundland",
+            lastfm_api_key="lastfm-key",
+            lastfm_username="lastfm-user",
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
@@ -175,6 +177,8 @@ def test_flush_queue_2_dry_run_reports_both_playlist_transitions(monkeypatch) ->
             great_discoveries_2026_playlist="spotify:playlist:great",
             unlucky_ones_playlist="spotify:playlist:unlucky",
             discography_newfoundland_playlist="spotify:playlist:newfoundland",
+            lastfm_api_key="lastfm-key",
+            lastfm_username="lastfm-user",
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())

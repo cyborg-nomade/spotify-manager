@@ -2719,9 +2719,18 @@ def flush_new_kids_command(
             configuration.discography_newfoundland_playlist,
             "DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST",
         )
-    except new_kids.NewKidsConfigError as exc:
+        lastfm_api_key, lastfm_username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (new_kids.NewKidsConfigError, found_art.FoundArtConfigError) as exc:
         console.print(str(exc), style="bold red", markup=False)
         raise typer.Exit(code=1) from exc
+    lastfm_client = LastFmClient(
+        lastfm_api_key,
+        lastfm_username,
+        event_callback=lambda message: console.print(message, style="yellow"),
+    )
 
     def echo(line: str = "") -> None:
         style = None
@@ -2789,6 +2798,8 @@ def flush_new_kids_command(
                 echo=echo,
                 progress_callback=update_progress,
                 retry_call=retry_call,
+                lastfm=lastfm_client,
+                lastfm_username=lastfm_username,
             )
     except review_album_limits.SpotifyRateLimitError as exc:
         console.print(
@@ -2813,6 +2824,9 @@ def flush_new_kids_command(
                 style="yellow",
             )
         raise typer.Exit(code=0) from exc
+    except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
     except new_kids.NewKidsError as exc:
         console.print(str(exc), style="bold red", markup=False)
         raise typer.Exit(code=1) from exc
@@ -2909,9 +2923,18 @@ def flush_queue_2_command(
             configuration.discography_newfoundland_playlist,
             "DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST",
         )
-    except new_kids.NewKidsConfigError as exc:
+        lastfm_api_key, lastfm_username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key,
+            configuration.lastfm_username,
+        )
+    except (new_kids.NewKidsConfigError, found_art.FoundArtConfigError) as exc:
         console.print(str(exc), style="bold red", markup=False)
         raise typer.Exit(code=1) from exc
+    lastfm_client = LastFmClient(
+        lastfm_api_key,
+        lastfm_username,
+        event_callback=lambda message: console.print(message, style="yellow"),
+    )
 
     def echo(line: str = "") -> None:
         style = None
@@ -2979,6 +3002,8 @@ def flush_queue_2_command(
                 echo=echo,
                 progress_callback=update_progress,
                 retry_call=retry_call,
+                lastfm=lastfm_client,
+                lastfm_username=lastfm_username,
             )
     except review_album_limits.SpotifyRateLimitError as exc:
         console.print(
@@ -3003,6 +3028,9 @@ def flush_queue_2_command(
                 style="yellow",
             )
         raise typer.Exit(code=0) from exc
+    except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
     except new_kids.NewKidsError as exc:
         console.print(str(exc), style="bold red", markup=False)
         raise typer.Exit(code=1) from exc

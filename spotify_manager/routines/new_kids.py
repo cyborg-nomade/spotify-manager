@@ -27,6 +27,7 @@ from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import new_wine
+from spotify_manager.routines import scrobble_history
 from spotify_manager.routines.recover_removed_albums import sync_stats_history_counts
 from spotify_manager.routines.review_album_limits import REMOVED_ALBUMS_LOG_PATH
 from spotify_manager.routines.review_album_limits import append_removed_album_log
@@ -254,6 +255,43 @@ def load_annual_scrobble_index(
             if all(key) and track:
                 indexed[key].add(track)
     return {key: frozenset(tracks) for key, tracks in indexed.items()}
+
+
+def refresh_scrobbles_for_release_progress(
+    lastfm: scrobble_history.LastFmReader,
+    username: str,
+    *,
+    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
+    echo: Echo = print,
+) -> scrobble_history.ScrobbleHistorySummary:
+    """Refresh the shared history before deriving annual release progress."""
+    canonical_path = scrobbles_path.resolve() == DEFAULT_SCROBBLES_PATH.resolve()
+    summary = scrobble_history.refresh_scrobble_history(
+        lastfm,
+        expected_username=username,
+        export_path=scrobbles_path,
+        legacy_delta_path=(
+            scrobble_history.DEFAULT_LEGACY_DELTA_PATH if canonical_path else None
+        ),
+        backup_dir=(
+            scrobble_history.DEFAULT_BACKUP_DIR
+            if canonical_path
+            else scrobbles_path.parent / "lastfm_history_backups"
+        ),
+        log_path=(
+            scrobble_history.DEFAULT_LOG_PATH
+            if canonical_path
+            else scrobbles_path.parent / "scrobble_history_update_log.jsonl"
+        ),
+        dry_run=False,
+        progress_callback=echo,
+    )
+    echo(
+        "Last.fm release history ready: "
+        f"{summary.live_scrobbles_added} new scrobble(s), "
+        f"{summary.total_scrobbles} total."
+    )
+    return summary
 
 
 def _artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
@@ -1354,6 +1392,8 @@ def _flush_review_playlist(
     artists_path: Path = DEFAULT_ARTISTS_PATH,
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
+    lastfm: scrobble_history.LastFmReader | None = None,
+    lastfm_username: str | None = None,
     _playlist_label: str = "New Kids",
     _active_run_key: str = "active_run",
     _blocking_active_run_key: str = "queue_2_active_run",
@@ -1364,6 +1404,19 @@ def _flush_review_playlist(
     """Advance one playlist snapshot using the shared four-release rules."""
     retry = retry_call or (lambda operation, _description: operation())
     active_year = year or datetime.now().year
+    if lastfm is not None:
+        if not lastfm_username:
+            raise NewKidsConfigError(
+                "LASTFM_USERNAME is required to refresh New Kids release progress."
+            )
+        if progress_callback:
+            progress_callback(0, 0, "Refreshing Last.fm release history")
+        refresh_scrobbles_for_release_progress(
+            lastfm,
+            lastfm_username,
+            scrobbles_path=scrobbles_path,
+            echo=echo,
+        )
     if progress_callback:
         progress_callback(0, 0, f"Loading {active_year} Last.fm release history")
     annual_scrobbles = load_annual_scrobble_index(
@@ -1990,6 +2043,8 @@ def flush_new_kids(
     artists_path: Path = DEFAULT_ARTISTS_PATH,
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
+    lastfm: scrobble_history.LastFmReader | None = None,
+    lastfm_username: str | None = None,
 ) -> FlushSummary:
     """Advance every snapshotted artist once, then refill New Kids to ten."""
     return _flush_review_playlist(
@@ -2012,6 +2067,8 @@ def flush_new_kids(
         artists_path=artists_path,
         removed_albums_log_path=removed_albums_log_path,
         scrobbles_path=scrobbles_path,
+        lastfm=lastfm,
+        lastfm_username=lastfm_username,
     )
 
 
@@ -2036,8 +2093,23 @@ def flush_queue_2(
     artists_path: Path = DEFAULT_ARTISTS_PATH,
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
+    lastfm: scrobble_history.LastFmReader | None = None,
+    lastfm_username: str | None = None,
 ) -> Queue2Summary:
     """Fill New Kids, then advance the first ten remaining Queue 2 artists."""
+    if lastfm is not None:
+        if not lastfm_username:
+            raise NewKidsConfigError(
+                "LASTFM_USERNAME is required to refresh Queue 2 release progress."
+            )
+        if progress_callback:
+            progress_callback(0, 0, "Refreshing Last.fm release history")
+        refresh_scrobbles_for_release_progress(
+            lastfm,
+            lastfm_username,
+            scrobbles_path=scrobbles_path,
+            echo=echo,
+        )
     retry = retry_call or (lambda operation, _description: operation())
     state = (
         _default_state()
