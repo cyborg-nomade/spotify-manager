@@ -351,6 +351,37 @@ def ask_new_wine_release_choice(
             progress.start()
 
 
+def ask_new_wine_endpoint_choice(
+    console: Console,
+    source: new_wine.PlaylistTrack,
+    tracks: tuple[new_wine.ReleaseTrack, ...],
+    current_index: int,
+    progress: Progress | None = None,
+) -> str:
+    """Ask whether the current track is the release's canonical endpoint."""
+    if progress is not None:
+        progress.stop()
+    try:
+        position = current_index + 1
+        response = Prompt.ask(
+            f"Treat {source.release.name} track {position}/{len(tracks)} "
+            f'"{source.name}" as its last canonical track? '
+            "[y]es / [n]o / [s]kip this run / [q]uit",
+            choices=["y", "n", "s", "q"],
+            default="n",
+            console=console,
+        )
+        return {
+            "y": new_wine.CHOICE_CUTOFF,
+            "n": new_wine.CHOICE_CONTINUE,
+            "s": new_wine.CHOICE_SKIP,
+            "q": new_wine.CHOICE_QUIT,
+        }[response]
+    finally:
+        if progress is not None:
+            progress.start()
+
+
 def ask_new_kids_release_choice(
     console: Console,
     artist_name: str,
@@ -3038,8 +3069,14 @@ def flush_new_wine_command(
         "--no-discovery",
         help=("Refill only from artists with 18 liked tracks or 3 saved albums."),
     ),
+    choose_album_endpoints: bool = typer.Option(
+        False,
+        "--choose-album-endpoints",
+        help="Ask whether each current Album/EP track is its canonical endpoint.",
+    ),
 ) -> None:
     """Advance every New Wine track once according to its release."""
+    choose_album_endpoints = choose_album_endpoints is True
     console = Console()
     progress_ref: Progress | None = None
     configuration = Settings()
@@ -3123,6 +3160,16 @@ def flush_new_wine_command(
                     candidates,
                     progress_ref,
                 ),
+                endpoint_choice_reader=lambda source, tracks, current_index: (
+                    ask_new_wine_endpoint_choice(
+                        console,
+                        source,
+                        tracks,
+                        current_index,
+                        progress_ref,
+                    )
+                ),
+                choose_album_endpoints=choose_album_endpoints,
                 wine_cellar_playlist_id=wine_cellar_playlist_id,
                 no_discovery=no_discovery,
                 dry_run=dry_run,
