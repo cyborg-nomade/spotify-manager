@@ -105,6 +105,39 @@ matching View, Save, Reload, and Export controls. Its guided editor uses
 dropdowns, checkboxes, numeric inputs, read-only generated fields, and lazy
 collapsible objects; Advanced JSON remains available for deliberate repairs.
 
+## Shared library-data commands
+
+The three canonical Spotify mirrors and canonical Last.fm history are stored as
+gzip-compressed, checksummed artifacts in the private dataset
+`cyborg-nomade/spotify-manager-data`. The CLI, local web app, and deployed Space
+hydrate the same ordinary working JSON paths. Successful managed writes publish
+one artifact and the manifest in a revision-guarded Hub commit.
+
+```console
+just library-data-status
+just library-data-pull
+just library-data-pull --artifact tracks
+just library-data-push --artifact albums --yes
+```
+
+`library-data-status` compares local checksums with the durable manifest. Pull
+retains a local fallback when an artifact has not been seeded. Push is intended
+for initial seeding and deliberate recovery; normal refresh routines publish
+automatically. Dataset commit history is the durable backup chain.
+
+### Nightly refresh automation
+
+`.github/workflows/nightly-library-refresh.yml` uses free GitHub Actions hosted
+runners to wake the private Space and update Last.fm history, albums, tracks,
+and artists sequentially. It starts at 22:17 UTC and observes a 05:00
+Europe/Berlin deadline. A rate-limit pause or deadline stop retains checkpoints
+for the next run. Space restarts are detected and resumed through the same API
+endpoints used by the cockpit.
+
+The workflow requires matching `AUTOMATION_TOKEN` secrets in GitHub Actions and
+the Space, plus a GitHub `HF_SPACE_TOKEN` secret that can access the private
+Space. The workflow also supports manual dispatch from GitHub's Actions page.
+
 ## Library mirror commands
 
 The library mirror is built through two deliberately separate commands.

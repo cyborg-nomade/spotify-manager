@@ -26,12 +26,14 @@ deployed routine.
    listening history.
 3. Canonical Spotify mirrors are snapshots used when a routine needs a complete
    inventory or when repeated live lookups would be too expensive.
-4. The private Hugging Face state dataset is authoritative for
+4. The private Hugging Face library-data dataset is authoritative for the
+   durable copies of the three canonical Spotify mirrors and Last.fm history.
+5. The private Hugging Face state dataset is authoritative for
    application-owned cursors, mappings, processed ids, pending choices, and
    resumable batches.
-5. Audit logs record what was planned or changed and support review and manual
+6. Audit logs record what was planned or changed and support review and manual
    recovery; they are not normally replayed automatically.
-6. `YourLibrary.json` is an offline source export. It is used deliberately by
+7. `YourLibrary.json` is an offline source export. It is used deliberately by
    export-only and legacy commands, not as a silent substitute for a focused
    live lookup.
 
@@ -68,6 +70,30 @@ Some routines perform their own focused live verification. For example,
 no-discovery New Wine uses mirror ids as candidates but checks liked tracks and
 saved albums through Spotify before qualifying an artist. Palace of Memory
 performs a complete saved-album refresh before selecting its alphabetical half.
+
+### Shared canonical-file persistence
+
+`LibraryDataService` is the only production interface that hydrates or
+publishes the four managed files. Its Hub adapter stores a small `manifest.json`
+and gzip-compressed blobs in the private dataset
+`cyborg-nomade/spotify-manager-data`. The manifest records each uncompressed
+file's SHA-256 checksum, size, update timestamp, and source.
+
+The service downloads at an immutable dataset revision, verifies decompressed
+size and checksum, validates the expected JSON shape, and atomically replaces
+the working path. Publication commits the compressed artifact and updated
+manifest together using the previous Hub revision as an optimistic guard.
+Writes to different artifacts can rebase safely; a stale write to the same
+artifact is rejected.
+
+```console
+just library-data-status
+just library-data-pull --artifact scrobbles
+just library-data-push --artifact scrobbles --yes
+```
+
+The tracked copies in the Space repository remain cold-start fallbacks. They
+are not authoritative once the corresponding manifest entry exists.
 
 ### Separate analysis products
 
@@ -214,25 +240,25 @@ read-only.
 
 ### Local execution
 
-The CLI and local web app use the same Hub-backed state service as production,
-so their durable routine state is immediately shared with the HF web app. Logs,
-caches, mirrors, and backups still live in the local working tree.
+The CLI and local web app use the same Hub-backed state and library-data
+services as production. Routine state and the four canonical data files are
+therefore shared with the HF web app. Other logs, caches, derived files, and
+local backups remain in the working tree.
 
 ### Hugging Face execution
 
-The Space reads and writes the same private dataset. Container rebuilds do not
-roll back routine state, and code deployment must not upload a replacement
-`state.json` into the Space repository. `SPOTIFY_MANAGER_STATE_TOKEN` must have
-read/write access to the private dataset.
+The Space reads and writes the private state and library-data datasets.
+Container rebuilds do not roll back routine state or the four canonical files.
+Code deployment must not upload replacement durable documents into either
+dataset. The configured tokens must have read/write access to both datasets.
 
 The old New Release Check browser mirror remains as a compatibility recovery
 layer. Any accepted restore now writes through `StateService`, and the replaced
 state remains available in Hub commit history.
 
-Container-local logs, caches, mirrors, backups, and analysis staging are still
-ephemeral unless copied to the Space repository or another persistent store.
-Deployment snapshots remain important for those data families, but no longer
-for routine state.
+Container-local logs, caches, backups, analysis staging, and unmanaged files
+remain ephemeral. Deployment snapshots remain important for those data
+families, but no longer for routine state or the four canonical artifacts.
 
 ## Recovery playbook
 

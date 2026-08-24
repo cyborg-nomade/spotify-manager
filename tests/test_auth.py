@@ -1,14 +1,15 @@
 """Tests for the deployment password middleware."""
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import pytest
 
 from spotify_manager._auth import PasswordMiddleware
 
 
 def password_protected_client(
     *,
+    automation_token: str | None = None,
     allow_any_loopback_password: bool = False,
     client_host: str = "testclient",
 ) -> TestClient:
@@ -16,6 +17,7 @@ def password_protected_client(
     app.add_middleware(
         PasswordMiddleware,
         password="correct-password",
+        automation_token=automation_token,
         allow_any_loopback_password=allow_any_loopback_password,
     )
 
@@ -44,6 +46,25 @@ def test_auth_check_requires_matching_password_header() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_auth_check_accepts_the_separate_automation_token() -> None:
+    client = password_protected_client(automation_token="scheduled-secret")
+
+    assert (
+        client.get(
+            "/auth/check",
+            headers={"X-Automation-Token": "wrong-secret"},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.get(
+            "/auth/check",
+            headers={"X-Automation-Token": "scheduled-secret"},
+        ).status_code
+        == 200
+    )
 
 
 @pytest.mark.parametrize("client_host", ["127.0.0.1", "::1", "localhost"])

@@ -121,6 +121,7 @@ form is also accepted.
 | `ALBUMS_TO_ADD` | Yes | Integer used by the legacy monthly album workflow. |
 | `LIMIT` | Yes | Integer page/batch setting used by legacy workflows. |
 | `APP_PASSWORD` | Web deployment | Shared password checked by the gated web app. The pure API does not use it. |
+| `AUTOMATION_TOKEN` | Scheduled web jobs | Independent high-entropy token accepted through `X-Automation-Token`; it does not change the cockpit password. |
 
 The first five fields are required to instantiate `Settings`, even when a
 specific command does not use all of them.
@@ -196,8 +197,20 @@ These are read directly by startup or runtime modules rather than by
 | `SPOTIFY_MANAGER_STATE_FILENAME` | `state.json` | Dataset path for the shared state document. |
 | `SPOTIFY_MANAGER_STATE_TOKEN` | `HF_TOKEN` or cached local token | Token with read/write access to the private state dataset. Required in the Space. |
 | `SPOTIFY_MANAGER_STATE_LOCAL_PATH` | `spotify_manager/files/state.json` | File used only when the backend is explicitly `local`. |
+| `SPOTIFY_MANAGER_DATA_BACKEND` | `hub` | Canonical-file adapter: `hub` in normal operation or `local` for isolated work. |
+| `SPOTIFY_MANAGER_DATA_REPO` | `cyborg-nomade/spotify-manager-data` | Private dataset containing the four compressed canonical artifacts and manifest. |
+| `SPOTIFY_MANAGER_DATA_MANIFEST` | `manifest.json` | Dataset path for checksums, timestamps, and provenance. |
+| `SPOTIFY_MANAGER_DATA_TOKEN` | State token, `HF_TOKEN`, or cached local token | Token with read/write access to the private library-data dataset. |
+| `SPOTIFY_MANAGER_DATA_LOCAL_ROOT` | `spotify_manager/files/library_data_store` | Store directory used only when the data backend is explicitly `local`. |
 | `PORT` | `7860` | Container listen port used by `start.sh`. |
 | `PYTEST_REPORT_PATH` | `test_report.xml` | JUnit output path for `just ci-test`. |
+
+GitHub Actions stores two repository secrets for the nightly trigger:
+
+| Secret | Purpose |
+| --- | --- |
+| `HF_SPACE_TOKEN` | Authenticates the workflow to the private HF Space. |
+| `AUTOMATION_TOKEN` | Passes the application gate without sharing or changing `APP_PASSWORD`. |
 
 ## Running the CLI
 

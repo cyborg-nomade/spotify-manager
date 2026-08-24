@@ -21,6 +21,7 @@ from spotify_manager.api import get_analysis_client
 from spotify_manager.api import get_client
 from spotify_manager.api import get_interactive_client
 from spotify_manager.api import get_library
+from spotify_manager.core.library_data.service import ArtifactStatus
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
@@ -429,6 +430,41 @@ def test_library_mirror_status_reports_server_timestamps(
     assert files[3]["filename"] == "lastfmstats-man-et-arms.json"
     assert files[3]["exists"] is True
     assert datetime.fromisoformat(files[3]["updated_at"]).tzinfo is not None
+
+
+def test_library_mirror_status_prefers_durable_manifest(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DurableData:
+        def statuses(self):
+            return (
+                ArtifactStatus(
+                    name="albums",
+                    filename="albums_total_new.json",
+                    exists=True,
+                    updated_at="2026-08-24T12:00:00+00:00",
+                    size_bytes=2,
+                    sha256="0" * 64,
+                    source="test refresh",
+                    local_current=True,
+                ),
+            )
+
+    monkeypatch.setattr(api, "get_library_data_service", DurableData)
+
+    response = client.get("/library-mirrors/status")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "files": [
+            {
+                "filename": "albums_total_new.json",
+                "exists": True,
+                "updated_at": "2026-08-24T12:00:00+00:00",
+            }
+        ]
+    }
 
 
 def test_artist_stats_endpoint(client: TestClient) -> None:
@@ -894,6 +930,11 @@ def test_job_helpers_copy_bound_logs_and_reject_unknown_ids(
             False,
         ),
         ("fill_palace_of_memory", api.cmd_cancel_palace_of_memory_job, False),
+        (
+            "update_scrobble_history",
+            api.cmd_cancel_scrobble_history_job,
+            False,
+        ),
     ],
 )
 def test_playlist_job_cancellation_is_consistent(
@@ -938,6 +979,7 @@ def test_playlist_job_cancellation_is_consistent(
         ("plan_discographies", api.cmd_cancel_discography_job),
         ("flush_requeue_for_a_dream", api.cmd_cancel_requeue_for_a_dream_job),
         ("fill_palace_of_memory", api.cmd_cancel_palace_of_memory_job),
+        ("update_scrobble_history", api.cmd_cancel_scrobble_history_job),
     ],
 )
 def test_completed_playlist_jobs_cannot_be_cancelled(command: str, cancel) -> None:

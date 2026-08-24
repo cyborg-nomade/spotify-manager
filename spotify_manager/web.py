@@ -56,6 +56,7 @@ _genre_reveal_run_lock = Lock()
 
 
 _password = os.environ.get("APP_PASSWORD") or None
+_automation_token = os.environ.get("AUTOMATION_TOKEN") or None
 _allow_any_loopback_password = not any(
     os.environ.get(name) for name in ("SPACE_ID", "SPACE_HOST")
 )
@@ -68,6 +69,7 @@ if _password is None:
 app.add_middleware(
     PasswordMiddleware,
     password=_password,
+    automation_token=_automation_token,
     allow_any_loopback_password=_allow_any_loopback_password,
 )
 

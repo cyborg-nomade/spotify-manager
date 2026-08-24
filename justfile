@@ -109,6 +109,18 @@ state-export *args:
 state-edit *args:
     {{ cli }} state-edit "$@"
 
+# Show durable canonical-file versions and local synchronization.
+library-data-status *args:
+    {{ cli }} library-data-status "$@"
+
+# Hydrate canonical files from the shared Hugging Face dataset.
+library-data-pull *args:
+    {{ cli }} library-data-pull "$@"
+
+# Publish canonical files to the shared Hugging Face dataset.
+library-data-push *args:
+    {{ cli }} library-data-push "$@"
+
 # Upload refreshed Spotify and Last.fm exports to the HF Space.
 upload-library-files-to-hf *args:
     {{ cli }} upload-library-files-to-hf "$@"

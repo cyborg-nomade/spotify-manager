@@ -16,6 +16,8 @@ from typing import cast
 
 # UFI
 from spotify_manager.client.lastfm import LastFmRecentTrack
+from spotify_manager.core.library_data.runtime import artifact_for_path
+from spotify_manager.core.library_data.runtime import get_library_data_service
 from spotify_manager.routines import blast_from_past
 
 
@@ -25,10 +27,21 @@ DEFAULT_LEGACY_DELTA_PATH = FILES_DIR / "found_art_recent_scrobbles.jsonl"
 DEFAULT_BACKUP_DIR = FILES_DIR / "lastfm_history_backups"
 DEFAULT_LOG_PATH = FILES_DIR / "scrobble_history_update_log.jsonl"
 ProgressCallback = Callable[[str], None]
+CancelCheck = Callable[[], bool]
 
 
 class ScrobbleHistoryError(RuntimeError):
     """Raised when the canonical Last.fm record cannot be updated safely."""
+
+
+class ScrobbleHistoryCancelledError(ScrobbleHistoryError):
+    """Raised when a history refresh stops at a persistence boundary."""
+
+
+def check_cancel(cancel_check: CancelCheck | None) -> None:
+    """Stop before another expensive or mutating refresh step."""
+    if cancel_check is not None and cancel_check():
+        raise ScrobbleHistoryCancelledError("Last.fm history update cancelled.")
 
 
 class LastFmReader(Protocol):
@@ -315,12 +328,20 @@ def refresh_scrobble_history(
     dry_run: bool = False,
     now: datetime | None = None,
     progress_callback: ProgressCallback | None = None,
+    cancel_check: CancelCheck | None = None,
 ) -> ScrobbleHistorySummary:
     """Fetch a complete API delta and safely merge it into the shared export."""
+    managed_artifact = artifact_for_path(export_path)
+    data_service = None
+    if managed_artifact == "scrobbles":
+        data_service = get_library_data_service()
+        data_service.hydrate("scrobbles")
+    check_cancel(cancel_check)
     checked_at = (now or datetime.now(UTC)).astimezone(UTC)
     if progress_callback is not None:
         progress_callback("Loading the canonical Last.fm history")
     payload, export_records, recovered_from_fallback = _load_export(export_path)
+    check_cancel(cancel_check)
     if recovered_from_fallback and progress_callback is not None:
         progress_callback("Recovered Last.fm history from compressed fallback parts")
     username = str(payload.get("username") or "").strip()
@@ -357,10 +378,12 @@ def refresh_scrobble_history(
         if progress_callback is not None:
             progress_callback("Fetching newer scrobbles from Last.fm")
         live_seen: Counter[tuple[int, str, str, str]] = Counter()
-        for live_track in lastfm.recent_tracks(
+        live_tracks = lastfm.recent_tracks(
             from_timestamp=from_timestamp,
             to_timestamp=to_timestamp,
-        ):
+        )
+        check_cancel(cancel_check)
+        for live_track in live_tracks:
             record = _api_record(live_track)
             key = _record_key(record)
             live_seen[key] += 1
@@ -376,6 +399,7 @@ def refresh_scrobble_history(
     changed = legacy_added > 0 or live_added > 0
     backup_path: Path | None = None
     persisted = False
+    check_cancel(cancel_check)
     if changed and not dry_run:
         if progress_callback is not None:
             progress_callback("Backing up and atomically saving Last.fm history")
@@ -401,6 +425,11 @@ def refresh_scrobble_history(
     )
     if not dry_run:
         _mark_export_checked(export_path, checked_at)
+        if data_service is not None:
+            data_service.publish(
+                "scrobbles",
+                source="Last.fm API refresh",
+            )
         if not changed and progress_callback is not None:
             progress_callback("History already current; recorded successful check time")
         _append_log(summary, log_path)

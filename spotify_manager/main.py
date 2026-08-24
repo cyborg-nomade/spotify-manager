@@ -6,6 +6,7 @@ import sys
 import termios
 import tty
 from collections.abc import Callable
+from collections.abc import Iterable
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
@@ -37,6 +38,12 @@ from spotify_manager.client import SpotifyRedirectURIError
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.core.library_data import ALL_ARTIFACTS
+from spotify_manager.core.library_data import ArtifactName
+from spotify_manager.core.library_data import LibraryDataError
+from spotify_manager.core.library_data.models import validate_artifact_name
+from spotify_manager.core.library_data.runtime import get_library_data_service
+from spotify_manager.core.library_data.runtime import hydrate_runtime_library_data
 from spotify_manager.core.state.models import StateDocumentError
 from spotify_manager.core.state.models import StateError
 from spotify_manager.core.state.runtime import get_state_service
@@ -97,6 +104,31 @@ REVIEW_ACTION_CHOICES = [
     "q",
     "quit",
 ]
+
+
+@app.callback()
+def initialize_shared_library_data(ctx: typer.Context) -> None:
+    """Hydrate durable canonical files before ordinary CLI commands."""
+    if ctx.invoked_subcommand in {
+        "library-data-status",
+        "library-data-pull",
+        "library-data-push",
+    }:
+        return
+    hydrate_runtime_library_data()
+
+
+def selected_artifacts(values: Iterable[str]) -> tuple[ArtifactName, ...]:
+    """Validate repeated artifact options, defaulting to every artifact."""
+    requested = tuple(values)
+    if not requested:
+        return ALL_ARTIFACTS
+    try:
+        return tuple(
+            dict.fromkeys(validate_artifact_name(value) for value in requested)
+        )
+    except LibraryDataError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--artifact") from exc
 
 
 def client() -> Spotify:
@@ -816,6 +848,93 @@ def format_file_size(size_bytes: int) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024
     raise AssertionError("unreachable")
+
+
+@app.command(name="library-data-status")
+def library_data_status_command() -> None:
+    """Show durable versions and local synchronization for canonical files."""
+    console = Console()
+    try:
+        statuses = get_library_data_service().statuses()
+    except LibraryDataError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    table = Table(title="Shared library data")
+    table.add_column("Artifact")
+    table.add_column("Updated")
+    table.add_column("Size", justify="right")
+    table.add_column("Source")
+    table.add_column("Local")
+    for item in statuses:
+        table.add_row(
+            item.filename,
+            item.updated_at or "Not published",
+            format_file_size(item.size_bytes) if item.size_bytes is not None else "-",
+            item.source or "-",
+            "Current" if item.local_current else "Different",
+        )
+    console.print(table)
+
+
+@app.command(name="library-data-pull")
+def library_data_pull_command(
+    artifact: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--artifact",
+            "-a",
+            help="Pull albums, tracks, artists, or scrobbles; repeat as needed.",
+        ),
+    ] = None,
+) -> None:
+    """Hydrate canonical working files from the shared dataset."""
+    console = Console()
+    service = get_library_data_service()
+    try:
+        statuses = [
+            service.hydrate(name) for name in selected_artifacts(artifact or ())
+        ]
+    except LibraryDataError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    for item in statuses:
+        state = "current" if item.exists else "not published; local fallback retained"
+        console.print(f"{item.filename}: {state}")
+
+
+@app.command(name="library-data-push")
+def library_data_push_command(
+    artifact: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--artifact",
+            "-a",
+            help="Push albums, tracks, artists, or scrobbles; repeat as needed.",
+        ),
+    ] = None,
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Publish without confirmation.",
+    ),
+) -> None:
+    """Publish canonical working files to the shared dataset."""
+    names = selected_artifacts(artifact or ())
+    if not yes and not typer.confirm(
+        "Publish local canonical files for " + ", ".join(names) + "?"
+    ):
+        typer.echo("Library data was not changed.")
+        return
+    console = Console()
+    service = get_library_data_service()
+    try:
+        for name in names:
+            saved = service.publish(name, source="manual CLI publication")
+            console.print(f"Published {name} at revision {saved.revision}.")
+    except LibraryDataError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
 
 
 @app.command(name="upload-library-files-to-hf")

@@ -23,6 +23,7 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
+from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.models.stats import AlbumsStats
 from spotify_manager.models.stats import ArtistsStats
 from spotify_manager.models.stats import StatsReport
@@ -221,6 +222,7 @@ def append_event(
 def write_models(path: Path, models: Sequence[BaseModel]) -> None:
     """Atomically write a list of Pydantic models."""
     write_json_atomic(path, [model.model_dump() for model in models])
+    publish_managed_path(path, source="Spotify live library refresh")
 
 
 def append_models_jsonl(path: Path, models: Sequence[BaseModel]) -> None:
@@ -2001,6 +2003,7 @@ def restore_library_sync(
             temporary = target.with_suffix(f"{target.suffix}.restore")
             shutil.copy2(backup_file, temporary)
             temporary.replace(target)
+            publish_managed_path(target, source=f"restore analysis {run_id}")
         else:
             target.unlink(missing_ok=True)
         restored.append(target.name)

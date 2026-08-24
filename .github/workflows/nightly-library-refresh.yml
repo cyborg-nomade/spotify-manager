@@ -1,0 +1,34 @@
+name: Nightly library refresh
+
+on:
+  schedule:
+    # 23:17 Europe/Berlin in winter, 00:17 in summer. The client stops at 05:00.
+    - cron: "17 22 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-library-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      SPACE_URL: https://cyborg-nomade-spotify-manager.hf.space
+      HF_SPACE_TOKEN: ${{ secrets.HF_SPACE_TOKEN }}
+      AUTOMATION_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+    steps:
+      - name: Check out the automation client
+        uses: actions/checkout@v4
+
+      - name: Use Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Refresh durable library data
+        run: python .github/scripts/nightly_refresh.py

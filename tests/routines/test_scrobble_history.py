@@ -137,6 +137,58 @@ def test_real_refresh_backs_up_then_atomically_replaces_export(tmp_path: Path) -
     assert audit["persisted"] is True
 
 
+def test_managed_refresh_hydrates_and_publishes_even_when_current(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    export_path = tmp_path / "lastfm.json"
+    write_export(export_path)
+    calls: list[tuple[str, str | None]] = []
+
+    class DataService:
+        def hydrate(self, name):
+            calls.append(("hydrate", name))
+
+        def publish(self, name, *, source):
+            calls.append(("publish", f"{name}:{source}"))
+
+    monkeypatch.setattr(
+        scrobble_history, "artifact_for_path", lambda _path: "scrobbles"
+    )
+    monkeypatch.setattr(
+        scrobble_history,
+        "get_library_data_service",
+        lambda: DataService(),
+    )
+
+    summary = scrobble_history.refresh_scrobble_history(
+        FakeLastFm(()),
+        export_path=export_path,
+        legacy_delta_path=None,
+        backup_dir=tmp_path / "backups",
+        log_path=tmp_path / "log.jsonl",
+        now=datetime.fromtimestamp(1, UTC),
+    )
+
+    assert summary.persisted is False
+    assert calls == [
+        ("hydrate", "scrobbles"),
+        ("publish", "scrobbles:Last.fm API refresh"),
+    ]
+
+
+def test_refresh_can_cancel_before_reading_history(tmp_path: Path) -> None:
+    with pytest.raises(
+        scrobble_history.ScrobbleHistoryCancelledError,
+        match="cancelled",
+    ):
+        scrobble_history.refresh_scrobble_history(
+            FakeLastFm(()),
+            export_path=tmp_path / "missing.json",
+            cancel_check=lambda: True,
+        )
+
+
 def test_current_refresh_records_successful_check_time_without_rewrite(
     tmp_path: Path,
 ) -> None:

@@ -8,8 +8,8 @@ from pathlib import Path
 
 from spotify_manager.core.state.models import StateConfigurationError
 from spotify_manager.core.state.service import StateService
-from spotify_manager.infrastructure.huggingface import HubStateStore
-from spotify_manager.infrastructure.persistence import JsonStateStore
+from spotify_manager.infrastructure.huggingface.state_store import HubStateStore
+from spotify_manager.infrastructure.persistence.json_state_store import JsonStateStore
 
 
 DEFAULT_STATE_REPO = "cyborg-nomade/spotify-manager-state"

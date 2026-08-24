@@ -16,6 +16,7 @@ from typing import cast
 from spotipy import Spotify
 
 # UFI
+from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
 from spotify_manager.core.state.compat import routine_state
@@ -789,6 +790,7 @@ def _remove_local_album(album_id: str, path: Path) -> bool:
         temporary.replace(path)
     except OSError as exc:
         raise NewWineStateError(f"Could not update local albums: {path}") from exc
+    publish_managed_path(path, source="New Wine library reconciliation")
     return True
 
 

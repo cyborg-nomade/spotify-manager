@@ -6,27 +6,32 @@ Spotify Manager runs as the private Docker Space
 `cyborg-nomade/spotify-manager`. Uvicorn serves `spotify_manager.web:app`, which
 combines the FastAPI backend, password gate, control cockpit, and Genre Reveal.
 
-Durable routine state is independent of the Space container and repository. One
-versioned `state.json` lives in the private dataset
-`cyborg-nomade/spotify-manager-state`; local CLI, local web, and the Space all
-read and write it through `StateService`.
+Durable routine state and canonical data are independent of the Space container
+and repository. `state.json` lives in `cyborg-nomade/spotify-manager-state`;
+compressed Spotify mirrors and Last.fm history live in
+`cyborg-nomade/spotify-manager-data`. Local CLI, local web, and the Space use
+the same services.
 
 Three assets therefore have separate lifecycles:
 
 1. code and packaged data in the Space repository;
-2. durable routine state in the private state dataset; and
-3. container-local mirrors, logs, caches, backups, and analysis staging.
+2. durable routine state in the private state dataset;
+3. durable canonical files in the private library-data dataset; and
+4. container-local logs, caches, backups, and analysis staging.
 
-Deployments replace the first asset, must never overwrite the second, and may
-replace the third unless it is explicitly copied or committed.
+Deployments replace the first asset, must never overwrite the second or third,
+and may replace the fourth unless it is explicitly copied or committed.
 
 ## Security requirements
 
-- Keep both the Space and state dataset private.
+- Keep the Space and both datasets private.
 - Configure `APP_PASSWORD`; it gates the running API.
+- Configure a separate `AUTOMATION_TOKEN` for unattended API calls.
 - Store Spotify client secrets and OAuth cache JSON only as Space secrets.
 - Store a write-capable HF token as `SPOTIFY_MANAGER_STATE_TOKEN` so the Space
   can update the private state dataset.
+- Store a write-capable HF token as `SPOTIFY_MANAGER_DATA_TOKEN` so the Space
+  can update the private canonical-file dataset.
 - Never upload `.env` or `spotify_manager/auth/spotipy_token_cache*.json`.
 - Treat exported state, mirrors, audit logs, and Last.fm history as private.
 
@@ -52,10 +57,19 @@ hf repos create cyborg-nomade/spotify-manager \
   --repo-type space --space-sdk docker --private
 hf repos create cyborg-nomade/spotify-manager-state \
   --repo-type dataset --private
+hf repos create cyborg-nomade/spotify-manager-data \
+  --repo-type dataset --private
 ```
 
 The state dataset contains exactly one application-owned file, `state.json`.
-Seed it with a validated document before running a stateful routine.
+The library-data dataset contains `manifest.json` and compressed artifacts.
+Seed the latter from reviewed canonical files before enabling automatic
+publication:
+
+```console
+just library-data-push --yes
+just library-data-status
+```
 
 ### 2. Authenticate locally
 
@@ -91,10 +105,19 @@ Required operational secrets are:
 | Secret | Purpose |
 | --- | --- |
 | `APP_PASSWORD` | Password entered in the cockpit. |
+| `AUTOMATION_TOKEN` | High-entropy token shared only with GitHub Actions. |
 | `SPOTIPY_CLIENT_ID` / `SPOTIPY_CLIENT_SECRET` | Primary Spotify app. |
 | `SPOTIPY_REDIRECT_URI` | Exact registered loopback URI. |
 | `SPOTIPY_CACHE_JSON` | Complete primary OAuth cache. |
 | `SPOTIFY_MANAGER_STATE_TOKEN` | HF token with state-dataset read/write access. |
+| `SPOTIFY_MANAGER_DATA_TOKEN` | HF token with library-data read/write access. |
+
+The GitHub repository needs these Actions secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `HF_SPACE_TOKEN` | Read access to the private Space. |
+| `AUTOMATION_TOKEN` | Must exactly match the Space secret. |
 
 For app5 through app8, configure each complete client-id, client-secret, and
 cache triplet. Add the playlist and Last.fm settings listed in
@@ -116,6 +139,26 @@ hf spaces secrets list cyborg-nomade/spotify-manager
 ```
 
 Changing a secret restarts the Space, but routine state remains in the dataset.
+
+## Nightly refresh schedule
+
+`.github/workflows/nightly-library-refresh.yml` starts daily at 22:17 UTC,
+which is 23:17 in Berlin winter time and 00:17 in summer time. The client uses
+the Europe/Berlin timezone for its hard 05:00 deadline. It runs these jobs
+sequentially:
+
+1. update Last.fm scrobble history;
+2. refresh the incremental albums mirror;
+3. refresh the incremental liked-tracks mirror; and
+4. refresh the incremental artists mirror.
+
+The odd start minute avoids GitHub's busiest scheduling boundary. The workflow
+reconnects to an existing matching job after overlap, retries Space wake-up and
+gateway failures, and resumes analysis checkpoints after a Space restart. A
+Spotify rate-limit pause ends the run successfully so the next night can
+continue. At the deadline it requests cancellation at the next durable
+boundary. GitHub's `workflow_dispatch` entry provides a manual Run workflow
+button without changing the schedule.
 
 ## Deploying an update
 

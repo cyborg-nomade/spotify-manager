@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 # UFI
+from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
@@ -132,23 +133,29 @@ def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]) -> No
 def save_total_albums_new_file(total_albums_file_items: list[YourLibraryAlbum]) -> None:
     """Save total albums file."""
     print("Saving total albums file...")
-    with open(TOTAL_ALBUMS_NEW_PATH, "w") as main_file:
+    temporary = TOTAL_ALBUMS_NEW_PATH.with_suffix(".json.tmp")
+    with temporary.open("w") as main_file:
         json.dump(
             serialize_model_list(total_albums_file_items), main_file, ensure_ascii=False
         )
-        print("OK!")
+    temporary.replace(TOTAL_ALBUMS_NEW_PATH)
+    publish_managed_path(TOTAL_ALBUMS_NEW_PATH, source="library routine")
+    print("OK!")
 
 
 def save_total_artists_file(total_artists_file_items: list[YourLibraryArtist]) -> None:
     """Save total artists file."""
     print("Saving total artists file...")
-    with open(TOTAL_ARTISTS_PATH, "w") as main_file:
+    temporary = TOTAL_ARTISTS_PATH.with_suffix(".json.tmp")
+    with temporary.open("w") as main_file:
         json.dump(
             serialize_model_list(total_artists_file_items),
             main_file,
             ensure_ascii=False,
         )
-        print("OK!")
+    temporary.replace(TOTAL_ARTISTS_PATH)
+    publish_managed_path(TOTAL_ARTISTS_PATH, source="library routine")
+    print("OK!")
 
 
 def save_control_file(control_file_items: list[ControlFileItem]) -> None:
