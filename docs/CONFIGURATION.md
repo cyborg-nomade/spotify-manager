@@ -21,7 +21,7 @@
 | --- | --- |
 | Spotify account and developer application | All live library, lookup, follow, save, and playlist operations. |
 | Last.fm API key and username | Scrobble refresh, recommendations, Something Old, The Queue, and release checks. |
-| Random.org access | Blast from the Past, Daily Mind Radio, and Palace of Memory. |
+| Random.org access | Blast from the Past, Daily Mind Radio, Palace of Memory, and the empty-Memory-Lane discography fallback. |
 | Every Noise access | Genre Reveal. |
 | Private Hugging Face Space and write token | Deployed cockpit and export uploads. |
 

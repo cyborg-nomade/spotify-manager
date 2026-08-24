@@ -3369,11 +3369,32 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
         edition_rank=0,
         default=False,
     )
+    artist_candidates = (
+        api.something_old.SpotifyArtistCandidate(
+            spotify_id="artist",
+            name="Artist",
+            uri="spotify:artist:artist",
+            popularity=70,
+            followers=1000,
+            search_rank=1,
+        ),
+        api.something_old.SpotifyArtistCandidate(
+            spotify_id="artist-2",
+            name="Artist",
+            uri="spotify:artist:artist-2",
+            popularity=20,
+            followers=50,
+            search_rank=2,
+        ),
+    )
 
     def build(_spotify, playlist_ids, release_selector, **kwargs):
         received["playlist_ids"] = playlist_ids
         received["queue_3_playlist_id"] = kwargs["queue_3_playlist_id"]
         kwargs["progress_callback"]("Loading next discography artist")
+        received["mapped_artist_id"] = kwargs["historical_artist_choice_reader"](
+            "Artist", artist_candidates
+        )
         selected_ids = release_selector(artist, (studio, live))
         received["selected_ids"] = selected_ids
         selected = tuple(
@@ -3424,6 +3445,31 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
     assert started.status_code == 202
     job_id = started.json()["job_id"]
     waiting = wait_for_discography_status(client, job_id, {"waiting"})
+    artist_pending = waiting["discography_pending_choice"]
+    assert artist_pending["kind"] == "artist"
+    assert artist_pending["queue"] == "Memory Lane"
+    assert artist_pending["artist_candidates"][0] == {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "popularity": 70,
+        "followers": 1000,
+    }
+    assert (
+        client.post(
+            f"/commands/plan-discographies-jobs/{job_id}/choice",
+            json={"choice": "missing"},
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            f"/commands/plan-discographies-jobs/{job_id}/choice",
+            json={"choice": "artist"},
+        ).status_code
+        == 200
+    )
+
+    waiting = wait_for_discography_status(client, job_id, {"waiting"})
     pending = waiting["discography_pending_choice"]
     assert pending["kind"] == "releases"
     assert pending["default_release_ids"] == ["studio"]
@@ -3460,6 +3506,7 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
     assert confirmed.status_code == 200
     completed = wait_for_discography_status(client, job_id, {"completed"})
     assert received["selected_ids"] == ("studio", "live")
+    assert received["mapped_artist_id"] == "artist"
     assert received["playlist_ids"] == {
         "newfoundland": "nf",
         "memory_lane": "ml",

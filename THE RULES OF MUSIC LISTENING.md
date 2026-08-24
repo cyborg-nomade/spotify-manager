@@ -251,7 +251,7 @@ Discographies are a way of diving deeper into artists, observing their developme
     1. *newfoundland*, which contains artists stemming from the DISCOVERY lists. Most of these will be new artists, but some are known artists. In the latter case, they should only be added here if the discography has never been played in full.
     2. *memory lane*, which contains artists whose discographies have already been played. This playlist is filled in one of two forms:
         1. The top 5 artists of the previous year (added to the top, not the bottom, of the list).
-        2. If the list is empty, by randomly picking a date and selecting an artist listened to on that day.
+        2. If the list is empty, by randomly picking a populated Last.fm date through December 31 of the previous year and selecting an artist listened to on that day. As with the historical albums in *palace of memory*, rank that date's artists by scrobble count and use the seconds from the Random.org response timestamp as a wrapped position in the ranking.
     3. *the requeue*, which contains artists whose discographies have already been played and which aren't in the *memory lane* list.
 4. The slots should be filled by picking the first of each list, in the order listed above, until either you reach a multiple of 10. In case that can't be done, the next list should be perused for an artists that will fit. If there are none, then proceed in cycle to the next list until one is found. In the (unlikely case) where none fit, then the slots can be left open.
 5. If any lists aren't visited because of a lack of slots, then in the following month, they should be the first.

@@ -3908,6 +3908,14 @@ def plan_discographies_command(
                     status_ref,
                 ),
                 queue_3_playlist_id=queue_3_playlist_id,
+                historical_artist_choice_reader=lambda artist_name, candidates: (
+                    ask_something_old_artist(
+                        console,
+                        artist_name,
+                        candidates,
+                        status,
+                    )
+                ),
                 retry_call=retry_call,
                 progress_callback=status.update,
             )
