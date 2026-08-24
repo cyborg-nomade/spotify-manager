@@ -158,7 +158,8 @@ gateway failures, and resumes analysis checkpoints after a Space restart. A
 Spotify rate-limit pause ends the run successfully so the next night can
 continue. At the deadline it requests cancellation at the next durable
 boundary. GitHub's `workflow_dispatch` entry provides a manual Run workflow
-button without changing the schedule.
+button without changing the schedule; select `check_only` to verify access and
+all four durable artifacts without starting a refresh.
 
 ## Deploying an update
 

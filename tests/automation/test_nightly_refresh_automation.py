@@ -143,3 +143,28 @@ def test_nightly_refresh_stops_cleanly_after_a_rate_limit(
 
     assert nightly.run_nightly_refresh(client) == 0
     assert client.calls == [("GET", "/health")]
+
+
+def test_connection_check_requires_all_durable_artifacts(
+    nightly: ModuleType,
+) -> None:
+    files = [{"filename": spec.label, "exists": True} for spec in nightly.JOBS]
+    client = FakeClient(
+        [
+            {"status": "ok"},
+            {"status": "ok"},
+            {"files": files},
+        ]
+    )
+
+    assert nightly.run_connection_check(client) == 0
+
+    missing = FakeClient(
+        [
+            {"status": "ok"},
+            {"status": "ok"},
+            {"files": files[:-1]},
+        ]
+    )
+    with pytest.raises(nightly.AutomationError, match="status is incomplete"):
+        nightly.run_connection_check(missing)
