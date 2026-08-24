@@ -3577,7 +3577,26 @@
     var pending = "";
     var choice = job.discography_pending_choice;
     var choiceKey = "";
-    if (choice && choice.kind === "releases") {
+    if (choice && choice.kind === "artist") {
+      var artistRows = (choice.artist_candidates || []).map(function (candidate) {
+        var metadata = [];
+        if (candidate.popularity !== null && candidate.popularity !== undefined) {
+          metadata.push("popularity " + candidate.popularity);
+        }
+        if (candidate.followers !== null && candidate.followers !== undefined) {
+          metadata.push(candidate.followers.toLocaleString() + " followers");
+        }
+        return '<button class="ghost" data-action="discographyChoice" ' +
+          'data-choice="' + esc(candidate.spotify_id) + '">' +
+          esc(candidate.name) + (metadata.length ? ' · ' + esc(metadata.join(' · ')) : '') +
+          '</button>';
+      }).join("");
+      pending = '<div class="new-wine-choice"><div class="new-wine-choice-title">' +
+        'Map ' + esc(choice.artist) + ' from Last.fm to Spotify</div>' +
+        '<div class="btns">' + artistRows +
+        '<button class="danger" data-action="discographyChoice" ' +
+          'data-choice="quit">Quit</button></div></div>';
+    } else if (choice && choice.kind === "releases") {
       var defaults = new Set(choice.default_release_ids || []);
       choiceKey = job.job_id + ":" + (choice.artist || "") + ":" +
         (choice.releases || []).map(function (release) {

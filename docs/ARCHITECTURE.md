@@ -230,7 +230,7 @@ because the application does not perform authenticated Last.fm writes.
 
 ### Random.org
 
-Blast from the Past, Daily Mind Radio, and Palace of Memory use Random.org
+Blast from the Past, Daily Mind Radio, Palace of Memory, and the empty-Memory-Lane discography fallback use Random.org
 responses as required by the listening rules. They intentionally do not fall
 back to a local pseudorandom generator when Random.org is unavailable.
 

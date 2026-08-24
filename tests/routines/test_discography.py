@@ -1,12 +1,19 @@
 """Tests for the round-week discography planner."""
 
 import json
+from datetime import UTC
+from datetime import date
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from spotify_manager.routines import discography
 from spotify_manager.routines import new_wine
+
+
+BERLIN = ZoneInfo("Europe/Berlin")
 
 
 def raw_release(
@@ -78,6 +85,11 @@ def playlist_track(
         primary_artist_name=artist_name,
         release=release,
     )
+
+
+def scrobble_timestamp(year: int, month: int, day: int, hour: int = 12) -> int:
+    """Return one Last.fm export timestamp in the listening timezone."""
+    return int(datetime(year, month, day, hour, tzinfo=BERLIN).timestamp() * 1000)
 
 
 class CatalogSpotify:
@@ -180,6 +192,227 @@ def test_new_state_starts_with_the_requeue(tmp_path: Path) -> None:
     assert discography._next_start_queue("requeue") == "memory_lane"
     assert discography._next_start_queue("memory_lane") == "newfoundland"
     assert discography._next_start_queue("newfoundland") == "requeue"
+
+
+def test_historical_artist_uses_palace_date_seconds_rule(tmp_path: Path) -> None:
+    """A random date is chosen, then seconds wrap over its ranked artists."""
+    history_path = tmp_path / "lastfm.json"
+    history_path.write_text(
+        json.dumps(
+            {
+                "scrobbles": [
+                    *[
+                        {
+                            "artist": "Alpha",
+                            "track": "Track",
+                            "album": "Album",
+                            "date": scrobble_timestamp(2010, 1, 2, hour),
+                        }
+                        for hour in (10, 11, 12)
+                    ],
+                    *[
+                        {
+                            "artist": "Beta",
+                            "track": "Track",
+                            "album": "Album",
+                            "date": scrobble_timestamp(2010, 1, 2, hour),
+                        }
+                        for hour in (13, 14)
+                    ],
+                    {
+                        "artist": "Gamma",
+                        "track": "Track",
+                        "album": "Album",
+                        "date": scrobble_timestamp(2010, 1, 2, 15),
+                    },
+                    {
+                        "artist": "Other Date",
+                        "track": "Track",
+                        "album": "Album",
+                        "date": scrobble_timestamp(2011, 1, 2),
+                    },
+                    {
+                        "artist": "Future",
+                        "track": "Track",
+                        "album": "Album",
+                        "date": scrobble_timestamp(2026, 1, 2),
+                    },
+                ]
+            }
+        )
+    )
+
+    def random_indexes(population_size: int, count: int):
+        assert population_size == 2
+        assert count == 1
+        return discography.blast_from_past.RandomIndexSet(
+            indexes=(0,),
+            generated_at=datetime(2026, 8, 24, 12, 0, 4, tzinfo=UTC),
+        )
+
+    selection = discography.select_historical_artist(
+        path=history_path,
+        today=date(2026, 8, 24),
+        random_index_reader=random_indexes,
+    )
+
+    assert selection.cutoff_date == date(2025, 12, 31)
+    assert selection.available_dates == 2
+    assert selection.selected_date == date(2010, 1, 2)
+    assert selection.artists_on_date == 3
+    assert selection.position == 2
+    assert selection.artist == discography.HistoricalArtist("Beta", 2)
+
+
+def test_historical_artist_requires_an_eligible_date(tmp_path: Path) -> None:
+    """An empty or entirely future history fails before Random.org is called."""
+    history_path = tmp_path / "lastfm.json"
+    history_path.write_text(json.dumps({"scrobbles": []}))
+
+    with pytest.raises(
+        discography.DiscographyError,
+        match="No artist-bearing Last.fm dates",
+    ):
+        discography.select_historical_artist(
+            path=history_path,
+            today=date(2026, 8, 24),
+            random_index_reader=lambda *_args: pytest.fail(
+                "Random.org should not be reached"
+            ),
+        )
+
+
+def test_historical_artist_resolution_becomes_memory_lane_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The exact Spotify match carries the synthetic Memory Lane source."""
+    selection = discography.HistoricalArtistSelection(
+        generated_at=datetime(2026, 8, 24, tzinfo=UTC),
+        cutoff_date=date(2025, 12, 31),
+        available_dates=1,
+        selected_date=date(2010, 1, 2),
+        date_index=0,
+        artists_on_date=1,
+        position=1,
+        artist=discography.HistoricalArtist("History Artist", 3),
+    )
+    monkeypatch.setattr(
+        discography.something_old,
+        "resolve_spotify_artist",
+        lambda *_args: discography.something_old.SpotifyArtistCandidate(
+            spotify_id="spotify-id",
+            name="History Artist",
+            uri="spotify:artist:spotify-id",
+            popularity=40,
+            followers=100,
+            search_rank=1,
+        ),
+    )
+
+    candidate = discography.resolve_historical_artist(
+        object(),  # type: ignore[arg-type]
+        selection,
+        None,
+        lambda operation, _description: operation(),
+    )
+
+    assert candidate == discography.QueueArtist(
+        "spotify-id",
+        "History Artist",
+        "memory_lane",
+    )
+
+
+def test_unused_empty_memory_lane_does_not_request_random_artist(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A complete first batch must not call the lazy historical fallback."""
+    queues = {
+        "newfoundland": (discography.QueueArtist("artist", "Artist", "newfoundland"),),
+        "memory_lane": (),
+        "requeue": (),
+    }
+    monkeypatch.setattr(
+        discography,
+        "_load_artist_queues",
+        lambda *_args: (queues, {}),
+    )
+    monkeypatch.setattr(
+        discography,
+        "load_release_catalog",
+        lambda *_args: tuple(catalog_release(str(index)) for index in range(10)),
+    )
+
+    state_path = tmp_path / "state.json"
+    discography.save_next_queue("newfoundland", state_path)
+    plan = discography.build_discography_plan(
+        object(),  # type: ignore[arg-type]
+        {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
+        lambda _artist, releases: tuple(item.spotify_id for item in releases),
+        state_path=state_path,
+        random_index_reader=lambda *_args: pytest.fail(
+            "Random.org should not be reached"
+        ),
+    )
+
+    assert [artist.spotify_id for artist in plan.artists] == ["artist"]
+
+
+def test_empty_memory_lane_supplies_random_historical_artist(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The selected Last.fm artist enters planning as a marker-free queue artist."""
+    queues = {"newfoundland": (), "memory_lane": (), "requeue": ()}
+    selection = discography.HistoricalArtistSelection(
+        generated_at=datetime(2026, 8, 24, 12, 0, 7, tzinfo=UTC),
+        cutoff_date=date(2025, 12, 31),
+        available_dates=100,
+        selected_date=date(2014, 6, 7),
+        date_index=12,
+        artists_on_date=5,
+        position=3,
+        artist=discography.HistoricalArtist("History Artist", 4),
+    )
+    monkeypatch.setattr(
+        discography,
+        "_load_artist_queues",
+        lambda *_args: (queues, {}),
+    )
+    monkeypatch.setattr(
+        discography,
+        "select_historical_artist",
+        lambda **_kwargs: selection,
+    )
+    monkeypatch.setattr(
+        discography,
+        "resolve_historical_artist",
+        lambda *_args: discography.QueueArtist(
+            "history-id", "History Artist", "memory_lane"
+        ),
+    )
+    monkeypatch.setattr(
+        discography,
+        "load_release_catalog",
+        lambda *_args: (catalog_release("history-release"),),
+    )
+
+    state_path = tmp_path / "state.json"
+    discography.save_next_queue("memory_lane", state_path)
+    logs: list[str] = []
+    plan = discography.build_discography_plan(
+        object(),  # type: ignore[arg-type]
+        {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
+        lambda _artist, releases: tuple(item.spotify_id for item in releases),
+        state_path=state_path,
+        progress_callback=logs.append,
+    )
+
+    assert plan.artists[0].spotify_id == "history-id"
+    assert plan.artists[0].source_queue == "memory_lane"
+    assert plan.artists[0].markers == ()
+    assert any("second 7 chose History Artist" in message for message in logs)
 
 
 def test_artist_queues_keep_first_seen_order_and_all_unique_markers(

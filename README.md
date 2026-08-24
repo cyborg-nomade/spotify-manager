@@ -1137,6 +1137,16 @@ priority then rotates by run through *The Requeue*, *Memory Lane*,
 *Newfoundland*, and back to *The Requeue*, independently of the additional
 queues used to fill that run's release slots.
 
+When *Memory Lane* is empty and the planner reaches it, the command supplies
+one artist from the durable Last.fm scrobble history. It uses the same rule as
+Palace of Memory's historical albums: Random.org chooses one populated date no
+later than December 31 of the previous year, artists on that date are ranked by
+scrobble count, and the Random.org response timestamp's seconds select a wrapped
+position in that ranking. The selected Last.fm name must match Spotify exactly;
+if several exact-name artists exist, the CLI or web app asks which one to use.
+Random.org is not contacted when Memory Lane is nonempty or when the current
+batch fills before that queue is visited.
+
 ```console
 uv run spotify-manager plan-discographies --dry-run
 just plan-discographies --dry-run

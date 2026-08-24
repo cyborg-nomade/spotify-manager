@@ -768,9 +768,10 @@ class DiscographyReleaseOption(BaseModel):
 class DiscographyPendingChoice(BaseModel):
     """Current release checklist or final confirmation shown by the web client."""
 
-    kind: Literal["releases", "confirm"]
+    kind: Literal["artist", "releases", "confirm"]
     artist: str | None = None
     queue: str | None = None
+    artist_candidates: list[SomethingOldArtistOption] = Field(default_factory=list)
     releases: list[DiscographyReleaseOption] = Field(default_factory=list)
     default_release_ids: list[str] = Field(default_factory=list)
 
@@ -4212,6 +4213,29 @@ def _run_discography_job(
             return ()
         return release_ids
 
+    def historical_artist_choice_reader(
+        artist_name: str,
+        candidates: tuple[something_old.SpotifyArtistCandidate, ...],
+    ) -> str:
+        choice, _release_ids = wait_for_submission(
+            DiscographyPendingChoice(
+                kind="artist",
+                artist=artist_name,
+                queue=discography.QUEUE_LABELS["memory_lane"],
+                artist_candidates=[
+                    SomethingOldArtistOption(
+                        spotify_id=candidate.spotify_id,
+                        name=candidate.name,
+                        popularity=candidate.popularity,
+                        followers=candidate.followers,
+                    )
+                    for candidate in candidates
+                ],
+            ),
+            f"Choose the exact Spotify artist for {artist_name}.",
+        )
+        return choice
+
     def progress(detail: str) -> None:
         with _blast_jobs_lock:
             if job.cancel_event.is_set():
@@ -4247,6 +4271,7 @@ def _run_discography_job(
             playlist_ids,
             release_selector,
             queue_3_playlist_id=queue_3_playlist_id,
+            historical_artist_choice_reader=historical_artist_choice_reader,
             retry_call=retry_call,
             progress_callback=progress,
         )
@@ -7505,7 +7530,16 @@ def cmd_choose_discography(
                 detail="Discography job is not waiting for a choice",
             )
 
-        if pending.kind == "releases":
+        if pending.kind == "artist":
+            available = {
+                candidate.spotify_id for candidate in pending.artist_candidates
+            }
+            if request.choice not in available | {"quit"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Spotify artist choice is not available",
+                )
+        elif pending.kind == "releases":
             if request.choice not in {"select", "none", "quit"}:
                 raise HTTPException(
                     status_code=400,

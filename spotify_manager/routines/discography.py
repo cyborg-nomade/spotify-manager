@@ -2,12 +2,14 @@
 
 import json
 import re
+from collections import Counter
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import replace
 from datetime import UTC
+from datetime import date
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -20,13 +22,17 @@ from spotipy import Spotify
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import new_wine
+from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import slow_listening
+from spotify_manager.routines import something_old
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_STATE_PATH = FILES_DIR / "discography_routine_state.json"
 DEFAULT_LOG_PATH = FILES_DIR / "discography_routine_log.jsonl"
+DEFAULT_SCROBBLES_PATH = blast_from_past.DEFAULT_SCROBBLES_PATH
 STATE_VERSION = 1
 RELEASE_PAGE_LIMIT = 10
 SAVED_ALBUM_BATCH_SIZE = 20
@@ -58,6 +64,8 @@ ReleaseSelector = Callable[
     tuple[str, ...],
 ]
 ProgressCallback = Callable[[str], None]
+RandomIndexReader = Callable[[int, int], blast_from_past.RandomIndexSet]
+HistoricalArtistChoiceReader = something_old.ArtistSearchChoiceReader
 
 LIVE_PATTERN = re.compile(
     r"(?:^live(?:!|$|\s)|\blive\b|\bao vivo\b|\ben vivo\b|"
@@ -111,6 +119,28 @@ class QueueArtist:
     spotify_id: str
     name: str
     queue: QueueName
+
+
+@dataclass(frozen=True)
+class HistoricalArtist:
+    """One artist in a date's Last.fm ranking."""
+
+    name: str
+    scrobbles: int
+
+
+@dataclass(frozen=True)
+class HistoricalArtistSelection:
+    """One Random.org date and timestamp mapped to a Last.fm artist."""
+
+    generated_at: datetime
+    cutoff_date: date
+    available_dates: int
+    selected_date: date
+    date_index: int
+    artists_on_date: int
+    position: int
+    artist: HistoricalArtist
 
 
 @dataclass(frozen=True)
@@ -295,6 +325,110 @@ def _next_start_queue(queue: QueueName) -> QueueName:
     """Rotate the starting priority independently from within-run packing."""
     index = START_QUEUE_ROTATION.index(queue)
     return START_QUEUE_ROTATION[(index + 1) % len(START_QUEUE_ROTATION)]
+
+
+def rank_historical_artists(
+    scrobbles: list[blast_from_past.Scrobble],
+) -> tuple[HistoricalArtist, ...]:
+    """Rank one date's artists by scrobbles, then normalized name."""
+    counts: Counter[str] = Counter()
+    names: dict[str, Counter[str]] = defaultdict(Counter)
+    for scrobble in scrobbles:
+        name = scrobble.artist.strip()
+        key = blast_from_past.normalize_name(name)
+        if not key:
+            continue
+        counts[key] += 1
+        names[key][name] += 1
+    return tuple(
+        HistoricalArtist(
+            name=min(
+                names[key],
+                key=lambda name: (-names[key][name], name.casefold(), name),
+            ),
+            scrobbles=counts[key],
+        )
+        for key in sorted(counts, key=lambda key: (-counts[key], key))
+    )
+
+
+def select_historical_artist(
+    *,
+    path: Path = DEFAULT_SCROBBLES_PATH,
+    today: date | None = None,
+    random_index_reader: RandomIndexReader = blast_from_past.fetch_random_indexes,
+    progress_callback: ProgressCallback | None = None,
+) -> HistoricalArtistSelection:
+    """Apply Palace of Memory's date/seconds rule to Last.fm artists."""
+    if progress_callback is not None:
+        progress_callback("Memory Lane is empty; loading Last.fm artist history")
+    try:
+        scrobbles_by_date = blast_from_past.load_scrobbles_by_date(path)
+    except blast_from_past.LastFmExportError as exc:
+        raise DiscographyError(str(exc)) from exc
+
+    cutoff = palace_of_memory.palace_cutoff(today)
+    rankings = {
+        scrobble_date: ranked
+        for scrobble_date, scrobbles in scrobbles_by_date.items()
+        if blast_from_past.FIRST_ELIGIBLE_DATE <= scrobble_date <= cutoff
+        and (ranked := rank_historical_artists(scrobbles))
+    }
+    available_dates = sorted(rankings)
+    if not available_dates:
+        raise DiscographyError(
+            "No artist-bearing Last.fm dates are available through "
+            f"{cutoff.isoformat()}."
+        )
+
+    if progress_callback is not None:
+        progress_callback("Requesting a historical date from Random.org")
+    try:
+        random_indexes = random_index_reader(len(available_dates), 1)
+    except (ValueError, blast_from_past.RandomOrgError) as exc:
+        raise DiscographyError(str(exc)) from exc
+
+    date_index = random_indexes.indexes[0]
+    selected_date = available_dates[date_index]
+    artists = rankings[selected_date]
+    selected_offset = random_indexes.generated_at.second % len(artists)
+    return HistoricalArtistSelection(
+        generated_at=random_indexes.generated_at,
+        cutoff_date=cutoff,
+        available_dates=len(available_dates),
+        selected_date=selected_date,
+        date_index=date_index,
+        artists_on_date=len(artists),
+        position=selected_offset + 1,
+        artist=artists[selected_offset],
+    )
+
+
+def resolve_historical_artist(
+    spotify: Spotify,
+    selection: HistoricalArtistSelection,
+    choice_reader: HistoricalArtistChoiceReader | None,
+    retry_call: RetryCall,
+) -> QueueArtist:
+    """Resolve a random Last.fm artist to one exact Spotify artist."""
+    try:
+        resolved = something_old.resolve_spotify_artist(
+            spotify,
+            selection.artist.name,
+            choice_reader,
+            retry_call,
+        )
+    except something_old.SomethingOldError as exc:
+        raise DiscographyError(str(exc)) from exc
+    if resolved is None:
+        raise DiscographyCancelledError(
+            "Discography planning cancelled during historical artist mapping."
+        )
+    return QueueArtist(
+        spotify_id=resolved.spotify_id,
+        name=resolved.name,
+        queue="memory_lane",
+    )
 
 
 def _load_artist_queues(
@@ -581,6 +715,10 @@ def build_discography_plan(
     release_selector: ReleaseSelector,
     *,
     queue_3_playlist_id: str | None = None,
+    historical_artist_choice_reader: HistoricalArtistChoiceReader | None = None,
+    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
+    today: date | None = None,
+    random_index_reader: RandomIndexReader = blast_from_past.fetch_random_indexes,
     retry_call: RetryCall | None = None,
     progress_callback: ProgressCallback | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
@@ -598,6 +736,36 @@ def build_discography_plan(
         retry,
         queue_3_playlist_id,
     )
+
+    memory_lane_loaded = bool(queues["memory_lane"])
+
+    def candidates_for(queue: QueueName) -> tuple[QueueArtist, ...]:
+        """Load the historical Memory Lane fallback only if it is visited."""
+        nonlocal memory_lane_loaded
+        if queue != "memory_lane" or memory_lane_loaded:
+            return queues[queue]
+        selection = select_historical_artist(
+            path=scrobbles_path,
+            today=today,
+            random_index_reader=random_index_reader,
+            progress_callback=progress_callback,
+        )
+        if progress_callback is not None:
+            progress_callback(
+                f"Random.org selected {selection.selected_date.isoformat()}; "
+                f"second {selection.generated_at.second} chose "
+                f"{selection.artist.name} ({selection.position} of "
+                f"{selection.artists_on_date} artists)"
+            )
+        candidate = resolve_historical_artist(
+            spotify,
+            selection,
+            historical_artist_choice_reader,
+            retry,
+        )
+        queues["memory_lane"] = (candidate,)
+        memory_lane_loaded = True
+        return queues["memory_lane"]
 
     catalogs: dict[str, tuple[CatalogRelease, ...]] = {}
     choices: dict[str, tuple[CatalogRelease, ...]] = {}
@@ -659,7 +827,7 @@ def build_discography_plan(
 
     first: ArtistSelection | None = None
     for queue in _queue_cycle(start_queue):
-        for candidate in queues[queue]:
+        for candidate in candidates_for(queue):
             if candidate.spotify_id in selected_ids | declined_ids:
                 continue
             first = select(candidate)
@@ -685,7 +853,7 @@ def build_discography_plan(
     while (remaining := (-total) % WEEK_RELEASES) != 0:
         match: ArtistSelection | None = None
         for queue in _queue_cycle(_next_queue(last_queue)):
-            for candidate in queues[queue]:
+            for candidate in candidates_for(queue):
                 if candidate.spotify_id in selected_ids | declined_ids:
                     continue
                 if not 0 < default_count(candidate) <= remaining:

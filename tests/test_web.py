@@ -99,6 +99,18 @@ def test_cockpit_exposes_shared_state_controls(client: TestClient) -> None:
     assert '"/state/namespaces/" + encodeURIComponent(namespace)' in response.text
 
 
+def test_discography_card_can_map_a_random_memory_lane_artist(
+    client: TestClient,
+) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'choice.kind === "artist"' in response.text
+    assert "choice.artist_candidates || []" in response.text
+    assert "from Last.fm to Spotify" in response.text
+    assert 'data-action="discographyChoice"' in response.text
+
+
 def test_genre_reveal_page_preserves_route_and_server_sync(client: TestClient) -> None:
     response = client.get("/genre-reveal")
 
