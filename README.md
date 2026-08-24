@@ -775,9 +775,11 @@ Albums and EPs are offered first; only after that tier is exhausted are singles,
 live releases, and compilations offered in that order.
 
 Release progress comes from the canonical Last.fm history rather than an
-internal counter. A release counts during the active calendar year only after
-at least three distinct tracks and every currently liked track on the release
-have been scrobbled. Once four releases satisfy that rule, the entire canonical
+internal counter. Before planning either a real or dry run, the command fetches
+the live Last.fm delta and persists it in the shared canonical history. A
+release counts during the active calendar year only after at least three
+distinct tracks and every currently liked track on the release have been
+scrobbled. Once four releases satisfy that rule, the entire canonical
 primary-artist discography is checked live. Artists with at least one liked
 track reach the current year's *Great Discoveries* and *Newfoundland* when they
 have at least 18 liked tracks, 3 saved releases, every release saved, or every
@@ -803,11 +805,11 @@ just flush-new-kids
 Real runs use the shared `new_kids` namespace to resume active playlist
 mutations and unliked-track streaks after interruption; it does not record the
 played-release count. The routine reads
-`spotify_manager/files/lastfmstats-man-et-arms.json`, so refresh that shared
-history before a run when recent scrobbles matter. Decisions and mutations are
-appended to `spotify_manager/files/new_kids_log.jsonl`. Beginning in 2027, the
-routine creates `Great Discoveries YEAR` automatically and stores its id in the
-same namespace. Spotify's API cannot place playlists in folders, so a new yearly
+`spotify_manager/files/lastfmstats-man-et-arms.json` after refreshing its live
+delta. Decisions and mutations are appended to
+`spotify_manager/files/new_kids_log.jsonl`. Beginning in 2027, the routine
+creates `Great Discoveries YEAR` automatically and stores its id in the same
+namespace. Spotify's API cannot place playlists in folders, so a new yearly
 playlist must be moved into the desired folder manually.
 
 The web card appears in *Discovery Tracks* immediately above New Wine. It
@@ -833,10 +835,11 @@ exists, release boundaries apply the live 50% library decision, and the next
 ranked release is chosen interactively.
 
 Played-release progress is shared with New Kids through the current calendar
-year in `spotify_manager/files/lastfmstats-man-et-arms.json`. An artist with two
-releases satisfying the scrobble rule therefore continues with release three
-instead of restarting. Queue 2 has its own resumable active-run checkpoint in
-the shared `new_kids` namespace and its own audit trail at
+year in `spotify_manager/files/lastfmstats-man-et-arms.json`. Queue 2 refreshes
+and persists the live Last.fm delta before touching either playlist. An artist
+with two releases satisfying the scrobble rule therefore continues with release
+three instead of restarting. Queue 2 has its own resumable active-run checkpoint
+in the shared `new_kids` namespace and its own audit trail at
 `spotify_manager/files/queue_2_log.jsonl`. A saved Queue 2 run and a saved New
 Kids run cannot be advanced simultaneously.
 

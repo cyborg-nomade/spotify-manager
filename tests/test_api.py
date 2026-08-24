@@ -1712,6 +1712,8 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
             great_discoveries_2026_playlist="spotify:playlist:great",
             unlucky_ones_playlist="spotify:playlist:unlucky",
             discography_newfoundland_playlist="spotify:playlist:newfoundland",
+            lastfm_api_key="lastfm-key",
+            lastfm_username="lastfm-user",
         ),
     )
     monkeypatch.setattr(api.new_kids, "flush_new_kids", flush)
@@ -2087,6 +2089,8 @@ def test_queue_2_web_job_waits_for_and_applies_release_choice(
             great_discoveries_2026_playlist="spotify:playlist:great",
             unlucky_ones_playlist="spotify:playlist:unlucky",
             discography_newfoundland_playlist="spotify:playlist:newfoundland",
+            lastfm_api_key="lastfm-key",
+            lastfm_username="lastfm-user",
         ),
     )
     monkeypatch.setattr(api.new_kids, "flush_queue_2", flush)

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.routines import new_kids
 
 
@@ -283,6 +284,7 @@ def flush(
     spotify: FakeSpotify,
     tmp_path: Path,
     choice_reader=lambda *_args: pytest.fail("release prompt was unexpected"),
+    **kwargs: object,
 ):
     """Run the routine with the standard fake playlist ids."""
     return new_kids.flush_new_kids(
@@ -295,6 +297,7 @@ def flush(
         choice_reader,
         year=2026,
         **isolated_paths(tmp_path),
+        **kwargs,
     )
 
 
@@ -388,6 +391,124 @@ def test_played_release_requires_three_tracks_and_every_liked_track() -> None:
             ("guest", "album"): frozenset({"track 4"}),
         },
     )
+
+
+def test_flush_refreshes_history_before_offering_releases(tmp_path: Path) -> None:
+    """A release completed in the live delta must not reappear in the prompt."""
+    spotify = FakeSpotify()
+    tracks = seed_artist(spotify, "artist", release_count=3, tracks_per_release=3)
+    spotify.playlists["new"] = [tracks[2][-1]]
+    spotify.liked_ids.update(str(track["id"]) for track in tracks[0])
+    timestamp = int(datetime(2026, 6, 1, tzinfo=UTC).timestamp())
+    (tmp_path / "scrobbles.json").write_text(
+        json.dumps(
+            {
+                "username": "listener",
+                "scrobbles": [
+                    {
+                        "artist": "Artist",
+                        "track": tracks[0][0]["name"],
+                        "album": tracks[0][0]["album"]["name"],  # type: ignore[index]
+                        "date": timestamp * 1000,
+                    }
+                ],
+            }
+        )
+    )
+
+    class LiveHistory:
+        def recent_tracks(
+            self,
+            *,
+            from_timestamp: int,
+            to_timestamp: int,
+            limit: int = 200,
+        ) -> tuple[LastFmRecentTrack, ...]:
+            assert from_timestamp == timestamp
+            assert to_timestamp >= from_timestamp
+            assert limit == 200
+            return tuple(
+                LastFmRecentTrack(
+                    artist="Artist",
+                    track=str(track["name"]),
+                    album=str(track["album"]["name"]),  # type: ignore[index]
+                    timestamp_seconds=timestamp + index,
+                )
+                for index, track in enumerate(tracks[0][1:], start=1)
+            )
+
+    offered: list[tuple[str, ...]] = []
+
+    def choose(_artist: str, releases: tuple[new_kids.RankedRelease, ...]) -> str:
+        offered.append(tuple(release.spotify_id for release in releases))
+        return releases[0].spotify_id
+
+    summary = flush(
+        spotify,
+        tmp_path,
+        choose,
+        lastfm=LiveHistory(),
+        lastfm_username="listener",
+    )
+
+    assert offered == [("artist-r2",)]
+    assert summary.results[0].target_release == "artist Release 2"
+    saved = json.loads((tmp_path / "scrobbles.json").read_text())
+    assert len(saved["scrobbles"]) == 3
+
+
+def test_queue_2_refreshes_history_before_touching_playlists(tmp_path: Path) -> None:
+    """Queue 2 shares the same live-history prerequisite as New Kids."""
+    spotify = FakeSpotify()
+    timestamp = int(datetime(2026, 6, 1, tzinfo=UTC).timestamp())
+    (tmp_path / "scrobbles.json").write_text(
+        json.dumps(
+            {
+                "username": "listener",
+                "scrobbles": [
+                    {
+                        "artist": "Artist",
+                        "track": "Track",
+                        "album": "Release",
+                        "date": timestamp * 1000,
+                    }
+                ],
+            }
+        )
+    )
+
+    class CurrentHistory:
+        def recent_tracks(
+            self,
+            *,
+            from_timestamp: int,
+            to_timestamp: int,
+            limit: int = 200,
+        ) -> tuple[LastFmRecentTrack, ...]:
+            assert from_timestamp == timestamp
+            assert to_timestamp >= from_timestamp
+            assert limit == 200
+            return ()
+
+    progress: list[str] = []
+    summary = new_kids.flush_queue_2(
+        spotify,
+        "new",
+        "queue",
+        "great",
+        "unlucky",
+        "newfoundland",
+        lambda *_args: pytest.fail("release prompt was unexpected"),
+        year=2026,
+        lastfm=CurrentHistory(),
+        lastfm_username="listener",
+        progress_callback=lambda _done, _total, detail: progress.append(detail),
+        **isolated_paths(tmp_path),
+    )
+
+    assert summary.results == ()
+    assert progress[0] == "Refreshing Last.fm release history"
+    assert spotify.mutations == []
 
 
 def test_next_release_options_hides_fallback_tiers_until_needed() -> None:

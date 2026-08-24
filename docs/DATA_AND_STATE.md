@@ -132,7 +132,7 @@ uses the dataset commit as an optimistic concurrency guard.
 | `review_artists` | Completed artists and pending unfollow/queue-move plans. |
 | `recover_removed_albums` | Processed albums and checked credited artists. |
 | `new_wine` | Starting batch, completed transitions, liked-tail progress, and Wine Cellar refill state. |
-| `new_kids` | New Kids and Queue 2 active runs, streaks, and yearly playlist ids. Played-release progress comes from the current year's Last.fm history. |
+| `new_kids` | New Kids and Queue 2 active runs, streaks, and yearly playlist ids. Played-release progress comes from the current year's Last.fm history, refreshed and persisted before each run. |
 | `queue` | The Queue artist mappings and resumable flush. |
 | `queue_3` | Active run, composer routes, annual import, and release ordering. |
 | `slow_listening` | Current two-item batch, skipped candidates, and release ordering. |
