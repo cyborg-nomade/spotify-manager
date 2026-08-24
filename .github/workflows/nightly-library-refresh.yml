@@ -5,6 +5,12 @@ on:
     # 23:17 Europe/Berlin in winter, 00:17 in summer. The client stops at 05:00.
     - cron: "17 22 * * *"
   workflow_dispatch:
+    inputs:
+      check_only:
+        description: Verify access without starting refresh jobs
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: nightly-library-refresh
@@ -30,5 +36,10 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Check Space automation access
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only }}
+        run: python .github/scripts/nightly_refresh.py --check-only
+
       - name: Refresh durable library data
+        if: ${{ github.event_name == 'schedule' || ! inputs.check_only }}
         run: python .github/scripts/nightly_refresh.py

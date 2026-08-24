@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -326,8 +327,36 @@ def run_nightly_refresh(client: SpaceClient) -> int:
     return 0
 
 
-def main() -> int:
+def run_connection_check(client: SpaceClient) -> int:
+    """Verify authentication and durable artifacts without starting jobs."""
+    client.request("GET", "/health")
+    auth = client.request("GET", "/auth/check")
+    if not isinstance(auth, dict) or auth.get("status") != "ok":
+        raise AutomationError("The Space automation token was not accepted.")
+    status = client.request("GET", "/library-mirrors/status")
+    files = status.get("files") if isinstance(status, dict) else None
+    if not isinstance(files, list) or len(files) != len(JOBS):
+        raise AutomationError("The durable library-data status is incomplete.")
+    missing = [
+        str(item.get("filename") or "unknown")
+        for item in files
+        if not isinstance(item, dict) or not item.get("exists")
+    ]
+    if missing:
+        raise AutomationError("Durable artifacts are missing: " + ", ".join(missing))
+    print("Automation authentication and all four durable artifacts are healthy.")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
     """Build the authenticated client from Actions secrets and run it."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Verify authentication and durable data without starting refreshes.",
+    )
+    args = parser.parse_args(argv)
     try:
         space_url, hf_token, automation_token = required_environment()
         now = datetime.now(UTC)
@@ -337,6 +366,8 @@ def main() -> int:
             automation_token,
             maintenance_deadline(now),
         )
+        if args.check_only:
+            return run_connection_check(client)
         return run_nightly_refresh(client)
     except AutomationError as exc:
         print(f"::error::{exc}", file=sys.stderr, flush=True)

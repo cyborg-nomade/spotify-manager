@@ -136,7 +136,8 @@ endpoints used by the cockpit.
 
 The workflow requires matching `AUTOMATION_TOKEN` secrets in GitHub Actions and
 the Space, plus a GitHub `HF_SPACE_TOKEN` secret that can access the private
-Space. The workflow also supports manual dispatch from GitHub's Actions page.
+Space. Manual dispatch from GitHub's Actions page includes a `check_only` option
+that verifies authentication and durable data without starting refresh jobs.
 
 ## Library mirror commands
 
