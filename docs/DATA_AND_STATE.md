@@ -100,7 +100,7 @@ mappings, permanent skips, annual imports, or a pending interactive decision.
 | `genre_reveal_state.json` | Completed genre slugs and display preference. |
 | `review_album_limits_decisions.json` | Persisted keep decisions across album-review runs. |
 | `new_wine_flush_state.json` | Starting batch, completed transitions, liked-tail progress, and Wine Cellar refill state. |
-| `new_kids_state.json` | New Kids and Queue 2 active runs, completed releases, and yearly playlist data. |
+| `new_kids_state.json` | New Kids and Queue 2 active runs, unliked-track streaks, and yearly playlist ids. Played-release progress comes from the current year's Last.fm history. |
 | `queue_state.json` | The Queue recommendation/flush state and processed artists. |
 | `queue_3_state.json` | Queue 3 active run, composer playlist mappings, annual import, and release progress. |
 | `slow_listening_flush_state.json` | Current two-item batch, skipped track candidates, and release ordering. |

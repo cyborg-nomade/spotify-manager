@@ -723,13 +723,17 @@ popularity ranks the choices, with the artist's top-track albums as a fallback.
 Albums and EPs are offered first; only after that tier is exhausted are singles,
 live releases, and compilations offered in that order.
 
-After four selected releases, the entire canonical primary-artist discography
-is checked live. Artists with at least one liked track reach the current year's
-*Great Discoveries* and *Newfoundland* when they have at least 18 liked tracks,
-3 saved releases, every release saved, or every track liked. Other artists with
-likes are added to *Unlucky Ones* using their most popular liked track and then
-unfollowed. Artists with no liked tracks are simply unfollowed. The promotion
-marker is the first primary-artist track of the earliest eligible release.
+Release progress comes from the canonical Last.fm history rather than an
+internal counter. A release counts during the active calendar year only after
+at least three distinct tracks and every currently liked track on the release
+have been scrobbled. Once four releases satisfy that rule, the entire canonical
+primary-artist discography is checked live. Artists with at least one liked
+track reach the current year's *Great Discoveries* and *Newfoundland* when they
+have at least 18 liked tracks, 3 saved releases, every release saved, or every
+track liked. Other artists with likes are added to *Unlucky Ones* using their
+most popular liked track and then unfollowed. Artists with no liked tracks are
+simply unfollowed. The promotion marker is the first primary-artist track of the
+earliest eligible release.
 
 Preview the run without changing Spotify or durable progress:
 
@@ -745,12 +749,15 @@ uv run spotify-manager flush-new-kids
 just flush-new-kids
 ```
 
-Real runs checkpoint each artist in `spotify_manager/files/new_kids_state.json`
-and resume the same playlist snapshot after interruption. Decisions and
-mutations are appended to `spotify_manager/files/new_kids_log.jsonl`. Beginning
-in 2027, the routine creates `Great Discoveries YEAR` automatically and stores
-its id in the state file. Spotify's API cannot place playlists in folders, so a
-new yearly playlist must be moved into the desired folder manually.
+Real runs use `spotify_manager/files/new_kids_state.json` only to resume active
+playlist mutations and unliked-track streaks after interruption; it no longer
+records the played-release count. The routine reads
+`spotify_manager/files/lastfmstats-man-et-arms.json`, so refresh that shared
+history before a run when recent scrobbles matter. Decisions and mutations are
+appended to `spotify_manager/files/new_kids_log.jsonl`. Beginning in 2027, the
+routine creates `Great Discoveries YEAR` automatically and stores its id in the
+state file. Spotify's API cannot place playlists in folders, so a new yearly
+playlist must be moved into the desired folder manually.
 
 The web card appears in *Discovery Tracks* immediately above New Wine. It
 defaults to dry-run mode, renders popularity and fallback ranking in each
@@ -774,14 +781,15 @@ three consecutive unliked tracks jump to the next later liked track when one
 exists, release boundaries apply the live 50% library decision, and the next
 ranked release is chosen interactively.
 
-Artist progress is shared with New Kids in
-`spotify_manager/files/new_kids_state.json`. An artist transferred after two
-reviewed releases therefore continues with release three instead of restarting.
-Queue 2 has its own resumable active-run checkpoint inside that state file and
-its own audit trail at `spotify_manager/files/queue_2_log.jsonl`. A saved Queue
-2 run and a saved New Kids run cannot be advanced simultaneously.
+Played-release progress is shared with New Kids through the current calendar
+year in `spotify_manager/files/lastfmstats-man-et-arms.json`. An artist with two
+releases satisfying the scrobble rule therefore continues with release three
+instead of restarting. Queue 2 has its own resumable active-run checkpoint in
+`spotify_manager/files/new_kids_state.json` and its own audit trail at
+`spotify_manager/files/queue_2_log.jsonl`. A saved Queue 2 run and a saved New
+Kids run cannot be advanced simultaneously.
 
-Artists completing their fourth selected release while still in Queue 2 are
+Artists completing their fourth Last.fm-confirmed release while still in Queue 2 are
 assessed immediately using the same four criteria as New Kids. Qualifying
 artists reach the current year's *Great Discoveries* and *Newfoundland*;
 artists with likes that do not qualify reach *Unlucky Ones* and are unfollowed,
