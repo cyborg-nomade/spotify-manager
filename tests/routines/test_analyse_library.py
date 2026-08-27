@@ -96,6 +96,8 @@ class FakeSpotify:
         track_rate_limit_offset: int | None = None,
         add_album_during_scan: YourLibraryAlbum | None = None,
         add_artist_during_reconciliation: YourLibraryArtist | None = None,
+        artist_errors: list[int] | None = None,
+        artist_contains_errors: list[int] | None = None,
     ) -> None:
         self.albums = list(albums or [])
         self.tracks = list(tracks or [])
@@ -104,9 +106,12 @@ class FakeSpotify:
         self.track_rate_limit_offset = track_rate_limit_offset
         self.add_album_during_scan = add_album_during_scan
         self.add_artist_during_reconciliation = add_artist_during_reconciliation
+        self.artist_errors = list(artist_errors or [])
+        self.artist_contains_errors = list(artist_contains_errors or [])
         self.album_calls: list[int] = []
         self.track_calls: list[int] = []
         self.artist_calls: list[str | None] = []
+        self.artist_contains_calls: list[list[str]] = []
 
     @staticmethod
     def offset_page(items: list[dict], limit: int, offset: int) -> dict:
@@ -162,6 +167,9 @@ class FakeSpotify:
     ) -> dict:
         assert limit == analyse_library.ARTIST_PAGE_LIMIT == 10
         self.artist_calls.append(after)
+        if self.artist_errors:
+            status = self.artist_errors.pop(0)
+            raise SpotifyException(status, -1, "temporary artist error")
         if (
             self.add_artist_during_reconciliation is not None
             and len(self.artist_calls) == 2
@@ -179,6 +187,15 @@ class FakeSpotify:
                 "cursors": {"after": str(next_offset) if has_next else None},
             }
         }
+
+    def current_user_following_artists(self, artist_ids: list[str]) -> list[bool]:
+        assert len(artist_ids) <= analyse_library.ARTIST_VERIFICATION_BATCH_LIMIT
+        self.artist_contains_calls.append(list(artist_ids))
+        if self.artist_contains_errors:
+            status = self.artist_contains_errors.pop(0)
+            raise SpotifyException(status, -1, "temporary artist contains error")
+        followed_ids = {item.spotify_id for item in self.artists}
+        return [artist_id in followed_ids for artist_id in artist_ids]
 
 
 def test_export_analysis_only_reads_your_library_and_writes_async_files(
@@ -412,6 +429,13 @@ def test_independent_recent_artist_refresh_merges_and_retains_stored_artists(
     paths.albums_total.write_text(json.dumps([album("keep-album").model_dump()]))
     paths.liked_tracks_total.write_text(json.dumps([track("keep-track").model_dump()]))
     paths.artists_total.write_text(json.dumps([artist("old-artist").model_dump()]))
+    paths.your_library.write_text(
+        YourLibraryFile(
+            albums=[],
+            tracks=[],
+            artists=[artist("one"), artist("two")],
+        ).model_dump_json()
+    )
     spotify = FakeSpotify(artists=[artist("one"), artist("two")])
 
     summary = analyse_library.refresh_live_library_resource_routine(
@@ -427,8 +451,8 @@ def test_independent_recent_artist_refresh_merges_and_retains_stored_artists(
     assert set(ids(paths.artists_total)) == {"old-artist", "one", "two"}
     assert spotify.album_calls == []
     assert spotify.track_calls == []
-    assert spotify.artist_calls
-    assert spotify.artist_calls == [None]
+    assert spotify.artist_calls == []
+    assert spotify.artist_contains_calls == [["one", "two"]]
     assert [item.resource for item in summary.resources] == ["artists"]
     backup = Path(summary.backup_dir)
     assert (backup / "artists.before.json").exists()
@@ -458,6 +482,90 @@ def test_independent_full_artist_refresh_removes_unfollowed_artists(
     assert spotify.album_calls == []
     assert spotify.track_calls == []
     assert len(spotify.artist_calls) == 3
+
+
+def test_full_artist_refresh_falls_back_after_one_502_and_removes_unfollowed(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    paths.artists_total.write_text(
+        json.dumps([artist("followed").model_dump(), artist("unfollowed").model_dump()])
+    )
+    paths.your_library.write_text(
+        YourLibraryFile(
+            albums=[],
+            tracks=[],
+            artists=[artist("export-followed")],
+        ).model_dump_json()
+    )
+    spotify = FakeSpotify(
+        artists=[artist("followed"), artist("export-followed")],
+        artist_errors=[502],
+    )
+
+    summary = analyse_library.refresh_live_library_resource_routine(
+        spotify,
+        "artists",
+        paths=paths,
+        full_rebuild=True,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+    )
+
+    assert spotify.artist_calls == [None]
+    assert spotify.artist_contains_calls == [
+        ["followed", "unfollowed", "export-followed"]
+    ]
+    assert set(ids(paths.artists_total)) == {"followed", "export-followed"}
+    assert summary.resources[0].source == "live_verified_fallback"
+
+
+def test_artist_fallback_stops_after_bounded_contains_retries(tmp_path: Path) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    paths.artists_total.write_text(json.dumps([artist("candidate").model_dump()]))
+    spotify = FakeSpotify(
+        artists=[artist("candidate")],
+        artist_errors=[502],
+        artist_contains_errors=[502, 502, 502],
+    )
+
+    with pytest.raises(analyse_library.LibrarySyncError, match="3 attempts"):
+        analyse_library.refresh_live_library_resource_routine(
+            spotify,
+            "artists",
+            paths=paths,
+            full_rebuild=True,
+            retry_wait=lambda _notice: True,
+            retry_base_seconds=0,
+            retry_max_seconds=0,
+        )
+
+    assert len(spotify.artist_contains_calls) == 3
+
+
+def test_full_artist_refresh_bounds_cursor_pagination_before_verification(
+    tmp_path: Path,
+) -> None:
+    paths = paths_for(tmp_path, "mirrors")
+    artists = [
+        artist(f"artist-{index:03}")
+        for index in range(analyse_library.ARTIST_PAGE_LIMIT * 26)
+    ]
+    paths.artists_total.write_text(json.dumps([item.model_dump() for item in artists]))
+    spotify = FakeSpotify(artists=artists)
+
+    analyse_library.refresh_live_library_resource_routine(
+        spotify,
+        "artists",
+        paths=paths,
+        full_rebuild=True,
+        retry_base_seconds=0,
+        retry_max_seconds=0,
+    )
+
+    assert len(spotify.artist_calls) == analyse_library.ARTIST_DIRECT_MAX_PAGES
+    assert len(spotify.artist_contains_calls) == 7
+    assert set(ids(paths.artists_total)) == {item.spotify_id for item in artists}
 
 
 def test_live_analysis_retries_only_server_errors_with_exponential_delays(

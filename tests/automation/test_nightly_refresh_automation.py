@@ -13,6 +13,7 @@ import pytest
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[2] / ".github" / "scripts" / "nightly_refresh.py"
 )
+WORKFLOW_PATH = SCRIPT_PATH.parents[1] / "workflows" / "nightly-library-refresh.yml"
 
 
 @pytest.fixture(scope="module")
@@ -39,6 +40,14 @@ def test_maintenance_deadline_tracks_berlin_dst(nightly: ModuleType) -> None:
     assert nightly.maintenance_deadline(manual) == datetime(
         2026, 7, 15, 15, 0, tzinfo=UTC
     )
+    assert nightly.scheduled_window_is_open(summer)
+    assert not nightly.scheduled_window_is_open(manual)
+
+
+def test_job_sets_select_incremental_or_full_rebuild(nightly: ModuleType) -> None:
+    assert "full_rebuild=false" in nightly.JOBS[1].start_path
+    assert "full_rebuild=true" in nightly.FULL_REBUILD_JOBS[1].start_path
+    assert len(nightly.JOBS) == len(nightly.FULL_REBUILD_JOBS) == 4
 
 
 def test_required_environment_never_allows_missing_secrets(
@@ -124,6 +133,9 @@ def test_poll_job_reports_completion_and_space_restart(nightly: ModuleType) -> N
     with pytest.raises(nightly.JobLostError, match="Space restart"):
         nightly.poll_job(lost, spec, "job")
 
+    cancelled = FakeClient([{"status": "cancelled", "detail": "Progress was saved."}])
+    assert nightly.poll_job(cancelled, spec, "job") == "paused"
+
 
 def test_poll_job_cancels_at_the_deadline(nightly: ModuleType) -> None:
     spec = nightly.JOBS[3]
@@ -168,3 +180,12 @@ def test_connection_check_requires_all_durable_artifacts(
     )
     with pytest.raises(nightly.AutomationError, match="status is incomplete"):
         nightly.run_connection_check(missing)
+
+
+def test_workflow_schedules_weekend_full_rebuild() -> None:
+    workflow = WORKFLOW_PATH.read_text()
+
+    assert 'cron: "17 22 * * 0-5"' in workflow
+    assert 'cron: "37 22 * * 6"' in workflow
+    assert "--full-rebuild" in workflow
+    assert "--scheduled" in workflow
