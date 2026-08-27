@@ -44,6 +44,9 @@ from spotify_manager.utils.sorting import track_sort_key
 ALBUM_PAGE_LIMIT = 50
 TRACK_PAGE_LIMIT = 10
 ARTIST_PAGE_LIMIT = 10
+ARTIST_DIRECT_MAX_PAGES = 25
+ARTIST_VERIFICATION_BATCH_LIMIT = 40
+ARTIST_VERIFICATION_MAX_ATTEMPTS = 3
 RECONCILIATION_STABLE_PASSES = 2
 OFFSET_RECONCILIATION_STABLE_PAGES = {
     "albums": 2,
@@ -163,6 +166,10 @@ class LibraryAnalysisCancelledError(LibrarySyncError):
 
 class IncompleteLiveResourceError(LibrarySyncError):
     """Raised when Spotify returns a structurally incomplete page sequence."""
+
+
+class _FollowedArtistsEndpointUnavailableError(RuntimeError):
+    """Signal that cursor discovery should switch to verified fallback."""
 
 
 class LibrarySyncRestoreError(LibrarySyncError):
@@ -754,7 +761,7 @@ def finalize_live_mirror_resource(
         previous = load_model_list(target, model_type)
         summary = resource_summary(
             resource,
-            "live_api",
+            str(checkpoint["resources"][resource].get("source") or "live_api"),
             previous,
             current,
             int(checkpoint["resources"][resource].get("skipped", 0)),
@@ -1034,6 +1041,7 @@ def spotify_call[T](
     sleep: Sleep,
     retry_base_seconds: int,
     retry_max_seconds: int,
+    max_attempts: int | None = None,
 ) -> T:
     """Call Spotify, retrying 5xx and transport failures with backoff."""
     attempt = 0
@@ -1049,6 +1057,11 @@ def spotify_call[T](
                     f"(HTTP {exc.http_status}): {exc.msg}"
                 ) from exc
             attempt += 1
+            if max_attempts is not None and attempt >= max_attempts:
+                raise LibrarySyncError(
+                    f"Spotify HTTP {exc.http_status} persisted for {attempt} attempts "
+                    f"while {description}."
+                ) from exc
             delay = retry_delay(retry_base_seconds, retry_max_seconds, attempt)
             notice = RetryNotice(exc.http_status, description, attempt, delay)
             append_event(
@@ -1075,6 +1088,11 @@ def spotify_call[T](
                 ) from exc
         except (RequestsConnectionError, RequestsTimeout) as exc:
             attempt += 1
+            if max_attempts is not None and attempt >= max_attempts:
+                raise LibrarySyncError(
+                    f"Spotify connection remained unavailable for {attempt} attempts "
+                    f"while {description}."
+                ) from exc
             delay = retry_delay(retry_base_seconds, retry_max_seconds, attempt)
             notice = RetryNotice(None, description, attempt, delay)
             append_event(
@@ -1134,6 +1152,24 @@ def followed_artist_page_items(page: object) -> tuple[list[object], dict[str, An
             "Spotify returned an invalid followed-artists item list."
         )
     return artists["items"], artists
+
+
+def fetch_followed_artists_page(
+    sp: Spotify,
+    after: str | None,
+) -> object:
+    """Read one cursor page, surfacing Spotify's common 502 immediately."""
+    try:
+        return sp.current_user_followed_artists(
+            limit=ARTIST_PAGE_LIMIT,
+            after=after,
+        )
+    except SpotifyException as exc:
+        if exc.http_status == 502:
+            raise _FollowedArtistsEndpointUnavailableError(
+                "the followed-artists endpoint returned HTTP 502"
+            ) from exc
+        raise
 
 
 def sync_initial_offset_resource(
@@ -1387,64 +1423,153 @@ def seed_incremental_offset_resource(
         )
 
 
-def seed_incremental_artists(
+def artist_verification_candidates_path(paths: LibraryAnalysisPaths) -> Path:
+    """Return the resumable candidate list used by artist fallback checks."""
+    return paths.staging_dir / "artist_candidates.jsonl"
+
+
+def latest_export_artists(paths: LibraryAnalysisPaths) -> list[YourLibraryArtist]:
+    """Load export artist candidates when a durable export is available."""
+    if not paths.your_library.exists():
+        return []
+    return load_your_library(paths).artists
+
+
+def prepare_artist_verification(
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
+    *,
+    full_rebuild: bool,
     echo: Echo,
-    progress_callback: ProgressCallback | None,
+    reason: str,
 ) -> None:
-    """Seed artist staging before one complete merge-only cursor scan."""
+    """Prepare a live batch verification fallback without losing checkpoints."""
     state = checkpoint["resources"]["artists"]
-    if state["status"] != "pending":
+    if state["status"] == "verifying_fallback":
         return
 
     existing = load_model_list(paths.artists_total, YourLibraryArtist)
-    append_models_jsonl(paths.stage("artists"), existing)
-    state["status"] = "scanning"
-    state["total"] = len(existing)
+    partial_live = load_models_jsonl(paths.stage("artists"), YourLibraryArtist)
+    export = latest_export_artists(paths)
+    all_candidates = deduplicate_models([*existing, *export, *partial_live])
+
+    if full_rebuild:
+        retained: list[YourLibraryArtist] = []
+        candidates = all_candidates
+    else:
+        retained = deduplicate_models([*existing, *partial_live])
+        retained_ids = {item.spotify_id for item in retained}
+        candidates = [
+            item for item in all_candidates if item.spotify_id not in retained_ids
+        ]
+
+    candidate_path = artist_verification_candidates_path(paths)
+    candidate_path.unlink(missing_ok=True)
+    paths.stage("artists").unlink(missing_ok=True)
+    append_models_jsonl(candidate_path, candidates)
+    append_models_jsonl(paths.stage("artists"), retained)
+    state.update(
+        {
+            "status": "verifying_fallback",
+            "candidate_index": 0,
+            "retained": len(retained),
+            "total": len(retained) + len(candidates),
+            "source": "live_verified_fallback",
+            "after": None,
+        }
+    )
     write_json_atomic(paths.checkpoint, checkpoint)
     append_event(
         paths,
         str(checkpoint["run_id"]),
-        "incremental_artists_seeded",
-        count=len(existing),
+        "artist_fallback_activated",
+        reason=reason,
+        full_rebuild=full_rebuild,
+        retained=len(retained),
+        candidates=len(candidates),
     )
     echo(
-        "Artists: checking live follows against "
-        f"{len(existing)} stored entries. Unfollowed artists remain until a "
-        "full rebuild."
+        f"Artists: {reason}; checking {len(candidates)} candidate(s) through "
+        "Spotify's live follow-status endpoint."
     )
-    if progress_callback:
-        progress_callback(
-            "artists",
-            len(existing),
-            len(existing),
-            "Checking live follows",
-        )
 
 
-def complete_incremental_artists(
+def verify_artist_candidates(
+    sp: Spotify,
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
+    echo: Echo,
     progress_callback: ProgressCallback | None,
+    retry_wait: RetryWait | None,
+    cancel_check: CancelCheck | None,
+    sleep: Sleep,
+    retry_base_seconds: int,
+    retry_max_seconds: int,
 ) -> None:
-    """Mark a merge-only artist scan complete without additional rescans."""
+    """Verify fallback candidates in bounded, resumable live API batches."""
     state = checkpoint["resources"]["artists"]
-    count = len(
-        deduplicate_models(load_models_jsonl(paths.stage("artists"), YourLibraryArtist))
+    candidates = load_models_jsonl(
+        artist_verification_candidates_path(paths),
+        YourLibraryArtist,
     )
-    if state["status"] != "complete":
-        state["status"] = "complete"
+    retained = int(state.get("retained", 0))
+    while int(state.get("candidate_index", 0)) < len(candidates):
+        check_cancel(cancel_check)
+        start = int(state.get("candidate_index", 0))
+        batch = candidates[start : start + ARTIST_VERIFICATION_BATCH_LIMIT]
+        response = spotify_call(
+            partial(
+                sp.current_user_following_artists,
+                [item.spotify_id for item in batch],
+            ),
+            f"verifying followed artists {start + 1}-{start + len(batch)}",
+            paths,
+            checkpoint,
+            echo,
+            retry_wait,
+            sleep,
+            retry_base_seconds,
+            retry_max_seconds,
+            max_attempts=ARTIST_VERIFICATION_MAX_ATTEMPTS,
+        )
+        statuses = list(response) if isinstance(response, Sequence) else []
+        if len(statuses) != len(batch):
+            raise IncompleteLiveResourceError(
+                "Spotify returned an incomplete artist-follow verification batch."
+            )
+        followed = [
+            artist
+            for artist, is_followed in zip(batch, statuses, strict=True)
+            if is_followed
+        ]
+        append_models_jsonl(paths.stage("artists"), followed)
+        state["candidate_index"] = start + len(batch)
+        state["skipped"] += len(batch) - len(followed)
         write_json_atomic(paths.checkpoint, checkpoint)
         append_event(
             paths,
             str(checkpoint["run_id"]),
-            "resource_completed",
-            resource="artists",
-            count=count,
-            skipped=state["skipped"],
+            "artist_candidates_verified",
+            start=start,
+            checked=len(batch),
+            followed=len(followed),
         )
+        if progress_callback:
+            progress_callback(
+                "artists",
+                retained + int(state["candidate_index"]),
+                int(state["total"]),
+                "Verifying live follow status",
+            )
+
+    state["status"] = "complete"
+    write_json_atomic(paths.checkpoint, checkpoint)
     if progress_callback:
+        count = len(
+            deduplicate_models(
+                load_models_jsonl(paths.stage("artists"), YourLibraryArtist)
+            )
+        )
         progress_callback("artists", count, count, "Complete")
 
 
@@ -1468,12 +1593,16 @@ def sync_initial_artists(
     write_json_atomic(paths.checkpoint, checkpoint)
     while True:
         check_cancel(cancel_check)
+        if int(state["pages"]) >= ARTIST_DIRECT_MAX_PAGES:
+            raise _FollowedArtistsEndpointUnavailableError(
+                "the followed-artists cursor scan reached its bounded page budget"
+            )
         after = state["after"]
         page = spotify_call(
             partial(
-                sp.current_user_followed_artists,
-                limit=ARTIST_PAGE_LIMIT,
-                after=after,
+                fetch_followed_artists_page,
+                sp,
+                after,
             ),
             f"reading followed artists after {after or 'the beginning'}",
             paths,
@@ -1893,27 +2022,16 @@ def refresh_live_library_resource_routine(
             )
             model_type = YourLibraryAlbum if resource == "albums" else YourLibraryTrack
         else:
+            state = checkpoint["resources"]["artists"]
             if not rebuild:
-                seed_incremental_artists(
+                prepare_artist_verification(
                     scoped_paths,
                     checkpoint,
-                    echo,
-                    progress_callback,
+                    full_rebuild=False,
+                    echo=echo,
+                    reason="using the fast incremental candidate refresh",
                 )
-            sync_initial_artists(
-                sp,
-                scoped_paths,
-                checkpoint,
-                echo,
-                progress_callback,
-                retry_wait,
-                cancel_check,
-                sleep,
-                retry_base_seconds,
-                retry_max_seconds,
-            )
-            if rebuild:
-                reconcile_artists(
+                verify_artist_candidates(
                     sp,
                     scoped_paths,
                     checkpoint,
@@ -1926,11 +2044,54 @@ def refresh_live_library_resource_routine(
                     retry_max_seconds,
                 )
             else:
-                complete_incremental_artists(
-                    scoped_paths,
-                    checkpoint,
-                    progress_callback,
-                )
+                if state["status"] != "verifying_fallback":
+                    try:
+                        sync_initial_artists(
+                            sp,
+                            scoped_paths,
+                            checkpoint,
+                            echo,
+                            progress_callback,
+                            retry_wait,
+                            cancel_check,
+                            sleep,
+                            retry_base_seconds,
+                            retry_max_seconds,
+                        )
+                    except _FollowedArtistsEndpointUnavailableError as exc:
+                        prepare_artist_verification(
+                            scoped_paths,
+                            checkpoint,
+                            full_rebuild=True,
+                            echo=echo,
+                            reason=str(exc),
+                        )
+                if state["status"] == "verifying_fallback":
+                    verify_artist_candidates(
+                        sp,
+                        scoped_paths,
+                        checkpoint,
+                        echo,
+                        progress_callback,
+                        retry_wait,
+                        cancel_check,
+                        sleep,
+                        retry_base_seconds,
+                        retry_max_seconds,
+                    )
+                else:
+                    reconcile_artists(
+                        sp,
+                        scoped_paths,
+                        checkpoint,
+                        echo,
+                        progress_callback,
+                        retry_wait,
+                        cancel_check,
+                        sleep,
+                        retry_base_seconds,
+                        retry_max_seconds,
+                    )
             model_type = YourLibraryArtist
 
         return finalize_live_mirror_resource(

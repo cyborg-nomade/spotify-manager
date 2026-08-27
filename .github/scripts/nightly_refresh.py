@@ -64,27 +64,35 @@ class JobSpec:
     cancel_path: str
 
 
-JOBS = (
-    JobSpec(
-        label="Last.fm scrobble history",
-        command="update_scrobble_history",
-        start_path="/commands/update-scrobble-history?dry_run=false",
-        status_path="/commands/update-scrobble-history-jobs/{job_id}",
-        cancel_path="/commands/update-scrobble-history-jobs/{job_id}/cancel",
-    ),
-    *(
+def refresh_jobs(*, full_rebuild: bool) -> tuple[JobSpec, ...]:
+    """Build the four API jobs for an incremental or full refresh night."""
+    rebuild = str(full_rebuild).lower()
+    return (
         JobSpec(
-            label=f"Spotify {resource} mirror",
-            command=f"refresh_library_mirror_{resource}",
-            start_path=(
-                f"/commands/refresh-library-mirrors/{resource}?full_rebuild=false"
-            ),
-            status_path="/commands/library-analysis-jobs/{job_id}",
-            cancel_path="/commands/library-analysis-jobs/{job_id}/cancel",
-        )
-        for resource in ("albums", "tracks", "artists")
-    ),
-)
+            label="Last.fm scrobble history",
+            command="update_scrobble_history",
+            start_path="/commands/update-scrobble-history?dry_run=false",
+            status_path="/commands/update-scrobble-history-jobs/{job_id}",
+            cancel_path="/commands/update-scrobble-history-jobs/{job_id}/cancel",
+        ),
+        *(
+            JobSpec(
+                label=f"Spotify {resource} mirror",
+                command=f"refresh_library_mirror_{resource}",
+                start_path=(
+                    f"/commands/refresh-library-mirrors/{resource}"
+                    f"?full_rebuild={rebuild}"
+                ),
+                status_path="/commands/library-analysis-jobs/{job_id}",
+                cancel_path="/commands/library-analysis-jobs/{job_id}/cancel",
+            )
+            for resource in ("albums", "tracks", "artists")
+        ),
+    )
+
+
+JOBS = refresh_jobs(full_rebuild=False)
+FULL_REBUILD_JOBS = refresh_jobs(full_rebuild=True)
 
 
 def maintenance_deadline(now: datetime) -> datetime:
@@ -102,6 +110,12 @@ def maintenance_deadline(now: datetime) -> datetime:
         tzinfo=BERLIN,
     )
     return local_deadline.astimezone(UTC)
+
+
+def scheduled_window_is_open(now: datetime) -> bool:
+    """Return whether a delayed scheduled run is still inside 22:00-05:00."""
+    local_hour = now.astimezone(BERLIN).hour
+    return local_hour >= 22 or local_hour < 5
 
 
 def required_environment() -> tuple[str, str, str]:
@@ -282,7 +296,9 @@ def poll_job(client: SpaceClient, spec: JobSpec, job_id: str) -> str:
             return status
         if status == "paused":
             return status
-        if status in {"failed", "cancelled"}:
+        if status == "cancelled":
+            return "paused"
+        if status == "failed":
             raise AutomationError(f"{spec.label} ended as {status}: {detail}")
         if status not in ACTIVE_STATUSES:
             raise AutomationError(f"{spec.label} returned unknown status {status!r}.")
@@ -302,7 +318,10 @@ def run_job(client: SpaceClient, spec: JobSpec) -> str:
             )
 
 
-def run_nightly_refresh(client: SpaceClient) -> int:
+def run_nightly_refresh(
+    client: SpaceClient,
+    jobs: tuple[JobSpec, ...] = JOBS,
+) -> int:
     """Run all refreshes serially within the maintenance window."""
     print(
         "Nightly refresh deadline: "
@@ -311,7 +330,9 @@ def run_nightly_refresh(client: SpaceClient) -> int:
     )
     client.request("GET", "/health")
     print("Space is awake and healthy.", flush=True)
-    for index, spec in enumerate(JOBS):
+    mode = "full rebuild" if jobs == FULL_REBUILD_JOBS else "incremental"
+    print(f"Refresh mode: {mode}.", flush=True)
+    for index, spec in enumerate(jobs):
         result = run_job(client, spec)
         if result == "paused":
             print(
@@ -322,7 +343,7 @@ def run_nightly_refresh(client: SpaceClient) -> int:
         if result == "deadline":
             print("Maintenance window closed; progress was saved.", flush=True)
             return 0
-        print(f"Completed {spec.label} ({index + 1}/{len(JOBS)}).", flush=True)
+        print(f"Completed {spec.label} ({index + 1}/{len(jobs)}).", flush=True)
     print("All nightly library refreshes completed.", flush=True)
     return 0
 
@@ -356,10 +377,27 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Verify authentication and durable data without starting refreshes.",
     )
+    parser.add_argument(
+        "--full-rebuild",
+        action="store_true",
+        help="Rebuild Spotify mirrors completely instead of merging recent changes.",
+    )
+    parser.add_argument(
+        "--scheduled",
+        action="store_true",
+        help="Skip safely if GitHub starts the run outside the maintenance window.",
+    )
     args = parser.parse_args(argv)
     try:
         space_url, hf_token, automation_token = required_environment()
         now = datetime.now(UTC)
+        if args.scheduled and not scheduled_window_is_open(now):
+            print(
+                "Scheduled refresh started after the 05:00 Berlin deadline; "
+                "skipping until the next maintenance window.",
+                flush=True,
+            )
+            return 0
         client = SpaceClient(
             space_url,
             hf_token,
@@ -368,7 +406,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.check_only:
             return run_connection_check(client)
-        return run_nightly_refresh(client)
+        jobs = FULL_REBUILD_JOBS if args.full_rebuild else JOBS
+        return run_nightly_refresh(client, jobs)
     except AutomationError as exc:
         print(f"::error::{exc}", file=sys.stderr, flush=True)
         return 1

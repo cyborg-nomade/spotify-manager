@@ -129,15 +129,22 @@ automatically. Dataset commit history is the durable backup chain.
 
 `.github/workflows/nightly-library-refresh.yml` uses free GitHub Actions hosted
 runners to wake the private Space and update Last.fm history, albums, tracks,
-and artists sequentially. It starts at 22:17 UTC and observes a 05:00
-Europe/Berlin deadline. A rate-limit pause or deadline stop retains checkpoints
-for the next run. Space restarts are detected and resumed through the same API
-endpoints used by the cockpit.
+and artists sequentially. Incremental refreshes run Sunday-Friday at 22:17 UTC;
+Saturday's 22:37 UTC run fully rebuilds all three Spotify mirrors. Both remain
+inside the 23:00-05:00 Europe/Berlin window, accounting for daylight saving
+time, and delayed scheduled starts after 05:00 are skipped. A rate-limit pause
+or deadline stop retains checkpoints for the next compatible run. Space restarts
+are detected and resumed through the same API endpoints used by the cockpit.
+
+Incremental artist refreshes retain the current mirror and live-verify new
+`YourLibrary.json` candidates in batches. Full rebuilds first try Spotify's
+followed-artists cursor; its common HTTP 502 response (or a bounded page budget)
+switches safely to live batch verification so the job cannot retry forever.
 
 The workflow requires matching `AUTOMATION_TOKEN` secrets in GitHub Actions and
 the Space, plus a GitHub `HF_SPACE_TOKEN` secret that can access the private
-Space. Manual dispatch from GitHub's Actions page includes a `check_only` option
-that verifies authentication and durable data without starting refresh jobs.
+Space. Manual dispatch from GitHub's Actions page includes `check_only` and
+`full_rebuild` options.
 
 ## Library mirror commands
 

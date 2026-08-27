@@ -2,12 +2,19 @@ name: Nightly library refresh
 
 on:
   schedule:
-    # 23:17 Europe/Berlin in winter, 00:17 in summer. The client stops at 05:00.
-    - cron: "17 22 * * *"
+    # Incremental: 23:17 Berlin in winter, 00:17 in summer, Sunday-Friday.
+    - cron: "17 22 * * 0-5"
+    # Full rebuild: Saturday night at 23:37 in winter, 00:37 in summer.
+    - cron: "37 22 * * 6"
   workflow_dispatch:
     inputs:
       check_only:
         description: Verify access without starting refresh jobs
+        required: false
+        default: false
+        type: boolean
+      full_rebuild:
+        description: Fully rebuild all Spotify mirrors
         required: false
         default: false
         type: boolean
@@ -27,6 +34,7 @@ jobs:
       SPACE_URL: https://cyborg-nomade-spotify-manager.hf.space
       HF_SPACE_TOKEN: ${{ secrets.HF_SPACE_TOKEN }}
       AUTOMATION_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+      SCHEDULED_ARG: ${{ github.event_name == 'schedule' && '--scheduled' || '' }}
     steps:
       - name: Check out the automation client
         uses: actions/checkout@v7
@@ -40,6 +48,10 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only }}
         run: python .github/scripts/nightly_refresh.py --check-only
 
-      - name: Refresh durable library data
-        if: ${{ github.event_name == 'schedule' || ! inputs.check_only }}
-        run: python .github/scripts/nightly_refresh.py
+      - name: Refresh recent durable library data
+        if: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 22 * * 0-5') || (github.event_name == 'workflow_dispatch' && !inputs.check_only && !inputs.full_rebuild) }}
+        run: python .github/scripts/nightly_refresh.py $SCHEDULED_ARG
+
+      - name: Fully rebuild durable library data
+        if: ${{ (github.event_name == 'schedule' && github.event.schedule == '37 22 * * 6') || (github.event_name == 'workflow_dispatch' && !inputs.check_only && inputs.full_rebuild) }}
+        run: python .github/scripts/nightly_refresh.py $SCHEDULED_ARG --full-rebuild
