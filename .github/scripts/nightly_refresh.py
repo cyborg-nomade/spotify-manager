@@ -29,6 +29,14 @@ POLL_SECONDS = 20
 BLOCKED_RETRY_SECONDS = 60
 REQUEST_RETRY_SECONDS = 20
 MANUAL_MAX_RUNTIME = timedelta(hours=5)
+DURABLE_ARTIFACT_FILENAMES = frozenset(
+    {
+        "albums_total_new.json",
+        "liked_tracks_total.json",
+        "artists_total.json",
+        "lastfmstats-man-et-arms.json",
+    }
+)
 
 
 class AutomationError(RuntimeError):
@@ -116,6 +124,22 @@ def scheduled_window_is_open(now: datetime) -> bool:
     """Return whether a delayed scheduled run is still inside 22:00-05:00."""
     local_hour = now.astimezone(BERLIN).hour
     return local_hour >= 22 or local_hour < 5
+
+
+def maintenance_window_start(now: datetime) -> datetime:
+    """Return the opening 22:00 boundary for the active Berlin window."""
+    local_now = now.astimezone(BERLIN)
+    window_date = (
+        local_now.date() - timedelta(days=1)
+        if local_now.hour < 5
+        else local_now.date()
+    )
+    local_start = datetime.combine(
+        window_date,
+        datetime_time(hour=22),
+        tzinfo=BERLIN,
+    )
+    return local_start.astimezone(UTC)
 
 
 def required_environment() -> tuple[str, str, str]:
@@ -321,6 +345,8 @@ def run_job(client: SpaceClient, spec: JobSpec) -> str:
 def run_nightly_refresh(
     client: SpaceClient,
     jobs: tuple[JobSpec, ...] = JOBS,
+    *,
+    freshness_threshold: datetime | None = None,
 ) -> int:
     """Run all refreshes serially within the maintenance window."""
     print(
@@ -330,6 +356,16 @@ def run_nightly_refresh(
     )
     client.request("GET", "/health")
     print("Space is awake and healthy.", flush=True)
+    if freshness_threshold is not None and durable_artifacts_are_fresh(
+        client,
+        freshness_threshold,
+    ):
+        print(
+            "All four durable artifacts were already refreshed during this "
+            "maintenance window; skipping the duplicate trigger.",
+            flush=True,
+        )
+        return 0
     mode = "full rebuild" if jobs == FULL_REBUILD_JOBS else "incremental"
     print(f"Refresh mode: {mode}.", flush=True)
     for index, spec in enumerate(jobs):
@@ -346,6 +382,37 @@ def run_nightly_refresh(
         print(f"Completed {spec.label} ({index + 1}/{len(jobs)}).", flush=True)
     print("All nightly library refreshes completed.", flush=True)
     return 0
+
+
+def durable_artifacts_are_fresh(
+    client: SpaceClient,
+    threshold: datetime,
+) -> bool:
+    """Return whether every durable artifact changed after the window opened."""
+    payload = client.request("GET", "/library-mirrors/status")
+    files = payload.get("files") if isinstance(payload, dict) else None
+    if not isinstance(files, list):
+        return False
+    updated: dict[str, datetime] = {}
+    for item in files:
+        if not isinstance(item, dict) or not item.get("exists"):
+            continue
+        filename = str(item.get("filename") or "")
+        raw_updated_at = item.get("updated_at")
+        if filename not in DURABLE_ARTIFACT_FILENAMES or not isinstance(
+            raw_updated_at,
+            str,
+        ):
+            continue
+        try:
+            timestamp = datetime.fromisoformat(raw_updated_at)
+        except ValueError:
+            continue
+        if timestamp.tzinfo is not None:
+            updated[filename] = timestamp.astimezone(UTC)
+    return DURABLE_ARTIFACT_FILENAMES <= updated.keys() and all(
+        updated[filename] >= threshold for filename in DURABLE_ARTIFACT_FILENAMES
+    )
 
 
 def run_connection_check(client: SpaceClient) -> int:
@@ -407,7 +474,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.check_only:
             return run_connection_check(client)
         jobs = FULL_REBUILD_JOBS if args.full_rebuild else JOBS
-        return run_nightly_refresh(client, jobs)
+        freshness_threshold = maintenance_window_start(now) if args.scheduled else None
+        return run_nightly_refresh(
+            client,
+            jobs,
+            freshness_threshold=freshness_threshold,
+        )
     except AutomationError as exc:
         print(f"::error::{exc}", file=sys.stderr, flush=True)
         return 1
