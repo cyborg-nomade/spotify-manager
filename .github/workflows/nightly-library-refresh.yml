@@ -2,10 +2,18 @@ name: Nightly library refresh
 
 on:
   schedule:
-    # Incremental: 23:17 Berlin in winter, 00:17 in summer, Sunday-Friday.
-    - cron: "17 22 * * 0-5"
-    # Full rebuild: Saturday night at 23:37 in winter, 00:37 in summer.
-    - cron: "37 22 * * 6"
+    # Early probes compensate for GitHub occasionally delaying schedules by hours.
+    # They exit harmlessly when they arrive before the 22:00 maintenance window.
+    - cron: "17 19 * * 0-5"
+      timezone: "Europe/Berlin"
+    - cron: "37 19 * * 6"
+      timezone: "Europe/Berlin"
+    # Primary incremental runs: Monday-Saturday at 00:17 Berlin.
+    - cron: "17 0 * * 1-6"
+      timezone: "Europe/Berlin"
+    # Primary weekly full rebuild: Sunday at 00:37 Berlin.
+    - cron: "37 0 * * 0"
+      timezone: "Europe/Berlin"
   workflow_dispatch:
     inputs:
       check_only:
@@ -49,9 +57,9 @@ jobs:
         run: python .github/scripts/nightly_refresh.py --check-only
 
       - name: Refresh recent durable library data
-        if: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 22 * * 0-5') || (github.event_name == 'workflow_dispatch' && !inputs.check_only && !inputs.full_rebuild) }}
+        if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '17 19 * * 0-5' || github.event.schedule == '17 0 * * 1-6')) || (github.event_name == 'workflow_dispatch' && !inputs.check_only && !inputs.full_rebuild) }}
         run: python .github/scripts/nightly_refresh.py $SCHEDULED_ARG
 
       - name: Fully rebuild durable library data
-        if: ${{ (github.event_name == 'schedule' && github.event.schedule == '37 22 * * 6') || (github.event_name == 'workflow_dispatch' && !inputs.check_only && inputs.full_rebuild) }}
+        if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '37 19 * * 6' || github.event.schedule == '37 0 * * 0')) || (github.event_name == 'workflow_dispatch' && !inputs.check_only && inputs.full_rebuild) }}
         run: python .github/scripts/nightly_refresh.py $SCHEDULED_ARG --full-rebuild

@@ -42,6 +42,13 @@ def test_maintenance_deadline_tracks_berlin_dst(nightly: ModuleType) -> None:
     )
     assert nightly.scheduled_window_is_open(summer)
     assert not nightly.scheduled_window_is_open(manual)
+    assert nightly.maintenance_window_start(summer) == datetime(
+        2026, 7, 15, 20, 0, tzinfo=UTC
+    )
+    after_midnight = datetime(2026, 7, 15, 23, 0, tzinfo=UTC)
+    assert nightly.maintenance_window_start(after_midnight) == datetime(
+        2026, 7, 15, 20, 0, tzinfo=UTC
+    )
 
 
 def test_job_sets_select_incremental_or_full_rebuild(nightly: ModuleType) -> None:
@@ -157,6 +164,58 @@ def test_nightly_refresh_stops_cleanly_after_a_rate_limit(
     assert client.calls == [("GET", "/health")]
 
 
+def test_duplicate_schedule_skips_when_all_artifacts_are_fresh(
+    nightly: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    files = [
+        {
+            "filename": filename,
+            "exists": True,
+            "updated_at": "2026-08-29T00:30:00+00:00",
+        }
+        for filename in nightly.DURABLE_ARTIFACT_FILENAMES
+    ]
+    client = FakeClient([{"status": "ok"}, {"files": files}])
+    monkeypatch.setattr(
+        nightly,
+        "run_job",
+        lambda *_args: pytest.fail("fresh duplicate must not start jobs"),
+    )
+
+    assert nightly.run_nightly_refresh(
+        client,
+        freshness_threshold=datetime(2026, 8, 28, 20, 0, tzinfo=UTC),
+    ) == 0
+    assert client.calls == [
+        ("GET", "/health"),
+        ("GET", "/library-mirrors/status"),
+    ]
+
+
+def test_stale_artifact_does_not_suppress_scheduled_refresh(
+    nightly: ModuleType,
+) -> None:
+    files = [
+        {
+            "filename": filename,
+            "exists": True,
+            "updated_at": (
+                "2026-08-28T19:59:00+00:00"
+                if filename == "artists_total.json"
+                else "2026-08-29T00:30:00+00:00"
+            ),
+        }
+        for filename in nightly.DURABLE_ARTIFACT_FILENAMES
+    ]
+    client = FakeClient([{"files": files}])
+
+    assert not nightly.durable_artifacts_are_fresh(
+        client,
+        datetime(2026, 8, 28, 20, 0, tzinfo=UTC),
+    )
+
+
 def test_connection_check_requires_all_durable_artifacts(
     nightly: ModuleType,
 ) -> None:
@@ -185,7 +244,10 @@ def test_connection_check_requires_all_durable_artifacts(
 def test_workflow_schedules_weekend_full_rebuild() -> None:
     workflow = WORKFLOW_PATH.read_text()
 
-    assert 'cron: "17 22 * * 0-5"' in workflow
-    assert 'cron: "37 22 * * 6"' in workflow
+    assert 'cron: "17 19 * * 0-5"' in workflow
+    assert 'cron: "17 0 * * 1-6"' in workflow
+    assert 'cron: "37 19 * * 6"' in workflow
+    assert 'cron: "37 0 * * 0"' in workflow
+    assert workflow.count('timezone: "Europe/Berlin"') == 4
     assert "--full-rebuild" in workflow
     assert "--scheduled" in workflow
