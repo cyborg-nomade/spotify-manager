@@ -32,6 +32,7 @@ ROTATING_STATUS_FORCELIST = (500, 502, 503, 504)
 OPTIONAL_APP_LABELS = ("app5", "app6", "app7", "app8")
 TRANSIENT_CONNECTION_RETRY_BASE_SECONDS = 10
 TRANSIENT_CONNECTION_MAX_RETRIES = 3
+SPOTIFY_OAUTH_TIMEOUT_SECONDS = 10
 SpotifyEventCallback = Callable[[str], None]
 LOCALHOST_REDIRECT_MESSAGE = (
     "Spotify no longer accepts localhost redirect URIs. Set "
@@ -373,6 +374,7 @@ def get_spotipy_client(
                 scope=scope,
                 cache_handler=CacheFileHandler(cache_path=str(app.cache_path)),
                 open_browser=should_open_browser_for_redirect(spotipy_redirect_uri),
+                requests_timeout=SPOTIFY_OAUTH_TIMEOUT_SECONDS,
             )
         )
 

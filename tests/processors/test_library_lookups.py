@@ -78,6 +78,11 @@ class FakeSpotify:
             "artist",
             (None, "4Z8W4fKeB5YxbusRsdQVPb"),
         ),
+        (
+            "https://open.spotify.com/track/4u7EnebtmKWzUH433cf5Qv?si=test",
+            "track",
+            (None, "4u7EnebtmKWzUH433cf5Qv"),
+        ),
     ],
 )
 def test_parse_spotify_lookup_reference(reference, resource, expected) -> None:

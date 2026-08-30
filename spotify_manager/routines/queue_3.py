@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -15,13 +14,13 @@ from typing import Literal
 from typing import cast
 
 from spotipy import Spotify
-from unidecode import unidecode
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
 from spotify_manager.models.lookups import AlbumEvaluation
+from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening
@@ -34,7 +33,6 @@ DEFAULT_LOG_PATH = FILES_DIR / "queue_3_log.jsonl"
 DEFAULT_ALBUMS_PATH = FILES_DIR / "albums_total_new.json"
 STATE_VERSION = 1
 DAILY_ARTIST_LIMIT = 10
-PLAYLIST_PAGE_LIMIT = 50
 PLAYLIST_MUTATION_BATCH_SIZE = 100
 CHOICE_ADVANCE = "advance"
 CHOICE_QUIT = "quit"
@@ -87,13 +85,7 @@ class AnnualImportResult:
     action: SeedAction
 
 
-@dataclass(frozen=True)
-class OwnedPlaylist:
-    """One playlist owned by the authenticated Spotify account."""
-
-    spotify_id: str
-    name: str
-    total_tracks: int
+OwnedPlaylist = composer_playlists.OwnedPlaylist
 
 
 @dataclass(frozen=True)
@@ -232,97 +224,20 @@ def append_event(path: Path, event_type: str, **details: object) -> None:
         raise Queue3StateError(f"Could not write Queue 3 log: {path}") from exc
 
 
-def _owned_playlist(raw: object, owner_id: str) -> OwnedPlaylist | None:
-    """Parse one playlist only when it belongs to the authenticated user."""
-    if not isinstance(raw, dict):
-        return None
-    owner = raw.get("owner")
-    if not isinstance(owner, dict) or str(owner.get("id") or "") != owner_id:
-        return None
-    spotify_id = str(raw.get("id") or "").strip()
-    name = str(raw.get("name") or "").strip()
-    if not spotify_id or not name:
-        return None
-    tracks = raw.get("tracks")
-    total_tracks = (
-        int(tracks.get("total", 0))
-        if isinstance(tracks, dict) and isinstance(tracks.get("total", 0), int)
-        else 0
-    )
-    return OwnedPlaylist(
-        spotify_id=spotify_id,
-        name=name,
-        total_tracks=total_tracks,
-    )
-
-
 def load_owned_playlists(
     sp: Spotify,
     retry_call: RetryCall,
     owner_playlist_id: str,
 ) -> tuple[OwnedPlaylist, ...]:
     """Load playlists owned by the owner of the configured Queue 3 playlist."""
-    raw_playlists: list[object] = []
-    offset = 0
-    while True:
-        response = retry_call(
-            partial(
-                sp.current_user_playlists,
-                limit=PLAYLIST_PAGE_LIMIT,
-                offset=offset,
-            ),
-            f"loading owned playlists at offset {offset}",
+    try:
+        return composer_playlists.load_owned_playlists(
+            sp,
+            retry_call,
+            frozenset({owner_playlist_id}),
         )
-        if not isinstance(response, dict) or not isinstance(
-            response.get("items"), list
-        ):
-            raise Queue3Error("Spotify returned invalid user playlist data.")
-        raw_items = response["items"]
-        raw_playlists.extend(raw_items)
-        offset += len(raw_items)
-        total = response.get("total")
-        has_more = bool(response.get("next"))
-        if isinstance(total, int):
-            has_more = has_more or offset < total
-        if not has_more:
-            break
-        if not raw_items:
-            raise Queue3Error("Spotify returned an empty user-playlist page.")
-
-    owner_id = ""
-    for raw_playlist in raw_playlists:
-        if not isinstance(raw_playlist, dict):
-            continue
-        if str(raw_playlist.get("id") or "") != owner_playlist_id:
-            continue
-        owner = raw_playlist.get("owner")
-        if isinstance(owner, dict):
-            owner_id = str(owner.get("id") or "").strip()
-        break
-    if not owner_id:
-        raise Queue3ConfigError(
-            "Could not establish playlist ownership from the configured Queue 3."
-        )
-    return tuple(
-        playlist
-        for raw_playlist in raw_playlists
-        if (playlist := _owned_playlist(raw_playlist, owner_id)) is not None
-    )
-
-
-def _name_tokens(value: str) -> tuple[str, ...]:
-    """Normalize a Spotify name for whole-token playlist matching."""
-    return tuple(re.findall(r"[a-z0-9]+", unidecode(value).casefold()))
-
-
-def _contains_tokens(haystack: tuple[str, ...], needle: tuple[str, ...]) -> bool:
-    """Return whether a complete token sequence occurs in another sequence."""
-    if not needle or len(needle) > len(haystack):
-        return False
-    return any(
-        haystack[index : index + len(needle)] == needle
-        for index in range(len(haystack) - len(needle) + 1)
-    )
+    except composer_playlists.ComposerPlaylistError as exc:
+        raise Queue3ConfigError(str(exc)) from exc
 
 
 def composer_playlist_candidates(
@@ -332,24 +247,11 @@ def composer_playlist_candidates(
     excluded_playlist_id: str,
 ) -> tuple[OwnedPlaylist, ...]:
     """Match owned playlists containing a composer's full name or surname."""
-    artist_tokens = _name_tokens(artist_name)
-    if not artist_tokens:
-        return ()
-    surname_index = len(artist_tokens) - 1
-    suffixes = {"ii", "iii", "iv", "jr", "sr"}
-    while surname_index > 0 and artist_tokens[surname_index] in suffixes:
-        surname_index -= 1
-    surname = artist_tokens[surname_index]
-    matches = [
-        playlist
-        for playlist in owned_playlists
-        if playlist.spotify_id != excluded_playlist_id
-        and (
-            _contains_tokens(_name_tokens(playlist.name), artist_tokens)
-            or surname in _name_tokens(playlist.name)
-        )
-    ]
-    return tuple(matches)
+    return composer_playlists.composer_playlist_candidates(
+        artist_name,
+        owned_playlists,
+        excluded_playlist_ids=frozenset({excluded_playlist_id}),
+    )
 
 
 def find_yearly_great_discoveries(
@@ -904,11 +806,11 @@ def _composer_plan(
         if track.spotify_id == source.spotify_id
     ]
     if not source_indexes:
-        normalized_source = _name_tokens(source.name)
+        normalized_source = composer_playlists.name_tokens(source.name)
         title_matches = [
             index
             for index, track in enumerate(playlist_tracks)
-            if _name_tokens(track.name) == normalized_source
+            if composer_playlists.name_tokens(track.name) == normalized_source
         ]
         if len(title_matches) == 1:
             source_indexes = title_matches

@@ -1,4 +1,6 @@
-"""Models for live library lookups (artist stats and album evaluation)."""
+"""Models returned by the live library instruments."""
+
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -37,3 +39,17 @@ class AlbumEvaluation(BaseModel):
     tracks: list[AlbumTrackLikedStatus]
     source: str
     from_cache: bool = False
+
+
+class TrackScrobbleStatus(BaseModel):
+    """Most recent Last.fm play for one Spotify track."""
+
+    track_name: str
+    track_id: str
+    artist_name: str
+    album_name: str | None
+    last_scrobbled_at: datetime | None
+    last_scrobble_season: str | None
+    current_season: str
+    in_current_season: bool
+    source: str

@@ -6,6 +6,7 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from spotify_manager.routines import composer_playlists
 
 
 def release() -> main.new_kids.RankedRelease:
@@ -40,6 +41,24 @@ def test_new_kids_release_prompt_returns_selected_release(monkeypatch) -> None:
     )
 
     assert choice == "release"
+
+
+def test_new_kids_release_prompt_accepts_owned_composer_playlist(monkeypatch) -> None:
+    """The shared picker should also return a selected works playlist id."""
+    candidate = composer_playlists.OwnedPlaylist(
+        spotify_id="bach-works",
+        name="Complete Bach works",
+        total_tracks=100,
+    )
+    monkeypatch.setattr(main.Prompt, "ask", lambda *_args, **_kwargs: "1")
+
+    choice = main.ask_new_kids_release_choice(
+        Console(),
+        "Johann Sebastian Bach",
+        (candidate,),
+    )
+
+    assert choice == "bach-works"
 
 
 def test_flush_new_kids_dry_run_uses_all_configured_playlists(monkeypatch) -> None:

@@ -67,6 +67,7 @@ from spotify_manager.core.state.service import StateValidator
 from spotify_manager.loaders_savers import load_your_library_file
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import ArtistLibraryStats
+from spotify_manager.models.lookups import TrackScrobbleStatus
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
@@ -76,9 +77,14 @@ from spotify_manager.processors.library_lookups import SpotifyLookupResponseErro
 from spotify_manager.processors.library_lookups import evaluate_album_live
 from spotify_manager.processors.library_lookups import get_live_artist_library_stats
 from spotify_manager.processors.library_lookups import parse_spotify_lookup_reference
+from spotify_manager.processors.scrobble_lookups import AmbiguousTrackError
+from spotify_manager.processors.scrobble_lookups import TrackNotFoundError
+from spotify_manager.processors.scrobble_lookups import get_track_scrobble_status
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
+from spotify_manager.routines import blast_from_past_artists
+from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
@@ -268,6 +274,17 @@ class FoundArtSelectionResult(BaseModel):
     action: str
 
 
+class DormantArtistResultEntry(BaseModel):
+    """One dormant Last.fm artist and the liked track selected on Spotify."""
+
+    artist: str
+    scrobbles: int
+    spotify_artist: str | None = None
+    track: str | None = None
+    popularity: int | None = None
+    action: str
+
+
 class SauvignonAlbumOption(BaseModel):
     """One materially distinct Spotify album edition offered to the user."""
 
@@ -451,6 +468,9 @@ class NewKidsTrackResult(BaseModel):
     album_liked_tracks: int | None = None
     album_total_tracks: int | None = None
     qualification_reasons: list[str] = Field(default_factory=list)
+    composer_playlist: str | None = None
+    composer_position: int | None = None
+    composer_limit: int | None = None
 
 
 class NewKidsFillResult(BaseModel):
@@ -812,6 +832,10 @@ class BlastJobResult(BaseModel):
     target_dates: list[str] = Field(default_factory=list)
     missing_dates: list[str] = Field(default_factory=list)
     selections: list[BlastSelectionResult] = Field(default_factory=list)
+    dormant_artist_years: list[int] = Field(default_factory=list)
+    dormant_artist_current_year: int | None = None
+    dormant_artist_represented: int | None = None
+    dormant_artist_results: list[DormantArtistResultEntry] = Field(default_factory=list)
     week_start: str | None = None
     history_tracks: int | None = None
     history_scrobbles: int | None = None
@@ -1486,6 +1510,7 @@ def _run_blast_job(
     playlist_id: str,
     count: int | None,
     max_playlist_length: int | None,
+    dry_run: bool,
 ) -> None:
     """Execute one web playlist job and retain progress, logs, and results."""
     job = get_blast_job(job_id)
@@ -1493,7 +1518,10 @@ def _run_blast_job(
         job.result.status = "running"
         job.result.started_at = datetime.now(UTC).isoformat()
         job.result.detail = "Playlist routine started"
-        _append_blast_log_locked(job, "A blast from the past started.")
+        _append_blast_log_locked(
+            job,
+            "A blast from the past started" + (" in dry-run mode." if dry_run else "."),
+        )
 
     def echo(message: str) -> None:
         with _blast_jobs_lock:
@@ -1514,6 +1542,7 @@ def _run_blast_job(
             progress_callback=echo,
             retry_call=_playlist_job_retry(job, echo),
             cancel_check=job.cancel_event.is_set,
+            dry_run=dry_run,
         )
     except blast_from_past.BlastFromPastCancelledError:
         with _blast_jobs_lock:
@@ -1566,8 +1595,9 @@ def _run_blast_job(
             job.result.selections = selections
             if summary.batch is not None:
                 job.result.random_org_timestamp = summary.batch.generated_at.isoformat()
+            verb = "Would add" if dry_run else "Added"
             job.result.detail = (
-                f"Added {summary.added} of {summary.requested_count} selections; "
+                f"{verb} {summary.added} of {summary.requested_count} selections; "
                 f"playlist {summary.playlist_length_before} -> "
                 f"{summary.playlist_length_after}."
             )
@@ -1587,10 +1617,142 @@ def _run_blast_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
+def _run_blast_artist_job(
+    job_id: str,
+    spotify: Spotify,
+    playlist_id: str,
+    count: int,
+    dry_run: bool,
+) -> None:
+    """Execute one alphabetic dormant-artist playlist update."""
+    job = get_blast_job(job_id, command="blast_from_the_past_artists")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+        job.result.detail = "Reading recently dormant Last.fm artists"
+        _append_blast_log_locked(
+            job,
+            "Dormant-artist recovery started"
+            + (" in dry-run mode." if dry_run else "."),
+        )
+
+    def echo(message: str) -> None:
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    spotify_event_setter = getattr(spotify, "set_event_callback", None)
+    previous_spotify_event_callback = None
+    if callable(spotify_event_setter):
+        previous_spotify_event_callback = spotify_event_setter(echo)
+
+    try:
+        summary = blast_from_past_artists.add_dormant_artists_to_blast_from_past(
+            spotify,
+            playlist_id,
+            count=count,
+            echo=echo,
+            progress_callback=lambda _done, _total, message: echo(message),
+            retry_call=_playlist_job_retry(job, echo),
+            cancel_check=job.cancel_event.is_set,
+            dry_run=dry_run,
+        )
+    except blast_from_past.BlastFromPastCancelledError:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = "Dormant-artist recovery was cancelled."
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyRateLimitError as exc:
+        retry_at = None
+        if exc.retry_after_seconds is not None:
+            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.retry_at = retry_at.isoformat() if retry_at else None
+            job.result.detail = (
+                "Spotify rate limit reached. "
+                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except review_album_limits.SpotifyTransientServerError as exc:
+        with _blast_jobs_lock:
+            job.result.status = "paused"
+            job.result.detail = review_album_limits.format_transient_spotify_failure(
+                exc
+            )
+            _append_blast_log_locked(job, job.result.detail)
+    except (
+        blast_from_past.BlastFromPastError,
+        new_kids.NewKidsError,
+        SpotifyException,
+    ) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, f"Dormant-artist recovery failed: {exc}")
+    except RequestException:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
+            _append_blast_log_locked(job, job.result.detail)
+    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+        _analysis_logger.exception("Unexpected dormant-artist recovery error")
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = f"Unexpected dormant-artist error: {exc}"
+            _append_blast_log_locked(job, job.result.detail)
+    else:
+        results = [
+            DormantArtistResultEntry(
+                artist=result.artist,
+                scrobbles=result.scrobbles,
+                spotify_artist=result.spotify_artist,
+                track=result.track,
+                popularity=result.popularity,
+                action=result.action,
+            )
+            for result in summary.results
+        ]
+        with _blast_jobs_lock:
+            job.result.status = "completed"
+            job.result.requested_count = summary.requested_count
+            job.result.playlist_length_before = summary.playlist_length_before
+            job.result.playlist_length_after = summary.playlist_length_after
+            job.result.added = summary.added
+            job.result.candidate_count = summary.candidate_count
+            job.result.dormant_artist_years = list(summary.history_years)
+            job.result.dormant_artist_current_year = summary.current_year
+            job.result.dormant_artist_represented = summary.represented_count
+            job.result.dormant_artist_results = results
+            verb = "Would add" if dry_run else "Added"
+            job.result.detail = (
+                f"{verb} {summary.added} of {summary.requested_count} dormant "
+                f"artists; playlist {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}."
+            )
+            for result in results:
+                target = (
+                    f"{result.spotify_artist} - {result.track}"
+                    if result.track
+                    else result.action
+                )
+                _append_blast_log_locked(
+                    job,
+                    f"{result.artist} ({result.scrobbles} scrobbles) -> {target}.",
+                )
+            _append_blast_log_locked(job, job.result.detail)
+    finally:
+        if callable(spotify_event_setter):
+            spotify_event_setter(previous_spotify_event_callback)
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
 def _run_daily_mind_radio_job(
     job_id: str,
     spotify: Spotify,
     playlist_id: str,
+    dry_run: bool,
 ) -> None:
     """Execute one Daily Mind Radio web job and retain its complete trace."""
     job = get_blast_job(job_id, command="daily_mind_radio")
@@ -1598,7 +1760,10 @@ def _run_daily_mind_radio_job(
         job.result.status = "running"
         job.result.started_at = datetime.now(UTC).isoformat()
         job.result.detail = "Playlist routine started"
-        _append_blast_log_locked(job, "Daily Mind Radio started.")
+        _append_blast_log_locked(
+            job,
+            "Daily Mind Radio started" + (" in dry-run mode." if dry_run else "."),
+        )
 
     def echo(message: str) -> None:
         with _blast_jobs_lock:
@@ -1617,6 +1782,7 @@ def _run_daily_mind_radio_job(
             progress_callback=echo,
             retry_call=_playlist_job_retry(job, echo),
             cancel_check=job.cancel_event.is_set,
+            dry_run=dry_run,
         )
     except blast_from_past.BlastFromPastCancelledError:
         with _blast_jobs_lock:
@@ -1680,8 +1846,9 @@ def _run_daily_mind_radio_job(
                     "No anniversary dates had scrobbles; nothing was added."
                 )
             else:
+                verb = "Would add" if dry_run else "Added"
                 job.result.detail = (
-                    f"Added {summary.added} of {len(summary.batch.selections)} "
+                    f"{verb} {summary.added} of {len(summary.batch.selections)} "
                     f"populated dates; playlist {summary.playlist_length_before} -> "
                     f"{summary.playlist_length_after}."
                 )
@@ -2471,6 +2638,9 @@ def _new_kids_track_result(result: new_kids.FlushResult) -> NewKidsTrackResult:
         album_liked_tracks=result.album_liked_tracks,
         album_total_tracks=result.album_total_tracks,
         qualification_reasons=list(result.qualification_reasons),
+        composer_playlist=result.composer_playlist,
+        composer_position=result.composer_position,
+        composer_limit=result.composer_limit,
     )
 
 
@@ -2521,7 +2691,7 @@ def _run_new_kids_job(
 
     def choice_reader(
         artist: str,
-        candidates: tuple[new_kids.RankedRelease, ...],
+        candidates: tuple[new_kids.ChoiceCandidate, ...],
     ) -> str:
         with _blast_jobs_lock:
             if job.cancel_event.is_set():
@@ -2534,12 +2704,32 @@ def _run_new_kids_job(
                     NewKidsReleaseOption(
                         spotify_id=candidate.spotify_id,
                         name=candidate.name,
-                        release_type=candidate.release_type,
-                        release_date=candidate.release_date,
+                        release_type=(
+                            "Composer works playlist"
+                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
+                            else candidate.release_type
+                        ),
+                        release_date=(
+                            "Stored Spotify order"
+                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
+                            else candidate.release_date
+                        ),
                         total_tracks=candidate.total_tracks,
-                        popularity=candidate.popularity,
-                        top_track_rank=candidate.top_track_rank,
-                        saved=candidate.saved,
+                        popularity=(
+                            None
+                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
+                            else candidate.popularity
+                        ),
+                        top_track_rank=(
+                            None
+                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
+                            else candidate.top_track_rank
+                        ),
+                        saved=(
+                            False
+                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
+                            else candidate.saved
+                        ),
                     )
                     for candidate in candidates
                 ],
@@ -4072,6 +4262,7 @@ def _run_release_check_job(
         scrobble_history.ScrobbleHistoryError,
         LastFmError,
         RequestException,
+        StateError,
     ) as exc:
         with _blast_jobs_lock:
             job.result.status = "failed"
@@ -4875,6 +5066,7 @@ def start_blast_job(
     playlist_id: str,
     count: int | None,
     max_playlist_length: int | None,
+    dry_run: bool,
 ) -> BlastJobResult:
     """Start one playlist job, rejecting another active invocation."""
     with _blast_jobs_lock:
@@ -4889,15 +5081,62 @@ def start_blast_job(
                     },
                 )
         job_id = uuid4().hex
-        job = _BlastJob(result=BlastJobResult(job_id=job_id))
-        _append_blast_log_locked(job, "A blast from the past queued.")
+        job = _BlastJob(result=BlastJobResult(job_id=job_id, dry_run=dry_run))
+        _append_blast_log_locked(
+            job,
+            "A blast from the past queued" + (" in dry-run mode." if dry_run else "."),
+        )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
 
     Thread(
         target=_run_blast_job,
-        args=(job_id, spotify, playlist_id, count, max_playlist_length),
+        args=(job_id, spotify, playlist_id, count, max_playlist_length, dry_run),
         name=f"blast-from-the-past-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+def start_blast_artist_job(
+    spotify: Spotify,
+    playlist_id: str,
+    count: int,
+    dry_run: bool,
+) -> BlastJobResult:
+    """Start one dormant-artist recovery job."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist routine is already running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(
+                job_id=job_id,
+                command="blast_from_the_past_artists",
+                requested_count=count,
+                dry_run=dry_run,
+            )
+        )
+        _append_blast_log_locked(
+            job,
+            "Dormant-artist recovery queued"
+            + (" in dry-run mode." if dry_run else "."),
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+
+    Thread(
+        target=_run_blast_artist_job,
+        args=(job_id, spotify, playlist_id, count, dry_run),
+        name=f"blast-from-the-past-artists-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -4906,6 +5145,7 @@ def start_blast_job(
 def start_daily_mind_radio_job(
     spotify: Spotify,
     playlist_id: str,
+    dry_run: bool,
 ) -> BlastJobResult:
     """Start one Daily Mind Radio job, rejecting another playlist routine."""
     with _blast_jobs_lock:
@@ -4924,15 +5164,19 @@ def start_daily_mind_radio_job(
             result=BlastJobResult(
                 job_id=job_id,
                 command="daily_mind_radio",
+                dry_run=dry_run,
             )
         )
-        _append_blast_log_locked(job, "Daily Mind Radio queued.")
+        _append_blast_log_locked(
+            job,
+            "Daily Mind Radio queued" + (" in dry-run mode." if dry_run else "."),
+        )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
 
     Thread(
         target=_run_daily_mind_radio_job,
-        args=(job_id, spotify, playlist_id),
+        args=(job_id, spotify, playlist_id, dry_run),
         name=f"daily-mind-radio-{job_id[:8]}",
         daemon=True,
     ).start()
@@ -5726,6 +5970,19 @@ def _ambiguous_album(request: Request, exc: AmbiguousAlbumError) -> JSONResponse
     )
 
 
+@app.exception_handler(TrackNotFoundError)
+def _track_not_found(request: Request, exc: TrackNotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+@app.exception_handler(AmbiguousTrackError)
+def _ambiguous_track(request: Request, exc: AmbiguousTrackError) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={"detail": str(exc), "candidates": exc.candidates},
+    )
+
+
 @app.exception_handler(SpotifyLookupResponseError)
 def _invalid_spotify_lookup(
     request: Request,
@@ -5991,6 +6248,43 @@ def album_evaluation(
         ) from exc
 
 
+@app.get("/tracks/scrobbles", response_model=TrackScrobbleStatus)
+def track_scrobble_status(
+    client: ClientDep,
+    reference: Annotated[str | None, Query()] = None,
+    name: Annotated[str | None, Query()] = None,
+    track_id: Annotated[str | None, Query()] = None,
+) -> TrackScrobbleStatus:
+    """Return the latest Last.fm scrobble for one live Spotify track."""
+    if reference is not None:
+        try:
+            name, track_id = parse_spotify_lookup_reference(reference, "track")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not name and not track_id:
+        raise HTTPException(
+            status_code=400,
+            detail="provide a track name, ID, or Spotify link",
+        )
+    try:
+        return get_track_scrobble_status(
+            client,
+            name=name,
+            track_id=track_id,
+            path=scrobble_history.DEFAULT_SCROBBLES_PATH,
+        )
+    except blast_from_past.LastFmExportError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Spotify could not be reached after several attempts. "
+                "Please try again shortly."
+            ),
+        ) from exc
+
+
 # --------------------------------------------------------------------------- #
 # Mirrored CLI commands
 # --------------------------------------------------------------------------- #
@@ -6057,6 +6351,7 @@ def cmd_blast_from_the_past(
     client: InteractiveClientDep,
     count: Annotated[int | None, Query(ge=1)] = None,
     max_playlist_length: Annotated[int | None, Query(ge=1)] = None,
+    dry_run: bool = True,
 ) -> BlastJobResult:
     """Start a background Friday-routine playlist update."""
     if count is not None and max_playlist_length is not None:
@@ -6076,6 +6371,7 @@ def cmd_blast_from_the_past(
         playlist_id,
         effective_count,
         max_playlist_length,
+        dry_run,
     )
 
 
@@ -6119,11 +6415,73 @@ def cmd_cancel_blast_job(job_id: str) -> BlastJobResult:
 
 
 @app.post(
+    "/commands/blast-from-the-past-artists",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_blast_from_the_past_artists(
+    client: InteractiveClientDep,
+    count: Annotated[int, Query(ge=1)] = blast_from_past_artists.DEFAULT_COUNT,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start an alphabetic dormant-artist recovery update."""
+    try:
+        playlist_id = blast_from_past.parse_playlist_id(
+            Settings().blast_from_the_past_playlist
+        )
+    except blast_from_past.BlastFromPastConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_blast_artist_job(client, playlist_id, count, dry_run)
+
+
+@app.get(
+    "/commands/blast-from-the-past-artists-jobs",
+    response_model=list[BlastJobResult],
+)
+def cmd_active_blast_artist_jobs() -> list[BlastJobResult]:
+    """Return the active dormant-artist job for browser reconnection."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "blast_from_the_past_artists"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get(
+    "/commands/blast-from-the-past-artists-jobs/{job_id}",
+    response_model=BlastJobResult,
+)
+def cmd_blast_artist_job(job_id: str) -> BlastJobResult:
+    """Return current progress for one dormant-artist job."""
+    job = get_blast_job(job_id, command="blast_from_the_past_artists")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post(
+    "/commands/blast-from-the-past-artists-jobs/{job_id}/cancel",
+    response_model=BlastJobResult,
+)
+def cmd_cancel_blast_artist_job(job_id: str) -> BlastJobResult:
+    """Cancel dormant-artist recovery at the next safe boundary."""
+    return _cancel_simple_playlist_job(
+        job_id,
+        command="blast_from_the_past_artists",
+        detail="Stopping dormant-artist recovery",
+    )
+
+
+@app.post(
     "/commands/daily-mind-radio",
     response_model=BlastJobResult,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def cmd_daily_mind_radio(client: InteractiveClientDep) -> BlastJobResult:
+def cmd_daily_mind_radio(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
     """Start a background Daily Mind Radio anniversary update."""
     try:
         playlist_id = blast_from_past.parse_playlist_id(
@@ -6132,7 +6490,7 @@ def cmd_daily_mind_radio(client: InteractiveClientDep) -> BlastJobResult:
         )
     except blast_from_past.BlastFromPastConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_daily_mind_radio_job(client, playlist_id)
+    return start_daily_mind_radio_job(client, playlist_id, dry_run)
 
 
 @app.get(

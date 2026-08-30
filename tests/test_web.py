@@ -65,19 +65,44 @@ def test_new_wine_web_labels_jump_to_later_liked_track(client: TestClient) -> No
     assert "Boolean(job.no_discovery)" in response.text
 
 
+def test_new_kids_web_results_show_composer_works_progress(
+    client: TestClient,
+) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "item.composer_playlist" in response.text
+    assert "item.composer_limit || 40" in response.text
+
+
 def test_blast_and_daily_controls_support_cancellation_and_release_restore(
     client: TestClient,
 ) -> None:
     response = client.get("/")
 
     assert 'data-action="cancelBlast"' in response.text
+    assert 'data-action="startBlastArtists"' in response.text
+    assert 'data-action="cancelBlastArtists"' in response.text
     assert 'data-action="cancelDailyMindRadio"' in response.text
+    assert 'id="blastDryRun" checked' in response.text
+    assert 'id="blastArtistsDryRun" checked' in response.text
+    assert 'class="blast-artist-row"' in response.text
+    assert 'id="dailyMindRadioDryRun" checked' in response.text
     assert 'cancelAction: "cancelBlast"' in response.text
+    assert 'cancelAction: "cancelBlastArtists"' in response.text
     assert 'cancelAction: "cancelDailyMindRadio"' in response.text
+    assert 'basePath: "/commands/blast-from-the-past-artists"' in response.text
+    assert (
+        'q.set("dry_run", document.getElementById("blastDryRun").checked)'
+        in response.text
+    )
+    assert 'document.getElementById("blastArtistsDryRun").checked' in response.text
+    assert 'document.getElementById("dailyMindRadioDryRun").checked' in response.text
+    assert "job.dormant_artist_results" in response.text
     assert 'config.basePath + "-jobs/" + job.job_id + "/cancel"' in response.text
     assert "spotify-manager-release-check-state-v1" in response.text
     assert "reconcileReleaseCheckState" in response.text
-    assert 'await syncReleaseCheckStateCache()' in response.text
+    assert "await syncReleaseCheckStateCache()" in response.text
 
 
 def test_cockpit_exposes_shared_state_controls(client: TestClient) -> None:
@@ -655,14 +680,18 @@ def test_main_page_uses_grouped_signal_rack_layout(
     assert "display: none; max-height: 220px" in response.text
     assert 'id="artistStatsCard"' in response.text
     assert 'id="albumEvaluationCard"' in response.text
+    assert 'id="trackScrobbleCard"' in response.text
     assert 'id="artistReference"' in response.text
     assert 'id="albumReference"' in response.text
+    assert 'id="trackReference"' in response.text
     assert 'id="artistName"' not in response.text
     assert 'id="artistId"' not in response.text
     assert 'id="albumName"' not in response.text
     assert 'id="albumArtist"' not in response.text
     assert 'id="albumId"' not in response.text
     assert 'q.set("reference", reference)' in response.text
+    assert 'api("/tracks/scrobbles?" + q.toString())' in response.text
+    assert "actions.trackScrobble" in response.text
     assert 'document.querySelectorAll("[data-server-file-date]")' in response.text
     assert "var starts = document.querySelectorAll" in response.text
     assert (

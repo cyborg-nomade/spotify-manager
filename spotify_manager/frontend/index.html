@@ -79,7 +79,7 @@
   #newKidsCard, #queue2Card, #queue3Card, #newWineCard, #slowListeningCard, #somethingOldCard { --panel-accent: var(--yellow); }
   #sauvignonCard, #requeueForADreamCard, #palaceOfMemoryCard { --panel-accent: var(--amber); }
   #releaseCheckCard, #discographyCard { --panel-accent: var(--green); }
-  #artistStatsCard, #albumEvaluationCard { --panel-accent: #73856a; }
+  #artistStatsCard, #albumEvaluationCard, #trackScrobbleCard { --panel-accent: #73856a; }
   .card h2 {
     display: flex; align-items: center; gap: 8px; font-size: .8rem;
     text-transform: uppercase; letter-spacing: 0; color: var(--text);
@@ -469,6 +469,10 @@
   .macro-grid .card::before, .independent-module::before { left: 5px; }
   .macro-grid .card::after, .independent-module::after { right: 5px; }
   #blastCard .panel-strip > h2 { flex-basis: 100%; min-width: 100%; }
+  #blastCard .blast-artist-row {
+    order: 20; display: flex; flex: 1 0 100%; align-items: center;
+    justify-content: flex-end; gap: 6px; min-width: 0;
+  }
   .settings-trigger {
     flex: 0 0 var(--control-half); width: var(--control-half); min-width: var(--control-half);
     height: 28px; padding: 2px; color: #1b1d1a;
@@ -774,16 +778,36 @@
         <label for="blastMaximum">Maximum playlist length</label>
         <input id="blastMaximum" type="number" min="1" step="1" value="50" inputmode="numeric" />
       </div>
+      <label class="inline">
+        <input type="checkbox" id="blastDryRun" checked />
+        Dry run
+      </label>
       <div class="analysis-actions">
         <button class="primary" data-action="startBlast">Run</button>
         <button class="danger cancel" data-action="cancelBlast" hidden
           title="Stop routine" aria-label="Stop A blast from the past">×</button>
+      </div>
+      <div class="blast-artist-row">
+        <label class="inline">
+          <input type="checkbox" id="blastArtistsDryRun" checked />
+          Dry run
+        </label>
+        <div class="analysis-actions">
+          <button class="ghost" data-action="startBlastArtists"
+            title="Add popular liked tracks from artists absent this year">Artists</button>
+          <button class="danger cancel" data-action="cancelBlastArtists" hidden
+            title="Stop dormant-artist recovery" aria-label="Stop dormant-artist recovery">×</button>
+        </div>
       </div>
       <div class="analysis-progress" id="blastProgress"></div>
     </section>
 
     <section class="card" id="dailyMindRadioCard">
       <h2>Daily mind radio</h2>
+      <label class="inline">
+        <input type="checkbox" id="dailyMindRadioDryRun" checked />
+        Dry run
+      </label>
       <div class="analysis-actions">
         <button class="primary" data-action="startDailyMindRadio">Run</button>
         <button class="danger cancel" data-action="cancelDailyMindRadio" hidden
@@ -1041,6 +1065,17 @@
       </div>
       <div class="result" id="albumResult"></div>
     </section>
+
+    <!-- Track scrobble check -->
+    <section class="card" id="trackScrobbleCard">
+      <h2>Track scrobble</h2>
+      <label for="trackReference">Track</label>
+      <input id="trackReference" type="text" placeholder="Name, ID, or Spotify link" enterkeyhint="search" />
+      <div class="btns">
+        <button class="primary" data-action="trackScrobble">Check</button>
+      </div>
+      <div class="result" id="trackScrobbleResult"></div>
+    </section>
       </div>
     </section>
     </main>
@@ -1104,6 +1139,7 @@
   var toastTimer = null;
   var analysisJobs = {};
   var blastJob = null;
+  var blastArtistJob = null;
   var dailyMindRadioJob = null;
   var foundArtJob = null;
   var sauvignonJob = null;
@@ -1916,6 +1952,16 @@
   }
 
   function playlistJobConfig(kind) {
+    if (kind === "blastArtists") {
+      return {
+        progressId: "blastProgress",
+        action: "startBlastArtists",
+        cancelAction: "cancelBlastArtists",
+        basePath: "/commands/blast-from-the-past-artists",
+        command: "blast_from_the_past_artists",
+        finished: "Dormant artists added",
+      };
+    }
     if (kind === "daily") {
       return {
         progressId: "dailyMindRadioProgress",
@@ -1946,7 +1992,8 @@
   }
 
   function rememberPlaylistJob(kind, job) {
-    if (kind === "daily") dailyMindRadioJob = job;
+    if (kind === "blastArtists") blastArtistJob = job;
+    else if (kind === "daily") dailyMindRadioJob = job;
     else if (kind === "found") foundArtJob = job;
     else blastJob = job;
   }
@@ -1958,12 +2005,21 @@
     var cancel = config.cancelAction
       ? document.querySelector('[data-action="' + config.cancelAction + '"]')
       : null;
+    var dryRunControl = kind === "blastArtists"
+      ? document.getElementById("blastArtistsDryRun")
+      : kind === "daily"
+      ? document.getElementById("dailyMindRadioDryRun")
+      : kind === "blast"
+      ? document.getElementById("blastDryRun")
+      : null;
+    if (dryRunControl) dryRunControl.checked = Boolean(job.dry_run);
     var summary = "";
     if (typeof job.added === "number" &&
         typeof job.playlist_length_before === "number" &&
         typeof job.playlist_length_after === "number") {
       summary = '<div class="blast-summary">' +
-        '<div><strong>' + esc(job.added) + '</strong><span>Added</span></div>' +
+        '<div><strong>' + esc(job.added) + '</strong><span>' +
+          (job.dry_run ? 'Would add' : 'Added') + '</span></div>' +
         '<div><strong>' + esc(job.playlist_length_before) + '</strong><span>Before</span></div>' +
         '<div><strong>' + esc(job.playlist_length_after) + '</strong><span>After</span></div>' +
         '</div>';
@@ -1978,6 +2034,15 @@
       }
       dateSummary += '</div>';
     }
+    if (kind === "blastArtists" && job.dormant_artist_years &&
+        job.dormant_artist_years.length) {
+      dateSummary = '<div class="playlist-dates"><div>History years: ' +
+        esc(job.dormant_artist_years.join(", ")) + '</div>' +
+        '<div>Excluded current year: ' + esc(job.dormant_artist_current_year) +
+        ' · candidates: ' + esc(job.candidate_count || 0) +
+        ' · already represented: ' + esc(job.dormant_artist_represented || 0) +
+        '</div></div>';
+    }
     var foundSummary = "";
     if (kind === "found" && job.week_start) {
       foundSummary = '<div class="playlist-dates">' +
@@ -1987,7 +2052,27 @@
           esc(job.live_scrobbles_added || 0) + ' new</div>' +
         '<div>Candidates: ' + esc(job.candidate_count || 0) + '</div></div>';
     }
-    var selections = kind === "found"
+    var selections = kind === "blastArtists"
+      ? (job.dormant_artist_results || []).map(function (item) {
+        var actionClass = String(item.action || "").replace(/\s+/g, "-");
+        var action = job.dry_run && item.action === "added"
+          ? "would add"
+          : item.action;
+        var target = item.track
+          ? (item.spotify_artist + " · " + item.track)
+          : (item.spotify_artist || "No unambiguous Spotify mapping");
+        return '<div class="blast-selection">' +
+          '<div class="blast-selection-title">' + esc(item.artist) + '</div>' +
+          '<div class="blast-selection-match">' + esc(target) + '</div>' +
+          '<div class="blast-selection-meta">' + esc(item.scrobbles) +
+            ' scrobbles' +
+            (typeof item.popularity === "number"
+              ? ' · popularity ' + esc(item.popularity)
+              : '') +
+            ' · <span class="blast-action ' + esc(actionClass) + '">' +
+              esc(action) + '</span></div></div>';
+      }).join("")
+      : kind === "found"
       ? (job.found_art_results || []).map(function (item) {
         var actionClass = String(item.action || "").replace(/\s+/g, "-");
         var trackScore = typeof item.track_similarity === "number"
@@ -2009,6 +2094,7 @@
       }).join("")
       : (job.selections || []).map(function (item) {
       var actionClass = String(item.action || "").replace(/\s+/g, "-");
+      var action = job.dry_run && item.action === "added" ? "would add" : item.action;
       var trackScore = typeof item.track_similarity === "number"
         ? Math.round(item.track_similarity * 100) + "% track"
         : "";
@@ -2024,7 +2110,7 @@
           ' · ' + esc(item.direction) + ' · #' + esc(item.position) +
           (liked ? ' · ' + esc(liked) : '') +
           (trackScore ? ' · ' + esc(trackScore) : '') + ' · ' + esc(albumScore) +
-          ' · <span class="blast-action ' + esc(actionClass) + '">' + esc(item.action) + '</span></div>' +
+          ' · <span class="blast-action ' + esc(actionClass) + '">' + esc(action) + '</span></div>' +
         '</div>';
     }).join("");
     var logRows = (job.logs || []).map(function (entry) {
@@ -2115,6 +2201,10 @@
     return restoreActivePlaylistJobs("blast");
   }
 
+  function restoreActiveBlastArtistJobs() {
+    return restoreActivePlaylistJobs("blastArtists");
+  }
+
   function restoreActiveDailyMindRadioJobs() {
     return restoreActivePlaylistJobs("daily");
   }
@@ -2125,7 +2215,11 @@
 
   async function cancelPlaylistJob(kind, btn) {
     var config = playlistJobConfig(kind);
-    var job = kind === "daily" ? dailyMindRadioJob : blastJob;
+    var job = kind === "blastArtists"
+      ? blastArtistJob
+      : kind === "daily"
+      ? dailyMindRadioJob
+      : blastJob;
     if (!job || !job.job_id || !config.cancelAction) return;
     btn.disabled = true;
     try {
@@ -2521,6 +2615,12 @@
       var reasons = (item.qualification_reasons || []).length
         ? '<div class="playlist-dates">' + esc(item.qualification_reasons.join(" · ")) + '</div>'
         : "";
+      var composer = item.composer_playlist
+        ? '<div class="playlist-dates">' + esc(item.composer_playlist) +
+          (item.composer_position ? ' · work ' + esc(item.composer_position) + '/' +
+            esc(item.composer_limit || 40) : '') +
+          '</div>'
+        : "";
       return '<div class="blast-selection new-kids-result">' +
         '<div class="blast-selection-title">' + esc(item.artist) + ' · ' +
           esc(item.source_track) + '</div>' +
@@ -2529,7 +2629,7 @@
         '<div class="blast-selection-meta">' +
           (item.current_liked ? "liked" : "unliked") + ' · streak ' +
           esc(item.consecutive_unliked) + ' · <span class="blast-action">' +
-          esc(item.action) + '</span>' + esc(album) + '</div>' + reasons + '</div>';
+          esc(item.action) + '</span>' + esc(album) + '</div>' + composer + reasons + '</div>';
     }).join("");
     var transferRows = [];
     (job.new_kids_prefill || []).forEach(function (item) {
@@ -4340,6 +4440,7 @@
       }
       var q = new URLSearchParams();
       q.set(selectedMode === "count" ? "count" : "max_playlist_length", String(value));
+      q.set("dry_run", document.getElementById("blastDryRun").checked);
       setBusy(btn, true, "Starting…");
       try {
         var job = await api("/commands/blast-from-the-past?" + q.toString(), { method: "POST" });
@@ -4359,11 +4460,45 @@
       }
     },
 
+    async startBlastArtists(btn) {
+      var out = document.getElementById("blastProgress");
+      setBusy(btn, true, "Starting…");
+      try {
+        var q = new URLSearchParams({
+          dry_run: document.getElementById("blastArtistsDryRun").checked,
+        });
+        var job = await api(
+          "/commands/blast-from-the-past-artists?" + q.toString(),
+          { method: "POST" }
+        );
+        rememberPlaylistJob("blastArtists", job);
+        renderPlaylistJob("blastArtists", job);
+        pollPlaylistJob("blastArtists", job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        var activeJobId = e.status === 409 && detail && detail.job_id;
+        if (activeJobId && detail.command === "blast_from_the_past_artists") {
+          await pollPlaylistJob("blastArtists", activeJobId);
+          showToast("Reconnected to dormant-artist recovery", "ok");
+          return;
+        }
+        renderError(out, e);
+        setBusy(btn, false);
+        showToast("Could not start dormant-artist recovery", "err");
+      }
+    },
+
     async startDailyMindRadio(btn) {
       var out = document.getElementById("dailyMindRadioProgress");
       setBusy(btn, true, "Starting…");
       try {
-        var job = await api("/commands/daily-mind-radio", { method: "POST" });
+        var q = new URLSearchParams({
+          dry_run: document.getElementById("dailyMindRadioDryRun").checked,
+        });
+        var job = await api(
+          "/commands/daily-mind-radio?" + q.toString(),
+          { method: "POST" }
+        );
         dailyMindRadioJob = job;
         renderDailyMindRadioJob(job);
         pollPlaylistJob("daily", job.job_id);
@@ -4383,6 +4518,10 @@
 
     async cancelBlast(btn) {
       return cancelPlaylistJob("blast", btn);
+    },
+
+    async cancelBlastArtists(btn) {
+      return cancelPlaylistJob("blastArtists", btn);
     },
 
     async cancelDailyMindRadio(btn) {
@@ -5252,6 +5391,47 @@
       setBusy(btn, false);
     },
 
+    async trackScrobble(btn) {
+      var reference = document.getElementById("trackReference").value.trim();
+      var out = document.getElementById("trackScrobbleResult");
+      if (!reference) { showToast("Enter a track name, ID, or link", "err"); return; }
+      var q = new URLSearchParams();
+      q.set("reference", reference);
+      setBusy(btn, true);
+      try {
+        var d = await api("/tracks/scrobbles?" + q.toString());
+        var lastPlayed = d.last_scrobbled_at
+          ? new Date(d.last_scrobbled_at).toLocaleString()
+          : "Never scrobbled";
+        var seasonColor = d.in_current_season ? "var(--green)" : "var(--amber)";
+        var seasonStatus = d.in_current_season
+          ? "Played this season"
+          : "Not played this season";
+        renderResult(out,
+          '<div class="kv"><b>Track</b> ' + esc(d.artist_name) + " - " + esc(d.track_name) + "</div>" +
+          (d.album_name ? '<div class="kv"><b>Album</b> ' + esc(d.album_name) + "</div>" : "") +
+          '<div class="kv"><b>Last scrobble</b> ' + esc(lastPlayed) + "</div>" +
+          (d.last_scrobble_season ? '<div class="kv"><b>Season</b> ' + esc(d.last_scrobble_season) + "</div>" : "") +
+          '<div class="kv" style="color:' + seasonColor + '"><b>' + esc(seasonStatus) +
+            "</b> · " + esc(d.current_season) + "</div>");
+      } catch (e) {
+        if (e.status === 409 && e.data && e.data.candidates) {
+          var candidates = e.data.candidates.map(function (candidate) {
+            return '<div class="kv"><b>' + esc(candidate.artist) + "</b> - " +
+              esc(candidate.track) +
+              (candidate.album ? ' <span style="color:var(--muted)">(' + esc(candidate.album) + ")</span>" : "") +
+              '</div>';
+          }).join("");
+          renderResult(out,
+            '<div class="kv" style="color:var(--amber)">Multiple tracks match. Paste a Spotify track link:</div>' +
+            candidates);
+        } else {
+          renderError(out, e);
+        }
+      }
+      setBusy(btn, false);
+    },
+
     async countArtists(btn) {
       var out = document.getElementById("utilResult");
       setBusy(btn, true);
@@ -5364,12 +5544,15 @@
     if (sharedStateEditorMode === "advanced") updateStateEditorStatus();
   });
 
-  // Enter-to-submit on the two main inputs
+  // Enter-to-submit on the library lookup inputs
   document.getElementById("artistReference").addEventListener("keydown", function (e) {
     if (e.key === "Enter") actions.artistStats(document.querySelector('[data-action="artistStats"]'));
   });
   document.getElementById("albumReference").addEventListener("keydown", function (e) {
     if (e.key === "Enter") actions.albumEval(document.querySelector('[data-action="albumEval"]'));
+  });
+  document.getElementById("trackReference").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") actions.trackScrobble(document.querySelector('[data-action="trackScrobble"]'));
   });
 
   // ---- Health ------------------------------------------------------------
@@ -5415,6 +5598,7 @@
     }
     restoreActiveAnalysisJobs();
     restoreActiveBlastJobs();
+    restoreActiveBlastArtistJobs();
     restoreActiveDailyMindRadioJobs();
     restoreActiveFoundArtJobs();
     restoreActiveSauvignonJobs();

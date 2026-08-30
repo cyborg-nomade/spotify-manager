@@ -822,6 +822,48 @@ def test_maximum_playlist_length_only_selects_open_slots(
     assert summary.requested_count == 2
 
 
+def test_dry_run_resolves_tracks_without_updating_playlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sp = FakeSpotify()
+    scrobble = blast_from_past.Scrobble("Track", "Artist", "Album", 1)
+    selection = blast_from_past.ScrobbleSelection(
+        date(2010, 1, 2),
+        1,
+        1,
+        1,
+        1,
+        "top down",
+        1,
+        scrobble,
+    )
+    batch = blast_from_past.BlastFromPastBatch(
+        generated_at=datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC),
+        cutoff_date=date(2021, 12, 31),
+        available_dates=1,
+        selections=(selection,),
+    )
+    sp.search_results[blast_from_past.spotify_search_query(scrobble)] = [
+        spotify_track("match", "Track", "Artist", "Album")
+    ]
+    monkeypatch.setattr(
+        blast_from_past,
+        "select_blast_from_past",
+        lambda **_kwargs: batch,
+    )
+
+    summary = blast_from_past.add_blast_from_past_to_spotify(
+        sp,  # type: ignore[arg-type]
+        "blast",
+        count=1,
+        dry_run=True,
+    )
+
+    assert summary.added == 1
+    assert summary.playlist_length_after == summary.playlist_length_before
+    assert sp.posts == []
+
+
 def test_full_maximum_playlist_skips_random_org_and_search() -> None:
     sp = FakeSpotify()
     sp.playlist_tracks = [spotify_track("one", "Track", "Artist", "Album")]

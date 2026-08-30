@@ -157,6 +157,7 @@ class PlaylistState:
     total_items: int
     track_ids: frozenset[str]
     track_keys: frozenset[tuple[str, str]] = frozenset()
+    primary_artist_keys: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -749,6 +750,7 @@ def load_playlist_state(
     offset = 0
     track_ids: set[str] = set()
     track_keys: set[tuple[str, str]] = set()
+    primary_artist_keys: set[str] = set()
     seen_next_pages: set[str] = set()
     while True:
         check_cancel(cancel_check)
@@ -780,14 +782,17 @@ def load_playlist_state(
                 track_ids.add(spotify_id)
             track_name = str(raw_track.get("name") or "").strip()
             if track_name:
+                artist_names = _spotify_artist_names(raw_track)
                 normalized_track = normalize_name(
                     without_sliding_qualifiers(track_name)
                 )
                 track_keys.update(
                     (normalize_name(artist), normalized_track)
-                    for artist in _spotify_artist_names(raw_track)
+                    for artist in artist_names
                     if normalize_name(artist) and normalized_track
                 )
+                if artist_names and normalize_name(artist_names[0]):
+                    primary_artist_keys.add(normalize_name(artist_names[0]))
 
         offset += len(raw_items)
         total = response.get("total")
@@ -807,6 +812,7 @@ def load_playlist_state(
                 total_items=total_items,
                 track_ids=frozenset(track_ids),
                 track_keys=frozenset(track_keys),
+                primary_artist_keys=frozenset(primary_artist_keys),
             )
         if not raw_items:
             raise SpotifyTrackResolutionError(
@@ -919,6 +925,7 @@ def add_blast_from_past_to_spotify(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall = _direct_retry,
     cancel_check: CancelCheck | None = None,
+    dry_run: bool = False,
 ) -> BlastFromPastSpotifySummary:
     """Select, resolve, and append a blast-from-the-past batch to Spotify."""
     if count is not None and max_playlist_length is not None:
@@ -970,7 +977,7 @@ def add_blast_from_past_to_spotify(
         cancel_check,
     )
 
-    if resolution.pending_matches:
+    if resolution.pending_matches and not dry_run:
         if progress_callback is not None:
             progress_callback(
                 f"Adding {len(resolution.pending_matches)} tracks to Spotify"
@@ -987,7 +994,9 @@ def add_blast_from_past_to_spotify(
         playlist_id=playlist_id,
         requested_count=requested_count,
         playlist_length_before=playlist.total_items,
-        playlist_length_after=playlist.total_items + len(resolution.pending_matches),
+        playlist_length_after=(
+            playlist.total_items + (0 if dry_run else len(resolution.pending_matches))
+        ),
         batch=batch,
         results=resolution.results,
     )

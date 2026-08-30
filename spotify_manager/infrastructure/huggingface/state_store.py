@@ -119,6 +119,12 @@ class HubStateStore:
                 raise StateConflictError(
                     "Shared state changed before the Hugging Face commit completed."
                 ) from exc
+            if status == 429:
+                raise StateConfigurationError(
+                    "The Hugging Face shared-state commit limit was reached. "
+                    "Durable progress through the previous checkpoint was preserved; "
+                    "try again in about one hour."
+                ) from exc
             raise StateConfigurationError(
                 f"Could not write shared state to {self.repo_id!r}."
             ) from exc

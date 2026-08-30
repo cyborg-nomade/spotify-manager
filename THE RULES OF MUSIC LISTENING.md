@@ -115,6 +115,7 @@ Track lists have evolved from the need to allow single tracks to be listened wit
          3. All releases saved
          4. All tracks liked
       6. Otherwise, unfollow the artist and add the top liked track to *Unlucky Ones*
+      7. For classical composers with a user-created works playlist whose title contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count.
    4. **Cap**: 10 tracks (10 listened/day)
 6. *new wine from old bottles* containts tracks from the latest releases that came under radar
    1. **Type**: DISCOVERY
@@ -148,6 +149,7 @@ Track lists have evolved from the need to allow single tracks to be listened wit
    2. **Fill-up**: From *the queue* (or really anywhere) when artist reaches 5/10 or 6 liked tracks
    3. **Flush**:
       1. Normally: same as *new kids on the block*, flushing into that list when spots are available
+         1. For classical composers with a user-created works playlist whose title contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count.
       2. When cap is reached:
          1. Play all 4 top albums of the artist straight and make decision to save to *Great Discoveries* or *Unlucky Ones*
          2. Do 5 artists per day for 3 months (60 listening days)
@@ -341,3 +343,5 @@ Routines are regular checking of sources to add to certain playlists to aid in d
 
 1. In [lastfmstats.com](http://lastfmstats.com) go to the "Every year artists" and add all missing ones from 5 years prior to a list
 2. Over the weeks, add 5/day to *a blast from the past*
+   1. Select artists scrobbled in the previous four calendar years but not in the current year.
+   2. Process them alphabetically, adding each artist's most popular liked Spotify track.

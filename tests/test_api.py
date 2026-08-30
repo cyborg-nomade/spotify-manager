@@ -536,6 +536,72 @@ def test_album_evaluation_not_found(client: TestClient) -> None:
     assert resp.status_code == 404
 
 
+def test_track_scrobble_endpoint_accepts_spotify_share_link(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spotify_manager import api
+
+    captured: dict[str, object] = {}
+
+    def lookup(_spotify, **kwargs):
+        captured.update(kwargs)
+        return api.TrackScrobbleStatus(
+            track_name="Bohemian Rhapsody",
+            track_id="4u7EnebtmKWzUH433cf5Qv",
+            artist_name="Queen",
+            album_name="A Night at the Opera",
+            last_scrobbled_at=datetime(2026, 8, 20, 21, 15, tzinfo=UTC),
+            last_scrobble_season="Summer 2026",
+            current_season="Summer 2026",
+            in_current_season=True,
+            source="spotify-live + lastfm-history",
+        )
+
+    monkeypatch.setattr(api, "get_track_scrobble_status", lookup)
+
+    response = client.get(
+        "/tracks/scrobbles",
+        params={
+            "reference": (
+                "https://open.spotify.com/track/4u7EnebtmKWzUH433cf5Qv?si=test"
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["track_id"] == "4u7EnebtmKWzUH433cf5Qv"
+    assert captured["name"] is None
+    assert response.json()["in_current_season"] is True
+
+
+def test_track_scrobble_endpoint_requires_an_argument(client: TestClient) -> None:
+    response = client.get("/tracks/scrobbles")
+
+    assert response.status_code == 400
+    assert "provide a track name" in response.json()["detail"]
+
+
+def test_track_scrobble_ambiguity_returns_candidates(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from spotify_manager import api
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise api.AmbiguousTrackError(
+            "ambiguous",
+            [{"track": "Song", "artist": "Artist", "album": "Album", "id": "id"}],
+        )
+
+    monkeypatch.setattr(api, "get_track_scrobble_status", fail)
+
+    response = client.get("/tracks/scrobbles", params={"name": "Song"})
+
+    assert response.status_code == 409
+    assert response.json()["candidates"][0]["artist"] == "Artist"
+
+
 def test_live_lookup_spotify_500_is_reported_as_bad_gateway(
     client: TestClient,
 ) -> None:
@@ -780,6 +846,7 @@ def test_spotify_lookup_rate_limit_returns_retry_header(
     [
         ("/artists/stats", "spotify:artist:bad", "invalid Spotify artist URI"),
         ("/albums/evaluation", "spotify:album:bad", "invalid Spotify album URI"),
+        ("/tracks/scrobbles", "spotify:track:bad", "invalid Spotify track URI"),
     ],
 )
 def test_live_lookup_rejects_invalid_references(
@@ -1055,6 +1122,7 @@ def test_server_file_status_reports_stat_failure() -> None:
     "path",
     [
         "/commands/blast-from-the-past",
+        "/commands/blast-from-the-past-artists",
         "/commands/daily-mind-radio",
         "/commands/found-art",
         "/commands/fill-queue-from-lastfm",
@@ -1157,13 +1225,14 @@ def test_blast_from_the_past_endpoint_runs_background_job(
             playlist_id=playlist_id,
             count=kwargs["count"],
             max_playlist_length=kwargs["max_playlist_length"],
+            dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"]("Searching Spotify track 1/1")
         return api.blast_from_past.BlastFromPastSpotifySummary(
             playlist_id=playlist_id,
             requested_count=10,
             playlist_length_before=4,
-            playlist_length_after=5,
+            playlist_length_after=4,
             batch=batch,
             results=(
                 api.blast_from_past.SpotifySelectionResult(
@@ -1197,9 +1266,12 @@ def test_blast_from_the_past_endpoint_runs_background_job(
     assert received["playlist_id"] == "blast"
     assert received["count"] == 10
     assert received["max_playlist_length"] is None
+    assert received["dry_run"] is True
+    assert result["dry_run"] is True
     assert result["added"] == 1
     assert result["playlist_length_before"] == 4
-    assert result["playlist_length_after"] == 5
+    assert result["playlist_length_after"] == 4
+    assert result["detail"].startswith("Would add 1")
     assert result["random_org_timestamp"] == "2026-07-22T13:00:52+00:00"
     assert result["selections"][0]["liked"] is True
     assert result["selections"][0]["album_similarity"] == 0.2
@@ -1218,6 +1290,77 @@ def test_blast_from_the_past_endpoint_rejects_both_limits(
 
     assert response.status_code == 400
     assert "either count or max_playlist_length" in response.json()["detail"]
+
+
+def test_blast_from_the_past_artists_endpoint_runs_background_job(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: dict[str, object] = {}
+
+    def complete(_spotify, playlist_id, **kwargs):
+        received["playlist_id"] = playlist_id
+        received["count"] = kwargs["count"]
+        received["dry_run"] = kwargs["dry_run"]
+        kwargs["progress_callback"](0, 5, "Checking dormant artist Artist")
+        return api.blast_from_past_artists.DormantArtistSummary(
+            current_year=2026,
+            history_years=(2022, 2023, 2024, 2025),
+            candidate_count=25,
+            represented_count=4,
+            playlist_length_before=10,
+            playlist_length_after=10,
+            requested_count=5,
+            results=(
+                api.blast_from_past_artists.DormantArtistResult(
+                    artist="Artist",
+                    scrobbles=14,
+                    spotify_artist="Artist",
+                    track="Liked Track",
+                    popularity=78,
+                    action="added",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(blast_from_the_past_playlist="blast"),
+    )
+    monkeypatch.setattr(
+        api.blast_from_past_artists,
+        "add_dormant_artists_to_blast_from_past",
+        complete,
+    )
+
+    response = client.post("/commands/blast-from-the-past-artists")
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+    deadline = monotonic() + 2
+    result = None
+    while monotonic() < deadline:
+        polled = client.get(f"/commands/blast-from-the-past-artists-jobs/{job_id}")
+        assert polled.status_code == 200
+        if polled.json()["status"] == "completed":
+            result = polled.json()
+            break
+        sleep(0.01)
+
+    assert result is not None
+    assert received == {"playlist_id": "blast", "count": 5, "dry_run": True}
+    assert result["dry_run"] is True
+    assert result["playlist_length_after"] == 10
+    assert result["detail"].startswith("Would add 1")
+    assert result["added"] == 1
+    assert result["candidate_count"] == 25
+    assert result["dormant_artist_years"] == [2022, 2023, 2024, 2025]
+    assert result["dormant_artist_current_year"] == 2026
+    assert result["dormant_artist_represented"] == 4
+    assert result["dormant_artist_results"][0]["track"] == "Liked Track"
+    assert any(
+        log["message"] == "Checking dormant artist Artist" for log in result["logs"]
+    )
 
 
 def test_daily_mind_radio_endpoint_runs_background_job(
@@ -1263,11 +1406,12 @@ def test_daily_mind_radio_endpoint_runs_background_job(
 
     def complete(_spotify, playlist_id, **kwargs):
         kwargs["progress_callback"]("Searching Spotify track 1/1")
+        assert kwargs["dry_run"] is True
         return api.daily_mind_radio.DailyMindRadioSpotifySummary(
             playlist_id=playlist_id,
             batch=batch,
             playlist_length_before=2,
-            playlist_length_after=3,
+            playlist_length_after=2,
             results=(
                 api.blast_from_past.SpotifySelectionResult(
                     selection=selection,
@@ -1298,9 +1442,11 @@ def test_daily_mind_radio_endpoint_runs_background_job(
         {"completed"},
     )
     assert result["command"] == "daily_mind_radio"
+    assert result["dry_run"] is True
     assert result["added"] == 1
     assert result["playlist_length_before"] == 2
-    assert result["playlist_length_after"] == 3
+    assert result["playlist_length_after"] == 2
+    assert result["detail"].startswith("Would add 1")
     assert result["target_dates"] == ["2025-07-22", "2020-07-22"]
     assert result["missing_dates"] == ["2020-07-22"]
     assert result["random_org_timestamp"] == "2026-07-22T13:00:52+00:00"
@@ -1652,6 +1798,11 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
         saved=True,
         plain=True,
     )
+    composer_playlist = api.composer_playlists.OwnedPlaylist(
+        spotify_id="bach-works",
+        name="Complete Bach works",
+        total_tracks=100,
+    )
     received: dict[str, object] = {}
 
     def flush(
@@ -1673,7 +1824,10 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
             dry_run=kwargs["dry_run"],
         )
         kwargs["progress_callback"](0, 1, "Reviewing Artist")
-        choice = kwargs["choice_reader"]("Artist", (release,))
+        choice = kwargs["choice_reader"](
+            "Artist",
+            (composer_playlist, release),
+        )
         received["choice"] = choice
         kwargs["echo"](f"Selected {choice}")
         return api.new_kids.FlushSummary(
@@ -1730,6 +1884,16 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
     assert waiting["new_kids_pending_choice"]["artist"] == "Artist"
     assert waiting["new_kids_pending_choice"]["releases"] == [
         {
+            "spotify_id": "bach-works",
+            "name": "Complete Bach works",
+            "release_type": "Composer works playlist",
+            "release_date": "Stored Spotify order",
+            "total_tracks": 100,
+            "popularity": None,
+            "top_track_rank": None,
+            "saved": False,
+        },
+        {
             "spotify_id": "release",
             "name": "Ranked Album",
             "release_type": "Album",
@@ -1738,7 +1902,7 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
             "popularity": 73,
             "top_track_rank": 2,
             "saved": True,
-        }
+        },
     ]
     assert [
         job["job_id"] for job in client.get("/commands/flush-new-kids-jobs").json()

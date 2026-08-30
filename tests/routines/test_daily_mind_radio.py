@@ -268,6 +268,40 @@ def test_spotify_routine_reuses_liked_match_preference(
     assert "Adding 1 tracks to Spotify" in progress
 
 
+def test_spotify_routine_dry_run_does_not_update_playlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scrobble = blast_from_past.Scrobble("Track", "Artist", "Album", 1)
+    selection = blast_from_past.ScrobbleSelection(
+        date(2025, 7, 22), 0, 1, 1, 1, "top down", 1, scrobble
+    )
+    batch = daily_mind_radio.DailyMindRadioBatch(
+        generated_at=datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC),
+        target_dates=(selection.selected_date,),
+        missing_dates=(),
+        selections=(selection,),
+    )
+    sp = FakeSpotify()
+    sp.search_results[blast_from_past.spotify_search_query(scrobble)] = [
+        spotify_track("match", "Track", "Artist", "Album")
+    ]
+    monkeypatch.setattr(
+        daily_mind_radio,
+        "select_daily_mind_radio",
+        lambda **_kwargs: batch,
+    )
+
+    summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
+        sp,  # type: ignore[arg-type]
+        "daily",
+        dry_run=True,
+    )
+
+    assert summary.added == 1
+    assert summary.playlist_length_after == summary.playlist_length_before
+    assert sp.posts == []
+
+
 def test_spotify_routine_avoids_api_calls_when_all_dates_are_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

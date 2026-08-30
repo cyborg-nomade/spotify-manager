@@ -41,6 +41,7 @@ ALL_SINGLES_ARTIST_LIMIT = 20
 ARTIST_SEARCH_LIMIT = 10
 ARTIST_RELEASE_PAGE_LIMIT = 10
 RELEASE_TRACK_PAGE_LIMIT = 50
+ARTIST_PROGRESS_CHECKPOINT_INTERVAL = 25
 CHOICE_ADD = "add"
 CHOICE_PENDING = "pending"
 CHOICE_SKIP = "skip"
@@ -816,6 +817,19 @@ def _persist_state(state_access: RoutineState, state: dict[str, Any]) -> None:
     state_access.save(state)
 
 
+def _checkpoint_completed_artist(
+    state_access: RoutineState,
+    state: dict[str, Any],
+    completed_since_checkpoint: int,
+) -> int:
+    """Batch read-only artist progress to stay below remote commit limits."""
+    pending = completed_since_checkpoint + 1
+    if pending < ARTIST_PROGRESS_CHECKPOINT_INTERVAL:
+        return pending
+    _persist_state(state_access, state)
+    return 0
+
+
 def restore_state(
     state: dict[str, Any],
     path: Path = DEFAULT_STATE_PATH,
@@ -1263,6 +1277,7 @@ def run_release_check(
         retry_call,
     )
     results: list[ReleaseCheckResult] = []
+    completed_since_checkpoint = 0
 
     for artist in artists:
         if artist.key in completed:
@@ -1271,7 +1286,11 @@ def run_release_check(
             completed.add(artist.key)
             active["completed_artist_keys"] = sorted(completed)
             if not dry_run:
-                _persist_state(state_access, state)
+                completed_since_checkpoint = _checkpoint_completed_artist(
+                    state_access,
+                    state,
+                    completed_since_checkpoint,
+                )
             if progress_callback is not None:
                 progress_callback(
                     len(completed),
@@ -1332,6 +1351,7 @@ def run_release_check(
                         artist=artist.name,
                     )
                     _persist_state(state_access, state)
+                    completed_since_checkpoint = 0
                 continue
             if resolved in {None, CHOICE_SKIP}:
                 completed.add(artist.key)
@@ -1348,7 +1368,11 @@ def run_release_check(
                             else "interactive skip"
                         ),
                     )
-                    _persist_state(state_access, state)
+                    completed_since_checkpoint = _checkpoint_completed_artist(
+                        state_access,
+                        state,
+                        completed_since_checkpoint,
+                    )
                 continue
             assert isinstance(resolved, SpotifyArtistCandidate)
             spotify_artist = resolved
@@ -1360,6 +1384,7 @@ def run_release_check(
                 _persist_state(state_access, persisted_state)
             else:
                 _persist_state(state_access, state)
+                completed_since_checkpoint = 0
 
         if progress_callback is not None:
             progress_callback(
@@ -1667,7 +1692,11 @@ def run_release_check(
         completed.add(artist.key)
         active["completed_artist_keys"] = sorted(completed)
         if not dry_run:
-            _persist_state(state_access, state)
+            completed_since_checkpoint = _checkpoint_completed_artist(
+                state_access,
+                state,
+                completed_since_checkpoint,
+            )
         if progress_callback is not None:
             progress_callback(
                 len(completed),

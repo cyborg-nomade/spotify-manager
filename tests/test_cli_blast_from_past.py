@@ -82,6 +82,7 @@ def test_blast_from_the_past_command_defaults_to_ten_and_prints_selection(
     assert result.exit_code == 0
     assert calls[0]["count"] == 10
     assert calls[0]["max_playlist_length"] is None
+    assert calls[0]["dry_run"] is False
     output = result.output
     assert "2026-07-22 13:00:52 UTC" in output
     assert "2012-03-04" in output
@@ -105,6 +106,54 @@ def test_blast_from_the_past_options_are_mutually_exclusive() -> None:
 
     assert result.exit_code != 0
     assert "either --count or --max-playlist-length" in result.output
+
+
+def test_blast_from_the_past_artists_command_adds_five_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: dict[str, object] = {}
+    result_entry = main.blast_from_past_artists.DormantArtistResult(
+        artist="Dormant Artist",
+        scrobbles=12,
+        spotify_artist="Dormant Artist",
+        track="Popular Liked Track",
+        popularity=77,
+        action="added",
+    )
+
+    def add(*_args: object, **kwargs: object) -> object:
+        received.update(kwargs)
+        return main.blast_from_past_artists.DormantArtistSummary(
+            current_year=2026,
+            history_years=(2022, 2023, 2024, 2025),
+            candidate_count=20,
+            represented_count=3,
+            playlist_length_before=10,
+            playlist_length_after=11,
+            requested_count=5,
+            results=(result_entry,),
+        )
+
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(blast_from_the_past_playlist="blast"),
+    )
+    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main.blast_from_past_artists,
+        "add_dormant_artists_to_blast_from_past",
+        add,
+    )
+
+    result = CliRunner().invoke(main.app, ["blast-from-the-past-artists"])
+
+    assert result.exit_code == 0
+    assert received["count"] == 5
+    assert received["dry_run"] is False
+    assert "dormant artists" in result.output
+    assert "History years: 2022-2025" in result.output
+    assert "playlist 10 -> 11" in result.output
 
 
 def test_blast_from_the_past_maximum_does_not_apply_default_count(
@@ -139,3 +188,36 @@ def test_blast_from_the_past_maximum_does_not_apply_default_count(
     assert result.exit_code == 0
     assert received["count"] is None
     assert received["max_playlist_length"] == 10
+
+
+def test_blast_commands_forward_dry_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: dict[str, object] = {}
+
+    def add(*_args: object, **kwargs: object) -> object:
+        received.update(kwargs)
+        return main.blast_from_past.BlastFromPastSpotifySummary(
+            playlist_id="blast",
+            requested_count=0,
+            playlist_length_before=10,
+            playlist_length_after=10,
+            batch=None,
+            results=(),
+        )
+
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(blast_from_the_past_playlist="blast"),
+    )
+    monkeypatch.setattr(main, "client", lambda: object())
+    monkeypatch.setattr(main.blast_from_past, "add_blast_from_past_to_spotify", add)
+
+    result = CliRunner().invoke(
+        main.app,
+        ["blast-from-the-past", "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    assert received["dry_run"] is True
