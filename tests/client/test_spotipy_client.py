@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 import spotipy
 from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 from spotipy.exceptions import SpotifyException
 
 # UFI
@@ -34,6 +35,10 @@ def test_get_spotipy_client(monkeypatch: pytest.MonkeyPatch) -> None:
     assert client.retries == 5
     assert client.status_retries == 5
     assert 429 not in client.status_forcelist
+    assert all(
+        manager.requests_timeout == client_module.SPOTIFY_OAUTH_TIMEOUT_SECONDS
+        for manager in client._auth_managers
+    )
     retry = client._session.get_adapter("https://").max_retries
     assert retry.respect_retry_after_header is False
     assert retry.read is False
@@ -146,6 +151,7 @@ class FakeOAuth:
     def __init__(self, **kwargs) -> None:
         self.client_id = kwargs["client_id"]
         self.cache_handler = kwargs["cache_handler"]
+        self.requests_timeout = kwargs["requests_timeout"]
         self.refreshed: list[str] = []
         self.interactive_calls = 0
 
@@ -223,6 +229,54 @@ def test_rate_limit_rotates_app_refreshes_token_and_retries(
         f"refresh:{tmp_path / 'spotipy_token_cache_app5.json'}"
     ]
     assert any("Switching Spotify credentials to app5" in event for event in events)
+
+
+def test_rotation_skips_oauth_refresh_that_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(
+        client_module,
+        "settings",
+        rotating_settings(
+            app5_client_id="app5-id",
+            app5_client_secret="app5-secret",
+            app6_client_id="app6-id",
+            app6_client_secret="app6-secret",
+        ),
+    )
+    monkeypatch.setenv(
+        "SPOTIPY_CACHE_PATH",
+        str(tmp_path / "spotipy_token_cache.json"),
+    )
+    oauth_managers: list[FakeOAuth] = []
+
+    def oauth_factory(**kwargs):
+        manager = FakeOAuth(**kwargs)
+        oauth_managers.append(manager)
+        return manager
+
+    monkeypatch.setattr(client_module, "SpotifyOAuth", oauth_factory)
+    monkeypatch.setattr(client_module, "CacheFileHandler", FakeCacheHandler)
+
+    def api_call(spotify, *_args, **_kwargs):
+        if spotify.active_app_label == "primary":
+            raise SpotifyException(429, -1, "rate limited")
+        return {"ok": True}
+
+    monkeypatch.setattr(spotipy.Spotify, "_internal_call", api_call)
+    events: list[str] = []
+    spotify = client_module.get_spotipy_client(event_callback=events.append)
+
+    def timeout_refresh(_refresh_token: str) -> dict[str, str]:
+        raise RequestsTimeout("Spotify token endpoint timed out")
+
+    oauth_managers[1].refresh_access_token = timeout_refresh  # type: ignore[method-assign]
+
+    assert spotify._internal_call("GET", "endpoint", None, {}) == {"ok": True}
+    assert spotify.active_app_label == "app6"
+    assert oauth_managers[2].refreshed
+    assert any("app5 could not refresh" in event for event in events)
 
 
 def test_credentials_can_be_rotated_manually(

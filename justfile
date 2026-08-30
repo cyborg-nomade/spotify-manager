@@ -129,6 +129,10 @@ upload-library-files-to-hf *args:
 blast-from-the-past *args:
     {{ cli }} blast-from-the-past "$@"
 
+# Add popular liked tracks from artists absent in the current year.
+blast-from-the-past-artists *args:
+    {{ cli }} blast-from-the-past-artists "$@"
+
 # Rebuild Last.fm-style unheard recommendations for Found Art.
 found-art *args:
     {{ cli }} found-art "$@"

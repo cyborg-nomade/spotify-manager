@@ -16,6 +16,7 @@ def raw_release(
     name: str,
     *,
     artist_id: str = "artist",
+    artist_name: str = "Artist",
     album_type: str = "album",
     total_tracks: int = 2,
     release_date: str = "2020-01-01",
@@ -30,7 +31,7 @@ def raw_release(
         "total_tracks": total_tracks,
         "release_date": release_date,
         "popularity": popularity,
-        "artists": [{"id": artist_id, "name": "Artist"}],
+        "artists": [{"id": artist_id, "name": artist_name}],
     }
 
 
@@ -40,6 +41,7 @@ def raw_track(
     release: dict[str, object],
     *,
     artist_id: str = "artist",
+    artist_name: str = "Artist",
     track_number: int = 1,
     popularity: int = 40,
 ) -> dict[str, object]:
@@ -51,7 +53,7 @@ def raw_track(
         "disc_number": 1,
         "track_number": track_number,
         "popularity": popularity,
-        "artists": [{"id": artist_id, "name": "Artist"}],
+        "artists": [{"id": artist_id, "name": artist_name}],
         "album": release,
     }
 
@@ -67,6 +69,13 @@ class FakeSpotify:
             "unlucky": [],
             "newfoundland": [],
         }
+        self.playlist_names = {
+            "new": "New Kids on the Block",
+            "queue": "The Queue 2",
+            "great": "Great Discoveries 2026",
+            "unlucky": "Unlucky Ones",
+            "newfoundland": "Newfoundland",
+        }
         self.artist_releases: dict[str, list[dict[str, object]]] = {}
         self.release_tracks: dict[str, list[dict[str, object]]] = {}
         self.liked_ids: set[str] = set()
@@ -74,6 +83,23 @@ class FakeSpotify:
         self.followed_artist_ids: set[str] = {"artist"}
         self.mutations: list[tuple[str, str, str]] = []
         self.fail_playlist_delete_once: str | None = None
+
+    def current_user_playlists(self, *, limit: int, offset: int):
+        summaries = [
+            {
+                "id": playlist_id,
+                "name": self.playlist_names.get(playlist_id, playlist_id),
+                "owner": {"id": "listener"},
+                "tracks": {"total": len(tracks)},
+            }
+            for playlist_id, tracks in self.playlists.items()
+        ]
+        page = summaries[offset : offset + limit]
+        return {
+            "items": page,
+            "total": len(summaries),
+            "next": "next" if offset + len(page) < len(summaries) else None,
+        }
 
     def _all_tracks(self) -> list[dict[str, object]]:
         return [
@@ -278,6 +304,56 @@ def seed_artist(
         spotify.release_tracks[release_id] = tracks
     spotify.artist_releases[artist_id] = releases
     return seeded_tracks
+
+
+def seed_composer(
+    spotify: FakeSpotify,
+    *,
+    works_count: int = 41,
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    """Seed one composer marker and performer-credited ordered works list."""
+    composer_id = "bach"
+    composer_name = "Johann Sebastian Bach"
+    marker_release = raw_release(
+        "bach-catalog",
+        "Bach Catalog",
+        artist_id=composer_id,
+        artist_name=composer_name,
+        total_tracks=1,
+    )
+    marker = raw_track(
+        "bach-marker",
+        "Catalog Marker",
+        marker_release,
+        artist_id=composer_id,
+        artist_name=composer_name,
+    )
+    spotify.artist_releases[composer_id] = [marker_release]
+    spotify.release_tracks["bach-catalog"] = [marker]
+
+    performer_release = raw_release(
+        "bach-recordings",
+        "Bach Recordings",
+        artist_id="performer",
+        artist_name="The Performer",
+        total_tracks=works_count,
+    )
+    works = [
+        raw_track(
+            f"bach-work-{index}",
+            f"BWV {index}",
+            performer_release,
+            artist_id="performer",
+            artist_name="The Performer",
+            track_number=index,
+        )
+        for index in range(1, works_count + 1)
+    ]
+    spotify.artist_releases["performer"] = [performer_release]
+    spotify.release_tracks["bach-recordings"] = works
+    spotify.playlists["bach-works"] = works
+    spotify.playlist_names["bach-works"] = "Complete Bach works"
+    return marker, works
 
 
 def flush(
@@ -586,6 +662,121 @@ def test_flush_adds_next_track_before_removing_current(tmp_path: Path) -> None:
     ]
     state = json.loads((tmp_path / "state.json").read_text())
     assert state["artists"]["artist"]["prior_unliked_streak"] == 1
+
+
+def test_new_kids_follows_owned_composer_playlist_and_keeps_logical_artist(
+    tmp_path: Path,
+) -> None:
+    """Performer credits must not replace the routed composer on later runs."""
+    spotify = FakeSpotify()
+    marker, works = seed_composer(spotify)
+    spotify.playlists["new"] = [marker]
+
+    first = flush(spotify, tmp_path)
+
+    assert first.results[0].artist == "Johann Sebastian Bach"
+    assert first.results[0].composer_playlist == "Complete Bach works"
+    assert first.results[0].target_track == "BWV 1"
+    assert [track["id"] for track in spotify.playlists["new"]] == ["bach-work-1"]
+
+    second = flush(spotify, tmp_path)
+
+    assert second.results[0].artist == "Johann Sebastian Bach"
+    assert second.results[0].source_track == "BWV 1"
+    assert second.results[0].target_track == "BWV 2"
+    assert second.results[0].composer_position == 1
+    assert [track["id"] for track in spotify.playlists["new"]] == ["bach-work-2"]
+    state = json.loads((tmp_path / "state.json").read_text())
+    assert state["composer_routes"]["bach"]["current_track_id"] == "bach-work-2"
+
+
+def test_composer_finishes_at_fortieth_work_and_runs_normal_assessment(
+    tmp_path: Path,
+) -> None:
+    """The 40th ordered playlist item replaces the four-release boundary."""
+    spotify = FakeSpotify()
+    _marker, works = seed_composer(spotify)
+    spotify.playlists["new"] = [works[39]]
+    spotify.followed_artist_ids.add("bach")
+    new_kids.save_state(
+        {
+            **new_kids._default_state(),
+            "composer_routes": {
+                "bach": {
+                    "artist_name": "Johann Sebastian Bach",
+                    "playlist_id": "bach-works",
+                    "playlist_name": "Complete Bach works",
+                    "current_track_id": "bach-work-40",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                }
+            },
+        },
+        tmp_path / "state.json",
+    )
+
+    summary = flush(spotify, tmp_path)
+
+    result = summary.results[0]
+    assert result.action == "unfollowed"
+    assert result.composer_position == 40
+    assert result.composer_limit == 40
+    assert result.target_track is None
+    assert spotify.playlists["new"] == []
+    assert ("unfollow", "library", "bach") in spotify.mutations
+    state = json.loads((tmp_path / "state.json").read_text())
+    assert "bach" not in state["composer_routes"]
+
+
+def test_queue_2_uses_the_same_composer_playlist_progression(tmp_path: Path) -> None:
+    """Queue 2 should use the works route even before transfer to New Kids."""
+    spotify = FakeSpotify()
+    marker, _works = seed_composer(spotify)
+    spotify.playlists["queue"] = [marker]
+    for index in range(new_kids.PLAYLIST_CAP):
+        tracks = seed_artist(spotify, f"occupied-{index}")
+        spotify.playlists["new"].append(tracks[0][0])
+
+    summary = new_kids.flush_queue_2(
+        spotify,  # type: ignore[arg-type]
+        "new",
+        "queue",
+        "great",
+        "unlucky",
+        "newfoundland",
+        lambda *_args: pytest.fail("composer playlist choice was unexpected"),
+        year=2026,
+        **isolated_paths(tmp_path),
+    )
+
+    assert summary.results[0].artist == "Johann Sebastian Bach"
+    assert summary.results[0].target_track == "BWV 1"
+    assert summary.results[0].composer_playlist == "Complete Bach works"
+    assert [track["id"] for track in spotify.playlists["queue"]] == ["bach-work-1"]
+
+
+def test_ambiguous_composer_playlists_are_prompted_and_persisted(
+    tmp_path: Path,
+) -> None:
+    spotify = FakeSpotify()
+    marker, works = seed_composer(spotify)
+    spotify.playlists["new"] = [marker]
+    spotify.playlists["bach-alternate"] = [works[10]]
+    spotify.playlist_names["bach-alternate"] = "Johann Sebastian Bach selections"
+    offered: list[tuple[str, ...]] = []
+
+    def choose(
+        _artist: str,
+        candidates: tuple[new_kids.ChoiceCandidate, ...],
+    ) -> str:
+        offered.append(tuple(candidate.spotify_id for candidate in candidates))
+        return "bach-alternate"
+
+    summary = flush(spotify, tmp_path, choose)
+
+    assert offered == [("bach-works", "bach-alternate")]
+    assert summary.results[0].target_track == "BWV 11"
+    state = json.loads((tmp_path / "state.json").read_text())
+    assert state["composer_routes"]["bach"]["playlist_id"] == "bach-alternate"
 
 
 def test_three_unliked_tracks_jump_to_the_next_liked_track(tmp_path: Path) -> None:

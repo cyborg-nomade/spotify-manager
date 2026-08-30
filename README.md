@@ -411,6 +411,9 @@ just blast-from-the-past --count 3
 
 uv run spotify-manager blast-from-the-past --max-playlist-length 50
 just blast-from-the-past --max-playlist-length 50
+
+uv run spotify-manager blast-from-the-past --dry-run
+just blast-from-the-past --dry-run
 ```
 
 The default is `--count 10`. Use either `--count` or
@@ -425,14 +428,50 @@ reachable; the command does not fall back to local pseudorandom selection.
 The loader uses the adjacent compressed parts when the large JSON export is not
 materialized correctly by a deployment platform's large-file storage.
 
-The web UI exposes the same count and playlist-cap modes at the top of the page.
-It runs the routine as a background job, streams its logs and match results, and
-reconnects to an active run after a page reload:
+The web UI exposes the same count and playlist-cap modes at the top of the page,
+plus a checked-by-default dry-run switch. It runs the routine as a background
+job, streams its logs and match results, and reconnects to an active run after a
+page reload. The API's `dry_run` query parameter also defaults to `true`:
 
 ```text
 POST /commands/blast-from-the-past
 GET  /commands/blast-from-the-past-jobs
 GET  /commands/blast-from-the-past-jobs/{job_id}
+```
+
+### `blast-from-the-past-artists`
+
+Recovers artists heard during the previous four calendar years but not during
+the current one. The routine sorts those Last.fm artists alphabetically,
+ignores artists already represented in *A Blast from the Past*, and appends the
+most popular live-liked Spotify track for each artist. It checks Spotify Top
+Tracks first and falls back to the primary-artist catalog when necessary.
+
+The default is five artists. Candidates without one unambiguous Spotify artist
+match or without a liked primary-credit track are skipped, and the routine
+continues down the alphabetical list until five tracks have been found or the
+candidate list is exhausted.
+
+```console
+uv run spotify-manager blast-from-the-past-artists
+just blast-from-the-past-artists
+
+uv run spotify-manager blast-from-the-past-artists --count 3
+just blast-from-the-past-artists --count 3
+
+uv run spotify-manager blast-from-the-past-artists --dry-run
+just blast-from-the-past-artists --dry-run
+```
+
+The separate **Artists** row in the Blast from the Past web card starts the same
+cancellable background routine and has its own checked-by-default dry-run
+switch. The API's `dry_run` query parameter defaults to `true`:
+
+```text
+POST /commands/blast-from-the-past-artists
+GET  /commands/blast-from-the-past-artists-jobs
+GET  /commands/blast-from-the-past-artists-jobs/{job_id}
+POST /commands/blast-from-the-past-artists-jobs/{job_id}/cancel
 ```
 
 ### `found-art`
@@ -1286,15 +1325,19 @@ handling as `blast-from-the-past`, and are added to the playlist configured by
 ```console
 uv run spotify-manager daily-mind-radio
 just daily-mind-radio
+
+uv run spotify-manager daily-mind-radio --dry-run
+just daily-mind-radio --dry-run
 ```
 
 On February 29, years without that date are skipped rather than substituted
 with February 28. Random.org is not contacted when none of the anniversary
 dates contains a scrobble.
 
-The web UI provides the same routine directly below Blast from the Past. It
-runs in the background, shows the anniversary dates, skips, match results, and
-logs, and reconnects after a page reload:
+The web UI provides the same routine directly below Blast from the Past, with a
+checked-by-default dry-run switch. It runs in the background, shows the
+anniversary dates, skips, match results, and logs, and reconnects after a page
+reload. The API's `dry_run` query parameter defaults to `true`:
 
 ```text
 POST /commands/daily-mind-radio

@@ -81,6 +81,21 @@ def test_hub_store_translates_parent_conflict() -> None:
         )
 
 
+def test_hub_store_explains_commit_rate_limits() -> None:
+    response = Response()
+    response.status_code = 429
+    api = FakeApi()
+    api.error = HfHubHTTPError("rate limited", response=response)
+    store = HubStateStore("owner/state", api=api)  # type: ignore[arg-type]
+
+    with pytest.raises(StateConfigurationError, match="try again in about one hour"):
+        store.write(
+            new_document(),
+            expected_revision="current-revision",
+            message="checkpoint",
+        )
+
+
 def test_hub_store_rejects_repository_without_revision() -> None:
     api = FakeApi()
     api.revision = None

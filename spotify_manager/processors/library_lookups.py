@@ -34,7 +34,7 @@ SPOTIFY_ID_PATTERN = re.compile(r"^[A-Za-z0-9]{22}$")
 
 def parse_spotify_lookup_reference(
     reference: str,
-    resource: Literal["artist", "album"],
+    resource: Literal["artist", "album", "track"],
 ) -> tuple[str | None, str | None]:
     """Parse a Spotify name, id, URI, or share URL into lookup arguments."""
     value = reference.strip()

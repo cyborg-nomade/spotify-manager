@@ -57,6 +57,8 @@ from spotify_manager.processors.library_lookups import get_live_artist_library_s
 from spotify_manager.processors.total_albums_processor import update_total_album_list
 from spotify_manager.routines import analyse_library as library_sync
 from spotify_manager.routines import blast_from_past
+from spotify_manager.routines import blast_from_past_artists
+from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
@@ -385,10 +387,10 @@ def ask_new_wine_endpoint_choice(
 def ask_new_kids_release_choice(
     console: Console,
     artist_name: str,
-    candidates: tuple[new_kids.RankedRelease, ...],
+    candidates: tuple[new_kids.ChoiceCandidate, ...],
     progress: Progress | None = None,
 ) -> str:
-    """Prompt for the next ranked New Kids release."""
+    """Prompt for the next release or matching composer works playlist."""
     if progress is not None:
         progress.stop()
     try:
@@ -402,23 +404,35 @@ def ask_new_kids_release_choice(
         table.add_column("Top track", justify="right")
         table.add_column("Saved")
         for index, candidate in enumerate(candidates, start=1):
-            table.add_row(
-                str(index),
-                candidate.name,
-                candidate.release_type,
-                candidate.release_date,
-                str(candidate.total_tracks),
-                (
+            if isinstance(candidate, composer_playlists.OwnedPlaylist):
+                release_type = "Composer works playlist"
+                release_date = "Stored order"
+                popularity = "-"
+                top_track = "-"
+                saved = "-"
+            else:
+                release_type = candidate.release_type
+                release_date = candidate.release_date
+                popularity = (
                     str(candidate.popularity)
                     if candidate.popularity is not None
                     else "-"
-                ),
-                (
+                )
+                top_track = (
                     f"#{candidate.top_track_rank}"
                     if candidate.top_track_rank is not None
                     else "-"
-                ),
-                "yes" if candidate.saved else "-",
+                )
+                saved = "yes" if candidate.saved else "-"
+            table.add_row(
+                str(index),
+                candidate.name,
+                release_type,
+                release_date,
+                str(candidate.total_tracks),
+                popularity,
+                top_track,
+                saved,
             )
         console.print(table)
         choices = [str(index) for index in range(1, len(candidates) + 1)]
@@ -4210,6 +4224,11 @@ def blast_from_the_past_command(
         min=1,
         help="Fill up to this playlist length instead of using --count.",
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Resolve selections without changing the Spotify playlist.",
+    ),
 ) -> None:
     """Select past scrobbles and add their Spotify matches to the playlist."""
     console = Console()
@@ -4229,6 +4248,8 @@ def blast_from_the_past_command(
 
     effective_count = 10 if count is None and max_playlist_length is None else count
     status_text = "Preparing Last.fm scrobbles"
+    if dry_run:
+        status_text += " (dry run)"
     try:
         with console.status(status_text) as status:
             summary = blast_from_past.add_blast_from_past_to_spotify(
@@ -4237,6 +4258,7 @@ def blast_from_the_past_command(
                 count=effective_count,
                 max_playlist_length=max_playlist_length,
                 progress_callback=status.update,
+                dry_run=dry_run,
             )
     except blast_from_past.BlastFromPastError as exc:
         console.print(str(exc), style="bold red", markup=False)
@@ -4270,16 +4292,123 @@ def blast_from_the_past_command(
     )
 
     print_scrobble_selection_table(console, "A blast from the past", summary.results)
+    verb = "would add" if dry_run else "added"
     console.print(
         f"Playlist: {summary.playlist_length_before} -> "
-        f"{summary.playlist_length_after} items; added {summary.added} of "
+        f"{summary.playlist_length_after} items; {verb} {summary.added} of "
         f"{summary.requested_count} selections.",
-        style="bold",
+        style="bold cyan" if dry_run else "bold",
+    )
+
+
+@app.command(name="blast-from-the-past-artists")
+def blast_from_the_past_artists_command(
+    count: int = typer.Option(
+        blast_from_past_artists.DEFAULT_COUNT,
+        "--count",
+        min=1,
+        help="Number of alphabetically eligible artists to add (default: 5).",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Resolve artists and tracks without changing the playlist.",
+    ),
+) -> None:
+    """Add liked tracks from artists heard recently, but not this year."""
+    console = Console()
+    try:
+        playlist_id = blast_from_past.parse_playlist_id(
+            Settings().blast_from_the_past_playlist
+        )
+    except blast_from_past.BlastFromPastConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(message: str) -> None:
+        console.print(message, style="yellow", markup=False)
+
+    def retry_call(operation: Callable[[], object], description: str) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with console.status("Reading dormant artists") as status:
+            summary = blast_from_past_artists.add_dormant_artists_to_blast_from_past(
+                review_client(),
+                playlist_id,
+                count=count,
+                echo=echo,
+                progress_callback=lambda _done, _total, message: status.update(message),
+                retry_call=retry_call,
+                dry_run=dry_run,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except (blast_from_past.BlastFromPastError, new_kids.NewKidsError) as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    table = Table(title="A blast from the past · dormant artists")
+    table.add_column("Last.fm artist", style="bold")
+    table.add_column("Scrobbles", justify="right")
+    table.add_column("Spotify artist")
+    table.add_column("Liked track")
+    table.add_column("Popularity", justify="right")
+    table.add_column("Action")
+    for result in summary.results:
+        table.add_row(
+            result.artist,
+            str(result.scrobbles),
+            result.spotify_artist or "-",
+            result.track or "-",
+            str(result.popularity) if result.popularity is not None else "-",
+            "would add" if dry_run and result.action == "added" else result.action,
+        )
+    console.print(table)
+    verb = "would add" if dry_run else "added"
+    console.print(
+        f"History years: {summary.history_years[0]}-{summary.history_years[-1]}; "
+        f"excluded {summary.current_year}. Candidates: {summary.candidate_count}; "
+        f"playlist {summary.playlist_length_before} -> "
+        f"{summary.playlist_length_after}; {verb} {summary.added} of "
+        f"{summary.requested_count}.",
+        style="bold cyan" if dry_run else "bold",
     )
 
 
 @app.command(name="daily-mind-radio")
-def daily_mind_radio_command() -> None:
+def daily_mind_radio_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Resolve anniversary tracks without changing the Spotify playlist.",
+    ),
+) -> None:
     """Add tracks from today's Last.fm anniversaries to Daily Mind Radio."""
     console = Console()
     configuration = Settings()
@@ -4298,6 +4427,7 @@ def daily_mind_radio_command() -> None:
                 client(),
                 playlist_id,
                 progress_callback=status.update,
+                dry_run=dry_run,
             )
     except blast_from_past.BlastFromPastError as exc:
         console.print(str(exc), style="bold red", markup=False)
@@ -4335,11 +4465,12 @@ def daily_mind_radio_command() -> None:
         style="bold cyan",
     )
     print_scrobble_selection_table(console, "Daily mind radio", summary.results)
+    verb = "would add" if dry_run else "added"
     console.print(
         f"Playlist: {summary.playlist_length_before} -> "
-        f"{summary.playlist_length_after} items; added {summary.added} of "
+        f"{summary.playlist_length_after} items; {verb} {summary.added} of "
         f"{len(summary.batch.selections)} populated anniversary dates.",
-        style="bold",
+        style="bold cyan" if dry_run else "bold",
     )
 
 

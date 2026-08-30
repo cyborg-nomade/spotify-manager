@@ -49,11 +49,30 @@ RUNNERS = (
             spotify,
             "playlist",
             1,
-            None,  # type: ignore[arg-type]
+            None,
+            False,  # type: ignore[arg-type]
         ),
         api.blast_from_past,
         "add_blast_from_past_to_spotify",
         lambda: api.blast_from_past.BlastFromPastError("blast failed"),
+        api.blast_from_past.BlastFromPastCancelledError,
+        True,
+    ),
+    RunnerSpec(
+        "blast-artists",
+        "blast_from_the_past_artists",
+        lambda job_id, spotify: api._run_blast_artist_job(
+            job_id,
+            spotify,  # type: ignore[arg-type]
+            "playlist",
+            5,
+            False,
+        ),
+        api.blast_from_past_artists,
+        "add_dormant_artists_to_blast_from_past",
+        lambda: api.blast_from_past_artists.BlastFromPastArtistsError(
+            "dormant artists failed"
+        ),
         api.blast_from_past.BlastFromPastCancelledError,
         True,
     ),
@@ -63,7 +82,8 @@ RUNNERS = (
         lambda job_id, spotify: api._run_daily_mind_radio_job(
             job_id,
             spotify,
-            "playlist",  # type: ignore[arg-type]
+            "playlist",
+            False,  # type: ignore[arg-type]
         ),
         api.daily_mind_radio,
         "add_daily_mind_radio_to_spotify",
@@ -313,6 +333,17 @@ def _success_result(spec: RunnerSpec) -> object:
             playlist_length_after=0,
             added=0,
             batch=None,
+            results=(),
+        )
+    if spec.name == "blast-artists":
+        return api.blast_from_past_artists.DormantArtistSummary(
+            current_year=2026,
+            history_years=(2022, 2023, 2024, 2025),
+            candidate_count=0,
+            represented_count=0,
+            playlist_length_before=0,
+            playlist_length_after=0,
+            requested_count=5,
             results=(),
         )
     if spec.name == "daily":
@@ -635,7 +666,13 @@ def test_interactive_job_runners_pause_for_retryable_spotify_failures(
     tuple(
         spec
         for spec in RUNNERS
-        if spec.name in {"sauvignon", "queue-fill", "queue-flush"}
+        if spec.name
+        in {
+            "blast-artists",
+            "sauvignon",
+            "queue-fill",
+            "queue-flush",
+        }
     ),
     ids=lambda spec: spec.name,
 )

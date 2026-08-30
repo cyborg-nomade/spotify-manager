@@ -167,6 +167,46 @@ def patch_history_and_ranking(
     )
 
 
+def test_artist_progress_is_batched_into_bounded_state_checkpoints(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artists = tuple(
+        release_check.RankedArtist(
+            f"artist-{index}",
+            f"Artist {index}",
+            500 - index,
+            index + 1,
+        )
+        for index in range(60)
+    )
+    patch_history_and_ranking(monkeypatch, artists)
+    state_path = tmp_path / "state.json"
+    save_calls = 0
+    original_save = release_check.save_state
+
+    def counting_save(state: dict[str, object], path: Path) -> None:
+        nonlocal save_calls
+        save_calls += 1
+        original_save(state, path)
+
+    monkeypatch.setattr(release_check, "save_state", counting_save)
+
+    summary = release_check.run_release_check(
+        FakeSpotify(),
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 8, 28, tzinfo=UTC),
+    )
+
+    assert summary.artists_processed == 60
+    assert save_calls == 4
+    assert json.loads(state_path.read_text(encoding="utf-8"))["active_run"] is None
+
+
 def test_rank_lastfm_artists_normalizes_names_and_preserves_global_rank() -> None:
     history = tuple(
         blast_from_past.Scrobble("Track", "Most", "", index) for index in range(101)
