@@ -497,25 +497,22 @@ def _resolve_composer_playlist(
     routes = state.get("composer_routes")
     if not isinstance(routes, dict):
         raise NewKidsStateError("New Kids composer-route state is invalid.")
-    existing = routes.get(artist_id)
-    if isinstance(existing, dict):
-        existing_id = str(existing.get("playlist_id") or "")
-        selected = next(
-            (
-                playlist
-                for playlist in owned_playlists
-                if playlist.spotify_id == existing_id
-            ),
-            None,
-        )
-        if selected is not None:
-            return selected, None
-
     candidates = composer_playlists.composer_playlist_candidates(
         artist_name,
         owned_playlists,
         excluded_playlist_ids=excluded_playlist_ids,
     )
+    existing = routes.get(artist_id)
+    if isinstance(existing, dict):
+        existing_id = str(existing.get("playlist_id") or "")
+        selected = next(
+            (playlist for playlist in candidates if playlist.spotify_id == existing_id),
+            None,
+        )
+        if selected is not None:
+            return selected, None
+        routes.pop(artist_id, None)
+
     if not candidates:
         return None, None
     if len(candidates) == 1:
@@ -1776,6 +1773,23 @@ def _flush_review_playlist(
 
         raw_plan = raw_entry.get("plan")
         plan = raw_plan if isinstance(raw_plan, dict) else None
+        excluded_playlist_ids = frozenset({new_kids_playlist_id, queue_2_playlist_id})
+        if plan is not None and plan.get("composer_playlist_id"):
+            composer_playlist_id = str(plan["composer_playlist_id"])
+            if not composer_playlists.is_composer_playlist_candidate(
+                artist_name,
+                composer_playlist_id,
+                owned_playlists,
+                excluded_playlist_ids=excluded_playlist_ids,
+            ):
+                plan = None
+                raw_entry["plan"] = None
+                routes = state.get("composer_routes")
+                if isinstance(routes, dict):
+                    routes.pop(artist_id, None)
+                echo(f"Discarded a stale composer-playlist plan for {artist_name}.")
+                if not dry_run:
+                    state_access.save(state)
         if plan is None:
             composer_playlist, composer_choice = _resolve_composer_playlist(
                 state,
@@ -1783,7 +1797,7 @@ def _flush_review_playlist(
                 artist_name,
                 source.spotify_id,
                 owned_playlists,
-                frozenset({new_kids_playlist_id, queue_2_playlist_id}),
+                excluded_playlist_ids,
                 choice_reader,
             )
             if composer_choice == CHOICE_QUIT:

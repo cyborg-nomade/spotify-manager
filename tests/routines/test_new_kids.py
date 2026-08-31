@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 
 from spotify_manager.client.lastfm import LastFmRecentTrack
+from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_kids
+from spotify_manager.routines import new_wine
 
 
 def raw_release(
@@ -354,6 +356,61 @@ def seed_composer(
     spotify.playlists["bach-works"] = works
     spotify.playlist_names["bach-works"] = "Complete Bach works"
     return marker, works
+
+
+def seed_string_band_with_unrelated_band_playlist(
+    spotify: FakeSpotify,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Seed the concrete generic-surname collision reported in production."""
+    ghost_town = raw_release(
+        "ghost-town",
+        "Ghost Town",
+        artist_id="string-band",
+        artist_name="The .357 String Band",
+    )
+    string_band_tracks = [
+        raw_track(
+            "stillest-hour",
+            "Stillest Hour",
+            ghost_town,
+            artist_id="string-band",
+            artist_name="The .357 String Band",
+            track_number=1,
+        ),
+        raw_track(
+            "next-string-band-track",
+            "Next String Band Track",
+            ghost_town,
+            artist_id="string-band",
+            artist_name="The .357 String Band",
+            track_number=2,
+        ),
+    ]
+    dave_album = raw_release(
+        "big-whiskey",
+        "Big Whiskey and the GrooGrux King (Deluxe Edition)",
+        artist_id="dave-matthews-band",
+        artist_name="Dave Matthews Band",
+    )
+    dave_tracks = [
+        raw_track(
+            "shake-me-like-a-monkey",
+            "Shake Me Like a Monkey",
+            dave_album,
+            artist_id="dave-matthews-band",
+            artist_name="Dave Matthews Band",
+        )
+    ]
+    spotify.artist_releases["string-band"] = [ghost_town]
+    spotify.artist_releases["dave-matthews-band"] = [dave_album]
+    spotify.release_tracks["ghost-town"] = string_band_tracks
+    spotify.release_tracks["big-whiskey"] = dave_tracks
+    spotify.playlists["new"] = [string_band_tracks[0]]
+    spotify.playlists["dave-setlist"] = dave_tracks
+    spotify.playlist_names["dave-setlist"] = (
+        "2010.10.10_4 - Dave Matthews Band Setlist - Fazenda Maeda, Itu, Brazil"
+    )
+    return string_band_tracks, dave_tracks
 
 
 def flush(
@@ -777,6 +834,85 @@ def test_ambiguous_composer_playlists_are_prompted_and_persisted(
     assert summary.results[0].target_track == "BWV 11"
     state = json.loads((tmp_path / "state.json").read_text())
     assert state["composer_routes"]["bach"]["playlist_id"] == "bach-alternate"
+
+
+def test_generic_band_name_does_not_enter_an_unrelated_composer_playlist(
+    tmp_path: Path,
+) -> None:
+    """A generic final token must not hijack normal release progression."""
+    spotify = FakeSpotify()
+    string_band_tracks, _dave_tracks = seed_string_band_with_unrelated_band_playlist(
+        spotify
+    )
+
+    summary = flush(spotify, tmp_path)
+
+    result = summary.results[0]
+    assert result.artist == "The .357 String Band"
+    assert result.composer_playlist is None
+    assert result.target_track == "Next String Band Track"
+    assert [track["id"] for track in spotify.playlists["new"]] == [
+        string_band_tracks[1]["id"]
+    ]
+
+
+def test_resumed_invalid_composer_plan_is_discarded(tmp_path: Path) -> None:
+    """A plan saved by the old broad matcher must not survive the fix."""
+    spotify = FakeSpotify()
+    string_band_tracks, _dave_tracks = seed_string_band_with_unrelated_band_playlist(
+        spotify
+    )
+
+    def retry(operation, _description):
+        return operation()
+
+    source = new_wine.load_playlist_tracks(spotify, "new", retry)[0]  # type: ignore[arg-type]
+    dave_sources = new_wine.load_playlist_tracks(  # type: ignore[arg-type]
+        spotify,
+        "dave-setlist",
+        retry,
+    )
+    state = new_kids._default_state()
+    routes = state["composer_routes"]
+    assert isinstance(routes, dict)
+    routes["string-band"] = {
+        "artist_name": "The .357 String Band",
+        "playlist_id": "dave-setlist",
+        "playlist_name": spotify.playlist_names["dave-setlist"],
+        "current_track_id": source.spotify_id,
+        "updated_at": "2026-08-30T00:00:00+00:00",
+    }
+    run = new_kids._new_run("new", [source], state)
+    entries = run["entries"]
+    assert isinstance(entries, list)
+    entry = entries[0]
+    assert isinstance(entry, dict)
+    entry["plan"] = new_kids._composer_plan(
+        source,
+        "string-band",
+        "The .357 String Band",
+        composer_playlists.OwnedPlaylist(
+            "dave-setlist",
+            spotify.playlist_names["dave-setlist"],
+            len(dave_sources),
+        ),
+        dave_sources,
+        current_liked=True,
+        assessment=None,
+    )
+    state["active_run"] = run
+    new_kids.save_state(state, tmp_path / "state.json")
+
+    summary = flush(spotify, tmp_path)
+
+    result = summary.results[0]
+    assert result.composer_playlist is None
+    assert result.target_track == "Next String Band Track"
+    assert [track["id"] for track in spotify.playlists["new"]] == [
+        string_band_tracks[1]["id"]
+    ]
+    persisted = json.loads((tmp_path / "state.json").read_text())
+    assert "string-band" not in persisted["composer_routes"]
 
 
 def test_three_unliked_tracks_jump_to_the_next_liked_track(tmp_path: Path) -> None:

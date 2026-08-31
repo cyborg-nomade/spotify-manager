@@ -10,6 +10,27 @@ from unidecode import unidecode
 
 
 PLAYLIST_PAGE_LIMIT = 50
+GENERIC_ARTIST_TERMS = frozenset(
+    {
+        "band",
+        "choir",
+        "chorus",
+        "collective",
+        "company",
+        "ensemble",
+        "experience",
+        "group",
+        "orchestra",
+        "philharmonic",
+        "players",
+        "project",
+        "quartet",
+        "singers",
+        "symphony",
+        "trio",
+    }
+)
+NAME_SUFFIXES = frozenset({"ii", "iii", "iv", "jr", "sr"})
 RetryCall = Callable[[Callable[[], object], str], object]
 
 
@@ -116,6 +137,25 @@ def _contains_tokens(haystack: tuple[str, ...], needle: tuple[str, ...]) -> bool
     )
 
 
+def _surname_token(artist_tokens: tuple[str, ...]) -> str | None:
+    """Return a safe personal-name surname for abbreviated playlist matching."""
+    if len(artist_tokens) < 2:
+        return None
+    if (
+        artist_tokens[0] == "the"
+        or any(token in GENERIC_ARTIST_TERMS for token in artist_tokens)
+        or any(
+            any(character.isdigit() for character in token) for token in artist_tokens
+        )
+    ):
+        return None
+    surname_index = len(artist_tokens) - 1
+    while surname_index > 0 and artist_tokens[surname_index] in NAME_SUFFIXES:
+        surname_index -= 1
+    surname = artist_tokens[surname_index]
+    return surname if surname not in GENERIC_ARTIST_TERMS else None
+
+
 def composer_playlist_candidates(
     artist_name: str,
     owned_playlists: tuple[OwnedPlaylist, ...],
@@ -126,17 +166,31 @@ def composer_playlist_candidates(
     artist_tokens = name_tokens(artist_name)
     if not artist_tokens:
         return ()
-    surname_index = len(artist_tokens) - 1
-    suffixes = {"ii", "iii", "iv", "jr", "sr"}
-    while surname_index > 0 and artist_tokens[surname_index] in suffixes:
-        surname_index -= 1
-    surname = artist_tokens[surname_index]
+    surname = _surname_token(artist_tokens)
     return tuple(
         playlist
         for playlist in owned_playlists
         if playlist.spotify_id not in excluded_playlist_ids
         and (
             _contains_tokens(name_tokens(playlist.name), artist_tokens)
-            or surname in name_tokens(playlist.name)
+            or (surname is not None and surname in name_tokens(playlist.name))
+        )
+    )
+
+
+def is_composer_playlist_candidate(
+    artist_name: str,
+    playlist_id: str,
+    owned_playlists: tuple[OwnedPlaylist, ...],
+    *,
+    excluded_playlist_ids: frozenset[str],
+) -> bool:
+    """Return whether one saved route still satisfies the current matcher."""
+    return any(
+        playlist.spotify_id == playlist_id
+        for playlist in composer_playlist_candidates(
+            artist_name,
+            owned_playlists,
+            excluded_playlist_ids=excluded_playlist_ids,
         )
     )

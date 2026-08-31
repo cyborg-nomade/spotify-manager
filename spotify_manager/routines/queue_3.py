@@ -739,25 +739,26 @@ def _resolve_composer_playlist(
 ) -> tuple[OwnedPlaylist | None, bool]:
     """Resolve and persist one owned composer works playlist."""
     routes = cast(dict[str, object], state["composer_routes"])
+    candidates = composer_playlist_candidates(
+        artist_name,
+        owned_playlists,
+        excluded_playlist_id=playlist_id,
+    )
     existing = routes.get(artist_id)
     if isinstance(existing, dict):
         existing_id = str(existing.get("playlist_id") or "")
         selected = next(
             (
                 candidate
-                for candidate in owned_playlists
+                for candidate in candidates
                 if candidate.spotify_id == existing_id
             ),
             None,
         )
         if selected is not None:
             return selected, False
+        routes.pop(artist_id, None)
 
-    candidates = composer_playlist_candidates(
-        artist_name,
-        owned_playlists,
-        excluded_playlist_id=playlist_id,
-    )
     if not candidates:
         return None, False
     if len(candidates) == 1:
@@ -1010,6 +1011,20 @@ def flush_queue_3(
 
         raw_plan = raw_entry.get("plan")
         plan = raw_plan if isinstance(raw_plan, dict) else None
+        if plan is not None and plan.get("composer_playlist_id"):
+            composer_playlist_id = str(plan["composer_playlist_id"])
+            if not composer_playlists.is_composer_playlist_candidate(
+                artist_name,
+                composer_playlist_id,
+                owned_playlists,
+                excluded_playlist_ids=frozenset({playlist_id}),
+            ):
+                plan = None
+                raw_entry["plan"] = None
+                composer_routes.pop(artist_id, None)
+                echo(f"Discarded a stale composer-playlist plan for {artist_name}.")
+                if not dry_run:
+                    state_access.save(state)
         if plan is None:
             composer_playlist, route_paused = _resolve_composer_playlist(
                 artist_id,
