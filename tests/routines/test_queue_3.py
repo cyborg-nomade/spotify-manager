@@ -212,6 +212,40 @@ def test_load_state_migrates_pre_composer_state(tmp_path: Path) -> None:
     assert queue_3.load_state(state_path)["composer_routes"] == {}
 
 
+def test_saved_composer_route_is_revalidated_with_conservative_matcher() -> None:
+    """Queue 3 must discard routes created from a generic `band` match."""
+    state = queue_3._default_state()
+    routes = state["composer_routes"]
+    assert isinstance(routes, dict)
+    routes["string-band"] = {
+        "artist_name": "The .357 String Band",
+        "playlist_id": "dave-setlist",
+        "playlist_name": "Dave Matthews Band Setlist",
+        "current_track_id": "stillest-hour",
+    }
+    owned = (
+        queue_3.OwnedPlaylist(
+            "dave-setlist",
+            "2010.10.10_4 - Dave Matthews Band Setlist - Fazenda Maeda",
+            20,
+        ),
+    )
+
+    selected, paused = queue_3._resolve_composer_playlist(
+        "string-band",
+        "The .357 String Band",
+        "stillest-hour",
+        "queue3",
+        owned,
+        state,
+        None,
+    )
+
+    assert selected is None
+    assert paused is False
+    assert "string-band" not in routes
+
+
 def test_flush_advances_only_first_ten_unique_artists(tmp_path: Path) -> None:
     spotify = FakeSpotify()
     first_tracks: list[dict[str, object]] = []
