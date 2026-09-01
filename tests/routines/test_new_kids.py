@@ -60,6 +60,26 @@ def raw_track(
     }
 
 
+def ranked_release(release_id: str, *, tier: int = 0) -> new_kids.RankedRelease:
+    """Build one compact ranked release for progression-rule tests."""
+    return new_kids.RankedRelease(
+        spotify_id=release_id,
+        uri=f"spotify:album:{release_id}",
+        name=release_id.title(),
+        release_type="Album" if tier == 0 else "Single",
+        release_date="2026-01-01",
+        total_tracks=3 if tier == 0 else 1,
+        primary_artist_id="artist",
+        primary_artist_name="Artist",
+        popularity=50,
+        top_track_rank=1,
+        tier=tier,
+        identity=release_id,
+        saved=False,
+        plain=True,
+    )
+
+
 class FakeSpotify:
     """Mutable Spotify API simulation for New Kids transitions."""
 
@@ -526,6 +546,33 @@ def test_played_release_requires_three_tracks_and_every_liked_track() -> None:
     )
 
 
+def test_short_discography_uses_single_scrobble_fallbacks() -> None:
+    """Fallback releases complete the four-release set at one scrobble each."""
+    albums = (ranked_release("album-one"), ranked_release("album-two"))
+    singles = (
+        ranked_release("single-one", tier=1),
+        ranked_release("single-two", tier=1),
+    )
+
+    catalog = new_kids.release_review_catalog((*albums, *singles))
+
+    assert catalog == (*albums, *singles)
+    assert [new_kids.release_scrobble_threshold(release) for release in catalog] == [
+        3,
+        3,
+        1,
+        1,
+    ]
+
+
+def test_full_discography_excludes_fallbacks_from_the_four_release_set() -> None:
+    """Singles cannot displace studio releases when four are available."""
+    albums = tuple(ranked_release(f"album-{index}") for index in range(4))
+    single = ranked_release("single", tier=1)
+
+    assert new_kids.release_review_catalog((*albums, single)) == albums
+
+
 def test_flush_refreshes_history_before_offering_releases(tmp_path: Path) -> None:
     """A release completed in the live delta must not reappear in the prompt."""
     spotify = FakeSpotify()
@@ -976,6 +1023,48 @@ def test_release_boundary_prompts_only_with_preferred_release_type(
     assert summary.results[0].album_decision == "keep"
     assert "r1" in spotify.saved_album_ids
     assert [track["id"] for track in spotify.playlists["new"]] == ["t2"]
+
+
+def test_short_discography_reaches_verdict_after_four_releases(
+    tmp_path: Path,
+) -> None:
+    """Two played albums and two played singles finish the artist review."""
+    spotify = FakeSpotify()
+    releases = [
+        raw_release("album-1", "First Album", total_tracks=3),
+        raw_release("album-2", "Second Album", total_tracks=3),
+        raw_release("single-1", "First Single", album_type="single", total_tracks=1),
+        raw_release("single-2", "Second Single", album_type="single", total_tracks=1),
+    ]
+    release_tracks: list[list[dict[str, object]]] = []
+    for release in releases:
+        release_id = str(release["id"])
+        total_tracks = int(release["total_tracks"])
+        tracks = [
+            raw_track(
+                f"{release_id}-t{track_number}",
+                f"{release_id} Track {track_number}",
+                release,
+                track_number=track_number,
+            )
+            for track_number in range(1, total_tracks + 1)
+        ]
+        spotify.release_tracks[release_id] = tracks
+        release_tracks.append(tracks)
+    spotify.artist_releases["artist"] = releases
+    spotify.playlists["new"] = [release_tracks[-1][0]]
+    spotify.liked_ids.add("album-1-t1")
+    write_played_release_history(
+        tmp_path,
+        release_tracks,
+        liked_track_ids=spotify.liked_ids,
+    )
+
+    summary = flush(spotify, tmp_path)
+
+    assert summary.results[0].action == "unlucky"
+    assert spotify.playlists["new"] == []
+    assert [track["id"] for track in spotify.playlists["unlucky"]] == ["album-1-t1"]
 
 
 def test_zero_likes_override_saved_release_promotion(tmp_path: Path) -> None:

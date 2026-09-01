@@ -854,7 +854,7 @@ def release_was_played_this_year(
             frozenset(),
         )
     }
-    if len(matched_names) < MIN_SCROBBLED_TRACKS_PER_RELEASE:
+    if len(matched_names) < release_scrobble_threshold(release):
         return False
     liked_names = {
         _scrobble_track_identity(track.name)
@@ -862,6 +862,19 @@ def release_was_played_this_year(
         if liked.get(track.spotify_id, False)
     }
     return liked_names <= matched_names
+
+
+def release_scrobble_threshold(release: RankedRelease) -> int:
+    """Return the distinct-track threshold for one reviewed release."""
+    return MIN_SCROBBLED_TRACKS_PER_RELEASE if release.tier == 0 else 1
+
+
+def release_review_catalog(
+    catalog: tuple[RankedRelease, ...],
+) -> tuple[RankedRelease, ...]:
+    """Use fallback releases only when fewer than four studio releases exist."""
+    preferred = tuple(release for release in catalog if release.tier == 0)
+    return preferred if len(preferred) >= RELEASES_PER_ARTIST else catalog
 
 
 def played_releases_from_history(
@@ -874,7 +887,8 @@ def played_releases_from_history(
 ) -> tuple[RankedRelease, ...]:
     """Return catalog releases completed according to current-year Last.fm data."""
     played: list[RankedRelease] = []
-    for release in catalog:
+    for release in release_review_catalog(catalog):
+        threshold = release_scrobble_threshold(release)
         scrobbled_names = set().union(
             *(
                 names
@@ -882,7 +896,7 @@ def played_releases_from_history(
                 if album == release.identity
             )
         )
-        if len(scrobbled_names) < MIN_SCROBBLED_TRACKS_PER_RELEASE:
+        if len(scrobbled_names) < threshold:
             continue
         tracks = track_cache.get(release.spotify_id)
         if tracks is None:
@@ -1943,9 +1957,10 @@ def _flush_review_playlist(
                     current_tracks,
                     liked_cache,
                 )
+                review_catalog = release_review_catalog(catalog)
                 played_releases = played_releases_from_history(
                     sp,
-                    catalog,
+                    review_catalog,
                     annual_scrobbles,
                     retry,
                     track_cache,
@@ -1999,7 +2014,7 @@ def _flush_review_playlist(
                 else:
                     remaining = tuple(
                         release
-                        for release in catalog
+                        for release in review_catalog
                         if release.identity not in played_identity_set
                         and release.identity != current_release.identity
                     )

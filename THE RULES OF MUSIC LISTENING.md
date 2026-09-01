@@ -106,9 +106,14 @@ Track lists have evolved from the need to allow single tracks to be listened wit
       1. Listen each track and add the next track from the artist's top albums at the end of the playlist.
       2. Follow the top albums by track.
       3. Skip album after 3 unliked tracks
-      4. Play 4 albums. A release counts as played when, during the current
+      4. Review 4 releases. A studio album or EP counts as played when, during the current
          calendar year, at least 3 distinct tracks from it and every liked track
          from it have been scrobbled on Last.fm.
+         1. If fewer than 4 studio albums or EPs are available, complete the set
+            with fallback releases. Each fallback release counts after at least
+            1 distinct track and all of its liked tracks have been scrobbled.
+         2. Classical-composer works playlists use their separate ordered-track
+            rule instead of this four-release calculation.
       5. After finishing an artist, add them to the year's *Great Discoveries* playlist and to *newfoundland* discography if they meet at least one these criteria:
          1. 18 liked tracks
          2. 3 saved releases
