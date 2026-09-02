@@ -26,6 +26,27 @@ class CallbackSpotify:
         return previous
 
 
+class ImmediateEvent:
+    """Event stand-in that records waits without delaying the test suite."""
+
+    def __init__(self, *, cancel_on_wait: bool = False) -> None:
+        self.cancel_on_wait = cancel_on_wait
+        self.waits: list[float] = []
+        self.set_value = False
+
+    def is_set(self) -> bool:
+        return self.set_value
+
+    def set(self) -> None:
+        self.set_value = True
+
+    def wait(self, timeout: float | None = None) -> bool:
+        self.waits.append(0 if timeout is None else timeout)
+        if self.cancel_on_wait:
+            self.set_value = True
+        return self.set_value
+
+
 @dataclass(frozen=True)
 class RunnerSpec:
     """Everything needed to execute one job runner up to its routine call."""
@@ -659,6 +680,81 @@ def test_interactive_job_runners_pause_for_retryable_spotify_failures(
     assert job.result.logs
     if failure_kind == "rate":
         assert job.result.retry_at is not None
+
+
+def test_new_wine_retries_rate_limited_operation_automatically(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Retry-After response resumes the same New Wine API operation."""
+    spec = next(spec for spec in RUNNERS if spec.name == "new-wine")
+    job = _job(spec)
+    cancel_event = ImmediateEvent()
+    job.cancel_event = cancel_event  # type: ignore[assignment]
+    attempts = 0
+
+    def flush(*_args, retry_call, **_kwargs):
+        def operation() -> object:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise api.SpotifyException(
+                    429,
+                    -1,
+                    "rate limited",
+                    headers={"Retry-After": "1"},
+                )
+            return object()
+
+        retry_call(operation, "refilling New Wine from Wine Cellar")
+        return _success_result(spec)
+
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
+    try:
+        spec.run(job.result.job_id, CallbackSpotify())
+    finally:
+        _remove_job(job)
+
+    assert attempts == 2
+    assert cancel_event.waits == [1]
+    assert job.result.status == "completed"
+    assert job.result.retry_at is None
+    assert any("Retrying automatically" in entry.message for entry in job.result.logs)
+
+
+def test_new_wine_rate_limit_wait_can_be_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cancel interrupts an automatic Retry-After wait without another call."""
+    spec = next(spec for spec in RUNNERS if spec.name == "new-wine")
+    job = _job(spec)
+    cancel_event = ImmediateEvent(cancel_on_wait=True)
+    job.cancel_event = cancel_event  # type: ignore[assignment]
+    attempts = 0
+
+    def flush(*_args, retry_call, **_kwargs):
+        def operation() -> object:
+            nonlocal attempts
+            attempts += 1
+            raise api.SpotifyException(
+                429,
+                -1,
+                "rate limited",
+                headers={"Retry-After": "30"},
+            )
+
+        retry_call(operation, "refilling New Wine from Wine Cellar")
+        return _success_result(spec)
+
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
+    try:
+        spec.run(job.result.job_id, CallbackSpotify())
+    finally:
+        _remove_job(job)
+
+    assert attempts == 1
+    assert cancel_event.waits == [30]
+    assert job.result.status == "cancelled"
+    assert job.result.retry_at is None
 
 
 @pytest.mark.parametrize(
