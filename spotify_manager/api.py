@@ -1030,6 +1030,7 @@ SPOTIFY_CONNECTION_FAILURE_DETAIL = (
     "Spotify connection remained unavailable after automatic retries. "
     "Please try again shortly."
 )
+DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS = 60
 
 
 @lru_cache
@@ -3342,14 +3343,41 @@ def _run_new_wine_job(
         operation: Callable[[], object],
         description: str,
     ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
+        while True:
+            try:
+                result = review_album_limits.retry_spotify_server_errors(
+                    operation,
+                    description,
+                    echo=echo,
+                    sleep=interruptible_sleep,
+                    retry_delay_seconds=10,
+                    max_attempts=3,
+                )
+            except review_album_limits.SpotifyRateLimitError as exc:
+                delay = max(
+                    1,
+                    exc.retry_after_seconds or DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS,
+                )
+                retry_at = datetime.now(UTC) + timedelta(seconds=delay)
+                message = (
+                    f"Spotify rate limit reached while {description}. "
+                    "Retrying automatically "
+                    f"{review_album_limits.format_retry_delay(delay)}."
+                )
+                with _blast_jobs_lock:
+                    job.result.status = "running"
+                    job.result.retry_at = retry_at.isoformat()
+                    job.result.detail = message
+                    _append_blast_log_locked(job, message)
+                interruptible_sleep(delay)
+                with _blast_jobs_lock:
+                    job.result.retry_at = None
+                    job.result.detail = f"Retrying {description}."
+                    _append_blast_log_locked(job, job.result.detail)
+                continue
+            with _blast_jobs_lock:
+                job.result.retry_at = None
+            return result
 
     spotify_event_setter = getattr(spotify, "set_event_callback", None)
     previous_spotify_event_callback = None
@@ -3375,6 +3403,7 @@ def _run_new_wine_job(
         with _blast_jobs_lock:
             job.result.status = "cancelled"
             job.result.pending_choice = None
+            job.result.retry_at = None
             job.result.detail = (
                 "New Wine flush stopped. Progress was saved."
                 if not dry_run
