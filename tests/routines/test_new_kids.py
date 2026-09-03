@@ -378,6 +378,25 @@ def seed_composer(
     return marker, works
 
 
+def save_composer_completion_state(tmp_path: Path) -> None:
+    """Persist Bach at the last reviewed work in the owned playlist."""
+    new_kids.save_state(
+        {
+            **new_kids._default_state(),
+            "composer_routes": {
+                "bach": {
+                    "artist_name": "Johann Sebastian Bach",
+                    "playlist_id": "bach-works",
+                    "playlist_name": "Complete Bach works",
+                    "current_track_id": "bach-work-40",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                }
+            },
+        },
+        tmp_path / "state.json",
+    )
+
+
 def seed_string_band_with_unrelated_band_playlist(
     spotify: FakeSpotify,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
@@ -802,21 +821,7 @@ def test_composer_finishes_at_fortieth_work_and_runs_normal_assessment(
     _marker, works = seed_composer(spotify)
     spotify.playlists["new"] = [works[39]]
     spotify.followed_artist_ids.add("bach")
-    new_kids.save_state(
-        {
-            **new_kids._default_state(),
-            "composer_routes": {
-                "bach": {
-                    "artist_name": "Johann Sebastian Bach",
-                    "playlist_id": "bach-works",
-                    "playlist_name": "Complete Bach works",
-                    "current_track_id": "bach-work-40",
-                    "updated_at": "2026-01-01T00:00:00+00:00",
-                }
-            },
-        },
-        tmp_path / "state.json",
-    )
+    save_composer_completion_state(tmp_path)
 
     summary = flush(spotify, tmp_path)
 
@@ -829,6 +834,56 @@ def test_composer_finishes_at_fortieth_work_and_runs_normal_assessment(
     assert ("unfollow", "library", "bach") in spotify.mutations
     state = json.loads((tmp_path / "state.json").read_text())
     assert "bach" not in state["composer_routes"]
+
+
+def test_qualifying_composer_uses_first_work_for_discovery_playlists(
+    tmp_path: Path,
+) -> None:
+    """Composer promotion is represented by the works-list opener."""
+    spotify = FakeSpotify()
+    marker, works = seed_composer(spotify)
+    spotify.playlists["new"] = [works[39]]
+    spotify.liked_ids.add(str(marker["id"]))
+    save_composer_completion_state(tmp_path)
+
+    summary = flush(spotify, tmp_path)
+
+    assert summary.results[0].action == "great discovery"
+    assert [track["id"] for track in spotify.playlists["great"]] == ["bach-work-1"]
+    assert [track["id"] for track in spotify.playlists["newfoundland"]] == [
+        "bach-work-1"
+    ]
+
+
+def test_unlucky_composer_uses_first_work_instead_of_top_liked_track(
+    tmp_path: Path,
+) -> None:
+    """Composer rejection also uses the works-list opener."""
+    spotify = FakeSpotify()
+    marker, works = seed_composer(spotify)
+    marker_release = spotify.artist_releases["bach"][0]
+    marker_release["total_tracks"] = 2
+    spotify.release_tracks["bach-catalog"].append(
+        raw_track(
+            "bach-unliked-marker",
+            "Unliked Catalog Marker",
+            marker_release,
+            artist_id="bach",
+            artist_name="Johann Sebastian Bach",
+            track_number=2,
+        )
+    )
+    spotify.playlists["new"] = [works[39]]
+    spotify.liked_ids.add(str(marker["id"]))
+    spotify.followed_artist_ids.add("bach")
+    save_composer_completion_state(tmp_path)
+
+    summary = flush(spotify, tmp_path)
+
+    assert summary.results[0].action == "unlucky"
+    assert [track["id"] for track in spotify.playlists["unlucky"]] == [
+        "bach-work-1"
+    ]
 
 
 def test_queue_2_uses_the_same_composer_playlist_progression(tmp_path: Path) -> None:
