@@ -587,6 +587,9 @@ def _composer_plan(
         "target_release": None,
         "target": None,
         "assessment": asdict(assessment),
+        "composer_destination_track": asdict(
+            _composer_track(tracks[0], artist_id, artist_name)
+        ),
     }
 
 
@@ -2185,8 +2188,14 @@ def _flush_review_playlist(
                     raw_assessment.get("top_liked_track")
                 ),
             )
+            composer_destination_track = _track_from_record(
+                plan.get("composer_destination_track")
+            )
             if assessment.top_liked_track is not None and assessment.qualifies:
-                if assessment.representative_track is None:
+                destination_track = (
+                    composer_destination_track or assessment.representative_track
+                )
+                if destination_track is None:
                     raise NewKidsError(
                         f"{artist_name} qualifies for promotion, but "
                         "Spotify returned no primary-artist representative track."
@@ -2208,7 +2217,7 @@ def _flush_review_playlist(
                     if playlist_id is None:
                         echo(
                             f"Would add {artist_name} to {label}: "
-                            f"{assessment.representative_track.name}"
+                            f"{destination_track.name}"
                         )
                         continue
                     artist_ids, track_ids = membership(playlist_id)
@@ -2219,18 +2228,21 @@ def _flush_review_playlist(
                                     add_playlist_item,
                                     sp,
                                     playlist_id,
-                                    assessment.representative_track.uri,
+                                    destination_track.uri,
                                 ),
                                 f"adding {artist_name} to {label}",
                             )
                         artist_ids.add(artist_id)
-                        track_ids.add(assessment.representative_track.spotify_id)
+                        track_ids.add(destination_track.spotify_id)
                         echo(
                             f"{'Would add' if dry_run else 'Added'} "
                             f"{artist_name} to {label}."
                         )
             else:
                 if assessment.top_liked_track is not None:
+                    destination_track = (
+                        composer_destination_track or assessment.top_liked_track
+                    )
                     artist_ids, track_ids = membership(unlucky_ones_playlist_id)
                     if artist_id not in artist_ids:
                         if not dry_run:
@@ -2239,12 +2251,12 @@ def _flush_review_playlist(
                                     add_playlist_item,
                                     sp,
                                     unlucky_ones_playlist_id,
-                                    assessment.top_liked_track.uri,
+                                    destination_track.uri,
                                 ),
                                 f"adding {artist_name} to Unlucky Ones",
                             )
                         artist_ids.add(artist_id)
-                        track_ids.add(assessment.top_liked_track.spotify_id)
+                        track_ids.add(destination_track.spotify_id)
                         echo(
                             f"{'Would add' if dry_run else 'Added'} "
                             f"{artist_name} to Unlucky Ones."

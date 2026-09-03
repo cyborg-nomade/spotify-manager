@@ -120,7 +120,7 @@ Track lists have evolved from the need to allow single tracks to be listened wit
          3. All releases saved
          4. All tracks liked
       6. Otherwise, unfollow the artist and add the top liked track to *Unlucky Ones*
-      7. For classical composers with a user-created works playlist whose title contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count.
+      7. For classical composers with a user-created works playlist whose title contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count. When the cycle finishes, use the first track of that works playlist to represent the composer in *Great Discoveries*, *newfoundland*, or *Unlucky Ones*.
    4. **Cap**: 10 tracks (10 listened/day)
 6. *new wine from old bottles* containts tracks from the latest releases that came under radar
    1. **Type**: DISCOVERY
