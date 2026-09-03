@@ -1,6 +1,7 @@
 """Tests for the New Wine from Old Bottles flush."""
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -137,6 +138,12 @@ class FakeSpotify:
         self.album_contains_calls.append(list(album_ids))
         return [album_id in self.saved_album_ids for album_id in album_ids]
 
+    def current_user_saved_albums_add(self, album_ids: list[str]):
+        for album_id in album_ids:
+            self.saved_album_ids.add(album_id)
+            self.mutations.append(("save", "library", album_id))
+        return None
+
     def current_user_saved_albums_delete(self, album_ids: list[str]):
         for album_id in album_ids:
             self.saved_album_ids.discard(album_id)
@@ -250,6 +257,14 @@ def test_canonical_cutoff_completes_album_and_offers_follow_up(
     assert result.canonical_track_count == 2
     assert result.canonical_cutoff_track == "Track 2"
     assert [track["id"] for track in spotify.playlists["sauv"]] == ["t1"]
+    assert spotify.saved_album_ids == {"album"}
+    assert json.loads((tmp_path / "albums.json").read_text()) == [
+        {
+            "artist": "Artist",
+            "album": "Canonical Album",
+            "uri": "spotify:album:album",
+        }
+    ]
     assert spotify.playlists["new"] == []
 
 
@@ -901,10 +916,116 @@ def test_last_album_track_sends_first_track_to_sauvignon(
     assert summary.sent_to_sauvignon == 1
     assert spotify.playlists["new"] == []
     assert [track["id"] for track in spotify.playlists["sauv"]] == ["t1"]
+    assert spotify.saved_album_ids == {"album"}
+    assert summary.results[0].album_liked_tracks == 1
+    assert summary.results[0].album_total_tracks == 2
     assert spotify.mutations == [
+        ("save", "library", "album"),
         ("add", "sauv", "t1"),
         ("remove", "new", "t2"),
     ]
+
+
+def test_sauvignon_does_not_save_album_below_keep_threshold(
+    tmp_path: Path,
+) -> None:
+    spotify = FakeSpotify()
+    release = raw_release(
+        "album",
+        "Still Discovering",
+        artist_id="artist",
+        total_tracks=6,
+    )
+    tracks = [
+        raw_track(
+            f"t{index}",
+            f"Track {index}",
+            release,
+            artist_id="artist",
+            track_number=index,
+        )
+        for index in range(1, 7)
+    ]
+    spotify.release_tracks["album"] = tracks
+    spotify.artist_releases["artist"] = [release]
+    spotify.playlists["new"] = [tracks[-1]]
+    spotify.liked_ids = {"t1", "t5"}
+
+    summary = new_wine.flush_new_wine(
+        spotify,
+        "new",
+        "sauv",
+        choice_reader=lambda *_args: pytest.fail("album tracks should not prompt"),
+        **paths(tmp_path),
+    )
+
+    result = summary.results[0]
+    assert result.action == "sauvignon"
+    assert result.album_liked_tracks == 2
+    assert result.album_total_tracks == 6
+    assert spotify.saved_album_ids == set()
+    assert spotify.mutations == [
+        ("add", "sauv", "t1"),
+        ("remove", "new", "t6"),
+    ]
+
+
+def test_legacy_sauvignon_plan_saves_after_source_was_removed(
+    tmp_path: Path,
+) -> None:
+    spotify = FakeSpotify()
+    release = raw_release("album", "Interrupted", artist_id="artist")
+    tracks = [
+        raw_track("t1", "First", release, artist_id="artist", track_number=1),
+        raw_track("t2", "Last", release, artist_id="artist", track_number=2),
+    ]
+    spotify.release_tracks["album"] = tracks
+    spotify.playlists["new"] = [tracks[1]]
+    spotify.playlists["sauv"] = [tracks[0]]
+    spotify.liked_ids = {"t2"}
+    source = new_wine.load_playlist_tracks(
+        spotify,
+        "new",
+        lambda operation, _description: operation(),
+    )[0]
+    target = new_wine.load_release_tracks(
+        spotify,
+        source.release,
+        lambda operation, _description: operation(),
+    )[0]
+    state = new_wine._default_state()
+    run = new_wine._new_run("new", (source,), None, False, False)
+    entry = run["entries"][0]  # type: ignore[index]
+    assert isinstance(entry, dict)
+    entry["plan"] = {
+        "action": "sauvignon",
+        "release": asdict(source.release),
+        "target": asdict(target),
+        "current_liked": True,
+        "consecutive_unliked": 0,
+        "next_prior_unliked_streak": 0,
+        "album_liked_tracks": None,
+        "album_total_tracks": None,
+        "should_unsave": False,
+        "album_unsaved": False,
+        "advance_reason": None,
+        "drop_reason": None,
+    }
+    state["active_run"] = run
+    new_wine.save_state(state, tmp_path / "state.json")
+    spotify.playlists["new"] = []
+
+    summary = new_wine.flush_new_wine(
+        spotify,
+        "new",
+        "sauv",
+        choice_reader=lambda *_args: pytest.fail("saved plans do not prompt"),
+        **paths(tmp_path),
+    )
+
+    assert summary.resumed is True
+    assert spotify.saved_album_ids == {"album"}
+    assert spotify.mutations == [("save", "library", "album")]
 
 
 def test_album_endpoint_can_start_another_current_year_release(
@@ -960,6 +1081,7 @@ def test_album_endpoint_can_start_another_current_year_release(
     assert [track["id"] for track in spotify.playlists["sauv"]] == ["t1"]
     assert [track["id"] for track in spotify.playlists["new"]] == ["f1"]
     assert spotify.mutations == [
+        ("save", "library", "album"),
         ("add", "sauv", "t1"),
         ("add", "new", "f1"),
         ("remove", "new", "t2"),
