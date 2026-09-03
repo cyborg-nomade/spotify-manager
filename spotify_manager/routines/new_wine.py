@@ -25,7 +25,9 @@ from spotify_manager.models.lookups import AlbumTrackLikedStatus
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryTrack
 from spotify_manager.processors.library_lookups import required_liked_tracks
+from spotify_manager.routines.recover_removed_albums import sync_stats_history_counts
 from spotify_manager.routines.review_album_limits import append_removed_album_log
+from spotify_manager.utils.sorting import album_sort_key
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -772,37 +774,127 @@ def _track_from_record(raw: object) -> ReleaseTrack | None:
     return ReleaseTrack(**raw)
 
 
-def _remove_local_album(album_id: str, path: Path) -> bool:
-    """Remove a live-unsaved album from albums_total_new.json when present."""
+def _load_local_albums(path: Path) -> list[YourLibraryAlbum]:
+    """Load the saved-album mirror used by New Wine reconciliation."""
     if not path.exists():
-        return False
+        return []
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise NewWineStateError(f"Could not read local albums: {path}") from exc
     if not isinstance(raw, list):
         raise NewWineStateError(f"Local albums file is invalid: {path}")
-    updated = [
-        item
-        for item in raw
-        if not (
-            isinstance(item, dict)
-            and str(item.get("uri") or "").split("spotify:album:")[-1] == album_id
-        )
-    ]
-    if len(updated) == len(raw):
-        return False
+    return [YourLibraryAlbum.model_validate(item) for item in raw]
+
+
+def _write_local_albums(albums: list[YourLibraryAlbum], path: Path) -> None:
+    """Write and publish the saved-album mirror after reconciliation."""
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
         temporary.write_text(
-            json.dumps(updated, ensure_ascii=False) + "\n",
+            json.dumps(
+                [album.model_dump(mode="json") for album in albums],
+                ensure_ascii=False,
+            )
+            + "\n",
             encoding="utf-8",
         )
         temporary.replace(path)
     except OSError as exc:
         raise NewWineStateError(f"Could not update local albums: {path}") from exc
     publish_managed_path(path, source="New Wine library reconciliation")
+    if path == DEFAULT_ALBUMS_PATH:
+        sync_stats_history_counts(total_albums=len(albums))
+
+
+def _add_local_album(release: ReleaseCandidate, path: Path) -> bool:
+    """Add one newly saved release to albums_total_new.json."""
+    albums = _load_local_albums(path)
+    if any(album.spotify_id == release.spotify_id for album in albums):
+        return False
+    albums.append(
+        YourLibraryAlbum(
+            artist=release.primary_artist_name,
+            album=release.name,
+            uri=release.uri,
+        )
+    )
+    albums.sort(key=album_sort_key)
+    _write_local_albums(albums, path)
     return True
+
+
+def _remove_local_album(album_id: str, path: Path) -> bool:
+    """Remove a live-unsaved album from albums_total_new.json when present."""
+    albums = _load_local_albums(path)
+    updated = [album for album in albums if album.spotify_id != album_id]
+    if len(updated) == len(albums):
+        return False
+    _write_local_albums(updated, path)
+    return True
+
+
+def _record_album_evaluation(
+    plan: dict[str, object],
+    evaluation: AlbumEvaluation,
+) -> None:
+    """Store one live keep decision in a durable New Wine plan."""
+    plan.update(
+        {
+            "album_liked_tracks": evaluation.liked_tracks,
+            "album_total_tracks": evaluation.total_tracks,
+            "should_save": evaluation.decision == "keep",
+            "evaluation": evaluation.model_dump(mode="json"),
+        }
+    )
+
+
+def _save_qualifying_sauvignon_album(
+    sp: Spotify,
+    release: ReleaseCandidate,
+    evaluation: AlbumEvaluation,
+    *,
+    dry_run: bool,
+    retry_call: RetryCall,
+    albums_path: Path,
+    echo: Echo,
+) -> None:
+    """Save and mirror one Sauvignon album when it passes the keep rule."""
+    if evaluation.decision != "keep":
+        echo(
+            f"Left {release.name} unsaved: {evaluation.liked_tracks}/"
+            f"{evaluation.total_tracks} liked."
+        )
+        return
+    response = retry_call(
+        partial(
+            sp.current_user_saved_albums_contains,
+            [release.spotify_id],
+        ),
+        f"checking whether {release.name} is saved",
+    )
+    is_saved = bool(response[0]) if isinstance(response, list) and response else False
+    if not dry_run and not is_saved:
+        retry_call(
+            partial(
+                sp.current_user_saved_albums_add,
+                [release.spotify_id],
+            ),
+            f"saving {release.name}",
+        )
+    if not dry_run:
+        _add_local_album(release, albums_path)
+    save_action = (
+        "Would save"
+        if dry_run and not is_saved
+        else "Saved"
+        if not is_saved
+        else "Kept saved"
+    )
+    echo(
+        f"{save_action} {release.name}: {evaluation.liked_tracks}/"
+        f"{evaluation.total_tracks} liked."
+    )
 
 
 def _add_playlist_track(
@@ -1505,6 +1597,21 @@ def flush_new_wine(
                         "advance_reason": None,
                         "drop_reason": None,
                     }
+                    if action == "sauvignon":
+                        get_liked_statuses(
+                            sp,
+                            [track.spotify_id for track in selected_tracks],
+                            liked_cache,
+                            retry,
+                        )
+                        _record_album_evaluation(
+                            plan,
+                            _live_evaluation(
+                                selected_release,
+                                selected_tracks,
+                                liked_cache,
+                            ),
+                        )
 
             if endpoint_choice == CHOICE_CUTOFF:
                 plan["canonical_track_count"] = len(base_tracks)
@@ -1586,6 +1693,36 @@ def flush_new_wine(
         planned_action = str(plan["action"])
         album_unsaved = bool(plan.get("album_unsaved"))
 
+        if planned_action == "sauvignon" and plan.get("evaluation") is None:
+            evaluated_tracks = release_tracks(release)
+            canonical_count = plan.get("canonical_track_count")
+            if isinstance(canonical_count, int):
+                evaluated_tracks = evaluated_tracks[:canonical_count]
+            get_liked_statuses(
+                sp,
+                [track.spotify_id for track in evaluated_tracks],
+                liked_cache,
+                retry,
+            )
+            _record_album_evaluation(
+                plan,
+                _live_evaluation(release, evaluated_tracks, liked_cache),
+            )
+            raw_entry["plan"] = plan
+            if not dry_run:
+                state_access.save(state)
+
+        if planned_action == "sauvignon":
+            _save_qualifying_sauvignon_album(
+                sp,
+                release,
+                AlbumEvaluation.model_validate(plan["evaluation"]),
+                dry_run=dry_run,
+                retry_call=retry,
+                albums_path=albums_path,
+                echo=echo,
+            )
+
         if not dry_run and source.spotify_id not in new_wine_ids:
             echo(f"Source already removed; completing saved plan for {source.name}.")
         elif planned_action == "advance" and target is not None:
@@ -1599,20 +1736,23 @@ def flush_new_wine(
                     )
                 new_wine_ids.add(target.spotify_id)
                 echo(f"{'Would add' if dry_run else 'Added'} next track: {target.name}")
-        elif planned_action == "sauvignon" and target is not None:
-            if target.spotify_id not in sauvignon_ids:
-                if not dry_run:
-                    _add_playlist_track(
-                        sp,
-                        sauvignon_playlist_id,
-                        target,
-                        retry,
-                    )
-                sauvignon_ids.add(target.spotify_id)
-                echo(
-                    f"{'Would add' if dry_run else 'Added'} to Sauvignon "
-                    f"Terre-Neuve: {release.name}"
+        elif (
+            planned_action == "sauvignon"
+            and target is not None
+            and target.spotify_id not in sauvignon_ids
+        ):
+            if not dry_run:
+                _add_playlist_track(
+                    sp,
+                    sauvignon_playlist_id,
+                    target,
+                    retry,
                 )
+            sauvignon_ids.add(target.spotify_id)
+            echo(
+                f"{'Would add' if dry_run else 'Added'} to Sauvignon "
+                f"Terre-Neuve: {release.name}"
+            )
         elif planned_action == "drop" and bool(plan.get("should_unsave")):
             evaluation = AlbumEvaluation.model_validate(plan["evaluation"])
             response = retry(
