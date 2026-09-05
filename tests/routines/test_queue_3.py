@@ -601,10 +601,10 @@ def test_owned_composer_playlist_overrides_discography_and_survives_performer_cr
     )
     spotify.user_playlists.extend(
         [
-            spotify.playlist_summary("owned-bach", "All of Bach"),
+            spotify.playlist_summary("owned-bach", "[CD] All of Bach"),
             spotify.playlist_summary(
                 "foreign-bach",
-                "Bach chronological works",
+                "[CD] Bach chronological works",
                 owner_id="someone-else",
             ),
         ]
@@ -620,7 +620,7 @@ def test_owned_composer_playlist_overrides_discography_and_survives_performer_cr
     )
 
     assert first.results[0].action == "composer playlist"
-    assert first.results[0].composer_playlist == "All of Bach"
+    assert first.results[0].composer_playlist == "[CD] All of Bach"
     assert [track["id"] for track in spotify.playlists["queue3"]] == ["bach-2"]
     persisted = json.loads(state_path.read_text())
     assert persisted["composer_routes"]["bach"]["playlist_id"] == "owned-bach"
@@ -674,8 +674,8 @@ def test_multiple_owned_composer_playlists_are_prompted_and_persisted(
     )
     spotify.user_playlists.extend(
         [
-            spotify.playlist_summary("glass-a", "Philip Glass works"),
-            spotify.playlist_summary("glass-b", "Complete Glass"),
+            spotify.playlist_summary("glass-a", "[CD] Philip Glass works"),
+            spotify.playlist_summary("glass-b", "[CD] Complete Glass"),
         ]
     )
     choices: list[tuple[str, tuple[str, ...]]] = []
@@ -720,7 +720,7 @@ def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
     )
     spotify.playlists.update({"queue3": [final], "reich-works": [final]})
     spotify.user_playlists.append(
-        spotify.playlist_summary("reich-works", "Chronological Steve Reich")
+        spotify.playlist_summary("reich-works", "[CD] Chronological Steve Reich")
     )
 
     summary = queue_3.flush_queue_3(
@@ -735,6 +735,6 @@ def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
     )
 
     assert summary.completed_artists == 1
-    assert summary.results[0].composer_playlist == "Chronological Steve Reich"
+    assert summary.results[0].composer_playlist == "[CD] Chronological Steve Reich"
     assert summary.results[0].reason == "last track of the composer playlist"
     assert spotify.playlists["queue3"] == []

@@ -29,7 +29,7 @@ def test_generic_band_suffix_is_not_treated_as_a_personal_surname() -> None:
 
 def test_personal_surname_still_matches_a_composer_playlist() -> None:
     """Meaningful composer surnames retain the convenient short match."""
-    bach = playlist("bach", "Complete chronological Bach works")
+    bach = playlist("bach", "[CD] Complete chronological Bach works")
 
     candidates = composer_playlists.composer_playlist_candidates(
         "Johann Sebastian Bach",
@@ -42,7 +42,7 @@ def test_personal_surname_still_matches_a_composer_playlist() -> None:
 
 def test_full_name_match_does_not_depend_on_surname_fallback() -> None:
     """An exact token sequence remains valid even for an ensemble-style name."""
-    string_band = playlist("string-band", "The .357 String Band chronology")
+    string_band = playlist("string-band", "[CD] The .357 String Band chronology")
 
     candidates = composer_playlists.composer_playlist_candidates(
         "The .357 String Band",
@@ -51,3 +51,19 @@ def test_full_name_match_does_not_depend_on_surname_fallback() -> None:
     )
 
     assert candidates == (string_band,)
+
+
+def test_unprefixed_full_artist_name_is_not_a_composer_playlist() -> None:
+    """A Banda must remain on normal release progression without `[CD]`."""
+    playlist_for_band = playlist(
+        "banda",
+        "A Banda Mais Bonita da Cidade - chronological tracks",
+    )
+
+    candidates = composer_playlists.composer_playlist_candidates(
+        "A Banda Mais Bonita da Cidade",
+        (playlist_for_band,),
+        excluded_playlist_ids=frozenset(),
+    )
+
+    assert candidates == ()

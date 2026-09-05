@@ -120,7 +120,7 @@ Track lists have evolved from the need to allow single tracks to be listened wit
          3. All releases saved
          4. All tracks liked
       6. Otherwise, unfollow the artist and add the top liked track to *Unlucky Ones*
-      7. For classical composers with a user-created works playlist whose title contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count. When the cycle finishes, use the first track of that works playlist to represent the composer in *Great Discoveries*, *newfoundland*, or *Unlucky Ones*.
+      7. For classical composers with a user-created works playlist whose title begins with `[CD]` and contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count. Unprefixed playlists never trigger composer handling. When the cycle finishes, use the first track of that works playlist to represent the composer in *Great Discoveries*, *newfoundland*, or *Unlucky Ones*.
    4. **Cap**: 10 tracks (10 listened/day)
 6. *new wine from old bottles* containts tracks from the latest releases that came under radar
    1. **Type**: DISCOVERY
@@ -154,7 +154,7 @@ Track lists have evolved from the need to allow single tracks to be listened wit
    2. **Fill-up**: From *the queue* (or really anywhere) when artist reaches 5/10 or 6 liked tracks
    3. **Flush**:
       1. Normally: same as *new kids on the block*, flushing into that list when spots are available
-         1. For classical composers with a user-created works playlist whose title contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count.
+         1. For classical composers with a user-created works playlist whose title begins with `[CD]` and contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count; unprefixed playlists never trigger composer handling.
       2. When cap is reached:
          1. Play all 4 top albums of the artist straight and make decision to save to *Great Discoveries* or *Unlucky Ones*
          2. Do 5 artists per day for 3 months (60 listening days)
@@ -172,7 +172,7 @@ Track lists have evolved from the need to allow single tracks to be listened wit
        3.  Play the whole eligible discography (studio albums and EPs) chronologically
        4.  Remove from the list after reaching the last track of the last eligible release
        5.  Also remove from the list when the discography is taken up from *newfoundland*
-       6.  For classical composers with a user-created works playlist whose title contains the composer's name or surname, follow the playlist's stored Spotify order instead of Spotify release order. Only playlists owned by the user count.
+       6.  For classical composers with a user-created works playlist whose title begins with `[CD]` and contains the composer's name or surname, follow the playlist's stored Spotify order instead of Spotify release order. Only playlists owned by the user count; unprefixed playlists never trigger composer handling.
    4.  **Cap**: No cap, 10 listened/day
 10. *slow listening* contains tracks to be investigated in depth
     1.  **Type**: RECOVERY

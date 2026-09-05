@@ -10,6 +10,7 @@ from unidecode import unidecode
 
 
 PLAYLIST_PAGE_LIMIT = 50
+COMPOSER_PLAYLIST_PREFIX = "[CD]"
 GENERIC_ARTIST_TERMS = frozenset(
     {
         "band",
@@ -162,7 +163,7 @@ def composer_playlist_candidates(
     *,
     excluded_playlist_ids: frozenset[str],
 ) -> tuple[OwnedPlaylist, ...]:
-    """Match owned playlists containing a composer's full name or surname."""
+    """Match prefixed owned playlists containing a composer's name."""
     artist_tokens = name_tokens(artist_name)
     if not artist_tokens:
         return ()
@@ -171,6 +172,7 @@ def composer_playlist_candidates(
         playlist
         for playlist in owned_playlists
         if playlist.spotify_id not in excluded_playlist_ids
+        and playlist.name.startswith(COMPOSER_PLAYLIST_PREFIX)
         and (
             _contains_tokens(name_tokens(playlist.name), artist_tokens)
             or (surname is not None and surname in name_tokens(playlist.name))
