@@ -374,7 +374,7 @@ def seed_composer(
     spotify.artist_releases["performer"] = [performer_release]
     spotify.release_tracks["bach-recordings"] = works
     spotify.playlists["bach-works"] = works
-    spotify.playlist_names["bach-works"] = "Complete Bach works"
+    spotify.playlist_names["bach-works"] = "[CD] Complete Bach works"
     return marker, works
 
 
@@ -387,7 +387,7 @@ def save_composer_completion_state(tmp_path: Path) -> None:
                 "bach": {
                     "artist_name": "Johann Sebastian Bach",
                     "playlist_id": "bach-works",
-                    "playlist_name": "Complete Bach works",
+                    "playlist_name": "[CD] Complete Bach works",
                     "current_track_id": "bach-work-40",
                     "updated_at": "2026-01-01T00:00:00+00:00",
                 }
@@ -798,7 +798,7 @@ def test_new_kids_follows_owned_composer_playlist_and_keeps_logical_artist(
     first = flush(spotify, tmp_path)
 
     assert first.results[0].artist == "Johann Sebastian Bach"
-    assert first.results[0].composer_playlist == "Complete Bach works"
+    assert first.results[0].composer_playlist == "[CD] Complete Bach works"
     assert first.results[0].target_track == "BWV 1"
     assert [track["id"] for track in spotify.playlists["new"]] == ["bach-work-1"]
 
@@ -881,9 +881,7 @@ def test_unlucky_composer_uses_first_work_instead_of_top_liked_track(
     summary = flush(spotify, tmp_path)
 
     assert summary.results[0].action == "unlucky"
-    assert [track["id"] for track in spotify.playlists["unlucky"]] == [
-        "bach-work-1"
-    ]
+    assert [track["id"] for track in spotify.playlists["unlucky"]] == ["bach-work-1"]
 
 
 def test_queue_2_uses_the_same_composer_playlist_progression(tmp_path: Path) -> None:
@@ -909,7 +907,7 @@ def test_queue_2_uses_the_same_composer_playlist_progression(tmp_path: Path) -> 
 
     assert summary.results[0].artist == "Johann Sebastian Bach"
     assert summary.results[0].target_track == "BWV 1"
-    assert summary.results[0].composer_playlist == "Complete Bach works"
+    assert summary.results[0].composer_playlist == "[CD] Complete Bach works"
     assert [track["id"] for track in spotify.playlists["queue"]] == ["bach-work-1"]
 
 
@@ -920,7 +918,7 @@ def test_ambiguous_composer_playlists_are_prompted_and_persisted(
     marker, works = seed_composer(spotify)
     spotify.playlists["new"] = [marker]
     spotify.playlists["bach-alternate"] = [works[10]]
-    spotify.playlist_names["bach-alternate"] = "Johann Sebastian Bach selections"
+    spotify.playlist_names["bach-alternate"] = "[CD] Johann Sebastian Bach selections"
     offered: list[tuple[str, ...]] = []
 
     def choose(
@@ -956,6 +954,68 @@ def test_generic_band_name_does_not_enter_an_unrelated_composer_playlist(
     assert [track["id"] for track in spotify.playlists["new"]] == [
         string_band_tracks[1]["id"]
     ]
+
+
+def test_unprefixed_exact_band_playlist_uses_normal_release_progression(
+    tmp_path: Path,
+) -> None:
+    """A Banda must not activate composer handling without `[CD]`."""
+    spotify = FakeSpotify()
+    artist_id = "a-banda"
+    artist_name = "A Banda Mais Bonita da Cidade"
+    release = raw_release(
+        "banda-release",
+        "O Mais Feliz da Vida",
+        artist_id=artist_id,
+        artist_name=artist_name,
+    )
+    tracks = [
+        raw_track(
+            "banda-current",
+            "Oração",
+            release,
+            artist_id=artist_id,
+            artist_name=artist_name,
+            track_number=1,
+        ),
+        raw_track(
+            "banda-next",
+            "Canção pra Não Voltar",
+            release,
+            artist_id=artist_id,
+            artist_name=artist_name,
+            track_number=2,
+        ),
+    ]
+    false_route_release = raw_release(
+        "banda-playlist-release",
+        "Playlist Source",
+        artist_id=artist_id,
+        artist_name=artist_name,
+    )
+    false_route_track = raw_track(
+        "banda-wrong",
+        "Wrong Playlist Track",
+        false_route_release,
+        artist_id=artist_id,
+        artist_name=artist_name,
+    )
+    spotify.artist_releases[artist_id] = [release]
+    spotify.release_tracks["banda-release"] = tracks
+    spotify.release_tracks["banda-playlist-release"] = [false_route_track]
+    spotify.playlists["new"] = [tracks[0]]
+    spotify.playlists["banda-playlist"] = [tracks[0], false_route_track]
+    spotify.playlist_names["banda-playlist"] = (
+        "A Banda Mais Bonita da Cidade chronology"
+    )
+
+    summary = flush(spotify, tmp_path)
+
+    result = summary.results[0]
+    assert result.artist == artist_name
+    assert result.composer_playlist is None
+    assert result.target_track == "Canção pra Não Voltar"
+    assert [track["id"] for track in spotify.playlists["new"]] == ["banda-next"]
 
 
 def test_resumed_invalid_composer_plan_is_discarded(tmp_path: Path) -> None:

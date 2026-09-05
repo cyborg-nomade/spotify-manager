@@ -820,6 +820,12 @@ popularity ranks the choices, with the artist's top-track albums as a fallback.
 Albums and EPs are offered first; only after that tier is exhausted are singles,
 live releases, and compilations offered in that order.
 
+Classical-composer progression is enabled only by an owned works playlist whose
+name begins with the exact `[CD]` prefix and then contains the composer's full
+name or surname. Unprefixed playlists always remain ordinary playlists, even
+when their names contain the artist's full name. A matched works playlist is
+followed in its stored Spotify order for 40 tracks.
+
 Release progress comes from the canonical Last.fm history rather than an
 internal counter. Before planning either a real or dry run, the command fetches
 the live Last.fm delta and persists it in the shared canonical history. A
@@ -934,12 +940,12 @@ and plain editions over decorated reissues. Singles, live releases, and
 compilations are excluded.
 
 For composers with an ordered works playlist, Queue 3 looks only among
-playlists owned by the authenticated Spotify user for a title containing the
-composer's full name or surname. One match is used automatically; ambiguous
-owned matches are prompted once and the selection is persisted. The routine
-then advances in the playlist's literal Spotify order, retaining the composer
-identity even when Spotify credits a performer as the next track's primary
-artist.
+playlists owned by the authenticated Spotify user whose title begins with
+`[CD]` and contains the composer's full name or surname. Unprefixed playlists
+are ignored. One match is used automatically; ambiguous owned matches are
+prompted once and the selection is persisted. The routine then advances in the
+playlist's literal Spotify order, retaining the composer identity even when
+Spotify credits a performer as the next track's primary artist.
 
 At the start of the first run in each calendar year, the command finds the
 playlist named exactly `Great Discoveries PREVIOUS_YEAR` among the user's owned
