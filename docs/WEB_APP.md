@@ -205,6 +205,7 @@ where ambiguity or mode selection can pause the worker.
 /commands/flush-new-kids[-jobs]
 /commands/flush-queue-2[-jobs]
 /commands/flush-queue-3[-jobs]
+/commands/import-queue-3-previous-year
 /commands/flush-new-wine[-jobs]
 /commands/flush-slow-listening[-jobs]
 /commands/flush-requeue-for-a-dream[-jobs]

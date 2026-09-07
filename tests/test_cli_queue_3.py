@@ -162,3 +162,64 @@ def test_flush_queue_3_dry_run_uses_configured_playlist(monkeypatch) -> None:
     assert "Imported Artist" in result.output
     assert "Second - Opening" in result.output
     assert "Preview only" in result.output
+
+
+def test_previous_year_import_command_does_not_run_queue_transitions(
+    monkeypatch,
+) -> None:
+    """The dedicated command should invoke only the annual import routine."""
+    received: dict[str, object] = {}
+
+    def import_previous_year(_spotify, playlist_id, **kwargs):
+        received.update(
+            playlist_id=playlist_id,
+            dry_run=kwargs["dry_run"],
+            progress_callback=callable(kwargs["progress_callback"]),
+        )
+        kwargs["progress_callback"](1, 1, "Checked Great Discoveries 2025")
+        return main.queue_3.AnnualImportSummary(
+            active_year=2026,
+            source_year=2025,
+            additions=1,
+            already_present=2,
+            already_completed=False,
+            dry_run=True,
+            results=(
+                main.queue_3.AnnualImportResult(
+                    artist="Imported Artist",
+                    track="Marker",
+                    source_year=2025,
+                    action="would add",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            the_queue_3_playlist="https://open.spotify.com/playlist/queue3",
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", lambda: object())
+    monkeypatch.setattr(
+        main.queue_3,
+        "import_previous_year_discoveries",
+        import_previous_year,
+    )
+
+    result = CliRunner().invoke(
+        main.app,
+        ["import-queue-3-previous-year", "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    assert received == {
+        "playlist_id": "queue3",
+        "dry_run": True,
+        "progress_callback": True,
+    }
+    assert "Imported Artist" in result.output
+    assert "1 artist would be added; 2 already present" in result.output
+    assert "Preview" in result.output
+    assert "only." in result.output

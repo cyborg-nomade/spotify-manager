@@ -922,6 +922,8 @@
       </label>
       <div class="analysis-actions">
         <button class="primary" data-action="startQueue3">Run</button>
+        <button class="ghost" data-action="startQueue3AnnualImport"
+          title="Import the previous year's Great Discoveries">Import prev.</button>
         <button class="danger cancel" data-action="cancelQueue3" hidden title="Stop flush">×</button>
       </div>
       <div class="analysis-progress" id="queue3Progress"></div>
@@ -2775,7 +2777,11 @@
   function renderQueue3Job(job) {
     queue3Job = job;
     var out = document.getElementById("queue3Progress");
-    var start = document.querySelector('[data-action="startQueue3"]');
+    var flushStart = document.querySelector('[data-action="startQueue3"]');
+    var importStart = document.querySelector('[data-action="startQueue3AnnualImport"]');
+    var annualOnly = Boolean(job.queue_3_annual_only);
+    var start = annualOnly ? importStart : flushStart;
+    var alternateStart = annualOnly ? flushStart : importStart;
     var cancel = document.querySelector('[data-action="cancelQueue3"]');
     document.getElementById("queue3DryRun").checked = Boolean(job.dry_run);
     var processed = typeof job.processed === "number" ? job.processed : 0;
@@ -2897,9 +2903,11 @@
     cancel.disabled = job.status === "cancelling";
     if (active) {
       if (!start.disabled) setBusy(start, true, "Running…");
+      alternateStart.disabled = true;
       if (job.status === "waiting") start.innerHTML = '<span class="spinner"></span> Waiting…';
     } else {
       setBusy(start, false);
+      alternateStart.disabled = false;
     }
   }
 
@@ -2910,7 +2918,10 @@
       if (isAnalysisActive(job.status)) {
         setTimeout(function () { pollQueue3Job(jobId); }, 1500);
       } else if (job.status === "completed") {
-        showToast("Queue 3 flush finished", "ok");
+        showToast(
+          job.queue_3_annual_only ? "Previous-year import finished" : "Queue 3 flush finished",
+          "ok"
+        );
       } else if (job.status === "paused" || job.status === "cancelled") {
         showToast(job.detail || "Queue 3 flush stopped", "ok");
       } else {
@@ -4256,15 +4267,19 @@
     }
   }
 
-  async function startQueue3WebJob(btn) {
+  async function startQueue3WebJob(btn, annualOnly) {
     var dryRun = document.getElementById("queue3DryRun").checked;
     var out = document.getElementById("queue3Progress");
-    if (!dryRun && !confirm("Apply the Queue 3 flush to Spotify?")) return;
+    var label = annualOnly ? "previous-year Queue 3 import" : "Queue 3 flush";
+    if (!dryRun && !confirm("Apply the " + label + " to Spotify?")) return;
     var q = new URLSearchParams();
     q.set("dry_run", dryRun ? "true" : "false");
     setBusy(btn, true, "Starting…");
     try {
-      var job = await api("/commands/flush-queue-3?" + q.toString(), { method: "POST" });
+      var route = annualOnly
+        ? "/commands/import-queue-3-previous-year"
+        : "/commands/flush-queue-3";
+      var job = await api(route + "?" + q.toString(), { method: "POST" });
       renderQueue3Job(job);
       pollQueue3Job(job.job_id);
     } catch (e) {
@@ -4933,7 +4948,11 @@
     },
 
     async startQueue3(btn) {
-      return startQueue3WebJob(btn);
+      return startQueue3WebJob(btn, false);
+    },
+
+    async startQueue3AnnualImport(btn) {
+      return startQueue3WebJob(btn, true);
     },
 
     async queue3Choice(btn) {

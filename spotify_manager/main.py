@@ -3358,6 +3358,131 @@ def flush_new_wine_command(
         )
 
 
+def _render_queue_3_annual_import(
+    console: Console,
+    results: tuple[queue_3.AnnualImportResult, ...],
+) -> None:
+    """Render previous-year Queue 3 markers consistently across commands."""
+    if not results:
+        return
+    import_table = Table(title="Previous-year Great Discoveries")
+    import_table.add_column("Artist")
+    import_table.add_column("Track")
+    import_table.add_column("Year", justify="right")
+    import_table.add_column("Action")
+    for seed_result in results:
+        import_table.add_row(
+            seed_result.artist,
+            seed_result.track,
+            str(seed_result.source_year),
+            seed_result.action,
+        )
+    console.print(import_table)
+
+
+@app.command(name="import-queue-3-previous-year")
+def import_queue_3_previous_year_command(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview last year's Great Discoveries import without changing Queue 3.",
+    ),
+) -> None:
+    """Import last year's Great Discoveries without advancing Queue 3."""
+    console = Console()
+    configuration = Settings()
+    try:
+        playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
+    except queue_3.Queue3ConfigError as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+
+    def echo(line: str = "") -> None:
+        style = "yellow" if line.startswith("Would") else "cyan"
+        console.print(line, style=style, markup=False)
+
+    def retry_call(
+        operation: Callable[[], object],
+        description: str,
+    ) -> object:
+        return review_album_limits.retry_spotify_server_errors(
+            operation,
+            description,
+            echo=echo,
+            sleep=sleep,
+            retry_delay_seconds=10,
+            max_attempts=3,
+        )
+
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            task_id = progress.add_task("Loading previous-year discoveries", total=1)
+
+            def update_progress(completed: int, total: int, status: str) -> None:
+                progress.update(
+                    task_id,
+                    completed=completed,
+                    total=max(completed, total),
+                    description=status,
+                )
+
+            summary = queue_3.import_previous_year_discoveries(
+                review_client(),
+                playlist_id,
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=update_progress,
+                retry_call=retry_call,
+            )
+    except review_album_limits.SpotifyRateLimitError as exc:
+        console.print(
+            "Spotify rate limit reached. "
+            f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}.",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except review_album_limits.SpotifyTransientServerError as exc:
+        console.print(
+            review_album_limits.format_transient_spotify_failure(exc) + ".",
+            style="bold yellow",
+        )
+        raise typer.Exit(code=0) from exc
+    except queue_3.Queue3Error as exc:
+        console.print(str(exc), style="bold red", markup=False)
+        raise typer.Exit(code=1) from exc
+    except SpotifyException as exc:
+        console.print(
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1) from exc
+
+    _render_queue_3_annual_import(console, summary.results)
+    if summary.already_completed:
+        console.print(
+            f"Great Discoveries {summary.source_year} was already imported.",
+            style="cyan",
+        )
+        return
+    action = "would be added" if dry_run else "added"
+    artist_label = "artist" if summary.additions == 1 else "artists"
+    console.print(
+        f"Great Discoveries {summary.source_year}: {summary.additions} "
+        f"{artist_label} {action}; {summary.already_present} already present."
+        + (" Preview only." if dry_run else ""),
+        style="bold cyan" if dry_run else "bold green",
+    )
+
+
 @app.command(name="flush-queue-3")
 def flush_queue_3_command(
     dry_run: bool = typer.Option(
@@ -3500,20 +3625,7 @@ def flush_queue_3_command(
         )
         raise typer.Exit(code=0) from exc
 
-    if summary.annual_import:
-        import_table = Table(title="Previous-year Great Discoveries")
-        import_table.add_column("Artist")
-        import_table.add_column("Track")
-        import_table.add_column("Year", justify="right")
-        import_table.add_column("Action")
-        for seed_result in summary.annual_import:
-            import_table.add_row(
-                seed_result.artist,
-                seed_result.track,
-                str(seed_result.source_year),
-                seed_result.action,
-            )
-        console.print(import_table)
+    _render_queue_3_annual_import(console, summary.annual_import)
 
     table = Table(title="The Queue 3")
     table.add_column("Artist")
