@@ -544,6 +544,57 @@ def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
     assert repeated == ()
 
 
+def test_previous_year_import_runs_without_advancing_queue(tmp_path: Path) -> None:
+    spotify = FakeSpotify()
+    release = raw_release("new-r", "New", artist_id="new")
+    marker = raw_track("new-t", "New", release, artist_id="new")
+    spotify.playlists["great-2025"] = [marker]
+    state_path = tmp_path / "state.json"
+
+    summary = queue_3.import_previous_year_discoveries(
+        spotify,  # type: ignore[arg-type]
+        "queue3",
+        active_year=2026,
+        dry_run=False,
+        retry_call=lambda operation, _description: operation(),
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        echo=lambda _line: None,
+    )
+
+    assert summary.additions == 1
+    assert summary.already_present == 0
+    assert summary.already_completed is False
+    assert [track["id"] for track in spotify.playlists["queue3"]] == ["new-t"]
+    state = json.loads(state_path.read_text())
+    assert state["annual_imports"]["2026"]["completed"] is True
+    assert state["active_run"] is None
+
+
+def test_previous_year_import_reports_completed_year_without_api_mutation(
+    tmp_path: Path,
+) -> None:
+    spotify = FakeSpotify()
+    state_path = completed_annual_state(tmp_path)
+    messages: list[str] = []
+
+    summary = queue_3.import_previous_year_discoveries(
+        spotify,  # type: ignore[arg-type]
+        "queue3",
+        active_year=2026,
+        dry_run=False,
+        retry_call=lambda operation, _description: operation(),
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        echo=messages.append,
+    )
+
+    assert summary.already_completed is True
+    assert summary.results == ()
+    assert spotify.mutations == []
+    assert messages == ["Great Discoveries 2025 was already imported into Queue 3."]
+
+
 def test_owned_composer_playlist_overrides_discography_and_survives_performer_credit(
     tmp_path: Path,
 ) -> None:

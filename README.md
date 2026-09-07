@@ -947,11 +947,24 @@ prompted once and the selection is persisted. The routine then advances in the
 playlist's literal Spotify order, retaining the composer identity even when
 Spotify credits a performer as the next track's primary artist.
 
-At the start of the first run in each calendar year, the command finds the
+At the start of the first live run in each calendar year, the command finds the
 playlist named exactly `Great Discoveries PREVIOUS_YEAR` among the user's owned
 Spotify playlists and appends one existing marker for every artist not already
-represented in Queue 3. The completed import year is persisted, while partial
-imports remain idempotent because membership is checked by primary artist.
+represented in Queue 3. Dry runs preview this automatic import without marking
+it complete. The completed import year is persisted, while partial imports
+remain idempotent because membership is checked by primary artist.
+
+The same import can be triggered independently, without advancing any Queue 3
+artists. It uses the same annual completion marker, so running it before the
+automatic flush prevents a duplicate import:
+
+```console
+uv run spotify-manager import-queue-3-previous-year --dry-run
+just import-queue-3-previous-year --dry-run
+
+uv run spotify-manager import-queue-3-previous-year
+just import-queue-3-previous-year
+```
 
 Preview the annual import and ten artist transitions:
 
@@ -979,6 +992,7 @@ logs:
 
 ```text
 POST /commands/flush-queue-3?dry_run=true
+POST /commands/import-queue-3-previous-year?dry_run=true
 GET  /commands/flush-queue-3-jobs
 GET  /commands/flush-queue-3-jobs/{job_id}
 POST /commands/flush-queue-3-jobs/{job_id}/choice

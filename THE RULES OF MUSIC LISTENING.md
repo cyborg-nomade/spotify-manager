@@ -164,7 +164,7 @@ Track lists have evolved from the need to allow single tracks to be listened wit
 9. *the queue 3: revenge of these artists* contains tracks by artists that have been fully discovered and are awaiting to have their full discograpy listend to
    1.  **Type**: HYBRID (RECOVERY/DISCOVERY)
    2.  **Fill-up**:
-       1.  From previous year's *Great Discoveries* at the beginning of the current year
+       1.  From previous year's *Great Discoveries* at the beginning of the current year, either explicitly or automatically on the first live *queue 3* flush
        2.  When an artist has more than 18 liked songs
    3.  **Flush**:
        1.  Listen each track and add the next track from the artist at the end of the playlist

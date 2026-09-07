@@ -177,6 +177,10 @@ flush-queue-2 *args:
 flush-queue-3 *args:
     {{ cli }} flush-queue-3 "$@"
 
+# Import last year's Great Discoveries without advancing Queue 3.
+import-queue-3-previous-year *args:
+    {{ cli }} import-queue-3-previous-year "$@"
+
 # Advance the first two Slow Listening tracks through studio releases.
 flush-slow-listening *args:
     {{ cli }} flush-slow-listening "$@"

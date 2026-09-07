@@ -881,6 +881,8 @@ class BlastJobResult(BaseModel):
     queue_resumed: bool = False
     queue_3_results: list[Queue3TrackResult] = Field(default_factory=list)
     queue_3_annual_import: list[Queue3AnnualImportEntry] = Field(default_factory=list)
+    queue_3_annual_only: bool = False
+    queue_3_annual_import_completed: bool = False
     queue_3_pending_choice: Queue3PendingChoice | None = None
     queue_3_resumed: bool = False
     queue_3_paused: bool = False
@@ -2955,21 +2957,93 @@ def _queue_3_track_result(result: queue_3.FlushResult) -> Queue3TrackResult:
     )
 
 
+def _queue_3_annual_entries(
+    results: tuple[queue_3.AnnualImportResult, ...],
+) -> list[Queue3AnnualImportEntry]:
+    """Convert annual-import results into the stable web representation."""
+    return [
+        Queue3AnnualImportEntry(
+            artist=result.artist,
+            track=result.track,
+            source_year=result.source_year,
+            action=result.action,
+        )
+        for result in results
+    ]
+
+
+def _apply_queue_3_annual_summary(
+    job: _BlastJob,
+    summary: queue_3.AnnualImportSummary,
+) -> None:
+    """Apply a completed annual-only summary to its web job."""
+    job.result.status = "completed"
+    job.result.processed = len(summary.results)
+    job.result.total = len(summary.results)
+    job.result.added = summary.additions
+    job.result.queue_3_annual_import = _queue_3_annual_entries(summary.results)
+    job.result.queue_3_annual_import_completed = summary.already_completed
+    if summary.already_completed:
+        job.result.detail = (
+            f"Great Discoveries {summary.source_year} was already imported."
+        )
+    else:
+        action = "would be added" if summary.dry_run else "added"
+        artist_label = "artist" if summary.additions == 1 else "artists"
+        job.result.detail = (
+            f"Great Discoveries {summary.source_year}: "
+            f"{summary.additions} {artist_label} {action}; "
+            f"{summary.already_present} already present."
+        )
+
+
+def _apply_queue_3_flush_summary(
+    job: _BlastJob,
+    summary: queue_3.FlushSummary,
+) -> None:
+    """Apply a completed or paused flush summary to its web job."""
+    job.result.status = "paused" if summary.paused else "completed"
+    job.result.run_id = summary.run_id
+    job.result.processed = summary.processed
+    job.result.total = summary.total
+    job.result.advanced = summary.advanced
+    job.result.queue_3_changed_releases = summary.changed_releases
+    job.result.completed_artists = summary.completed_artists
+    job.result.skipped = summary.skipped
+    job.result.queue_3_results = [
+        _queue_3_track_result(result) for result in summary.results
+    ]
+    job.result.queue_3_annual_import = _queue_3_annual_entries(summary.annual_import)
+    job.result.queue_3_resumed = summary.resumed
+    job.result.queue_3_paused = summary.paused
+    if summary.paused:
+        job.result.detail = "Queue 3 flush paused. Progress was saved."
+    else:
+        job.result.detail = (
+            f"{summary.processed} decisions; {summary.advanced} advances; "
+            f"{summary.changed_releases} release changes; "
+            f"{summary.completed_artists} completed artists."
+        )
+
+
 def _run_queue_3_job(
     job_id: str,
     spotify: Spotify,
     playlist_id: str,
     dry_run: bool,
+    annual_only: bool = False,
 ) -> None:
-    """Execute one interactive Queue 3 flush as a reconnectable web job."""
+    """Execute one Queue 3 operation as a reconnectable web job."""
     job = get_blast_job(job_id, command="flush_queue_3")
+    operation_name = "Previous-year Queue 3 import" if annual_only else "Queue 3 flush"
+    summary: queue_3.AnnualImportSummary | queue_3.FlushSummary
     with _blast_jobs_lock:
         job.result.status = "running"
         job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Queue 3 flush started"
+        job.result.detail = f"{operation_name} started"
         _append_blast_log_locked(
             job,
-            f"Queue 3 flush started{' in dry-run mode' if dry_run else ''}.",
+            f"{operation_name} started{' in dry-run mode' if dry_run else ''}.",
         )
 
     def echo(message: str) -> None:
@@ -3069,24 +3143,35 @@ def _run_queue_3_job(
         previous_spotify_event_callback = spotify_event_setter(echo)
 
     try:
-        summary = queue_3.flush_queue_3(
-            spotify,
-            playlist_id,
-            transition_reader,
-            composer_playlist_reader=composer_playlist_reader,
-            dry_run=dry_run,
-            echo=echo,
-            progress_callback=progress_callback,
-            retry_call=retry_call,
-        )
+        if annual_only:
+            summary = queue_3.import_previous_year_discoveries(
+                spotify,
+                playlist_id,
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=progress_callback,
+                retry_call=retry_call,
+            )
+        else:
+            summary = queue_3.flush_queue_3(
+                spotify,
+                playlist_id,
+                transition_reader,
+                composer_playlist_reader=composer_playlist_reader,
+                dry_run=dry_run,
+                echo=echo,
+                progress_callback=progress_callback,
+                retry_call=retry_call,
+            )
     except _Queue3JobCancelledError:
         with _blast_jobs_lock:
             job.result.status = "cancelled"
-            job.result.detail = (
-                "Queue 3 flush stopped. Progress was saved."
-                if not dry_run
-                else "Queue 3 dry run stopped."
-            )
+            if annual_only:
+                job.result.detail = "Previous-year Queue 3 import stopped."
+            elif dry_run:
+                job.result.detail = "Queue 3 dry run stopped."
+            else:
+                job.result.detail = "Queue 3 flush stopped. Progress was saved."
             _append_blast_log_locked(job, job.result.detail)
     except review_album_limits.SpotifyRateLimitError as exc:
         retry_at = None
@@ -3117,45 +3202,19 @@ def _run_queue_3_job(
         with _blast_jobs_lock:
             job.result.status = "failed"
             job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Queue 3 flush failed: {exc}")
+            _append_blast_log_locked(job, f"{operation_name} failed: {exc}")
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Queue 3 flush error")
+        _analysis_logger.exception("Unexpected %s error", operation_name)
         with _blast_jobs_lock:
             job.result.status = "failed"
-            job.result.detail = f"Unexpected Queue 3 error: {exc}"
+            job.result.detail = f"Unexpected {operation_name} error: {exc}"
             _append_blast_log_locked(job, job.result.detail)
     else:
         with _blast_jobs_lock:
-            job.result.status = "paused" if summary.paused else "completed"
-            job.result.run_id = summary.run_id
-            job.result.processed = summary.processed
-            job.result.total = summary.total
-            job.result.advanced = summary.advanced
-            job.result.queue_3_changed_releases = summary.changed_releases
-            job.result.completed_artists = summary.completed_artists
-            job.result.skipped = summary.skipped
-            job.result.queue_3_results = [
-                _queue_3_track_result(result) for result in summary.results
-            ]
-            job.result.queue_3_annual_import = [
-                Queue3AnnualImportEntry(
-                    artist=result.artist,
-                    track=result.track,
-                    source_year=result.source_year,
-                    action=result.action,
-                )
-                for result in summary.annual_import
-            ]
-            job.result.queue_3_resumed = summary.resumed
-            job.result.queue_3_paused = summary.paused
-            if summary.paused:
-                job.result.detail = "Queue 3 flush paused. Progress was saved."
+            if isinstance(summary, queue_3.AnnualImportSummary):
+                _apply_queue_3_annual_summary(job, summary)
             else:
-                job.result.detail = (
-                    f"{summary.processed} decisions; {summary.advanced} advances; "
-                    f"{summary.changed_releases} release changes; "
-                    f"{summary.completed_artists} completed artists."
-                )
+                _apply_queue_3_flush_summary(job, summary)
             _append_blast_log_locked(job, job.result.detail)
     finally:
         if callable(spotify_event_setter):
@@ -5527,8 +5586,9 @@ def start_queue_3_job(
     playlist_id: str,
     *,
     dry_run: bool,
+    annual_only: bool = False,
 ) -> BlastJobResult:
-    """Start one Queue 3 web job, rejecting another playlist routine."""
+    """Start one Queue 3 flush or standalone annual-import web job."""
     with _blast_jobs_lock:
         for existing in _blast_jobs.values():
             if existing.result.status in _ACTIVE_JOB_STATUSES:
@@ -5546,19 +5606,21 @@ def start_queue_3_job(
                 job_id=job_id,
                 command="flush_queue_3",
                 dry_run=dry_run,
+                queue_3_annual_only=annual_only,
             )
         )
         _append_blast_log_locked(
             job,
-            f"Queue 3 flush queued{' in dry-run mode' if dry_run else ''}.",
+            ("Previous-year Queue 3 import" if annual_only else "Queue 3 flush")
+            + f" queued{' in dry-run mode' if dry_run else ''}.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
 
     Thread(
         target=_run_queue_3_job,
-        args=(job_id, spotify, playlist_id, dry_run),
-        name=f"queue-3-flush-{job_id[:8]}",
+        args=(job_id, spotify, playlist_id, dry_run, annual_only),
+        name=f"queue-3-{'import' if annual_only else 'flush'}-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -7183,6 +7245,29 @@ def cmd_flush_queue_3(
     except queue_3.Queue3ConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return start_queue_3_job(client, playlist_id, dry_run=dry_run)
+
+
+@app.post(
+    "/commands/import-queue-3-previous-year",
+    response_model=BlastJobResult,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def cmd_import_queue_3_previous_year(
+    client: InteractiveClientDep,
+    dry_run: bool = True,
+) -> BlastJobResult:
+    """Start the annual Queue 3 import without advancing existing artists."""
+    configuration = Settings()
+    try:
+        playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
+    except queue_3.Queue3ConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return start_queue_3_job(
+        client,
+        playlist_id,
+        dry_run=dry_run,
+        annual_only=True,
+    )
 
 
 @app.get(

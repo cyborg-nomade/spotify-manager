@@ -2470,6 +2470,79 @@ def test_queue_3_web_job_handles_release_and_composer_choices(
     assert client.get("/commands/flush-queue-3-jobs").json() == []
 
 
+def test_queue_3_previous_year_import_has_a_separate_web_action(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """The annual-only job should import without invoking the Queue 3 flush."""
+    from spotify_manager import api
+
+    received: dict[str, object] = {}
+
+    def import_previous_year(spotify, playlist_id, **kwargs):
+        received.update(
+            spotify_type=type(spotify).__name__,
+            playlist_id=playlist_id,
+            dry_run=kwargs["dry_run"],
+        )
+        kwargs["progress_callback"](1, 1, "Checked Great Discoveries 2025")
+        kwargs["echo"]("Annual import checked")
+        return api.queue_3.AnnualImportSummary(
+            active_year=2026,
+            source_year=2025,
+            additions=1,
+            already_present=2,
+            already_completed=False,
+            dry_run=kwargs["dry_run"],
+            results=(
+                api.queue_3.AnnualImportResult(
+                    artist="Imported Artist",
+                    track="Marker",
+                    source_year=2025,
+                    action="would add",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(the_queue_3_playlist="spotify:playlist:queue3"),
+    )
+    monkeypatch.setattr(
+        api.queue_3,
+        "import_previous_year_discoveries",
+        import_previous_year,
+    )
+    monkeypatch.setattr(
+        api.queue_3,
+        "flush_queue_3",
+        lambda *_args, **_kwargs: pytest.fail("Queue 3 flush must not run"),
+    )
+
+    started = client.post(
+        "/commands/import-queue-3-previous-year",
+        params={"dry_run": "true"},
+    )
+
+    assert started.status_code == 202
+    assert started.json()["queue_3_annual_only"] is True
+    job_id = started.json()["job_id"]
+    completed = wait_for_queue_3_status(client, job_id, {"completed"})
+    assert received == {
+        "spotify_type": "FakeSpotify",
+        "playlist_id": "queue3",
+        "dry_run": True,
+    }
+    assert completed["queue_3_annual_only"] is True
+    assert completed["queue_3_annual_import"][0]["artist"] == "Imported Artist"
+    assert completed["added"] == 1
+    assert "1 artist would be added; 2 already present" in completed["detail"]
+    assert any(
+        entry["message"] == "Annual import checked" for entry in completed["logs"]
+    )
+
+
 def test_new_wine_web_job_waits_for_and_applies_release_choice(
     client: TestClient,
     monkeypatch,

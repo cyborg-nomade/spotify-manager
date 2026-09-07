@@ -85,6 +85,19 @@ class AnnualImportResult:
     action: SeedAction
 
 
+@dataclass(frozen=True)
+class AnnualImportSummary:
+    """Outcome of an independently requested previous-year import."""
+
+    active_year: int
+    source_year: int
+    additions: int
+    already_present: int
+    already_completed: bool
+    dry_run: bool
+    results: tuple[AnnualImportResult, ...]
+
+
 OwnedPlaylist = composer_playlists.OwnedPlaylist
 
 
@@ -422,6 +435,82 @@ def _annual_import(
         f"{len(source_seen) - len(additions)} were already present."
     )
     return current_tracks, tuple(results)
+
+
+def import_previous_year_discoveries(
+    sp: Spotify,
+    playlist_id: str,
+    *,
+    active_year: int | None = None,
+    dry_run: bool = False,
+    echo: Echo = print,
+    progress_callback: ProgressCallback | None = None,
+    retry_call: RetryCall | None = None,
+    state_path: Path = DEFAULT_STATE_PATH,
+    state_service: StateService | None = None,
+    log_path: Path = DEFAULT_LOG_PATH,
+) -> AnnualImportSummary:
+    """Import last year's Great Discoveries without advancing Queue 3."""
+    retry = retry_call or (lambda operation, _description: operation())
+    year = active_year or datetime.now(UTC).year
+    source_year = year - 1
+    if progress_callback is not None:
+        progress_callback(0, 1, f"Loading Great Discoveries {source_year}")
+
+    owned_playlists = load_owned_playlists(sp, retry, playlist_id)
+    try:
+        live_tracks = list(new_wine.load_playlist_tracks(sp, playlist_id, retry))
+    except new_wine.NewWineError as exc:
+        raise Queue3Error(str(exc)) from exc
+
+    state_access = _state_access(state_path, state_service)
+    persisted_state = state_access.load()
+    state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
+    annual_imports = cast(dict[str, object], state["annual_imports"])
+    year_state = annual_imports.get(str(year))
+    already_completed = isinstance(year_state, dict) and bool(
+        year_state.get("completed")
+    )
+    if already_completed:
+        echo(f"Great Discoveries {source_year} was already imported into Queue 3.")
+        if progress_callback is not None:
+            progress_callback(1, 1, f"Great Discoveries {source_year} already imported")
+        return AnnualImportSummary(
+            active_year=year,
+            source_year=source_year,
+            additions=0,
+            already_present=0,
+            already_completed=True,
+            dry_run=dry_run,
+            results=(),
+        )
+
+    _tracks, results = _annual_import(
+        sp,
+        playlist_id,
+        live_tracks,
+        state,
+        owned_playlists=owned_playlists,
+        active_year=year,
+        dry_run=dry_run,
+        retry_call=retry,
+        state_access=state_access,
+        log_path=log_path,
+        echo=echo,
+    )
+    additions = sum(result.action in {"added", "would add"} for result in results)
+    already_present = sum(result.action == "already present" for result in results)
+    if progress_callback is not None:
+        progress_callback(1, 1, f"Checked Great Discoveries {source_year}")
+    return AnnualImportSummary(
+        active_year=year,
+        source_year=source_year,
+        additions=additions,
+        already_present=already_present,
+        already_completed=False,
+        dry_run=dry_run,
+        results=results,
+    )
 
 
 def _new_run(

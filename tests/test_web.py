@@ -75,6 +75,17 @@ def test_new_kids_web_results_show_composer_works_progress(
     assert "item.composer_limit || 40" in response.text
 
 
+def test_queue_3_exposes_a_separate_previous_year_import_button(
+    client: TestClient,
+) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'data-action="startQueue3AnnualImport"' in response.text
+    assert '"/commands/import-queue-3-previous-year"' in response.text
+    assert "job.queue_3_annual_only" in response.text
+
+
 def test_blast_and_daily_controls_support_cancellation_and_release_restore(
     client: TestClient,
 ) -> None:
