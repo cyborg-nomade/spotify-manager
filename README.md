@@ -834,8 +834,10 @@ distinct tracks and every currently liked track on the release have been
 scrobbled. Once four releases satisfy that rule, the entire canonical
 primary-artist discography is checked live. Artists with at least one liked
 track reach the current year's *Great Discoveries* and *Newfoundland* when they
-have at least 18 liked tracks, 3 saved releases, every release saved, or every
-track liked. Other artists with likes are added to *Unlucky Ones* using their
+have at least 18 liked tracks, 3 saved releases of any kind, every album saved,
+or every track liked. EPs, singles, live releases, and compilations neither
+count toward nor block the every-album condition. Other artists with likes are
+added to *Unlucky Ones* using their
 most popular liked track and then unfollowed. Artists with no liked tracks are
 simply unfollowed. The promotion marker is the first primary-artist track of the
 earliest eligible release.

@@ -1,6 +1,7 @@
 """Tests for the New Kids on the Block flush."""
 
 import json
+from dataclasses import replace
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
@@ -77,6 +78,49 @@ def ranked_release(release_id: str, *, tier: int = 0) -> new_kids.RankedRelease:
         identity=release_id,
         saved=False,
         plain=True,
+    )
+
+
+def test_promotion_reasons_match_all_four_exit_conditions() -> None:
+    """Each independent live-library criterion promotes a completed artist."""
+    album_1 = ranked_release("album-1")
+    album_2 = ranked_release("album-2")
+    ep = replace(ranked_release("ep"), release_type="EP")
+    single = ranked_release("single", tier=1)
+    live = replace(ranked_release("live", tier=2), release_type="Live")
+
+    assert "18 liked tracks" in new_kids._promotion_reasons(
+        (album_1,),
+        {},
+        liked_tracks=18,
+        total_tracks=20,
+    )
+    assert new_kids._promotion_reasons(
+        (ep, single, live),
+        {"ep": True, "single": True, "live": True},
+        liked_tracks=1,
+        total_tracks=10,
+    ) == ("3 saved releases",)
+    assert new_kids._promotion_reasons(
+        (album_1, album_2, ep, single),
+        {"album-1": True, "album-2": True},
+        liked_tracks=1,
+        total_tracks=10,
+    ) == ("all albums saved",)
+    assert "all tracks liked" in new_kids._promotion_reasons(
+        (album_1,),
+        {},
+        liked_tracks=2,
+        total_tracks=2,
+    )
+    assert (
+        new_kids._promotion_reasons(
+            (ep, single),
+            {"ep": True, "single": True},
+            liked_tracks=1,
+            total_tracks=2,
+        )
+        == ()
     )
 
 
@@ -1259,6 +1303,52 @@ def test_qualifying_artist_reaches_both_destination_playlists(
         "artist-r1-t1"
     ]
     assert "artist" in spotify.followed_artist_ids
+
+
+def test_all_saved_albums_qualify_despite_unsaved_other_releases(
+    tmp_path: Path,
+) -> None:
+    """EPs and singles do not block the all-studio-albums promotion rule."""
+    spotify = FakeSpotify()
+    releases = [
+        raw_release("album-1", "First Album", total_tracks=3),
+        raw_release("album-2", "Second Album", total_tracks=3),
+        raw_release("ep-1", "Only EP", album_type="single", total_tracks=4),
+        raw_release("single-1", "Only Single", album_type="single", total_tracks=1),
+    ]
+    release_tracks: list[list[dict[str, object]]] = []
+    for release in releases:
+        release_id = str(release["id"])
+        tracks = [
+            raw_track(
+                f"{release_id}-t{track_number}",
+                f"{release_id} Track {track_number}",
+                release,
+                track_number=track_number,
+            )
+            for track_number in range(1, int(release["total_tracks"]) + 1)
+        ]
+        spotify.release_tracks[release_id] = tracks
+        release_tracks.append(tracks)
+    spotify.artist_releases["artist"] = releases
+    spotify.playlists["new"] = [release_tracks[-1][0]]
+    spotify.saved_album_ids.update({"album-1", "album-2"})
+    spotify.liked_ids.add("album-1-t1")
+    write_played_release_history(
+        tmp_path,
+        release_tracks,
+        liked_track_ids=spotify.liked_ids,
+    )
+
+    summary = flush(spotify, tmp_path)
+
+    result = summary.results[0]
+    assert result.action == "great discovery"
+    assert result.qualification_reasons == ("all albums saved",)
+    assert [track["id"] for track in spotify.playlists["great"]] == ["album-1-t1"]
+    assert [track["id"] for track in spotify.playlists["newfoundland"]] == [
+        "album-1-t1"
+    ]
 
 
 def test_interrupted_postfill_resumes_without_advancing_new_artist(

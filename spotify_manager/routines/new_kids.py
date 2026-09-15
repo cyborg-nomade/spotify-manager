@@ -1260,6 +1260,31 @@ def _catalog_track_popularities(
     return popularities
 
 
+def _promotion_reasons(
+    catalog: tuple[RankedRelease, ...],
+    saved: dict[str, bool],
+    *,
+    liked_tracks: int,
+    total_tracks: int,
+) -> tuple[str, ...]:
+    """Return every live-library rule that promotes a completed artist."""
+    saved_count = sum(saved.values())
+    albums = [release for release in catalog if release.release_type == "Album"]
+    all_albums_saved = bool(albums) and all(
+        saved.get(release.spotify_id, False) for release in albums
+    )
+    reasons: list[str] = []
+    if liked_tracks >= 18:
+        reasons.append("18 liked tracks")
+    if saved_count >= 3:
+        reasons.append("3 saved releases")
+    if all_albums_saved:
+        reasons.append("all albums saved")
+    if total_tracks > 0 and liked_tracks == total_tracks:
+        reasons.append("all tracks liked")
+    return tuple(reasons)
+
+
 def assess_artist(
     sp: Spotify,
     artist_id: str,
@@ -1295,17 +1320,12 @@ def assess_artist(
         track for track_id, track in all_tracks.items() if liked.get(track_id, False)
     ]
     saved_count = sum(saved.values())
-    all_releases_saved = bool(catalog) and saved_count == len(catalog)
-    all_tracks_liked = bool(all_tracks) and len(liked_tracks) == len(all_tracks)
-    reasons: list[str] = []
-    if len(liked_tracks) >= 18:
-        reasons.append("18 liked tracks")
-    if saved_count >= 3:
-        reasons.append("3 saved releases")
-    if all_releases_saved:
-        reasons.append("all releases saved")
-    if all_tracks_liked:
-        reasons.append("all tracks liked")
+    reasons = _promotion_reasons(
+        catalog,
+        saved,
+        liked_tracks=len(liked_tracks),
+        total_tracks=len(all_tracks),
+    )
 
     representative: CatalogTrack | None = None
     chronological = sorted(
@@ -1358,7 +1378,7 @@ def assess_artist(
         liked_primary_tracks=len(liked_tracks),
         total_primary_tracks=len(all_tracks),
         qualifies=bool(reasons),
-        reasons=tuple(reasons),
+        reasons=reasons,
         representative_track=representative,
         top_liked_track=top_liked,
     )
@@ -1584,8 +1604,10 @@ def _plan_result(
     )
     assessment = plan.get("assessment")
     reasons: tuple[str, ...] = ()
-    if isinstance(assessment, dict) and isinstance(assessment.get("reasons"), list):
-        reasons = tuple(str(reason) for reason in assessment["reasons"])
+    if isinstance(assessment, dict):
+        raw_reasons = assessment.get("reasons")
+        if isinstance(raw_reasons, (list, tuple)):
+            reasons = tuple(str(reason) for reason in raw_reasons)
     evaluation = plan.get("evaluation")
     liked_tracks: int | None = None
     total_tracks: int | None = None
