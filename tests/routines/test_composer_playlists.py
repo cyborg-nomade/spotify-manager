@@ -40,6 +40,44 @@ def test_personal_surname_still_matches_a_composer_playlist() -> None:
     assert candidates == (bach,)
 
 
+def test_surname_does_not_match_a_different_composers_full_name() -> None:
+    """Roger Taylor must not inherit Samuel Coleridge-Taylor's works route."""
+    coleridge_taylor = playlist(
+        "coleridge-taylor",
+        "[CD] Complete Samuel Coleridge-Taylor works",
+    )
+
+    candidates = composer_playlists.composer_playlist_candidates(
+        "Roger Taylor",
+        (coleridge_taylor,),
+        excluded_playlist_ids=frozenset(),
+    )
+
+    assert candidates == ()
+    assert not composer_playlists.is_composer_playlist_candidate(
+        "Roger Taylor",
+        "coleridge-taylor",
+        (coleridge_taylor,),
+        excluded_playlist_ids=frozenset(),
+    )
+
+
+def test_full_hyphenated_composer_name_still_matches() -> None:
+    """The collision guard must preserve the intended composer's route."""
+    coleridge_taylor = playlist(
+        "coleridge-taylor",
+        "[CD] Complete Samuel Coleridge-Taylor works",
+    )
+
+    candidates = composer_playlists.composer_playlist_candidates(
+        "Samuel Coleridge-Taylor",
+        (coleridge_taylor,),
+        excluded_playlist_ids=frozenset(),
+    )
+
+    assert candidates == (coleridge_taylor,)
+
+
 def test_full_name_match_does_not_depend_on_surname_fallback() -> None:
     """An exact token sequence remains valid even for an ensemble-style name."""
     string_band = playlist("string-band", "[CD] The .357 String Band chronology")

@@ -822,9 +822,11 @@ live releases, and compilations offered in that order.
 
 Classical-composer progression is enabled only by an owned works playlist whose
 name begins with the exact `[CD]` prefix and then contains the composer's full
-name or surname. Unprefixed playlists always remain ordinary playlists, even
-when their names contain the artist's full name. A matched works playlist is
-followed in its stored Spotify order for 40 tracks.
+name or an unambiguous surname. Surname-only matching permits generic catalog
+words such as `complete`, `chronological`, and `works`, but rejects titles that
+contain another person's name. Unprefixed playlists always remain ordinary
+playlists, even when their names contain the artist's full name. A matched
+works playlist is followed in its stored Spotify order for 40 tracks.
 
 Release progress comes from the canonical Last.fm history rather than an
 internal counter. Before planning either a real or dry run, the command fetches
@@ -943,8 +945,9 @@ compilations are excluded.
 
 For composers with an ordered works playlist, Queue 3 looks only among
 playlists owned by the authenticated Spotify user whose title begins with
-`[CD]` and contains the composer's full name or surname. Unprefixed playlists
-are ignored. One match is used automatically; ambiguous owned matches are
+`[CD]` and contains the composer's full name or an unambiguous surname.
+Surname-only titles containing another person's name are rejected. Unprefixed
+playlists are ignored. One match is used automatically; ambiguous owned matches are
 prompted once and the selection is persisted. The routine then advances in the
 playlist's literal Spotify order, retaining the composer identity even when
 Spotify credits a performer as the next track's primary artist.
