@@ -117,7 +117,8 @@ Track lists have evolved from the need to allow single tracks to be listened wit
       5. After finishing an artist, add them to the year's *Great Discoveries* playlist and to *newfoundland* discography if they meet at least one these criteria:
          1. 18 liked tracks
          2. 3 saved releases
-         3. All releases saved
+         3. All albums saved; EPs, singles, live releases, and compilations do
+            not count toward or block this condition
          4. All tracks liked
       6. Otherwise, unfollow the artist and add the top liked track to *Unlucky Ones*
       7. For classical composers with a user-created works playlist whose title begins with `[CD]` and contains the composer's name or surname, follow that playlist's stored Spotify order for 40 tracks instead of the regular four-release review. Only playlists owned by the user count. Unprefixed playlists never trigger composer handling. When the cycle finishes, use the first track of that works playlist to represent the composer in *Great Discoveries*, *newfoundland*, or *Unlucky Ones*.
@@ -277,7 +278,7 @@ Extra lists aren't really part of the project, but can be fitted in into availab
     2. Compilations are created to gather tracks for a certain motive. Currently, there are six types of compilations:
         1. "Actually, this is..." lists, which are compiled after listening to an artist's discography, if it's very extensive. These help when coming back to these artists without needing to laboriously listen to 20+ records to get to a few good tracks. These can be played if there's available time.
         2. "For People" lists, which are compiled to share music with other people. These in general aren't listened.
-        3. "Great Discoveries" lists, which are compiled every year from the artists coming out of "new kids on the block", if they have at least 18 liked tracks, at least 3 saved releases, all eligible releases saved, or all eligible tracks liked. While they won't be played directly, every new year, the great discoveries of the previous year should be put back in play using the other lists. This should also be done after 5 years (so, in 2030, put the 2025 Great Discoveries back in play, etc).
+        3. "Great Discoveries" lists, which are compiled every year from the artists coming out of "new kids on the block", if they have at least 18 liked tracks, at least 3 saved releases of any kind, all albums saved (irrespective of other release types), or all tracks liked. While they won't be played directly, every new year, the great discoveries of the previous year should be put back in play using the other lists. This should also be done after 5 years (so, in 2030, put the 2025 Great Discoveries back in play, etc).
         4. "Non-album Singles" lists, which are compiled when listening to an artist's discography, if it has many non-album singles. This allows for all of these to be played as a single album, reducing the count of slots an artist takes.
         5. "Production Discographies" lists, which are compiled if members of very dear artists (over 5000 scrobbles) are also producers. These then should be played as part of these artist's discographies.
         6. "Unavailable Albums" lists, which compile available songs from albums currently not available on Spotify, so that they can be played in the proper order.
