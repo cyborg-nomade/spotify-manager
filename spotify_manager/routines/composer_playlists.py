@@ -32,6 +32,39 @@ GENERIC_ARTIST_TERMS = frozenset(
     }
 )
 NAME_SUFFIXES = frozenset({"ii", "iii", "iv", "jr", "sr"})
+SURNAME_PLAYLIST_DESCRIPTORS = frozenset(
+    {
+        "all",
+        "book",
+        "by",
+        "catalog",
+        "catalogue",
+        "cd",
+        "chronological",
+        "chronology",
+        "complete",
+        "composition",
+        "compositions",
+        "cycle",
+        "discography",
+        "music",
+        "of",
+        "opus",
+        "part",
+        "piece",
+        "pieces",
+        "playlist",
+        "selection",
+        "selections",
+        "the",
+        "track",
+        "tracks",
+        "vol",
+        "volume",
+        "work",
+        "works",
+    }
+)
 RetryCall = Callable[[Callable[[], object], str], object]
 
 
@@ -157,6 +190,19 @@ def _surname_token(artist_tokens: tuple[str, ...]) -> str | None:
     return surname if surname not in GENERIC_ARTIST_TERMS else None
 
 
+def _unambiguous_surname_match(playlist_name: str, surname: str | None) -> bool:
+    """Match a surname only when no conflicting name tokens surround it."""
+    if surname is None:
+        return False
+    playlist_tokens = name_tokens(playlist_name)
+    if surname not in playlist_tokens:
+        return False
+    return all(
+        token == surname or token in SURNAME_PLAYLIST_DESCRIPTORS or token.isdigit()
+        for token in playlist_tokens
+    )
+
+
 def composer_playlist_candidates(
     artist_name: str,
     owned_playlists: tuple[OwnedPlaylist, ...],
@@ -175,7 +221,7 @@ def composer_playlist_candidates(
         and playlist.name.startswith(COMPOSER_PLAYLIST_PREFIX)
         and (
             _contains_tokens(name_tokens(playlist.name), artist_tokens)
-            or (surname is not None and surname in name_tokens(playlist.name))
+            or _unambiguous_surname_match(playlist.name, surname)
         )
     )
 
