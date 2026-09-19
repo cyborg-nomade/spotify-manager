@@ -76,6 +76,16 @@ class FakeSpotify:
         self.search_calls: list[str] = []
         self.artist_album_calls: Counter[str] = Counter()
         self.album_track_calls: Counter[str] = Counter()
+        self.current_user_playlist_calls = 0
+        self.owned_playlists: list[dict[str, object]] = [
+            {
+                "id": playlist_id,
+                "name": playlist_id.title(),
+                "owner": {"id": "owner"},
+                "tracks": {"total": 0},
+            }
+            for playlist_id in ("wine", "vintage")
+        ]
 
     def search(self, **kwargs: object) -> dict[str, object]:
         query = str(kwargs["q"])
@@ -106,6 +116,20 @@ class FakeSpotify:
         items = tracks[offset : offset + limit]
         next_page = offset + len(items) < len(tracks) and limit != 1
         return {"items": items, "next": "next" if next_page else None}
+
+    def current_user_playlists(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> dict[str, object]:
+        self.current_user_playlist_calls += 1
+        items = self.owned_playlists[offset : offset + limit]
+        return {
+            "items": items,
+            "total": len(self.owned_playlists),
+            "next": "next" if offset + len(items) < len(self.owned_playlists) else None,
+        }
 
     def _get(
         self,
@@ -230,8 +254,158 @@ def test_artist_progress_is_batched_into_bounded_state_checkpoints(
     )
 
     assert summary.artists_processed == 60
-    assert save_calls == 4
+    assert save_calls == 2
     assert json.loads(state_path.read_text(encoding="utf-8"))["active_run"] is None
+
+
+def test_dry_run_artist_mappings_are_batched_into_bounded_state_checkpoints(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artists = tuple(
+        release_check.RankedArtist(
+            f"artist-{index}",
+            f"Artist {index}",
+            500 - index,
+            index + 1,
+        )
+        for index in range(60)
+    )
+    patch_history_and_ranking(monkeypatch, artists)
+    spotify = FakeSpotify()
+    spotify.artist_results = {
+        artist.name: [raw_artist(f"spotify-{index}", artist.name)]
+        for index, artist in enumerate(artists)
+    }
+    state_path = tmp_path / "state.json"
+    save_calls = 0
+    original_save = release_check.save_state
+
+    def counting_save(state: dict[str, object], path: Path) -> None:
+        nonlocal save_calls
+        save_calls += 1
+        original_save(state, path)
+
+    monkeypatch.setattr(release_check, "save_state", counting_save)
+
+    summary = release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        dry_run=True,
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 8, 28, tzinfo=UTC),
+    )
+
+    assert summary.artists_processed == 60
+    assert save_calls == 1
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert len(persisted["artist_mappings"]) == 60
+
+
+def test_release_decision_is_persisted_once_after_the_initial_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artist = release_check.RankedArtist("artist", "Artist", 200, 1)
+    patch_history_and_ranking(monkeypatch, (artist,))
+    spotify = FakeSpotify()
+    spotify.artist_results = {"Artist": [raw_artist("artist-id", "Artist")]}
+    spotify.catalogs = {
+        "artist-id": [
+            raw_release(
+                "release-id",
+                "Release",
+                "artist-id",
+                "Artist",
+                "2026-08-05",
+            )
+        ]
+    }
+    spotify.release_tracks = {
+        "release-id": [raw_track("track-id", "Track", "artist-id", "Artist")]
+    }
+    state_path = tmp_path / "state.json"
+    save_calls = 0
+    original_save = release_check.save_state
+
+    def counting_save(state: dict[str, object], path: Path) -> None:
+        nonlocal save_calls
+        save_calls += 1
+        original_save(state, path)
+
+    monkeypatch.setattr(release_check, "save_state", counting_save)
+
+    release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 8, 28, tzinfo=UTC),
+    )
+
+    assert save_calls == 3
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert "release-id" in persisted["processed_releases"]
+
+
+def test_classical_composer_skips_release_catalog_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artist = release_check.RankedArtist(
+        "johann-sebastian-bach",
+        "Johann Sebastian Bach",
+        500,
+        1,
+    )
+    patch_history_and_ranking(monkeypatch, (artist,))
+    spotify = FakeSpotify()
+    spotify.artist_results = {
+        artist.name: [raw_artist("bach-id", "Johann Sebastian Bach")]
+    }
+    spotify.catalogs = {
+        "bach-id": [
+            raw_release(
+                "new-recording",
+                "The Well-Tempered Clavier",
+                "bach-id",
+                artist.name,
+                "2026-08-05",
+            )
+        ]
+    }
+    spotify.owned_playlists.append(
+        {
+            "id": "bach-works",
+            "name": "[CD] Bach chronological works",
+            "owner": {"id": "owner"},
+            "tracks": {"total": 400},
+        }
+    )
+    progress: list[str] = []
+
+    summary = release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        dry_run=True,
+        state_path=tmp_path / "state.json",
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 8, 28, tzinfo=UTC),
+        progress_callback=lambda _done, _total, detail: progress.append(detail),
+    )
+
+    assert summary.artists_processed == 1
+    assert summary.results == ()
+    assert spotify.artist_album_calls["bach-id"] == 0
+    assert spotify.current_user_playlist_calls == 1
+    assert any("classical composer, skipped" in detail for detail in progress)
 
 
 def test_rank_lastfm_artists_normalizes_names_and_preserves_global_rank() -> None:

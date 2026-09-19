@@ -662,8 +662,12 @@ Spotify artist while preserving playlist order and keeping each artist's first
 track. Artists represented there are not prompted or added again in Wine
 Cellar. New Vintage remains independent: eligible top-50 releases can still be
 reviewed and added there even when their artist already occupies Wine Cellar.
-For every otherwise eligible release, its first track in Spotify track-list
-order is considered under these rules:
+The routine also loads owned playlists once and treats an artist as a classical
+composer only when the existing strict matcher finds a playlist whose name
+starts with `[CD]`. Those composers are completed without querying their
+Spotify release catalogs, since new catalog entries are re-recordings rather
+than new works. For every otherwise eligible release, its first track in Spotify
+track-list order is considered under these rules:
 
 - Ranks 1-20: albums, EPs, live albums, deluxe editions, and standalone singles.
 - Ranks 21-50: albums, EPs, live albums, and deluxe editions. Singles enter Wine
@@ -708,8 +712,11 @@ uv run spotify-manager check-new-releases
 just check-new-releases
 ```
 
-Real runs checkpoint artist mappings and every release decision in the shared
-`release_check` namespace. Quitting from an artist
+Real runs checkpoint every release decision in the shared `release_check`
+namespace. Read-only artist progress and newly learned mappings are batched into
+100-artist checkpoints so long scans remain comfortably below Hugging Face's
+hourly dataset-commit limit; dry-run mappings use the same batching. Quitting
+from an artist
 prompt, pressing Ctrl-C, or encountering an API failure leaves the active run
 ready to resume. Exact playlist actions and filtered-release reasons are kept
 in `spotify_manager/files/release_check_log.jsonl`. Track ids and normalized
