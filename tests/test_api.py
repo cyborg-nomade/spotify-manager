@@ -3495,6 +3495,7 @@ def test_release_check_web_job_handles_search_mapping_and_release_choice(
             dry_run=True,
             resumed=True,
             paused=False,
+            wine_cellar_duplicates_removed=2,
             history_refresh=None,
             results=(result,),
         )

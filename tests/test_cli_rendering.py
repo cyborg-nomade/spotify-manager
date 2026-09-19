@@ -237,6 +237,7 @@ def test_release_check_summary_renders_history_notes_and_pause_modes() -> None:
         "artists_total": 2,
         "wine_cellar_added": 1,
         "new_vintage_added": 0,
+        "wine_cellar_duplicates_removed": 2,
     }
     console = _console()
     main.print_release_check_summary(

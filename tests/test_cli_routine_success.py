@@ -124,6 +124,7 @@ def test_release_check_command_completes(
         dry_run=True,
         resumed=False,
         paused=False,
+        wine_cellar_duplicates_removed=0,
         history_refresh=None,
         results=(),
     )

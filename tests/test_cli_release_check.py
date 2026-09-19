@@ -96,6 +96,7 @@ def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
             dry_run=True,
             resumed=False,
             paused=False,
+            wine_cellar_duplicates_removed=0,
             history_refresh=None,
             results=(result,),
         )

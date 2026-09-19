@@ -1,6 +1,7 @@
 import json
 from collections import Counter
 from datetime import UTC
+from datetime import date
 from datetime import datetime
 from pathlib import Path
 
@@ -71,7 +72,9 @@ class FakeSpotify:
             "vintage": [],
         }
         self.posts: list[tuple[str, dict[str, object]]] = []
+        self.puts: list[tuple[str, dict[str, object]]] = []
         self.search_calls: list[str] = []
+        self.artist_album_calls: Counter[str] = Counter()
         self.album_track_calls: Counter[str] = Counter()
 
     def search(self, **kwargs: object) -> dict[str, object]:
@@ -80,10 +83,15 @@ class FakeSpotify:
         name = query.removeprefix('artist:"').removesuffix('"')
         return {"artists": {"items": self.artist_results.get(name, [])}}
 
-    def artist_albums(self, artist_id: str, **_kwargs: object) -> dict[str, object]:
+    def artist_albums(self, artist_id: str, **kwargs: object) -> dict[str, object]:
+        self.artist_album_calls[artist_id] += 1
+        limit = int(kwargs["limit"])
+        offset = int(kwargs["offset"])
+        catalog = self.catalogs.get(artist_id, [])
+        items = catalog[offset : offset + limit]
         return {
-            "items": list(self.catalogs.get(artist_id, [])),
-            "next": None,
+            "items": list(items),
+            "next": "next" if offset + len(items) < len(catalog) else None,
         }
 
     def album_tracks(
@@ -128,6 +136,25 @@ class FakeSpotify:
                 if track["id"] == spotify_id
             )
             self.playlists[playlist_id].append({"item": raw})
+
+    def _put(self, path: str, payload: dict[str, object]) -> None:
+        self.puts.append((path, payload))
+        playlist_id = path.split("/")[1]
+        known_tracks = [
+            entry["item"]
+            for entries in self.playlists.values()
+            for entry in entries
+            if isinstance(entry.get("item"), dict)
+        ]
+        known_tracks.extend(
+            track for tracks in self.release_tracks.values() for track in tracks
+        )
+        uris = payload["uris"]
+        assert isinstance(uris, list)
+        self.playlists[playlist_id] = [
+            {"item": next(track for track in known_tracks if track.get("uri") == uri)}
+            for uri in uris
+        ]
 
 
 def history_summary(*, dry_run: bool) -> scrobble_history.ScrobbleHistorySummary:
@@ -351,6 +378,239 @@ def test_unavailable_future_track_list_is_treated_as_empty() -> None:
     assert tracks == ()
 
 
+def test_recent_catalog_scans_past_an_old_page_for_newer_release() -> None:
+    artist = release_check.RankedArtist("artist", "Artist", 500, 1)
+    spotify_artist = release_check.SpotifyArtistCandidate(
+        "artist-id",
+        "Artist",
+        "spotify:artist:artist-id",
+        50,
+        1000,
+        1,
+        True,
+    )
+    spotify = FakeSpotify()
+    spotify.catalogs["artist-id"] = [
+        raw_release(
+            f"old-{index}",
+            f"Old {index}",
+            "artist-id",
+            "Artist",
+            "2025-01-01",
+        )
+        for index in range(10)
+    ] + [
+        raw_release(
+            "new-release",
+            "New Release",
+            "artist-id",
+            "Artist",
+            "2026-09-18",
+        )
+    ]
+
+    catalog = release_check.load_recent_catalog(
+        spotify,
+        artist,
+        spotify_artist,
+        date(2026, 9, 1),
+        lambda operation, _description: operation(),
+    )
+
+    assert [release.spotify_id for release in catalog] == ["new-release"]
+    assert spotify.artist_album_calls["artist-id"] == 2
+
+
+def test_wine_cellar_deduplication_keeps_first_primary_artist_track() -> None:
+    spotify = FakeSpotify()
+    first = raw_track("first", "First", "artist-a", "Artist A")
+    other = raw_track("other", "Other", "artist-b", "Artist B")
+    duplicate = raw_track("duplicate", "Duplicate", "artist-a", "Artist A")
+    spotify.playlists["wine"] = [
+        {"item": first},
+        {"item": other},
+        {"item": duplicate},
+        {"item": first},
+    ]
+    retry = lambda operation, _description: operation()
+
+    snapshot = release_check._playlist_snapshot(spotify, "wine", retry)
+    removed, membership = release_check._deduplicate_wine_cellar(
+        spotify,
+        "wine",
+        snapshot,
+        False,
+        retry,
+    )
+
+    assert removed == 2
+    assert [entry["item"]["id"] for entry in spotify.playlists["wine"]] == [
+        "first",
+        "other",
+    ]
+    assert membership.primary_artist_ids == {"artist-a", "artist-b"}
+    assert spotify.puts == [
+        (
+            "playlists/wine/items",
+            {"uris": ["spotify:track:first", "spotify:track:other"]},
+        )
+    ]
+
+
+def test_playlist_replacement_uses_bounded_ordered_batches() -> None:
+    class RecordingSpotify:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, dict[str, object]]] = []
+
+        def _put(self, path: str, payload: dict[str, object]) -> None:
+            self.calls.append(("put", path, payload))
+
+        def _post(self, path: str, payload: dict[str, object]) -> None:
+            self.calls.append(("post", path, payload))
+
+    spotify = RecordingSpotify()
+    entries = tuple(
+        release_check.PlaylistEntry(
+            uri=f"spotify:track:{index}",
+            spotify_id=str(index),
+            name=f"Track {index}",
+            primary_artist_id=f"artist-{index}",
+            primary_artist_name=f"Artist {index}",
+        )
+        for index in range(205)
+    )
+
+    release_check._replace_playlist_entries(
+        spotify,
+        "wine",
+        entries,
+        lambda operation, _description: operation(),
+    )
+
+    assert [call[0] for call in spotify.calls] == ["put", "post", "post"]
+    assert [len(call[2]["uris"]) for call in spotify.calls] == [100, 100, 5]
+    assert spotify.calls[-1][2]["uris"][-1] == "spotify:track:204"
+
+
+def test_existing_wine_cellar_artist_is_only_prompted_for_new_vintage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artist = release_check.RankedArtist("artist", "Artist", 500, 1)
+    patch_history_and_ranking(monkeypatch, (artist,))
+    spotify = FakeSpotify()
+    spotify.artist_results = {"Artist": [raw_artist("artist-id", "Artist")]}
+    spotify.playlists["wine"] = [
+        {"item": raw_track("existing", "Existing", "artist-id", "Artist")}
+    ]
+    spotify.catalogs = {
+        "artist-id": [
+            raw_release(
+                "new-album",
+                "New Album",
+                "artist-id",
+                "Artist",
+                "2026-09-18",
+            )
+        ]
+    }
+    spotify.release_tracks = {
+        "new-album": [raw_track("new-track", "New Track", "artist-id", "Artist")]
+    }
+    prompts: list[tuple[str, ...]] = []
+
+    summary = release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        release_choice_reader=(
+            lambda _artist, _release, _track, destinations, _unattached: (
+                prompts.append(destinations) or release_check.CHOICE_ADD
+            )
+        ),
+        state_path=tmp_path / "state.json",
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 9, 19, tzinfo=UTC),
+    )
+
+    assert prompts == [("New Vintage",)]
+    assert summary.results[0].wine_cellar_action == "artist already present"
+    assert summary.results[0].new_vintage_action == "added"
+    assert [path for path, _payload in spotify.posts] == ["playlists/vintage/items"]
+
+
+def test_existing_wine_cellar_artist_outside_top_fifty_skips_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artist = release_check.RankedArtist("artist", "Artist", 100, 51)
+    patch_history_and_ranking(monkeypatch, (artist,))
+    spotify = FakeSpotify()
+    spotify.artist_results = {"Artist": [raw_artist("artist-id", "Artist")]}
+    spotify.playlists["wine"] = [
+        {"item": raw_track("existing", "Existing", "artist-id", "Artist")}
+    ]
+
+    summary = release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        release_choice_reader=lambda *_args: pytest.fail(
+            "release prompt is not needed"
+        ),
+        state_path=tmp_path / "state.json",
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 9, 19, tzinfo=UTC),
+    )
+
+    assert summary.results == ()
+    assert summary.artists_processed == 1
+    assert spotify.artist_album_calls == Counter()
+
+
+def test_completed_check_rescans_current_year_to_recover_missed_release(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artist = release_check.RankedArtist("artist", "Artist", 500, 1)
+    patch_history_and_ranking(monkeypatch, (artist,))
+    spotify = FakeSpotify()
+    spotify.artist_results = {"Artist": [raw_artist("artist-id", "Artist")]}
+    spotify.catalogs = {
+        "artist-id": [
+            raw_release(
+                "missed",
+                "Missed Yesterday",
+                "artist-id",
+                "Artist",
+                "2026-09-18",
+            )
+        ]
+    }
+    spotify.release_tracks = {
+        "missed": [raw_track("opener", "Opener", "artist-id", "Artist")]
+    }
+    state_path = tmp_path / "state.json"
+    state = release_check._default_state()
+    state["last_checked_through"] = "2026-09-19"
+    release_check.save_state(state, state_path)
+
+    summary = release_check.run_release_check(
+        spotify,
+        object(),
+        release_check.ReleaseCheckPlaylists("wine", "vintage"),
+        expected_username="man-et-arms",
+        state_path=state_path,
+        log_path=tmp_path / "log.jsonl",
+        now=datetime(2026, 9, 19, tzinfo=UTC),
+    )
+
+    assert summary.checked_from == date(2026, 1, 1)
+    assert [result.release_id for result in summary.results] == ["missed"]
+
+
 def test_real_run_adds_each_tier_correctly_and_reuses_mappings(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -474,7 +734,7 @@ def test_real_run_adds_each_tier_correctly_and_reuses_mappings(
     )
 
     assert choices == ["Top Artist"]
-    assert summary.wine_cellar_added == 6
+    assert summary.wine_cellar_added == 2
     assert summary.new_vintage_added == 4
     remaster = next(
         result for result in summary.results if result.release_id == "top-remaster"
@@ -835,6 +1095,8 @@ def test_dry_run_persists_only_history_and_artist_mappings(
 
     assert summary.results[0].wine_cellar_action == "would add"
     assert summary.results[0].new_vintage_action == "would add"
+    assert summary.wine_cellar_added == 1
+    assert summary.new_vintage_added == 1
     assert spotify.posts == []
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["artist_mappings"]["dry"]["spotify_id"] == "dry-id"

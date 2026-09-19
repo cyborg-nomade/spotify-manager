@@ -903,6 +903,7 @@ class BlastJobResult(BaseModel):
     release_check_checked_through: str | None = None
     release_check_resumed: bool = False
     release_check_paused: bool = False
+    release_check_wine_cellar_duplicates_removed: int | None = None
     release_check_wine_cellar_added: int | None = None
     release_check_new_vintage_added: int | None = None
     release_check_results: list[ReleaseCheckResultEntry] = Field(default_factory=list)
@@ -4403,6 +4404,9 @@ def _run_release_check_job(
             )
             job.result.release_check_resumed = summary.resumed
             job.result.release_check_paused = summary.paused
+            job.result.release_check_wine_cellar_duplicates_removed = (
+                summary.wine_cellar_duplicates_removed
+            )
             job.result.release_check_wine_cellar_added = summary.wine_cellar_added
             job.result.release_check_new_vintage_added = summary.new_vintage_added
             job.result.release_check_results = results
@@ -4418,10 +4422,13 @@ def _run_release_check_job(
                 )
             else:
                 verb = "Would add" if dry_run else "Added"
+                cleanup = "would normalize" if dry_run else "normalized"
                 job.result.detail = (
                     f"{summary.artists_processed}/{summary.artists_total} artists "
                     f"checked. {verb} {summary.wine_cellar_added} to Wine Cellar "
-                    f"and {summary.new_vintage_added} to New Vintage."
+                    f"and {summary.new_vintage_added} to New Vintage; "
+                    f"{summary.wine_cellar_duplicates_removed} duplicate Wine "
+                    f"Cellar track(s) {cleanup}."
                 )
             _append_blast_log_locked(job, job.result.detail)
     finally:

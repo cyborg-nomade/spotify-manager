@@ -641,21 +641,29 @@ scrobbles. Before a new run, it updates the shared canonical Last.fm history and
 ranks all artists by scrobble count. Configure `WINE_CELLAR_PLAYLIST` and
 `NEW_VINTAGE_PLAYLIST` with Spotify playlist URLs, URIs, or ids.
 
-The first completed check covers January 1 of the current year through today.
-Later checks begin on the previous check date, inclusively, and use persisted
-Spotify release ids to avoid duplicates. This overlap protects releases that
-appear later on the same day. Spotify artist mappings are reused after the
-first check. When a name has multiple exact matches, or only inexact search
-results, the CLI displays popularity and follower context and saves the chosen
-mapping. Choose `n` from that prompt to enter a different Spotify search string;
-the new candidates can be searched repeatedly and do not need to match the
-Last.fm spelling. Choose `p` to permanently skip an artist that has no useful
-Spotify mapping; durable skips live under `skipped_artists` in
+Every check scans from January 1 of the current year through today and uses
+persisted Spotify release ids to avoid repeated decisions. The routine reads
+every Spotify catalog page because the API does not guarantee strict release-
+date ordering; the inclusive yearly scan also recovers releases that Spotify
+indexes late. Across a year boundary, the previous check date is retained for
+one run so late December releases are not lost. Spotify artist mappings are
+reused after the first check. When a name has multiple exact matches, or only
+inexact search results, the CLI displays popularity and follower context and
+saves the chosen mapping. Choose `n` from that prompt to enter a different
+Spotify search string; the new candidates can be searched repeatedly and do
+not need to match the Last.fm spelling. Choose `p` to permanently skip an
+artist that has no useful Spotify mapping; durable skips live under
+`skipped_artists` in
 the shared `release_check` state namespace, where they can also be removed
 manually. Artist mappings and permanent artist skips are saved during dry runs.
 
-For every eligible release, its first track in Spotify track-list order is
-added to Wine Cellar. The release rules are:
+Before checking releases, Wine Cellar is normalized to one track per primary
+Spotify artist while preserving playlist order and keeping each artist's first
+track. Artists represented there are not prompted or added again in Wine
+Cellar. New Vintage remains independent: eligible top-50 releases can still be
+reviewed and added there even when their artist already occupies Wine Cellar.
+For every otherwise eligible release, its first track in Spotify track-list
+order is considered under these rules:
 
 - Ranks 1-20: albums, EPs, live albums, deluxe editions, and standalone singles.
 - Ranks 21-50: albums, EPs, live albums, and deluxe editions. Singles enter Wine
