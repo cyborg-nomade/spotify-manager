@@ -1648,6 +1648,7 @@ def print_release_check_summary(
         "added": "bold green",
         "would add": "bold cyan",
         "already present": "yellow",
+        "artist already present": "yellow",
         "duplicate selection": "yellow",
         "not applicable": "dim",
     }
@@ -1680,6 +1681,12 @@ def print_release_check_summary(
         f"{mode}{resumed}: {summary.artists_processed}/{summary.artists_total} "
         f"artists complete; {len(summary.results)} release decision(s).",
         style="bold cyan" if summary.dry_run else "bold green",
+    )
+    cleanup_verb = "Would remove" if summary.dry_run else "Removed"
+    console.print(
+        f"{cleanup_verb} {summary.wine_cellar_duplicates_removed} duplicate "
+        "Wine Cellar track(s), keeping each artist's first occurrence.",
+        style="cyan" if summary.dry_run else "green",
     )
     if summary.dry_run:
         console.print(

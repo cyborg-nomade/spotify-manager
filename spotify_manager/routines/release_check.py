@@ -41,6 +41,8 @@ ALL_SINGLES_ARTIST_LIMIT = 20
 ARTIST_SEARCH_LIMIT = 10
 ARTIST_RELEASE_PAGE_LIMIT = 10
 RELEASE_TRACK_PAGE_LIMIT = 50
+PLAYLIST_PAGE_LIMIT = 50
+PLAYLIST_WRITE_LIMIT = 100
 ARTIST_PROGRESS_CHECKPOINT_INTERVAL = 25
 CHOICE_ADD = "add"
 CHOICE_PENDING = "pending"
@@ -76,6 +78,7 @@ PlaylistAction = Literal[
     "added",
     "would add",
     "already present",
+    "artist already present",
     "duplicate selection",
     "not applicable",
 ]
@@ -233,18 +236,25 @@ class ReleaseCheckSummary:
     dry_run: bool
     resumed: bool
     paused: bool
+    wine_cellar_duplicates_removed: int
     history_refresh: scrobble_history.ScrobbleHistorySummary | None
     results: tuple[ReleaseCheckResult, ...]
 
     @property
     def wine_cellar_added(self) -> int:
-        """Count real Wine Cellar additions."""
-        return sum(result.wine_cellar_action == "added" for result in self.results)
+        """Count planned or completed Wine Cellar additions."""
+        return sum(
+            result.wine_cellar_action in {"added", "would add"}
+            for result in self.results
+        )
 
     @property
     def new_vintage_added(self) -> int:
-        """Count real New Vintage additions."""
-        return sum(result.new_vintage_action == "added" for result in self.results)
+        """Count planned or completed New Vintage additions."""
+        return sum(
+            result.new_vintage_action in {"added", "would add"}
+            for result in self.results
+        )
 
 
 ArtistChoiceReader = Callable[
@@ -263,6 +273,26 @@ class PlaylistMembership:
 
     track_ids: set[str]
     track_keys: set[tuple[str, str]]
+    primary_artist_ids: set[str]
+
+
+@dataclass(frozen=True)
+class PlaylistEntry:
+    """One ordered playlist item retained during Wine Cellar cleanup."""
+
+    uri: str
+    spotify_id: str
+    name: str
+    primary_artist_id: str | None
+    primary_artist_name: str | None
+
+
+@dataclass(frozen=True)
+class PlaylistSnapshot:
+    """Ordered playlist entries and their lookup indexes."""
+
+    entries: tuple[PlaylistEntry, ...]
+    membership: PlaylistMembership
 
 
 def _direct_retry(operation: Callable[[], object], _description: str) -> object:
@@ -536,7 +566,7 @@ def load_recent_catalog(
     checked_from: date,
     retry_call: RetryCall,
 ) -> tuple[ReleaseCandidate, ...]:
-    """Load recent and future releases, stopping after a wholly old page."""
+    """Load recent and future releases from every Spotify catalog page."""
     releases: dict[str, ReleaseCandidate] = {}
     offset = 0
     while True:
@@ -557,7 +587,6 @@ def load_recent_catalog(
                 f"Spotify returned invalid release data for {artist.name}."
             )
         raw_items = response["items"]
-        page_intervals: list[tuple[date, date]] = []
         for raw_release in raw_items:
             candidate = _release_candidate(
                 raw_release,
@@ -568,7 +597,6 @@ def load_recent_catalog(
             interval = release_date_interval(candidate)
             if interval is None:
                 continue
-            page_intervals.append(interval)
             if interval[1] >= checked_from:
                 releases[candidate.spotify_id] = candidate
         offset += len(raw_items)
@@ -578,8 +606,6 @@ def load_recent_catalog(
             raise ReleaseCheckSpotifyError(
                 f"Spotify returned an empty release page for {artist.name}."
             )
-        if page_intervals and all(end < checked_from for _, end in page_intervals):
-            break
     return tuple(
         sorted(
             releases.values(),
@@ -917,21 +943,160 @@ def _run_id(now: datetime) -> str:
     return now.strftime("%Y%m%dT%H%M%S%fZ")
 
 
+def _playlist_entry(raw_entry: object) -> PlaylistEntry | None:
+    """Parse one playlist item while preserving its original URI and order."""
+    if not isinstance(raw_entry, dict):
+        return None
+    raw_track = raw_entry.get("item") or raw_entry.get("track")
+    if not isinstance(raw_track, dict):
+        return None
+    uri = str(raw_track.get("uri") or "").strip()
+    if not uri:
+        return None
+    artists = _artist_pairs(raw_track.get("artists"))
+    return PlaylistEntry(
+        uri=uri,
+        spotify_id=str(raw_track.get("id") or "").strip(),
+        name=str(raw_track.get("name") or uri).strip(),
+        primary_artist_id=artists[0][0] if artists else None,
+        primary_artist_name=artists[0][1] if artists else None,
+    )
+
+
+def _membership(entries: tuple[PlaylistEntry, ...]) -> PlaylistMembership:
+    """Build mutable playlist indexes from ordered entries."""
+    track_ids = {entry.spotify_id for entry in entries if entry.spotify_id}
+    track_keys: set[tuple[str, str]] = set()
+    primary_artist_ids: set[str] = set()
+    for entry in entries:
+        if entry.primary_artist_id:
+            primary_artist_ids.add(entry.primary_artist_id)
+        artist_key = blast_from_past.normalize_name(entry.primary_artist_name or "")
+        track_key = blast_from_past.normalize_name(
+            blast_from_past.without_sliding_qualifiers(entry.name)
+        )
+        if artist_key and track_key:
+            track_keys.add((artist_key, track_key))
+    return PlaylistMembership(
+        track_ids=track_ids,
+        track_keys=track_keys,
+        primary_artist_ids=primary_artist_ids,
+    )
+
+
+def _playlist_snapshot(
+    sp: Spotify,
+    playlist_id: str,
+    retry_call: RetryCall,
+) -> PlaylistSnapshot:
+    """Load one destination playlist in order with artist indexes."""
+    entries: list[PlaylistEntry] = []
+    offset = 0
+    while True:
+        response = retry_call(
+            partial(
+                sp._get,
+                f"playlists/{playlist_id}/items",
+                limit=PLAYLIST_PAGE_LIMIT,
+                offset=offset,
+            ),
+            f"loading playlist {playlist_id} at offset {offset}",
+        )
+        if not isinstance(response, dict) or not isinstance(
+            response.get("items"), list
+        ):
+            raise ReleaseCheckSpotifyError(
+                f"Spotify returned invalid playlist data for {playlist_id}."
+            )
+        raw_items = response["items"]
+        for raw_entry in raw_items:
+            entry = _playlist_entry(raw_entry)
+            if entry is None:
+                raise ReleaseCheckSpotifyError(
+                    f"Playlist {playlist_id} contains an item that cannot be "
+                    "preserved safely."
+                )
+            entries.append(entry)
+        offset += len(raw_items)
+        total = response.get("total")
+        has_more = bool(response.get("next"))
+        if isinstance(total, int):
+            has_more = has_more or offset < total
+        if not has_more:
+            parsed = tuple(entries)
+            return PlaylistSnapshot(parsed, _membership(parsed))
+        if not raw_items:
+            raise ReleaseCheckSpotifyError(
+                f"Spotify returned an empty playlist page for {playlist_id}."
+            )
+
+
 def _playlist_membership(
     sp: Spotify,
     playlist_id: str,
     retry_call: RetryCall,
 ) -> PlaylistMembership:
-    """Load one destination playlist once."""
-    raw = retry_call(
-        partial(blast_from_past.load_playlist_state, sp, playlist_id),
-        f"loading playlist {playlist_id}",
+    """Load one destination playlist's lookup indexes."""
+    return _playlist_snapshot(sp, playlist_id, retry_call).membership
+
+
+def _deduplicated_entries(
+    entries: tuple[PlaylistEntry, ...],
+) -> tuple[PlaylistEntry, ...]:
+    """Keep the first Wine Cellar item for each primary Spotify artist."""
+    seen_artist_ids: set[str] = set()
+    kept: list[PlaylistEntry] = []
+    for entry in entries:
+        artist_id = entry.primary_artist_id
+        if artist_id and artist_id in seen_artist_ids:
+            continue
+        kept.append(entry)
+        if artist_id:
+            seen_artist_ids.add(artist_id)
+    return tuple(kept)
+
+
+def _replace_playlist_entries(
+    sp: Spotify,
+    playlist_id: str,
+    entries: tuple[PlaylistEntry, ...],
+    retry_call: RetryCall,
+) -> None:
+    """Replace a playlist in bounded batches while preserving item order."""
+    first_batch = entries[:PLAYLIST_WRITE_LIMIT]
+    retry_call(
+        partial(
+            sp._put,
+            f"playlists/{playlist_id}/items",
+            payload={"uris": [entry.uri for entry in first_batch]},
+        ),
+        f"deduplicating playlist {playlist_id}",
     )
-    if not isinstance(raw, blast_from_past.PlaylistState):
-        raise ReleaseCheckSpotifyError(
-            f"Spotify returned invalid playlist data for {playlist_id}."
+    for offset in range(PLAYLIST_WRITE_LIMIT, len(entries), PLAYLIST_WRITE_LIMIT):
+        batch = entries[offset : offset + PLAYLIST_WRITE_LIMIT]
+        retry_call(
+            partial(
+                sp._post,
+                f"playlists/{playlist_id}/items",
+                payload={"uris": [entry.uri for entry in batch]},
+            ),
+            f"restoring playlist {playlist_id} at offset {offset}",
         )
-    return PlaylistMembership(set(raw.track_ids), set(raw.track_keys))
+
+
+def _deduplicate_wine_cellar(
+    sp: Spotify,
+    playlist_id: str,
+    snapshot: PlaylistSnapshot,
+    dry_run: bool,
+    retry_call: RetryCall,
+) -> tuple[int, PlaylistMembership]:
+    """Normalize Wine Cellar to one ordered item per primary artist."""
+    kept = _deduplicated_entries(snapshot.entries)
+    removed = len(snapshot.entries) - len(kept)
+    if removed and not dry_run:
+        _replace_playlist_entries(sp, playlist_id, kept, retry_call)
+    return removed, _membership(kept)
 
 
 def _track_key(track: ReleaseTrack) -> tuple[str, str]:
@@ -955,6 +1120,14 @@ def _track_is_present(
     )
 
 
+def _artist_is_present(
+    membership: PlaylistMembership,
+    spotify_artist: SpotifyArtistCandidate,
+) -> bool:
+    """Return whether an artist already occupies a playlist slot."""
+    return spotify_artist.spotify_id in membership.primary_artist_ids
+
+
 def _add_to_playlist(
     sp: Spotify,
     playlist_id: str,
@@ -970,6 +1143,7 @@ def _add_to_playlist(
     if dry_run:
         membership.track_ids.add(track.spotify_id)
         membership.track_keys.add(key)
+        membership.primary_artist_ids.add(track.primary_artist_id)
         return "would add"
     retry_call(
         partial(
@@ -981,6 +1155,7 @@ def _add_to_playlist(
     )
     membership.track_ids.add(track.spotify_id)
     membership.track_keys.add(key)
+    membership.primary_artist_ids.add(track.primary_artist_id)
     return "added"
 
 
@@ -1133,6 +1308,7 @@ def _summary(
     dry_run: bool,
     resumed: bool,
     paused: bool,
+    wine_cellar_duplicates_removed: int,
     history_refresh: scrobble_history.ScrobbleHistorySummary | None,
     results: list[ReleaseCheckResult],
 ) -> ReleaseCheckSummary:
@@ -1146,6 +1322,7 @@ def _summary(
         dry_run=dry_run,
         resumed=resumed,
         paused=paused,
+        wine_cellar_duplicates_removed=wine_cellar_duplicates_removed,
         history_refresh=history_refresh,
         results=tuple(results),
     )
@@ -1214,16 +1391,18 @@ def run_release_check(
             raise ReleaseCheckError(
                 f"No Last.fm artists have at least {MIN_ARTIST_SCROBBLES} scrobbles."
             )
+        start_of_year = date(today.year, 1, 1)
         raw_last_date = state.get("last_checked_through")
         if isinstance(raw_last_date, str):
             try:
-                checked_from = date.fromisoformat(raw_last_date)
+                previous_check = date.fromisoformat(raw_last_date)
             except ValueError as exc:
                 raise ReleaseCheckStateError(
                     "The previous release-check date is invalid."
                 ) from exc
+            checked_from = min(previous_check, start_of_year)
         else:
-            checked_from = date(today.year, 1, 1)
+            checked_from = start_of_year
         checked_through = today
         run_id = _run_id(generated_at)
         active = {
@@ -1266,11 +1445,34 @@ def run_release_check(
             len(artists),
             "Loading destination playlists",
         )
-    wine_membership = _playlist_membership(
+    wine_snapshot = _playlist_snapshot(
         sp,
         playlists.wine_cellar,
         retry_call,
     )
+    wine_duplicates_removed, wine_membership = _deduplicate_wine_cellar(
+        sp,
+        playlists.wine_cellar,
+        wine_snapshot,
+        dry_run,
+        retry_call,
+    )
+    if wine_duplicates_removed:
+        action = "Would remove" if dry_run else "Removed"
+        if progress_callback is not None:
+            progress_callback(
+                len(completed),
+                len(artists),
+                f"{action} {wine_duplicates_removed} duplicate Wine Cellar track(s)",
+            )
+        if not dry_run:
+            append_event(
+                log_path,
+                run_id,
+                "wine_cellar_deduplicated",
+                removed=wine_duplicates_removed,
+                retained=len(wine_snapshot.entries) - wine_duplicates_removed,
+            )
     vintage_membership = _playlist_membership(
         sp,
         playlists.new_vintage,
@@ -1325,6 +1527,7 @@ def run_release_check(
                     dry_run=dry_run,
                     resumed=resumed,
                     paused=True,
+                    wine_cellar_duplicates_removed=wine_duplicates_removed,
                     history_refresh=history_refresh,
                     results=results,
                 )
@@ -1385,6 +1588,25 @@ def run_release_check(
             else:
                 _persist_state(state_access, state)
                 completed_since_checkpoint = 0
+
+        if _artist_is_present(wine_membership, spotify_artist) and not (
+            artist.is_new_vintage
+        ):
+            completed.add(artist.key)
+            active["completed_artist_keys"] = sorted(completed)
+            if not dry_run:
+                completed_since_checkpoint = _checkpoint_completed_artist(
+                    state_access,
+                    state,
+                    completed_since_checkpoint,
+                )
+            if progress_callback is not None:
+                progress_callback(
+                    len(completed),
+                    len(artists),
+                    f"#{artist.rank} {artist.name}: already in Wine Cellar",
+                )
+            continue
 
         if progress_callback is not None:
             progress_callback(
@@ -1459,10 +1681,13 @@ def run_release_check(
             and pending.artist_key == artist.key
         }
         releases_to_check = list(current_by_identity.values())
+        current_release_ids = {
+            release.spotify_id for release in current_by_identity.values()
+        }
         releases_to_check.extend(
             pending.release
             for release_id, pending in pending_for_artist.items()
-            if release_id not in current_by_identity
+            if release_id not in current_release_ids
         )
         releases_to_check.sort(
             key=lambda release: (
@@ -1544,8 +1769,12 @@ def run_release_check(
                 vintage_applicable = artist.is_new_vintage and (
                     release.release_type != "Single" or artist.accepts_all_singles
                 )
+                wine_artist_present = _artist_is_present(
+                    wine_membership,
+                    spotify_artist,
+                )
                 destinations: list[str] = []
-                if not _track_is_present(wine_membership, track):
+                if not wine_artist_present:
                     destinations.append("Wine Cellar")
                 if vintage_applicable and not _track_is_present(
                     vintage_membership,
@@ -1582,6 +1811,7 @@ def run_release_check(
                         dry_run=dry_run,
                         resumed=resumed,
                         paused=True,
+                        wine_cellar_duplicates_removed=wine_duplicates_removed,
                         history_refresh=history_refresh,
                         results=results,
                     )
@@ -1646,13 +1876,17 @@ def run_release_check(
                         _persist_state(state_access, state)
                     continue
 
-                wine_action = _add_to_playlist(
-                    sp,
-                    playlists.wine_cellar,
-                    wine_membership,
-                    track,
-                    dry_run,
-                    retry_call,
+                wine_action: PlaylistAction = (
+                    "artist already present"
+                    if wine_artist_present
+                    else _add_to_playlist(
+                        sp,
+                        playlists.wine_cellar,
+                        wine_membership,
+                        track,
+                        dry_run,
+                        retry_call,
+                    )
                 )
                 vintage_action: PlaylistAction = "not applicable"
                 if vintage_applicable:
@@ -1726,6 +1960,7 @@ def run_release_check(
         dry_run=dry_run,
         resumed=resumed,
         paused=False,
+        wine_cellar_duplicates_removed=wine_duplicates_removed,
         history_refresh=history_refresh,
         results=results,
     )

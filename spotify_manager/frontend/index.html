@@ -3488,7 +3488,13 @@
       windowSummary = '<div class="playlist-dates">Release window: ' +
         esc(job.release_check_checked_from) + ' through ' +
         esc(job.release_check_checked_through) +
-        (job.release_check_resumed ? ' · resumed' : '') + '</div>';
+        (job.release_check_resumed ? ' · resumed' : '') +
+        (typeof job.release_check_wine_cellar_duplicates_removed === "number"
+          ? ' · ' + esc(job.release_check_wine_cellar_duplicates_removed) +
+            (job.dry_run
+              ? ' duplicate Wine Cellar track(s) would be normalized'
+              : ' duplicate Wine Cellar track(s) normalized')
+          : '') + '</div>';
     }
 
     var decisions = results.map(function (item) {
