@@ -27,6 +27,7 @@ from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import blast_from_past
+from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import scrobble_history
 
 
@@ -43,7 +44,7 @@ ARTIST_RELEASE_PAGE_LIMIT = 10
 RELEASE_TRACK_PAGE_LIMIT = 50
 PLAYLIST_PAGE_LIMIT = 50
 PLAYLIST_WRITE_LIMIT = 100
-ARTIST_PROGRESS_CHECKPOINT_INTERVAL = 25
+ARTIST_PROGRESS_CHECKPOINT_INTERVAL = 100
 CHOICE_ADD = "add"
 CHOICE_PENDING = "pending"
 CHOICE_SKIP = "skip"
@@ -856,6 +857,22 @@ def _checkpoint_completed_artist(
     return 0
 
 
+def _checkpoint_dry_run_learning(
+    state_access: RoutineState,
+    state: dict[str, Any],
+    pending_changes: int,
+    *,
+    force: bool = False,
+) -> int:
+    """Batch mappings learned by dry runs without exhausting Hub commits."""
+    if pending_changes == 0:
+        return 0
+    if not force and pending_changes < ARTIST_PROGRESS_CHECKPOINT_INTERVAL:
+        return pending_changes
+    _persist_state(state_access, state)
+    return 0
+
+
 def restore_state(
     state: dict[str, Any],
     path: Path = DEFAULT_STATE_PATH,
@@ -1283,19 +1300,17 @@ def _record_result(
     checked_at: datetime,
     run_id: str,
     log_path: Path,
-    state_access: RoutineState,
     dry_run: bool,
     *,
     terminal: bool,
 ) -> None:
-    """Audit and checkpoint one release boundary."""
+    """Audit and apply one release decision to the in-memory checkpoint."""
     if dry_run:
         return
     append_event(log_path, run_id, "release_checked", result=asdict(result))
     if terminal:
         _mark_processed(state, result, checked_at)
         _remove_pending(state, result.release_id)
-    _persist_state(state_access, state)
 
 
 def _summary(
@@ -1478,8 +1493,26 @@ def run_release_check(
         playlists.new_vintage,
         retry_call,
     )
+    if progress_callback is not None:
+        progress_callback(
+            len(completed),
+            len(artists),
+            "Loading classical composer playlists",
+        )
+    try:
+        owned_playlists = composer_playlists.load_owned_playlists(
+            sp,
+            retry_call,
+            frozenset({playlists.wine_cellar, playlists.new_vintage}),
+        )
+    except composer_playlists.ComposerPlaylistError as exc:
+        raise ReleaseCheckSpotifyError(str(exc)) from exc
+    excluded_composer_playlists = frozenset(
+        {playlists.wine_cellar, playlists.new_vintage}
+    )
     results: list[ReleaseCheckResult] = []
     completed_since_checkpoint = 0
+    dry_run_learning_since_checkpoint = 0
 
     for artist in artists:
         if artist.key in completed:
@@ -1516,6 +1549,13 @@ def run_release_check(
                 retry_call,
             )
             if resolved == CHOICE_QUIT:
+                if dry_run:
+                    dry_run_learning_since_checkpoint = _checkpoint_dry_run_learning(
+                        state_access,
+                        persisted_state,
+                        dry_run_learning_since_checkpoint,
+                        force=True,
+                    )
                 if not dry_run:
                     append_event(log_path, run_id, "run_paused", artist=artist.name)
                 return _summary(
@@ -1546,6 +1586,7 @@ def run_release_check(
                     assert isinstance(persisted_skips, dict)
                     persisted_skips[artist.key] = skip_record
                     _persist_state(state_access, persisted_state)
+                    dry_run_learning_since_checkpoint = 0
                 else:
                     append_event(
                         log_path,
@@ -1584,10 +1625,33 @@ def run_release_check(
                 persisted_mappings = persisted_state["artist_mappings"]
                 assert isinstance(persisted_mappings, dict)
                 persisted_mappings[artist.key] = asdict(spotify_artist)
-                _persist_state(state_access, persisted_state)
-            else:
-                _persist_state(state_access, state)
-                completed_since_checkpoint = 0
+                dry_run_learning_since_checkpoint = _checkpoint_dry_run_learning(
+                    state_access,
+                    persisted_state,
+                    dry_run_learning_since_checkpoint + 1,
+                )
+
+        composer_matches = composer_playlists.composer_playlist_candidates(
+            spotify_artist.name,
+            owned_playlists,
+            excluded_playlist_ids=excluded_composer_playlists,
+        )
+        if composer_matches:
+            completed.add(artist.key)
+            active["completed_artist_keys"] = sorted(completed)
+            if not dry_run:
+                completed_since_checkpoint = _checkpoint_completed_artist(
+                    state_access,
+                    state,
+                    completed_since_checkpoint,
+                )
+            if progress_callback is not None:
+                progress_callback(
+                    len(completed),
+                    len(artists),
+                    f"#{artist.rank} {artist.name}: classical composer, skipped",
+                )
+            continue
 
         if _artist_is_present(wine_membership, spotify_artist) and not (
             artist.is_new_vintage
@@ -1662,7 +1726,6 @@ def run_release_check(
                 generated_at,
                 run_id,
                 log_path,
-                state_access,
                 dry_run,
                 terminal=True,
             )
@@ -1703,8 +1766,6 @@ def run_release_check(
             if release.spotify_id in processed_releases and pending is None:
                 continue
             active["pending_release_id"] = release.spotify_id
-            if not dry_run:
-                _persist_state(state_access, state)
 
             track: ReleaseTrack | None = pending.first_track if pending else None
             linked_future: ReleaseCandidate | None = None
@@ -1786,6 +1847,9 @@ def run_release_check(
                     CHOICE_PENDING if unattached_single and destinations else CHOICE_ADD
                 )
                 if destinations and release_choice_reader is not None:
+                    if not dry_run:
+                        _persist_state(state_access, state)
+                        completed_since_checkpoint = 0
                     choice = release_choice_reader(
                         artist,
                         release,
@@ -1794,6 +1858,15 @@ def run_release_check(
                         unattached_single,
                     )
                 if choice == CHOICE_QUIT:
+                    if dry_run:
+                        dry_run_learning_since_checkpoint = (
+                            _checkpoint_dry_run_learning(
+                                state_access,
+                                persisted_state,
+                                dry_run_learning_since_checkpoint,
+                                force=True,
+                            )
+                        )
                     if not dry_run:
                         append_event(
                             log_path,
@@ -1842,13 +1915,13 @@ def run_release_check(
                         generated_at,
                         run_id,
                         log_path,
-                        state_access,
                         dry_run,
                         terminal=False,
                     )
                     active["pending_release_id"] = None
                     if not dry_run:
                         _persist_state(state_access, state)
+                        completed_since_checkpoint = 0
                     continue
                 if choice == CHOICE_SKIP:
                     result = _result(
@@ -1867,13 +1940,13 @@ def run_release_check(
                         generated_at,
                         run_id,
                         log_path,
-                        state_access,
                         dry_run,
                         terminal=True,
                     )
                     active["pending_release_id"] = None
                     if not dry_run:
                         _persist_state(state_access, state)
+                        completed_since_checkpoint = 0
                     continue
 
                 wine_action: PlaylistAction = (
@@ -1915,13 +1988,13 @@ def run_release_check(
                 generated_at,
                 run_id,
                 log_path,
-                state_access,
                 dry_run,
                 terminal=terminal,
             )
             active["pending_release_id"] = None
             if not dry_run:
                 _persist_state(state_access, state)
+                completed_since_checkpoint = 0
 
         completed.add(artist.key)
         active["completed_artist_keys"] = sorted(completed)
@@ -1938,7 +2011,14 @@ def run_release_check(
                 f"#{artist.rank} {artist.name}: complete",
             )
 
-    if not dry_run:
+    if dry_run:
+        _checkpoint_dry_run_learning(
+            state_access,
+            persisted_state,
+            dry_run_learning_since_checkpoint,
+            force=True,
+        )
+    else:
         state["last_successful_check_at"] = datetime.now(UTC).isoformat()
         state["last_checked_through"] = checked_through.isoformat()
         state["active_run"] = None
