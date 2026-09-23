@@ -326,11 +326,12 @@ def refresh_scrobble_history(
     backup_dir: Path = DEFAULT_BACKUP_DIR,
     log_path: Path = DEFAULT_LOG_PATH,
     dry_run: bool = False,
+    full_rebuild: bool = False,
     now: datetime | None = None,
     progress_callback: ProgressCallback | None = None,
     cancel_check: CancelCheck | None = None,
 ) -> ScrobbleHistorySummary:
-    """Fetch a complete API delta and safely merge it into the shared export."""
+    """Merge recent plays, or replace all history from a complete API rebuild."""
     managed_artifact = artifact_for_path(export_path)
     data_service = None
     if managed_artifact == "scrobbles":
@@ -355,28 +356,39 @@ def refresh_scrobble_history(
         )
     username = username or (expected_username or "")
 
-    records = list(export_records)
+    records = [] if full_rebuild else list(export_records)
     known_counts = Counter(_record_key(record) for record in records)
     legacy_added = 0
     legacy_seen: Counter[tuple[int, str, str, str]] = Counter()
-    for record in _load_legacy_delta(legacy_delta_path):
+    legacy_records = (
+        ()
+        if full_rebuild or payload.get("full_rebuilt_at")
+        else _load_legacy_delta(legacy_delta_path)
+    )
+    for record in legacy_records:
         key = _record_key(record)
         legacy_seen[key] += 1
         if legacy_seen[key] <= known_counts[key]:
             continue
         records.append(record)
         legacy_added += 1
-    if not records:
+    if not records and not full_rebuild:
         raise ScrobbleHistoryError("The Last.fm scrobble history is empty.")
 
     known_counts = Counter(_record_key(record) for record in records)
-    latest_timestamp_ms = max(cast(int, record["date"]) for record in records)
+    latest_timestamp_ms = max(
+        (cast(int, record["date"]) for record in records), default=0
+    )
     from_timestamp = latest_timestamp_ms // 1000
     to_timestamp = int(checked_at.timestamp())
     live_added = 0
     if from_timestamp <= to_timestamp:
         if progress_callback is not None:
-            progress_callback("Fetching newer scrobbles from Last.fm")
+            progress_callback(
+                "Rebuilding all scrobbles from Last.fm"
+                if full_rebuild
+                else "Fetching newer scrobbles from Last.fm"
+            )
         live_seen: Counter[tuple[int, str, str, str]] = Counter()
         live_tracks = lastfm.recent_tracks(
             from_timestamp=from_timestamp,
@@ -396,7 +408,11 @@ def refresh_scrobble_history(
         records,
         key=lambda record: cast(int, record["date"]),
     )
-    changed = legacy_added > 0 or live_added > 0
+    if full_rebuild and not records and export_records:
+        raise ScrobbleHistoryError(
+            "Refusing to replace nonempty history with an empty API response."
+        )
+    changed = full_rebuild or legacy_added > 0 or live_added > 0
     backup_path: Path | None = None
     persisted = False
     check_cancel(cancel_check)
@@ -409,7 +425,12 @@ def refresh_scrobble_history(
             checked_at,
             recovered_payload=payload if recovered_from_fallback else None,
         )
-        _write_export_atomic(export_path, payload, records)
+        updated_payload = (
+            dict(payload, full_rebuilt_at=checked_at.isoformat())
+            if full_rebuild
+            else payload
+        )
+        _write_export_atomic(export_path, updated_payload, records)
         persisted = True
 
     summary = ScrobbleHistorySummary(
@@ -428,7 +449,9 @@ def refresh_scrobble_history(
         if data_service is not None:
             data_service.publish(
                 "scrobbles",
-                source="Last.fm API refresh",
+                source="Last.fm API full rebuild"
+                if full_rebuild
+                else "Last.fm API refresh",
             )
         if not changed and progress_callback is not None:
             progress_callback("History already current; recorded successful check time")

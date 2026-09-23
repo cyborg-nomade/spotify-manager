@@ -11,6 +11,8 @@ on:
     # Primary incremental runs: Monday-Saturday at 00:17 Berlin.
     - cron: "17 0 * * 1-6"
       timezone: "Europe/Berlin"
+    # Last.fm also fully rebuilds on the first Sunday monthly and January 1.
+    # The automation client selects this from the Berlin run date.
     # Primary weekly full rebuild: Sunday at 00:37 Berlin.
     - cron: "37 0 * * 0"
       timezone: "Europe/Berlin"

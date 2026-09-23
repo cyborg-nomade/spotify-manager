@@ -1527,3 +1527,64 @@ Use `--refresh-cache` to discard cached catalog candidates before reviewing.
 
 > This Space should be **Private**: the repository contains your personal
 > library export files.
+
+
+### New Year's Routines
+
+The top cockpit panel previews or applies the complete retrospective for the
+previous calendar year. Dry run is enabled by default. The workflow first fully
+rebuilds Last.fm history from the API, so old edits and deletions are reflected.
+It then:
+
+1. Creates or updates `top 50 YEAR tracks` in scrobble rank order and adds those
+   tracks to **a blast from the past**.
+2. Creates or updates `top 20 YEAR albums` using each album's first track and adds
+   those tracks to **palace of memory**.
+3. Moves representative tracks for the top five artists to the top of
+   **memory lane**, reusing an existing artist marker when available.
+4. Runs the existing previous-year **Great Discoveries → the queue 3** import.
+5. Copies all playable tracks from **Obsessions YEAR** to **a blast from the past**.
+
+Calendar boundaries use Europe/Berlin. Track identity is artist + title; album
+identity is artist + album. Album ranking counts individual track scrobbles,
+not complete album plays. Case-only differences are combined; ties sort
+alphabetically. Fewer than 50 tracks / 20 albums / 5 artists are used if the year
+has fewer entries. Empty album names are excluded from the album chart.
+
+The yearly source playlists must be owned by the operator and named exactly
+`Great Discoveries YEAR` and `Obsessions YEAR` (case-insensitive). Missing or
+ambiguous sources or unresolved Spotify matches stop the workflow with a named
+error. Annual charts are private when created; existing same-name owned charts
+are synchronized to the ranked selection. Other destination playlists preserve
+their contents and receive only missing tracks.
+
+The `new_year` shared-state namespace stores the resolved plan and completed
+steps by source year. Re-running an interrupted job resumes the plan; re-running
+a completed year is a no-op. Dry runs don't create playlists, write completion
+state, or publish rebuilt history. Cancellation and page-reload reconnection are
+available in the panel. The separate Queue 3 `Import prev.` button is removed;
+the CLI/API import remains available for compatibility.
+
+```console
+just new-year                         # preview the previous year
+just new-year --year 2025 --dry-run    # preview a specific completed year
+just new-year --apply                 # apply / resume the previous year
+just update-scrobble-history --full-rebuild --dry-run
+just update-scrobble-history --full-rebuild
+```
+
+`POST /commands/new-year?dry_run=true&year=2025` starts the workflow. Poll, list
+active jobs, and cancel through `/commands/new-year-jobs` and
+`/commands/new-year-jobs/{job_id}[/cancel]`. History-only rebuilds use
+`POST /commands/update-scrobble-history?dry_run=false&full_rebuild=true`.
+
+The existing nightly GitHub Actions workflow selects a full Last.fm rebuild on
+the **first Sunday of each month** and **January 1**, using the Berlin run date.
+Other nights keep incremental scrobble refreshes. Spotify's weekly full-refresh
+schedule remains independent. The retrospective itself is started manually from
+the New Year's Routines panel after the year has ended.
+
+A rebuild fetches a fixed API time range, checks pagination totals, backs up the
+old export, and replaces it atomically before publishing through library-data.
+Its `full_rebuilt_at` marker prevents later incremental refreshes from restoring
+obsolete records from the legacy Found Art delta.

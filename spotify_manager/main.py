@@ -65,6 +65,7 @@ from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
+from spotify_manager.routines import new_year
 from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import queue_3
 from spotify_manager.routines import recover_removed_albums
@@ -1851,8 +1852,36 @@ def print_something_old_summary(
         )
 
 
+@app.command(name="new-year")
+def new_year_command(
+    year: int | None = typer.Option(
+        None, help="Completed source year; defaults to last year."
+    ),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    """Build the annual retrospective, or preview it without changing Spotify."""
+    configuration = Settings()
+    console = Console()
+    key, username = found_art.validate_lastfm_configuration(
+        configuration.lastfm_api_key, configuration.lastfm_username
+    )
+    new_year.run_new_year(
+        client(),
+        LastFmClient(key, username, event_callback=console.print),
+        configuration,
+        year=year,
+        dry_run=dry_run,
+        echo=console.print,
+    )
+
+
 @app.command(name="update-scrobble-history")
 def update_scrobble_history_command(
+    full_rebuild: bool = typer.Option(
+        False,
+        "--full-rebuild",
+        help="Replace all history from the API, including past edits and deletions.",
+    ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -1882,6 +1911,7 @@ def update_scrobble_history_command(
                 lastfm_client,
                 expected_username=username,
                 dry_run=dry_run,
+                full_rebuild=full_rebuild,
                 progress_callback=status.update,
             )
     except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:

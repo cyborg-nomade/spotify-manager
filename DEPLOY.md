@@ -318,3 +318,25 @@ SPOTIFY_MANAGER_STATE_BACKEND=local \
 SPOTIFY_MANAGER_STATE_LOCAL_PATH=/tmp/spotify-manager-state.json \
 uv run uvicorn spotify_manager.web:app --host 127.0.0.1 --port 8765
 ```
+
+
+### Expired dataset credentials
+
+An `OAuth token has expired` error means the Space's saved token must be replaced;
+it does not mean the private dataset was deleted. Browser-login OAuth access
+tokens copied into Space secrets cannot renew themselves. Use a Hugging Face
+access token with read/write access to both private datasets for
+`SPOTIFY_MANAGER_STATE_TOKEN` and `SPOTIFY_MANAGER_DATA_TOKEN`. Updating the
+secrets restarts the Space. Verify startup hydration and `/state/summary` through
+the authenticated cockpit. Local `hf auth whoami` can refresh the local OAuth
+login, but does not change Space secrets.
+
+### Monthly and New Year history rebuilds
+
+The nightly automation client requests a complete Last.fm API rebuild on the
+first Sunday of each month and January 1 (Europe/Berlin). On those dates it does
+not use the generic artifact-freshness shortcut, since a recent incremental
+refresh is not evidence of a full rebuild. It also waits for an incompatible
+incremental/dry-run history job rather than treating that job as the rebuild.
+Deploy the new API code before activating the updated Actions client. The
+annual retrospective remains a manual, dry-run-enabled cockpit operation.
