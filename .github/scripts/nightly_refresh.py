@@ -229,9 +229,21 @@ class SpaceClient:
             )
             try:
                 with urlopen(request, timeout=60) as response:
-                    return _decode_response(response.read())
+                    try:
+                        return _decode_response(response.read())
+                    except AutomationError as exc:
+                        raise AutomationError(
+                            f"Space returned non-JSON HTTP {response.status} for {path}; "
+                            "check HF_SPACE_TOKEN access to the private Space."
+                        ) from exc
             except HTTPError as exc:
-                payload = _decode_response(exc.read())
+                try:
+                    payload = _decode_response(exc.read())
+                except AutomationError:
+                    payload = {
+                        "detail": "Non-JSON response from the Space gateway; "
+                        "check HF_SPACE_TOKEN access to the private Space."
+                    }
                 if retry_transient and exc.code in TRANSIENT_HTTP_STATUSES:
                     print(f"Space returned HTTP {exc.code}; retrying.", flush=True)
                     self.sleep(REQUEST_RETRY_SECONDS)
