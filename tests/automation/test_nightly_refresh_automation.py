@@ -314,3 +314,30 @@ def test_connection_check_prevents_unsafe_deployment(
     )
     with pytest.raises(nightly.AutomationError, match=error):
         nightly.run_connection_check(client)
+
+
+def test_gateway_html_error_retains_http_status(nightly, monkeypatch):
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    def unauthorized(*args, **kwargs):
+        raise HTTPError(
+            "https://space.test/health",
+            404,
+            "Not found",
+            {},
+            BytesIO(b"<html>Private Space</html>"),
+        )
+
+    monkeypatch.setattr(nightly, "urlopen", unauthorized)
+    client = nightly.SpaceClient(
+        "https://space.test/",
+        "test-hf",
+        "test-automation",
+        datetime(2099, 1, 1, tzinfo=UTC),
+    )
+    with pytest.raises(nightly.ApiError) as raised:
+        client.request("GET", "/health")
+    assert raised.value.status == 404
+    assert "HF_SPACE_TOKEN" in str(raised.value)
+    assert "test-hf" not in str(raised.value)
