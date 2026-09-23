@@ -668,6 +668,15 @@
     </header>
 
     <main class="cockpit-grid">
+    <section class="card independent-module" id="newYearCard" style="grid-column:1 / -1">
+      <h2>New Year's Routines</h2>
+      <label class="inline"><input type="checkbox" id="newYearDryRun" checked /> Dry run</label>
+      <div class="analysis-actions">
+        <button class="primary" data-action="startNewYear">Run</button>
+        <button class="danger cancel" data-action="cancelNewYear" hidden title="Stop annual routines">×</button>
+      </div>
+      <div class="analysis-progress" id="newYearProgress"></div>
+    </section>
     <section class="card system-card" id="serverFilesCard">
       <div class="system-card-heading">
         <h2>Data signal board</h2>
@@ -922,8 +931,6 @@
       </label>
       <div class="analysis-actions">
         <button class="primary" data-action="startQueue3">Run</button>
-        <button class="ghost" data-action="startQueue3AnnualImport"
-          title="Import the previous year's Great Discoveries">Import prev.</button>
         <button class="danger cancel" data-action="cancelQueue3" hidden title="Stop flush">×</button>
       </div>
       <div class="analysis-progress" id="queue3Progress"></div>
@@ -1149,6 +1156,7 @@
   var queueJob = null;
   var queue2Job = null;
   var queue3Job = null;
+  var newYearJob = null;
   var newWineJob = null;
   var slowListeningJob = null;
   var somethingOldJob = null;
@@ -2777,11 +2785,8 @@
   function renderQueue3Job(job) {
     queue3Job = job;
     var out = document.getElementById("queue3Progress");
-    var flushStart = document.querySelector('[data-action="startQueue3"]');
-    var importStart = document.querySelector('[data-action="startQueue3AnnualImport"]');
+    var start = document.querySelector('[data-action="startQueue3"]');
     var annualOnly = Boolean(job.queue_3_annual_only);
-    var start = annualOnly ? importStart : flushStart;
-    var alternateStart = annualOnly ? flushStart : importStart;
     var cancel = document.querySelector('[data-action="cancelQueue3"]');
     document.getElementById("queue3DryRun").checked = Boolean(job.dry_run);
     var processed = typeof job.processed === "number" ? job.processed : 0;
@@ -2903,11 +2908,9 @@
     cancel.disabled = job.status === "cancelling";
     if (active) {
       if (!start.disabled) setBusy(start, true, "Running…");
-      alternateStart.disabled = true;
       if (job.status === "waiting") start.innerHTML = '<span class="spinner"></span> Waiting…';
     } else {
       setBusy(start, false);
-      alternateStart.disabled = false;
     }
   }
 
@@ -4204,6 +4207,62 @@
     }
   }
 
+  function renderNewYearJob(job) {
+    newYearJob = job;
+    var out = document.getElementById("newYearProgress");
+    var active = isAnalysisActive(job.status);
+    var start = document.querySelector('[data-action="startNewYear"]');
+    var cancel = document.querySelector('[data-action="cancelNewYear"]');
+    document.getElementById("newYearDryRun").checked = Boolean(job.dry_run);
+    document.getElementById("newYearDryRun").disabled = active;
+    cancel.hidden = !active;
+    cancel.disabled = job.status === "cancelling";
+    if (active && !start.disabled) setBusy(start, true, "Running…");
+    if (!active) setBusy(start, false);
+    var result = job.new_year_result || {};
+    var plan = result.plan || {};
+    var rankings = ["tracks", "albums", "artists"].map(function (kind) {
+      var items = plan[kind] || [];
+      if (!items.length) return "";
+      return '<details><summary>Top ' + esc(kind) + ' · ' + esc(result.year) +
+        '</summary><ol>' + items.map(function (item) {
+          return '<li>' + esc(item.artist) + (kind === "artists" ? "" : ' — ' + esc(item.name)) +
+            ' · ' + esc(item.scrobbles) + ' scrobbles</li>';
+        }).join("") + '</ol></details>';
+    }).join("");
+    out.innerHTML = '<div class="analysis-state">' +
+      esc((job.dry_run ? "Dry run · " : "") + job.status + " · " + (job.detail || "Starting")) +
+      '</div>' + rankings + '<div class="analysis-log" role="log">' +
+      (job.logs || []).map(function (entry) {
+        return '<div class="analysis-log-line">' + esc(entry.message) + '</div>';
+      }).join("") + '</div>';
+    out.classList.add("show");
+  }
+
+  async function pollNewYearJob(id) {
+    try {
+      var job = await api("/commands/new-year-jobs/" + id);
+      renderNewYearJob(job);
+      if (isAnalysisActive(job.status)) {
+        setTimeout(function () { pollNewYearJob(id); }, 1500);
+      } else {
+        loadServerFilesStatus();
+      }
+    } catch (e) {
+      renderError(document.getElementById("newYearProgress"), e);
+      setBusy(document.querySelector('[data-action="startNewYear"]'), false);
+    }
+  }
+
+  async function restoreActiveNewYearJobs() {
+    try {
+      var jobs = await api("/commands/new-year-jobs");
+      if (jobs.length) pollNewYearJob(jobs[jobs.length - 1].job_id);
+    } catch (e) {
+      if (e.status !== 401) showToast("Could not restore annual routine progress", "err");
+    }
+  }
+
   // ---- Actions -----------------------------------------------------------
   async function startAlbumDiscovery(kind, btn) {
     var isQueue2 = kind === "queue2";
@@ -4957,10 +5016,6 @@
       return startQueue3WebJob(btn, false);
     },
 
-    async startQueue3AnnualImport(btn) {
-      return startQueue3WebJob(btn, true);
-    },
-
     async queue3Choice(btn) {
       return submitQueue3Choice(btn);
     },
@@ -5309,6 +5364,33 @@
       }
     },
 
+    async startNewYear(btn) {
+      setBusy(btn, true, "Starting…");
+      try {
+        var dry = document.getElementById("newYearDryRun").checked;
+        var job = await api("/commands/new-year?dry_run=" + dry, { method: "POST" });
+        renderNewYearJob(job);
+        pollNewYearJob(job.job_id);
+      } catch (e) {
+        var detail = e.data && e.data.detail;
+        if (e.status === 409 && detail && detail.command === "new_year") {
+          pollNewYearJob(detail.job_id);
+          return;
+        }
+        renderError(document.getElementById("newYearProgress"), e);
+        setBusy(btn, false);
+      }
+    },
+    async cancelNewYear(btn) {
+      if (!newYearJob) return;
+      btn.disabled = true;
+      try {
+        renderNewYearJob(await api("/commands/new-year-jobs/" + newYearJob.job_id + "/cancel", { method: "POST" }));
+      } catch (e) {
+        btn.disabled = false;
+        showToast(e.detail || "Could not stop annual routines", "err");
+      }
+    },
     async startScrobbleHistory(btn) {
       var dryRun = document.getElementById("scrobbleHistoryDryRun").checked;
       var out = document.getElementById("scrobbleHistoryProgress");
@@ -5639,6 +5721,7 @@
     restoreActiveRequeueForADreamJobs();
     restoreActivePalaceOfMemoryJobs();
     restoreActiveScrobbleHistoryJobs();
+    restoreActiveNewYearJobs();
     return true;
   }
 

@@ -268,8 +268,10 @@ class LastFmClient:
 
         page = 1
         total_pages = 1
+        expected_total: int | None = None
         results: list[LastFmRecentTrack] = []
         while page <= total_pages:
+            self._emit(f"Fetching Last.fm history page {page} of {total_pages}")
             payload = self._request(
                 "user.getRecentTracks",
                 user=self.username,
@@ -286,7 +288,18 @@ class LastFmClient:
                     "Last.fm user.getRecentTracks returned invalid track data."
                 )
             try:
-                total_pages = max(1, int(attributes.get("totalPages") or 1))
+                reported_pages = max(1, int(attributes.get("totalPages") or 1))
+                reported_total = (
+                    int(attributes["total"]) if "total" in attributes else None
+                )
+                if page > 1 and (
+                    reported_pages != total_pages or reported_total != expected_total
+                ):
+                    raise LastFmResponseError(
+                        "Last.fm history changed during pagination; retry the rebuild."
+                    )
+                total_pages = reported_pages
+                expected_total = reported_total
             except (TypeError, ValueError) as exc:
                 raise LastFmResponseError(
                     "Last.fm user.getRecentTracks returned invalid pagination."
@@ -297,6 +310,10 @@ class LastFmClient:
                 if parsed is not None:
                     results.append(parsed)
             page += 1
+        if expected_total is not None and len(results) != expected_total:
+            raise LastFmResponseError(
+                "Last.fm returned incomplete history; existing history was preserved."
+            )
         return tuple(results)
 
 

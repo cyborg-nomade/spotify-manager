@@ -422,3 +422,27 @@ def test_parse_recent_track_accepts_artist_name_and_missing_album() -> None:
             "name": "Track",
         }
     ) == lastfm.LastFmRecentTrack("Artist", "Track", "", 123)
+
+
+@pytest.mark.parametrize("changed", [True, False])
+def test_recent_tracks_rejects_changed_or_incomplete_history(monkeypatch, changed):
+    client = lastfm.LastFmClient("key", "listener")
+    pages = iter(
+        [
+            {
+                "recenttracks": {
+                    "track": [],
+                    "@attr": {"totalPages": "2", "total": "10"},
+                }
+            },
+            {
+                "recenttracks": {
+                    "track": [],
+                    "@attr": {"totalPages": "2", "total": "9" if changed else "10"},
+                }
+            },
+        ]
+    )
+    monkeypatch.setattr(client, "_request", lambda *a, **kw: next(pages))
+    with pytest.raises(lastfm.LastFmResponseError, match="changed|incomplete"):
+        client.recent_tracks(from_timestamp=0, to_timestamp=10)

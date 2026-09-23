@@ -183,10 +183,13 @@ def test_duplicate_schedule_skips_when_all_artifacts_are_fresh(
         lambda *_args: pytest.fail("fresh duplicate must not start jobs"),
     )
 
-    assert nightly.run_nightly_refresh(
-        client,
-        freshness_threshold=datetime(2026, 8, 28, 20, 0, tzinfo=UTC),
-    ) == 0
+    assert (
+        nightly.run_nightly_refresh(
+            client,
+            freshness_threshold=datetime(2026, 8, 28, 20, 0, tzinfo=UTC),
+        )
+        == 0
+    )
     assert client.calls == [
         ("GET", "/health"),
         ("GET", "/library-mirrors/status"),
@@ -225,6 +228,14 @@ def test_connection_check_requires_all_durable_artifacts(
             {"status": "ok"},
             {"status": "ok"},
             {"files": files},
+            {"revision": "state-sha"},
+            {
+                "paths": {
+                    "/commands/example-jobs": {"get": {}},
+                    "/commands/example-jobs/{job_id}": {"get": {}},
+                }
+            },
+            [],
         ]
     )
 
@@ -251,3 +262,55 @@ def test_workflow_schedules_weekend_full_rebuild() -> None:
     assert workflow.count('timezone: "Europe/Berlin"') == 4
     assert "--full-rebuild" in workflow
     assert "--scheduled" in workflow
+
+
+@pytest.mark.parametrize(
+    "timestamp,expected",
+    [
+        ("2026-12-31T23:00:00+00:00", True),
+        ("2026-12-31T22:59:59+00:00", False),
+        ("2026-10-04T00:30:00+02:00", True),
+        ("2026-10-11T00:30:00+02:00", False),
+        ("2026-11-01T00:30:00+01:00", True),
+        ("2026-11-07T00:30:00+01:00", False),
+    ],
+)
+def test_monthly_and_new_year_scrobble_rebuild_dates(nightly, timestamp, expected):
+    assert nightly.scrobble_rebuild_due(datetime.fromisoformat(timestamp)) is expected
+
+
+def test_scrobble_rebuild_can_run_independently_of_spotify_mode(nightly):
+    jobs = nightly.refresh_jobs(full_rebuild=False, scrobble_rebuild=True)
+    assert "full_rebuild=true" in jobs[0].start_path
+    assert "full_rebuild=false" in jobs[1].start_path
+
+
+@pytest.mark.parametrize(
+    "state,paths,jobs,error",
+    [
+        ({}, {}, [], "state dataset"),
+        ({"revision": "sha"}, {}, [], "No active-job"),
+        (
+            {"revision": "sha"},
+            {"/commands/example-jobs": {}},
+            [{"job_id": "active"}],
+            "Active jobs",
+        ),
+    ],
+)
+def test_connection_check_prevents_unsafe_deployment(
+    nightly, state, paths, jobs, error
+):
+    files = [{"filename": spec.label, "exists": True} for spec in nightly.JOBS]
+    client = FakeClient(
+        [
+            {"status": "ok"},
+            {"status": "ok"},
+            {"files": files},
+            state,
+            {"paths": paths},
+            jobs,
+        ]
+    )
+    with pytest.raises(nightly.AutomationError, match=error):
+        nightly.run_connection_check(client)

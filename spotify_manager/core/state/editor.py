@@ -52,6 +52,10 @@ STATE_EDITOR_SCHEMA: dict[str, Any] = {
                 _readonly("/queue_2_active_run"),
             ],
         },
+        "new_year": {
+            "label": "New Year's Routines",
+            "rules": [_readonly("/years")],
+        },
         "new_wine": {
             "label": "New Wine",
             "rules": [_readonly("/version"), _readonly("/active_run")],

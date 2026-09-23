@@ -91,6 +91,7 @@ from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
+from spotify_manager.routines import new_year
 from spotify_manager.routines import palace_of_memory
 from spotify_manager.routines import queue_3
 from spotify_manager.routines import recover_removed_albums
@@ -159,6 +160,7 @@ STATE_NAMESPACE_DEFINITIONS: dict[
     "genre_reveal": (genre_reveal._default_state, genre_reveal.validate_state),
     "new_kids": (new_kids._default_state, new_kids.validate_state),
     "new_wine": (new_wine._default_state, new_wine.validate_state),
+    "new_year": (lambda: {"years": {}}, new_year.validate_state),
     "palace_of_memory": (
         palace_of_memory._default_state,
         palace_of_memory.validate_state,
@@ -843,7 +845,9 @@ class BlastJobResult(BaseModel):
     history_legacy_scrobbles_added: int | None = None
     live_scrobbles_added: int | None = None
     history_persisted: bool | None = None
+    history_full_rebuild: bool = False
     history_backup_path: str | None = None
+    new_year_result: dict[str, Any] | None = None
     candidate_count: int | None = None
     found_art_results: list[FoundArtSelectionResult] = Field(default_factory=list)
     sauvignon_history_albums: int | None = None
@@ -5109,6 +5113,7 @@ def _run_scrobble_history_job(
     api_key: str,
     username: str,
     dry_run: bool,
+    full_rebuild: bool = False,
 ) -> None:
     """Refresh the shared Last.fm record as a reconnectable web job."""
     job = get_blast_job(job_id, command="update_scrobble_history")
@@ -5126,6 +5131,7 @@ def _run_scrobble_history_job(
         )
 
     def echo(message: str) -> None:
+        scrobble_history.check_cancel(job.cancel_event.is_set)
         with _blast_jobs_lock:
             job.result.detail = message
             _append_blast_log_locked(job, message)
@@ -5140,6 +5146,7 @@ def _run_scrobble_history_job(
             lastfm,
             expected_username=username,
             dry_run=dry_run,
+            full_rebuild=full_rebuild,
             progress_callback=echo,
             cancel_check=job.cancel_event.is_set,
         )
@@ -6020,6 +6027,7 @@ def start_scrobble_history_job(
     username: str,
     *,
     dry_run: bool,
+    full_rebuild: bool = False,
 ) -> BlastJobResult:
     """Start one shared Last.fm history refresh with reload-safe state."""
     with _blast_jobs_lock:
@@ -6039,6 +6047,7 @@ def start_scrobble_history_job(
                 job_id=job_id,
                 command="update_scrobble_history",
                 dry_run=dry_run,
+                history_full_rebuild=full_rebuild,
             )
         )
         _append_blast_log_locked(
@@ -6054,7 +6063,7 @@ def start_scrobble_history_job(
 
     Thread(
         target=_run_scrobble_history_job,
-        args=(job_id, api_key, username, dry_run),
+        args=(job_id, api_key, username, dry_run, full_rebuild),
         name=f"scrobble-history-{job_id[:8]}",
         daemon=True,
     ).start()
@@ -8288,6 +8297,7 @@ def cmd_cancel_palace_of_memory_job(job_id: str) -> BlastJobResult:
 )
 def cmd_update_scrobble_history(
     dry_run: bool = True,
+    full_rebuild: bool = False,
 ) -> BlastJobResult:
     """Start a background refresh of the shared Last.fm scrobble record."""
     configuration = Settings()
@@ -8302,6 +8312,7 @@ def cmd_update_scrobble_history(
         api_key,
         username,
         dry_run=dry_run,
+        full_rebuild=full_rebuild,
     )
 
 
@@ -8489,3 +8500,112 @@ def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     import uvicorn
 
     uvicorn.run(app, host=host, port=port)
+
+
+def _run_new_year_job(
+    job_id: str, spotify: Spotify, year: int | None, dry_run: bool
+) -> None:
+    """Run the annual workflow through the shared routine and job registry."""
+    job = get_blast_job(job_id, command="new_year")
+    with _blast_jobs_lock:
+        job.result.status = "running"
+        job.result.started_at = datetime.now(UTC).isoformat()
+
+    def echo(message: str) -> None:
+        scrobble_history.check_cancel(job.cancel_event.is_set)
+        with _blast_jobs_lock:
+            job.result.detail = message
+            _append_blast_log_locked(job, message)
+
+    try:
+        configuration = Settings()
+        key, username = found_art.validate_lastfm_configuration(
+            configuration.lastfm_api_key, configuration.lastfm_username
+        )
+        result = new_year.run_new_year(
+            spotify,
+            LastFmClient(key, username, event_callback=echo),
+            configuration,
+            year=year,
+            dry_run=dry_run,
+            echo=echo,
+            cancel_check=job.cancel_event.is_set,
+            retry_call=_playlist_job_retry(job, echo),
+        )
+        with _blast_jobs_lock:
+            job.result.new_year_result = result
+            job.result.status = "completed"
+    except (
+        scrobble_history.ScrobbleHistoryCancelledError,
+        blast_from_past.BlastFromPastCancelledError,
+    ) as exc:
+        with _blast_jobs_lock:
+            job.result.status = "cancelled"
+            job.result.detail = str(exc)
+    except Exception as exc:
+        with _blast_jobs_lock:
+            job.result.status = "failed"
+            job.result.detail = str(exc)
+            _append_blast_log_locked(job, str(exc))
+    finally:
+        with _blast_jobs_lock:
+            job.result.completed_at = datetime.now(UTC).isoformat()
+
+
+@app.post("/commands/new-year", response_model=BlastJobResult, status_code=202)
+def cmd_new_year(
+    client: ClientDep, dry_run: bool = True, year: int | None = None
+) -> BlastJobResult:
+    """Start all New Year's Routines for the previous completed calendar year."""
+    with _blast_jobs_lock:
+        for existing in _blast_jobs.values():
+            if existing.result.status in _ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "another playlist or history routine is running",
+                        "job_id": existing.result.job_id,
+                        "command": existing.result.command,
+                    },
+                )
+        job_id = uuid4().hex
+        job = _BlastJob(
+            result=BlastJobResult(job_id=job_id, command="new_year", dry_run=dry_run)
+        )
+        _blast_jobs[job_id] = job
+        snapshot = _blast_job_snapshot(job)
+    Thread(
+        target=_run_new_year_job,
+        args=(job_id, client, year, dry_run),
+        name=f"new-year-{job_id[:8]}",
+        daemon=True,
+    ).start()
+    return snapshot
+
+
+@app.get("/commands/new-year-jobs", response_model=list[BlastJobResult])
+def cmd_active_new_year_jobs() -> list[BlastJobResult]:
+    """Reconnect to an active annual workflow after browser reload."""
+    with _blast_jobs_lock:
+        return [
+            _blast_job_snapshot(job)
+            for job in _blast_jobs.values()
+            if job.result.command == "new_year"
+            and job.result.status in _ACTIVE_JOB_STATUSES
+        ]
+
+
+@app.get("/commands/new-year-jobs/{job_id}", response_model=BlastJobResult)
+def cmd_new_year_job(job_id: str) -> BlastJobResult:
+    """Return annual progress, rankings, and logs."""
+    job = get_blast_job(job_id, command="new_year")
+    with _blast_jobs_lock:
+        return _blast_job_snapshot(job)
+
+
+@app.post("/commands/new-year-jobs/{job_id}/cancel", response_model=BlastJobResult)
+def cmd_cancel_new_year_job(job_id: str) -> BlastJobResult:
+    """Cancel at the next boundary, retaining completed annual steps."""
+    return _cancel_simple_playlist_job(
+        job_id, command="new_year", detail="Stopping New Year's Routines"
+    )

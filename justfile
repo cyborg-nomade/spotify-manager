@@ -240,3 +240,7 @@ recover-removed-albums *args:
 # Review followed artists and manage their queue placement.
 review-artists *args:
     {{ cli }} review-artists "$@"
+
+# Preview or apply the complete previous-year retrospective.
+new-year *args:
+    {{ cli }} new-year "$@"

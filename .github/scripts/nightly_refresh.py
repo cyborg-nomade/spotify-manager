@@ -72,14 +72,19 @@ class JobSpec:
     cancel_path: str
 
 
-def refresh_jobs(*, full_rebuild: bool) -> tuple[JobSpec, ...]:
+def refresh_jobs(
+    *, full_rebuild: bool, scrobble_rebuild: bool = False
+) -> tuple[JobSpec, ...]:
     """Build the four API jobs for an incremental or full refresh night."""
     rebuild = str(full_rebuild).lower()
     return (
         JobSpec(
             label="Last.fm scrobble history",
             command="update_scrobble_history",
-            start_path="/commands/update-scrobble-history?dry_run=false",
+            start_path=(
+                "/commands/update-scrobble-history?dry_run=false"
+                + ("&full_rebuild=true" if scrobble_rebuild else "")
+            ),
             status_path="/commands/update-scrobble-history-jobs/{job_id}",
             cancel_path="/commands/update-scrobble-history-jobs/{job_id}/cancel",
         ),
@@ -101,6 +106,14 @@ def refresh_jobs(*, full_rebuild: bool) -> tuple[JobSpec, ...]:
 
 JOBS = refresh_jobs(full_rebuild=False)
 FULL_REBUILD_JOBS = refresh_jobs(full_rebuild=True)
+
+
+def scrobble_rebuild_due(now: datetime) -> bool:
+    """Select January 1 and the first Sunday of each Berlin calendar month."""
+    local = now.astimezone(BERLIN)
+    return (local.month == 1 and local.day == 1) or (
+        local.weekday() == 6 and local.day <= 7
+    )
 
 
 def maintenance_deadline(now: datetime) -> datetime:
@@ -130,9 +143,7 @@ def maintenance_window_start(now: datetime) -> datetime:
     """Return the opening 22:00 boundary for the active Berlin window."""
     local_now = now.astimezone(BERLIN)
     window_date = (
-        local_now.date() - timedelta(days=1)
-        if local_now.hour < 5
-        else local_now.date()
+        local_now.date() - timedelta(days=1) if local_now.hour < 5 else local_now.date()
     )
     local_start = datetime.combine(
         window_date,
@@ -259,7 +270,18 @@ def start_job(client: SpaceClient, spec: JobSpec) -> str:
             detail = conflict_detail(exc)
             job_id = str(detail.get("job_id") or "")
             blocker = str(detail.get("command") or "")
-            if job_id and (not blocker or blocker == spec.command):
+            compatible = True
+            if (
+                job_id
+                and (not blocker or blocker == spec.command)
+                and spec.command == "update_scrobble_history"
+                and "full_rebuild=true" in spec.start_path
+            ):
+                running = client.request("GET", spec.status_path.format(job_id=job_id))
+                compatible = bool(
+                    running.get("history_full_rebuild")
+                ) and not running.get("dry_run")
+            if job_id and compatible and (not blocker or blocker == spec.command):
                 print(f"Reconnected to existing {spec.label} job {job_id}.", flush=True)
                 return job_id
             print(
@@ -432,7 +454,28 @@ def run_connection_check(client: SpaceClient) -> int:
     ]
     if missing:
         raise AutomationError("Durable artifacts are missing: " + ", ".join(missing))
-    print("Automation authentication and all four durable artifacts are healthy.")
+    state = client.request("GET", "/state/summary")
+    if not isinstance(state, dict) or not state.get("revision"):
+        raise AutomationError("The shared state dataset is unavailable.")
+    schema = client.request("GET", "/openapi.json")
+    paths = schema.get("paths") if isinstance(schema, dict) else None
+    if not isinstance(paths, dict):
+        raise AutomationError("Could not inspect active-job endpoints.")
+    job_paths = sorted(
+        path for path in paths if path.endswith("-jobs") and "{" not in path
+    )
+    if not job_paths:
+        raise AutomationError("No active-job endpoints were found.")
+    for path in job_paths:
+        jobs = client.request("GET", path)
+        if not isinstance(jobs, list):
+            raise AutomationError(f"Invalid active-job response from {path}.")
+        if jobs:
+            raise AutomationError(f"Active jobs at {path}; wait before deploying.")
+    print(
+        "Automation authentication, shared state, and all four artifacts are healthy."
+    )
+    print(f"No active jobs across {len(job_paths)} routine endpoints.")
     return 0
 
 
@@ -473,12 +516,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.check_only:
             return run_connection_check(client)
-        jobs = FULL_REBUILD_JOBS if args.full_rebuild else JOBS
+        scrobble_rebuild = scrobble_rebuild_due(now)
+        jobs = refresh_jobs(
+            full_rebuild=args.full_rebuild, scrobble_rebuild=scrobble_rebuild
+        )
         freshness_threshold = maintenance_window_start(now) if args.scheduled else None
         return run_nightly_refresh(
             client,
             jobs,
-            freshness_threshold=freshness_threshold,
+            freshness_threshold=None if scrobble_rebuild else freshness_threshold,
         )
     except AutomationError as exc:
         print(f"::error::{exc}", file=sys.stderr, flush=True)

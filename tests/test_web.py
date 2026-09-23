@@ -75,13 +75,18 @@ def test_new_kids_web_results_show_composer_works_progress(
     assert "item.composer_limit || 40" in response.text
 
 
-def test_queue_3_exposes_a_separate_previous_year_import_button(
+def test_new_year_panel_replaces_queue_3_previous_year_button(
     client: TestClient,
 ) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert 'data-action="startQueue3AnnualImport"' in response.text
+    assert 'data-action="startQueue3AnnualImport"' not in response.text
+    assert 'data-action="startNewYear"' in response.text
+    assert 'id="newYearDryRun" checked' in response.text
+    assert response.text.index('id="newYearCard"') < response.text.index(
+        'id="serverFilesCard"'
+    )
     assert '"/commands/import-queue-3-previous-year"' in response.text
     assert "job.queue_3_annual_only" in response.text
 

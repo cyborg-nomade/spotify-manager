@@ -4678,3 +4678,56 @@ def test_active_analysis_jobs_can_be_restored_after_reload(
     release.set()
     wait_for_job_status(client, started["job_id"], {"completed"})
     assert client.get("/commands/library-analysis-jobs").json() == []
+
+
+@pytest.mark.parametrize("outcome", ["completed", "failed", "cancelled"])
+def test_new_year_web_job_routes_and_errors(client, monkeypatch, outcome):
+    monkeypatch.setattr(
+        api,
+        "Settings",
+        lambda: SimpleNamespace(lastfm_api_key="key", lastfm_username="listener"),
+    )
+    received = {}
+
+    def routine(sp, lastfm, config, **kwargs):
+        received.update(kwargs)
+        kwargs["echo"]("Ranking annual charts")
+        if outcome == "failed":
+            raise RuntimeError("missing yearly source")
+        if outcome == "cancelled":
+            raise api.scrobble_history.ScrobbleHistoryCancelledError("cancelled")
+        return {"year": 2025, "dry_run": True, "plan": {}}
+
+    monkeypatch.setattr(api.new_year, "run_new_year", routine)
+    started = client.post("/commands/new-year?year=2025")
+    assert started.status_code == 202
+    identity = started.json()["job_id"]
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        job = client.get("/commands/new-year-jobs/" + identity).json()
+        if job["status"] == outcome:
+            break
+        sleep(0.01)
+    assert job["status"] == outcome
+    assert received["dry_run"] and received["year"] == 2025
+    assert job["completed_at"]
+    assert client.get("/commands/new-year-jobs").json() == []
+    assert (
+        client.post("/commands/new-year-jobs/" + identity + "/cancel").status_code
+        == 409
+    )
+
+
+def test_new_year_job_conflicts_reconnects_and_cancels(client, monkeypatch):
+    monkeypatch.setattr(
+        api, "Thread", lambda **kwargs: SimpleNamespace(start=lambda: None)
+    )
+    started = client.post("/commands/new-year")
+    identity = started.json()["job_id"]
+    conflict = client.post("/commands/new-year")
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"]["command"] == "new_year"
+    assert client.get("/commands/new-year-jobs").json()[0]["job_id"] == identity
+    cancelled = client.post("/commands/new-year-jobs/" + identity + "/cancel")
+    assert cancelled.json()["status"] == "cancelling"
+    assert api.get_blast_job(identity).cancel_event.is_set()

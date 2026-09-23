@@ -456,3 +456,70 @@ def test_backup_write_log_and_timestamp_failures_are_wrapped(
             ],
         )
     assert not list(tmp_path.glob(".lastfm.json.*.tmp"))
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_full_rebuild_replaces_edits_deletions_and_ignores_legacy(tmp_path, dry_run):
+    path = tmp_path / "history.json"
+    original = write_export(path)
+    delta = tmp_path / "legacy.jsonl"
+    write_legacy_delta(delta)
+    lastfm = FakeLastFm(
+        (
+            LastFmRecentTrack("Corrected", "Corrected title", "Corrected album", 1),
+            LastFmRecentTrack("Corrected", "Corrected title", "Corrected album", 1),
+        )
+    )
+    result = scrobble_history.refresh_scrobble_history(
+        lastfm,
+        export_path=path,
+        legacy_delta_path=delta,
+        backup_dir=tmp_path / "backups",
+        log_path=tmp_path / "log",
+        full_rebuild=True,
+        dry_run=dry_run,
+        now=datetime.fromtimestamp(10, UTC),
+    )
+    assert lastfm.calls == [(0, 10, 200)]
+    assert len(result.history) == 2
+    assert all(p.artist == "Corrected" for p in result.history)
+    assert result.legacy_scrobbles_added == 0
+    if dry_run:
+        assert path.read_bytes() == original
+        assert not (tmp_path / "backups").exists()
+    else:
+        assert gzip.decompress(result.backup_path.read_bytes()) == original
+        assert len(json.loads(path.read_text())["scrobbles"]) == 2
+
+
+def test_full_rebuild_rejects_empty_replacement(tmp_path):
+    path = tmp_path / "history.json"
+    original = write_export(path)
+    with pytest.raises(scrobble_history.ScrobbleHistoryError, match="empty API"):
+        scrobble_history.refresh_scrobble_history(
+            FakeLastFm(()), export_path=path, full_rebuild=True
+        )
+    assert path.read_bytes() == original
+
+
+def test_incremental_after_rebuild_does_not_resurrect_deleted_legacy(tmp_path):
+    path = tmp_path / "history.json"
+    write_export(path)
+    delta = tmp_path / "legacy.jsonl"
+    write_legacy_delta(delta)
+    options = dict(
+        export_path=path,
+        legacy_delta_path=delta,
+        backup_dir=tmp_path / "backups",
+        log_path=tmp_path / "log",
+    )
+    corrected = LastFmRecentTrack("Corrected", "Song", "Album", 1)
+    scrobble_history.refresh_scrobble_history(
+        FakeLastFm((corrected,)), full_rebuild=True, **options
+    )
+    result = scrobble_history.refresh_scrobble_history(
+        FakeLastFm((corrected,)), **options
+    )
+    assert result.total_scrobbles == 1
+    assert result.legacy_scrobbles_added == 0
+    assert result.history[0].artist == "Corrected"
