@@ -1,6 +1,11 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: approved by the user on 2026-09-24; implementation not started.**
+**Status: approved by the user on 2026-09-24; item 1 prepared for PR review.**
+
+Item 1 deliverables are in the [compatibility inventory](refactor/README.md),
+including frozen interface snapshots and the proposed
+[architecture decision](adr/001-refactor-boundaries-and-async-lifetimes.md).
+Application refactoring has not started. Later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,

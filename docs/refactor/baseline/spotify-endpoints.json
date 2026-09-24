@@ -1,0 +1,494 @@
+{
+  "direct_http_calls": [
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._get, f'playlists/{playlist_id}/items', limit=SPOTIFY_PLAYLIST_PAGE_SIZE, offset=offset)",
+      "line": 758,
+      "method": "GET",
+      "source": "spotify_manager/routines/blast_from_past.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._post, f'playlists/{playlist_id}/items', payload={'uris': batch})",
+      "line": 842,
+      "method": "POST",
+      "source": "spotify_manager/routines/blast_from_past.py"
+    },
+    {
+      "endpoint": "f'playlists/{marker_group.playlist_id}/items'",
+      "expression": "partial(spotify._delete, f'playlists/{marker_group.playlist_id}/items', payload={'items': [{'uri': uri} for uri in batch]})",
+      "line": 931,
+      "method": "DELETE",
+      "source": "spotify_manager/routines/discography.py"
+    },
+    {
+      "endpoint": "'me/library'",
+      "expression": "sp._put('me/library', args={'uris': source.preview.source_playlist_uri})",
+      "line": 542,
+      "method": "PUT",
+      "source": "spotify_manager/routines/genre_reveal.py"
+    },
+    {
+      "endpoint": "f'playlists/{destination_playlist_id}/items'",
+      "expression": "sp._post(f'playlists/{destination_playlist_id}/items', payload={'uris': list(missing)})",
+      "line": 547,
+      "method": "POST",
+      "source": "spotify_manager/routines/genre_reveal.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._get, f'playlists/{playlist_id}/items', limit=PLAYLIST_PAGE_LIMIT, offset=offset)",
+      "line": 313,
+      "method": "GET",
+      "source": "spotify_manager/routines/new_wine.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._post(f'playlists/{playlist_id}/items', payload={'uris': [track.uri]})",
+      "line": 908,
+      "method": "POST",
+      "source": "spotify_manager/routines/new_wine.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._delete(f'playlists/{playlist_id}/items', payload={'items': [{'uri': track.uri}]})",
+      "line": 924,
+      "method": "DELETE",
+      "source": "spotify_manager/routines/new_wine.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._post(f'playlists/{playlist_id}/items', payload=payload)",
+      "line": 133,
+      "method": "POST",
+      "source": "spotify_manager/routines/new_year.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._put(f'playlists/{playlist_id}/items', payload={'range_start': position, 'insert_before': 0, 'range_length': 1})",
+      "line": 146,
+      "method": "PUT",
+      "source": "spotify_manager/routines/new_year.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._put, f'playlists/{playlist_id}/items', payload={'uris': uris})",
+      "line": 335,
+      "method": "PUT",
+      "source": "spotify_manager/routines/new_year.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "spotify._post(f'playlists/{playlist_id}/items', payload={'uris': [track.uri for track in pending]})",
+      "line": 966,
+      "method": "POST",
+      "source": "spotify_manager/routines/palace_of_memory.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._post, f'playlists/{playlist_id}/items', payload={'uris': [track.uri for track in batch]})",
+      "line": 306,
+      "method": "POST",
+      "source": "spotify_manager/routines/queue_3.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._delete, f'playlists/{playlist_id}/items', payload={'items': [{'uri': uri} for uri in batch]})",
+      "line": 327,
+      "method": "DELETE",
+      "source": "spotify_manager/routines/queue_3.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._put, f'playlists/{playlist_id}/items', payload={'uris': [entry.uri for entry in first_batch]})",
+      "line": 1085,
+      "method": "PUT",
+      "source": "spotify_manager/routines/release_check.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._post, f'playlists/{playlist_id}/items', payload={'uris': [track.uri]})",
+      "line": 1166,
+      "method": "POST",
+      "source": "spotify_manager/routines/release_check.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._get, f'playlists/{playlist_id}/items', limit=PLAYLIST_PAGE_LIMIT, offset=offset)",
+      "line": 1014,
+      "method": "GET",
+      "source": "spotify_manager/routines/release_check.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._post, f'playlists/{playlist_id}/items', payload={'uris': [entry.uri for entry in batch]})",
+      "line": 1095,
+      "method": "POST",
+      "source": "spotify_manager/routines/release_check.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "spotify._post(f'playlists/{playlist_id}/items', payload={'uris': [track.uri]})",
+      "line": 102,
+      "method": "POST",
+      "source": "spotify_manager/routines/requeue_for_a_dream.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "spotify._delete(f'playlists/{playlist_id}/items', payload={'items': [{'uri': track.uri}]})",
+      "line": 118,
+      "method": "DELETE",
+      "source": "spotify_manager/routines/requeue_for_a_dream.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._post(f'playlists/{playlist_id}/items', payload={'uris': [track_uri]})",
+      "line": 897,
+      "method": "POST",
+      "source": "spotify_manager/routines/review_artists.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._delete(f'playlists/{playlist_id}/items', payload={'items': [{'uri': uri} for uri in track_uris]})",
+      "line": 909,
+      "method": "DELETE",
+      "source": "spotify_manager/routines/review_artists.py"
+    },
+    {
+      "endpoint": "'me/library'",
+      "expression": "sp._delete('me/library', uris=','.join(artist_uris))",
+      "line": 917,
+      "method": "DELETE",
+      "source": "spotify_manager/routines/review_artists.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "partial(sp._get, f'playlists/{playlist_id}/items', limit=PLAYLIST_PAGE_LIMIT, offset=offset)",
+      "line": 850,
+      "method": "GET",
+      "source": "spotify_manager/routines/review_artists.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "spotify._post(f'playlists/{playlist_id}/items', payload={'uris': [track.uri for _album, track in additions]})",
+      "line": 748,
+      "method": "POST",
+      "source": "spotify_manager/routines/sauvignon.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._post(f'playlists/{playlist_id}/items', payload={'uris': [track.uri]})",
+      "line": 707,
+      "method": "POST",
+      "source": "spotify_manager/routines/slow_listening.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._delete(f'playlists/{playlist_id}/items', payload={'items': [{'uri': source.uri}]})",
+      "line": 723,
+      "method": "DELETE",
+      "source": "spotify_manager/routines/slow_listening.py"
+    },
+    {
+      "endpoint": "f'playlists/{playlist_id}/items'",
+      "expression": "sp._post(f'playlists/{playlist_id}/items', payload={'uris': uris[start:start + blast_from_past.SPOTIFY_PLAYLIST_ADD_BATCH_SIZE]})",
+      "line": 515,
+      "method": "POST",
+      "source": "spotify_manager/routines/something_old.py"
+    }
+  ],
+  "sdk_methods": {
+    "album": {
+      "references": [
+        "spotify_manager/processors/control_file_processors.py:99",
+        "spotify_manager/processors/library_lookups.py:532",
+        "spotify_manager/routines/review_album_limits.py:280",
+        "spotify_manager/utils/comparison.py:27"
+      ],
+      "sdk_calls": [
+        "self._get_id('album', album_id)",
+        "self._get('albums/' + trid + '?market=' + market)",
+        "self._get('albums/' + trid)"
+      ]
+    },
+    "album_tracks": {
+      "references": [
+        "spotify_manager/processors/library_lookups.py:398",
+        "spotify_manager/processors/total_albums_processor.py:122",
+        "spotify_manager/routines/new_kids.py:800",
+        "spotify_manager/routines/new_wine.py:353",
+        "spotify_manager/routines/palace_of_memory.py:665",
+        "spotify_manager/routines/release_check.py:661",
+        "spotify_manager/routines/review_artists.py:808",
+        "spotify_manager/routines/sauvignon.py:515"
+      ],
+      "sdk_calls": [
+        "self._get_id('album', album_id)",
+        "self._get('albums/' + trid + '/tracks/', limit=limit, offset=offset, market=market)"
+      ]
+    },
+    "albums": {
+      "references": [
+        "spotify_manager/processors/library_lookups.py:258",
+        "spotify_manager/routines/new_kids.py:727",
+        "spotify_manager/routines/recover_removed_albums.py:569"
+      ],
+      "sdk_calls": [
+        "self._get_id('album', a)",
+        "self._get('albums/?ids=' + ','.join(tlist) + '&market=' + market)",
+        "self._get('albums/?ids=' + ','.join(tlist))"
+      ]
+    },
+    "artist": {
+      "references": [
+        "spotify_manager/processors/library_lookups.py:155"
+      ],
+      "sdk_calls": [
+        "self._get_id('artist', artist_id)",
+        "self._get('artists/' + trid)"
+      ]
+    },
+    "artist_albums": {
+      "references": [
+        "spotify_manager/processors/library_lookups.py:222",
+        "spotify_manager/routines/discography.py:591",
+        "spotify_manager/routines/new_kids.py:686",
+        "spotify_manager/routines/new_wine.py:416",
+        "spotify_manager/routines/release_check.py:576",
+        "spotify_manager/routines/review_artists.py:742",
+        "spotify_manager/routines/slow_listening.py:358"
+      ],
+      "sdk_calls": [
+        "self._get_id('artist', artist_id)",
+        "self._get('artists/' + trid + '/albums', include_groups=include_groups, country=country, limit=limit, offset=offset)"
+      ]
+    },
+    "artist_top_tracks": {
+      "references": [
+        "spotify_manager/routines/new_kids.py:627",
+        "spotify_manager/routines/something_old.py:409"
+      ],
+      "sdk_calls": [
+        "self._get_id('artist', artist_id)",
+        "self._get('artists/' + trid + '/top-tracks', country=country)"
+      ]
+    },
+    "current_user": {
+      "references": [
+        "spotify_manager/routines/new_kids.py:1426",
+        "spotify_manager/routines/new_year.py:320"
+      ],
+      "sdk_calls": [
+        "self.me()"
+      ]
+    },
+    "current_user_followed_artists": {
+      "references": [
+        "spotify_manager/routines/analyse_library.py:1163",
+        "spotify_manager/routines/analyse_library.py:1692"
+      ],
+      "sdk_calls": [
+        "self._get('me/following', type='artist', limit=limit, after=after)"
+      ]
+    },
+    "current_user_following_artists": {
+      "references": [
+        "spotify_manager/processors/your_library_processors.py:12",
+        "spotify_manager/routines/analyse_library.py:1522",
+        "spotify_manager/routines/new_kids.py:2288",
+        "spotify_manager/routines/recover_removed_albums.py:421",
+        "spotify_manager/routines/review_album_limits.py:633",
+        "spotify_manager/routines/the_queue.py:1270",
+        "spotify_manager/routines/the_queue.py:912"
+      ],
+      "sdk_calls": [
+        "self._get('me/library/contains', uris=','.join(ulist))",
+        "self._get_uri('artist', i)"
+      ]
+    },
+    "current_user_playlists": {
+      "references": [
+        "spotify_manager/routines/composer_playlists.py:115"
+      ],
+      "sdk_calls": [
+        "self._get('me/playlists', limit=limit, offset=offset)"
+      ]
+    },
+    "current_user_saved_albums": {
+      "references": [
+        "spotify_manager/processors/total_albums_processor.py:34",
+        "spotify_manager/processors/total_albums_processor.py:53",
+        "spotify_manager/routines/analyse_library.py:1196",
+        "spotify_manager/routines/analyse_library.py:1289",
+        "spotify_manager/routines/palace_of_memory.py:258"
+      ],
+      "sdk_calls": [
+        "self._get('me/albums', limit=limit, offset=offset, market=market)"
+      ]
+    },
+    "current_user_saved_albums_add": {
+      "references": [
+        "spotify_manager/routines/new_kids.py:1196",
+        "spotify_manager/routines/new_wine.py:880",
+        "spotify_manager/routines/recover_removed_albums.py:658"
+      ],
+      "sdk_calls": [
+        "self._put('me/library', uris=','.join(alist))",
+        "self._get_uri('album', a)"
+      ]
+    },
+    "current_user_saved_albums_contains": {
+      "references": [
+        "spotify_manager/processors/control_file_processors.py:40",
+        "spotify_manager/processors/library_lookups.py:329",
+        "spotify_manager/routines/convert_library_file.py:41",
+        "spotify_manager/routines/convert_library_file.py:46",
+        "spotify_manager/routines/convert_library_file.py:60",
+        "spotify_manager/routines/convert_library_file.py:75",
+        "spotify_manager/routines/discography.py:620",
+        "spotify_manager/routines/new_kids.py:1186",
+        "spotify_manager/routines/new_kids.py:1299",
+        "spotify_manager/routines/new_kids.py:717",
+        "spotify_manager/routines/new_wine.py:1760",
+        "spotify_manager/routines/new_wine.py:692",
+        "spotify_manager/routines/new_wine.py:871",
+        "spotify_manager/routines/recover_removed_albums.py:642",
+        "spotify_manager/routines/slow_listening.py:310"
+      ],
+      "sdk_calls": [
+        "self._get('me/library/contains', uris=','.join(alist))",
+        "self._get_uri('album', a)"
+      ]
+    },
+    "current_user_saved_albums_delete": {
+      "references": [
+        "spotify_manager/routines/new_kids.py:1203",
+        "spotify_manager/routines/new_wine.py:1773",
+        "spotify_manager/routines/review_album_limits.py:595"
+      ],
+      "sdk_calls": [
+        "self._delete('me/library', uris=','.join(alist))",
+        "self._get_uri('album', a)"
+      ]
+    },
+    "current_user_saved_tracks": {
+      "references": [
+        "spotify_manager/routines/analyse_library.py:1198",
+        "spotify_manager/routines/analyse_library.py:1291"
+      ],
+      "sdk_calls": [
+        "self._get('me/tracks', limit=limit, offset=offset, market=market)"
+      ]
+    },
+    "current_user_saved_tracks_add": {
+      "references": [
+        "spotify_manager/processors/your_library_processors.py:27"
+      ],
+      "sdk_calls": [
+        "self._put('me/library', uris=','.join(tlist))",
+        "self._get_uri('track', t)"
+      ]
+    },
+    "current_user_saved_tracks_contains": {
+      "references": [
+        "spotify_manager/processors/library_lookups.py:335",
+        "spotify_manager/processors/library_lookups.py:648",
+        "spotify_manager/processors/your_library_processors.py:17",
+        "spotify_manager/routines/blast_from_past.py:507",
+        "spotify_manager/routines/blast_from_past_artists.py:130",
+        "spotify_manager/routines/new_kids.py:1315",
+        "spotify_manager/routines/new_kids.py:1352",
+        "spotify_manager/routines/new_wine.py:488",
+        "spotify_manager/routines/new_wine.py:706",
+        "spotify_manager/routines/review_album_limits.py:577",
+        "spotify_manager/routines/the_queue.py:714"
+      ],
+      "sdk_calls": [
+        "self._get('me/library/contains', uris=','.join(tlist))",
+        "self._get_uri('track', t)"
+      ]
+    },
+    "next": {
+      "references": [
+        "spotify_manager/processors/library_lookups.py:131",
+        "spotify_manager/processors/library_lookups.py:292",
+        "spotify_manager/processors/total_albums_processor.py:126",
+        "spotify_manager/processors/total_albums_processor.py:47"
+      ],
+      "sdk_calls": [
+        "self._get(result['next'])"
+      ]
+    },
+    "playlist_add_items": {
+      "references": [
+        "spotify_manager/processors/total_albums_processor.py:155",
+        "spotify_manager/processors/total_albums_processor.py:158"
+      ],
+      "sdk_calls": [
+        "self._get_id('playlist', playlist_id)",
+        "self._post(f'playlists/{plid}/items', payload=ftracks, position=position)",
+        "self._get_uri('track', tid)"
+      ]
+    },
+    "search": {
+      "references": [
+        "spotify_manager/processors/library_lookups.py:170",
+        "spotify_manager/processors/library_lookups.py:549",
+        "spotify_manager/processors/scrobble_lookups.py:160",
+        "spotify_manager/routines/blast_from_past.py:460",
+        "spotify_manager/routines/palace_of_memory.py:604",
+        "spotify_manager/routines/release_check.py:408",
+        "spotify_manager/routines/review_artists.py:590",
+        "spotify_manager/routines/review_artists.py:629",
+        "spotify_manager/routines/sauvignon.py:339",
+        "spotify_manager/routines/something_old.py:238"
+      ],
+      "sdk_calls": [
+        "self._get('search', q=q, limit=limit, offset=offset, type=type, market=market)"
+      ]
+    },
+    "track": {
+      "references": [
+        "spotify_manager/processors/scrobble_lookups.py:145",
+        "spotify_manager/routines/new_year.py:267"
+      ],
+      "sdk_calls": [
+        "self._get_id('track', track_id)",
+        "self._get('tracks/' + trid, market=market)"
+      ]
+    },
+    "tracks": {
+      "references": [
+        "spotify_manager/routines/blast_from_past_artists.py:173",
+        "spotify_manager/routines/new_kids.py:1247"
+      ],
+      "sdk_calls": [
+        "self._get('tracks/?ids=' + ','.join(tlist), market=market)",
+        "self._get_id('track', t)"
+      ]
+    },
+    "user_follow_artists": {
+      "references": [
+        "spotify_manager/processors/your_library_processors.py:22",
+        "spotify_manager/routines/recover_removed_albums.py:436",
+        "spotify_manager/routines/review_album_limits.py:643",
+        "spotify_manager/routines/the_queue.py:921"
+      ],
+      "sdk_calls": [
+        "self._put('me/library', uris=','.join(alist))",
+        "self._get_uri('artist', a)"
+      ]
+    },
+    "user_playlist_create": {
+      "references": [
+        "spotify_manager/processors/total_albums_processor.py:114",
+        "spotify_manager/routines/new_kids.py:1432",
+        "spotify_manager/routines/new_year.py:321"
+      ],
+      "sdk_calls": [
+        "self._post(f'users/{user}/playlists', payload=data)"
+      ]
+    }
+  },
+  "sdk_version": "2.26.0"
+}

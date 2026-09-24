@@ -1,0 +1,108 @@
+{
+  "discography": {
+    "default": {
+      "next_queue": "requeue",
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.discography.validate_state"
+  },
+  "genre_reveal": {
+    "default": {
+      "completed": [],
+      "hide_done": false,
+      "updated_at": null,
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.genre_reveal.validate_state"
+  },
+  "new_kids": {
+    "default": {
+      "active_run": null,
+      "artists": {},
+      "composer_routes": {},
+      "great_discoveries_playlists": {},
+      "queue_2_active_run": null,
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.new_kids.validate_state"
+  },
+  "new_wine": {
+    "default": {
+      "active_run": null,
+      "track_progress": {},
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.new_wine.validate_state"
+  },
+  "new_year": {
+    "default": {
+      "years": {}
+    },
+    "validator": "spotify_manager.routines.new_year.validate_state"
+  },
+  "palace_of_memory": {
+    "default": {},
+    "validator": "spotify_manager.routines.palace_of_memory.validate_state"
+  },
+  "queue": {
+    "default": {
+      "active_flush": null,
+      "artist_mappings": {},
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.the_queue.validate_state"
+  },
+  "queue_3": {
+    "default": {
+      "active_run": null,
+      "annual_imports": {},
+      "composer_routes": {},
+      "release_orders": {},
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.queue_3.validate_state"
+  },
+  "recover_removed_albums": {
+    "default": {
+      "checked_artist_ids": [],
+      "processed_album_ids": [],
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.recover_removed_albums.validate_state"
+  },
+  "release_check": {
+    "default": {
+      "active_run": null,
+      "artist_mappings": {},
+      "last_checked_through": null,
+      "last_successful_check_at": null,
+      "pending_singles": {},
+      "processed_releases": {},
+      "skipped_artists": {},
+      "updated_at": null,
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.release_check.validate_state"
+  },
+  "review_album_limits": {
+    "default": {},
+    "validator": "spotify_manager.routines.review_album_limits.validate_review_decisions"
+  },
+  "review_artists": {
+    "default": {
+      "completed_artist_ids": [],
+      "pending_queue_moves": {},
+      "pending_unfollows": {},
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.review_artists.validate_state"
+  },
+  "slow_listening": {
+    "default": {
+      "active_run": null,
+      "release_orders": {},
+      "version": 1
+    },
+    "validator": "spotify_manager.routines.slow_listening.validate_state"
+  }
+}

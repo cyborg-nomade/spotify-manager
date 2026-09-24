@@ -1,0 +1,304 @@
+{
+  "fields": {
+    "albums_to_add": {
+      "alias": null,
+      "annotation": "<class 'int'>",
+      "default": null,
+      "environment_name": "ALBUMS_TO_ADD",
+      "required": true,
+      "validation_alias": null
+    },
+    "app5_client_id": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP5_CLIENT_ID",
+      "required": false,
+      "validation_alias": null
+    },
+    "app5_client_secret": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP5_CLIENT_SECRET",
+      "required": false,
+      "validation_alias": null
+    },
+    "app6_client_id": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP6_CLIENT_ID",
+      "required": false,
+      "validation_alias": null
+    },
+    "app6_client_secret": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP6_CLIENT_SECRET",
+      "required": false,
+      "validation_alias": null
+    },
+    "app7_client_id": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP7_CLIENT_ID",
+      "required": false,
+      "validation_alias": null
+    },
+    "app7_client_secret": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP7_CLIENT_SECRET",
+      "required": false,
+      "validation_alias": null
+    },
+    "app8_client_id": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP8_CLIENT_ID",
+      "required": false,
+      "validation_alias": null
+    },
+    "app8_client_secret": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP8_CLIENT_SECRET",
+      "required": false,
+      "validation_alias": null
+    },
+    "app_password": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "APP_PASSWORD",
+      "required": false,
+      "validation_alias": null
+    },
+    "blast_from_the_past_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "BLAST_FROM_THE_PAST_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "daily_mind_radio_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "DAILY_MIND_RADIO_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "discography_memory_lane_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "DISCOGRAPHY_MEMORY_LANE_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "discography_newfoundland_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "DISCOGRAPHY_NEWFOUNDLAND_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "discography_requeue_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "DISCOGRAPHY_REQUEUE_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "found_art_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "FOUND_ART_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "genre_reveal_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "GENRE_REVEAL_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "great_discoveries_2026_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "GREAT_DISCOVERIES_2026_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "lastfm_api_key": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "LASTFM_API_KEY",
+      "required": false,
+      "validation_alias": null
+    },
+    "lastfm_username": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "LASTFM_USERNAME",
+      "required": false,
+      "validation_alias": null
+    },
+    "limit": {
+      "alias": null,
+      "annotation": "<class 'int'>",
+      "default": null,
+      "environment_name": "LIMIT",
+      "required": true,
+      "validation_alias": null
+    },
+    "new_kids_on_the_block_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "NEW_KIDS_ON_THE_BLOCK_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "new_vintage_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "NEW_VINTAGE_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "new_wine_from_old_bottles_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "palace_of_memory_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "PALACE_OF_MEMORY_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "reqeueue_for_a_dream_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "REQEUEUE_FOR_A_DREAM_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "sauvignon_terre_neuve_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "SAUVIGNON_TERRE_NEUVE_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "slow_listening_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "SLOW_LISTENING_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "something_old_new_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "SOMETHING_OLD_NEW_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "spotipy_client_id": {
+      "alias": null,
+      "annotation": "<class 'str'>",
+      "default": null,
+      "environment_name": "SPOTIPY_CLIENT_ID",
+      "required": true,
+      "validation_alias": null
+    },
+    "spotipy_client_secret": {
+      "alias": null,
+      "annotation": "<class 'str'>",
+      "default": null,
+      "environment_name": "SPOTIPY_CLIENT_SECRET",
+      "required": true,
+      "validation_alias": null
+    },
+    "spotipy_redirect_uri": {
+      "alias": null,
+      "annotation": "<class 'str'>",
+      "default": null,
+      "environment_name": "SPOTIPY_REDIRECT_URI",
+      "required": true,
+      "validation_alias": null
+    },
+    "the_queue_2_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "THE_QUEUE_2_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "the_queue_3_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "THE_QUEUE_3_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "the_queue_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "THE_QUEUE_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "unlucky_ones_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "UNLUCKY_ONES_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    },
+    "wine_cellar_playlist": {
+      "alias": null,
+      "annotation": "str | None",
+      "default": null,
+      "environment_name": "WINE_CELLAR_PLAYLIST",
+      "required": false,
+      "validation_alias": null
+    }
+  },
+  "model_config": {
+    "case_sensitive": false,
+    "env_file": ".env"
+  }
+}

@@ -1,0 +1,343 @@
+{
+  "paths": {
+    "/genre-reveal/run-next": {
+      "post": {
+        "description": "Save and sample the first incomplete genre selected by the route.",
+        "operationId": "run_next_genre_reveal_genre_reveal_run_next_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenreRevealRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenreRevealRunResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Next Genre Reveal"
+      }
+    },
+    "/genre-reveal/source": {
+      "get": {
+        "description": "Resolve the primary Spotify playlist before the user starts a run.",
+        "operationId": "get_genre_reveal_source_genre_reveal_source_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenreRevealSourcePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Genre Reveal Source"
+      }
+    },
+    "/genre-reveal/state": {
+      "get": {
+        "description": "Return persisted Every Noise route progress.",
+        "operationId": "get_genre_reveal_state_genre_reveal_state_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenreRevealState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Genre Reveal State"
+      },
+      "put": {
+        "description": "Atomically replace persisted Every Noise route progress.",
+        "operationId": "put_genre_reveal_state_genre_reveal_state_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenreRevealStateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenreRevealState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Genre Reveal State"
+      }
+    }
+  },
+  "schemas": {
+    "GenreRevealRunRequest": {
+      "description": "The first incomplete genre selected by the web route.",
+      "properties": {
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "slug": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "name"
+      ],
+      "title": "GenreRevealRunRequest",
+      "type": "object"
+    },
+    "GenreRevealRunResult": {
+      "description": "Outcome of one completed genre-reveal Spotify operation.",
+      "properties": {
+        "added_track_uris": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Added Track Uris",
+          "type": "array"
+        },
+        "already_present_track_uris": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Already Present Track Uris",
+          "type": "array"
+        },
+        "completed_at": {
+          "format": "date-time",
+          "title": "Completed At",
+          "type": "string"
+        },
+        "destination_playlist_id": {
+          "title": "Destination Playlist Id",
+          "type": "string"
+        },
+        "every_noise_url": {
+          "title": "Every Noise Url",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        },
+        "source_playlist_id": {
+          "title": "Source Playlist Id",
+          "type": "string"
+        },
+        "source_playlist_uri": {
+          "title": "Source Playlist Uri",
+          "type": "string"
+        },
+        "source_playlist_url": {
+          "title": "Source Playlist Url",
+          "type": "string"
+        },
+        "source_track_uris": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Track Uris",
+          "type": "array"
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "every_noise_url",
+        "source_playlist_id",
+        "source_playlist_uri",
+        "source_playlist_url",
+        "destination_playlist_id",
+        "source_track_uris",
+        "added_track_uris",
+        "already_present_track_uris",
+        "completed_at"
+      ],
+      "title": "GenreRevealRunResult",
+      "type": "object"
+    },
+    "GenreRevealSourcePreview": {
+      "description": "Public links discovered for one Every Noise genre.",
+      "properties": {
+        "every_noise_url": {
+          "title": "Every Noise Url",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "slug": {
+          "title": "Slug",
+          "type": "string"
+        },
+        "source_playlist_id": {
+          "title": "Source Playlist Id",
+          "type": "string"
+        },
+        "source_playlist_uri": {
+          "title": "Source Playlist Uri",
+          "type": "string"
+        },
+        "source_playlist_url": {
+          "title": "Source Playlist Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "every_noise_url",
+        "source_playlist_id",
+        "source_playlist_uri",
+        "source_playlist_url"
+      ],
+      "title": "GenreRevealSourcePreview",
+      "type": "object"
+    },
+    "GenreRevealState": {
+      "description": "Persisted genre-reveal progress with server metadata.",
+      "properties": {
+        "completed": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6132,
+          "title": "Completed",
+          "type": "array"
+        },
+        "hide_done": {
+          "default": false,
+          "title": "Hide Done",
+          "type": "boolean"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Updated At"
+        },
+        "version": {
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "title": "GenreRevealState",
+      "type": "object"
+    },
+    "GenreRevealStateUpdate": {
+      "description": "Client-provided genre-reveal progress.",
+      "properties": {
+        "completed": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6132,
+          "title": "Completed",
+          "type": "array"
+        },
+        "hide_done": {
+          "default": false,
+          "title": "Hide Done",
+          "type": "boolean"
+        }
+      },
+      "title": "GenreRevealStateUpdate",
+      "type": "object"
+    }
+  }
+}
