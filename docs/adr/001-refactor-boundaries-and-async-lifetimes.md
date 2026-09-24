@@ -1,6 +1,7 @@
 # ADR-001: routine-centered boundaries and async resource ownership
 
-**Status:** proposed for item 1 review; implementation follows the approved roadmap.
+**Status:** accepted by the repository owner on 2026-09-24 in the review of PR #60;
+implementation follows the approved roadmap.
 
 **Date:** 2026-09-24
 

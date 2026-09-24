@@ -1,6 +1,7 @@
 # Item 1: compatibility and dependency baseline
 
-**Status:** implemented for review; no application behavior changed.
+**Status:** implemented and approved by the repository owner on 2026-09-24 in
+the review of PR #60; no application behavior changed. Item 2 awaits authorization.
 
 **Source baseline:** `37ff9f28930f22807af2f4723ebf9f13f5f9104c` on `master`.
 The application code is the same as the roadmap's `fbcfc65` audit baseline.
@@ -21,7 +22,7 @@ complete behavioral coverage; expanded characterization tests belong to item 2.
    evidence, implementation-specific choices, and manual/unimplemented rules.
 4. [Routine dependency inventory](baseline/routine-dependencies.md): every routine's
    internal imports, with the full package inventory in JSON.
-5. [ADR-001](../adr/001-refactor-boundaries-and-async-lifetimes.md): proposed
+5. [ADR-001](../adr/001-refactor-boundaries-and-async-lifetimes.md): accepted
    dependency direction, compatibility boundary, and async resource ownership.
 
 The migration checkboxes are intentionally unchecked: they are the acceptance
@@ -89,7 +90,7 @@ are no timestamp/job-ID substitutions because no jobs are executed.
 - [x] Used external HTTP/SDK operations recorded from source and installed code.
 - [x] Implemented listening rules mapped to use cases and existing tests;
   manual/unimplemented rules and observed discrepancies distinguished.
-- [x] Proposed ADR documents boundaries, alternatives, async ownership, and
+- [x] Accepted ADR documents boundaries, alternatives, async ownership, and
   compatibility implications.
 
 ## Verification for this item
