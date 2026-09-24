@@ -28,6 +28,8 @@ and a responsive web cockpit.
 For the approved Clean Architecture refactor, follow the
 [refactor roadmap](REFACTOR_ROADMAP.md), including its compatibility gates and
 per-item branch, review, deployment, and merge workflow.
+The [item 1 compatibility inventory](refactor/README.md) freezes the existing
+interfaces and maps listening rules to current implementation and test evidence.
 
 ### Operating the Hugging Face Space
 

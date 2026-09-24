@@ -1,0 +1,1361 @@
+[
+  {
+    "handler": "album_decision",
+    "help": "Evaluate an album against live Spotify Liked Songs state.",
+    "name": "album-decision",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Exact Spotify album name.",
+        "is_flag": false,
+        "kind": "TyperArgument",
+        "multiple": false,
+        "name": "name",
+        "nargs": 1,
+        "opts": [
+          "name"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": null,
+        "help": "Spotify album id.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "album_id",
+        "nargs": 1,
+        "opts": [
+          "--album-id"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": null,
+        "help": "Disambiguate by artist.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "artist",
+        "nargs": 1,
+        "opts": [
+          "--artist"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": 0.5,
+        "help": null,
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "threshold",
+        "nargs": 1,
+        "opts": [
+          "--threshold"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "FloatParamType"
+      }
+    ]
+  },
+  {
+    "handler": "analyse_comp",
+    "help": ".",
+    "name": "analyse-comp",
+    "parameters": []
+  },
+  {
+    "handler": "analyse_library_async",
+    "help": "Build suffixed mirrors exclusively from YourLibrary.json.",
+    "name": "analyse-library-async",
+    "parameters": []
+  },
+  {
+    "handler": "analyse_library_sync",
+    "help": "Build suffixed mirrors exclusively from the live Spotify API.",
+    "name": "analyse-library-sync",
+    "parameters": []
+  },
+  {
+    "handler": "artist_stats",
+    "help": "Show live liked-track and saved-release counts for an artist.",
+    "name": "artist-stats",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Exact Spotify artist name.",
+        "is_flag": false,
+        "kind": "TyperArgument",
+        "multiple": false,
+        "name": "name",
+        "nargs": 1,
+        "opts": [
+          "name"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": null,
+        "help": "Spotify artist id.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "artist_id",
+        "nargs": 1,
+        "opts": [
+          "--artist-id"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      }
+    ]
+  },
+  {
+    "handler": "blast_from_the_past_command",
+    "help": "Select past scrobbles and add their Spotify matches to the playlist.",
+    "name": "blast-from-the-past",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Number of unique scrobbled dates to process (default: 10).",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "count",
+        "nargs": 1,
+        "opts": [
+          "--count"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": null,
+        "help": "Fill up to this playlist length instead of using --count.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "max_playlist_length",
+        "nargs": 1,
+        "opts": [
+          "--max-playlist-length"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": false,
+        "help": "Resolve selections without changing the Spotify playlist.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "blast_from_the_past_artists_command",
+    "help": "Add liked tracks from artists heard recently, but not this year.",
+    "name": "blast-from-the-past-artists",
+    "parameters": [
+      {
+        "default": 5,
+        "help": "Number of alphabetically eligible artists to add (default: 5).",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "count",
+        "nargs": 1,
+        "opts": [
+          "--count"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": false,
+        "help": "Resolve artists and tracks without changing the playlist.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "check_new_releases_command",
+    "help": "Check Last.fm's most-played artists for newly released music.",
+    "name": "check-new-releases",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Show release decisions without changing playlists; Last.fm history and artist mapping choices are still persisted.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "compare_lib_files",
+    "help": ".",
+    "name": "compare-lib-files",
+    "parameters": []
+  },
+  {
+    "handler": "convert_lib",
+    "help": ".",
+    "name": "convert-lib",
+    "parameters": []
+  },
+  {
+    "handler": "count_artists",
+    "help": "Print the number of artists in the YourLibrary file.",
+    "name": "count-artists",
+    "parameters": []
+  },
+  {
+    "handler": "daily_mind_radio_command",
+    "help": "Add tracks from today's Last.fm anniversaries to Daily Mind Radio.",
+    "name": "daily-mind-radio",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Resolve anniversary tracks without changing the Spotify playlist.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "fill_palace_of_memory_command",
+    "help": "Add five alphabetical and five historical album first tracks.",
+    "name": "fill-palace-of-memory",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Resolve the ten albums without changing Spotify or the cursor.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": null,
+        "help": "Start the alphabetical selection at this 1-based position, Spotify album id/URI/URL, exact album title, or 'Artist - Album'.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "alphabetical_start",
+        "nargs": 1,
+        "opts": [
+          "--alphabetical-start"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": null,
+        "help": "Persist this 1-based position as the next alphabetical album and exit without changing the playlist.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "set_alphabetical_cursor",
+        "nargs": 1,
+        "opts": [
+          "--set-alphabetical-cursor"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      }
+    ]
+  },
+  {
+    "handler": "fill_queue_from_lastfm_command",
+    "help": "Recommend unheard artists from Last.fm and add them to The Queue.",
+    "name": "fill-queue-from-lastfm",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Number of unheard artists to add (default: 20).",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "count",
+        "nargs": 1,
+        "opts": [
+          "--count"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": null,
+        "help": "Fill to this Queue length instead of using --count.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "max_playlist_length",
+        "nargs": 1,
+        "opts": [
+          "--max-playlist-length"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": 30,
+        "help": "Number of listening-history artists sent to Last.fm.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "seed_count",
+        "nargs": 1,
+        "opts": [
+          "--seed-count"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": false,
+        "help": "Resolve recommendations without changing Spotify.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "fill_sauvignon_from_lastfm_command",
+    "help": "Recommend unheard albums from Last.fm and add them to Sauvignon.",
+    "name": "fill-sauvignon-from-lastfm",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Number of unheard albums to add.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "count",
+        "nargs": 1,
+        "opts": [
+          "--count"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": null,
+        "help": "Fill to this Sauvignon length instead of using --count.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "max_playlist_length",
+        "nargs": 1,
+        "opts": [
+          "--max-playlist-length"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": 30,
+        "help": "Number of listening-history tracks sent to Last.fm.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "seed_count",
+        "nargs": 1,
+        "opts": [
+          "--seed-count"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": false,
+        "help": "Resolve album recommendations without changing Spotify.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "flush_new_kids_command",
+    "help": "Advance New Kids artists and refill the playlist from Queue 2.",
+    "name": "flush-new-kids",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Show the complete run without changing Spotify or durable state.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "flush_new_wine_command",
+    "help": "Advance every New Wine track once according to its release.",
+    "name": "flush-new-wine",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Show the complete flush plan without changing Spotify or state.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": false,
+        "help": "Refill only from artists with 18 liked tracks or 3 saved albums.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "no_discovery",
+        "nargs": 1,
+        "opts": [
+          "--no-discovery"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": false,
+        "help": "Ask whether each current Album/EP track is its canonical endpoint.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "choose_album_endpoints",
+        "nargs": 1,
+        "opts": [
+          "--choose-album-endpoints"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "flush_queue_command",
+    "help": "Advance the first ten Queue artists through Spotify's top tracks.",
+    "name": "flush-queue",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Plan the first ten Queue artists without changing Spotify or state.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "flush_queue_2_command",
+    "help": "Fill New Kids, then advance the first ten Queue 2 artists.",
+    "name": "flush-queue-2",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Show the Queue 2 run without changing Spotify or durable state.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "flush_queue_3_command",
+    "help": "Advance the first ten Queue 3 artists through studio discographies.",
+    "name": "flush-queue-3",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Preview the annual import and next ten artist transitions without changing Spotify or state.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "flush_requeue_for_a_dream_command",
+    "help": "Advance the first Requeue for a Dream artist by one release.",
+    "name": "flush-requeue-for-a-dream",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Show the next release transition without changing Spotify.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "flush_slow_listening_command",
+    "help": "Advance the first two Slow Listening tracks through studio releases.",
+    "name": "flush-slow-listening",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Show the next two transitions without changing Spotify or state.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "found_art_command",
+    "help": "Build Last.fm-style unheard recommendations for Found Art.",
+    "name": "found-art",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Number of unheard tracks to add (default: 20).",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "count",
+        "nargs": 1,
+        "opts": [
+          "--count"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": null,
+        "help": "Fill up to this playlist length instead of using --count.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "max_playlist_length",
+        "nargs": 1,
+        "opts": [
+          "--max-playlist-length"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": 30,
+        "help": "Number of listening-history seeds sent to Last.fm.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "seed_count",
+        "nargs": 1,
+        "opts": [
+          "--seed-count"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      },
+      {
+        "default": false,
+        "help": "Rank and resolve recommendations without changing Spotify.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "genre_reveal_command",
+    "help": "Save and sample the first unchecked Every Noise genre playlist.",
+    "name": "genre-reveal",
+    "parameters": [
+      {
+        "default": "<REPO>/spotify_manager/files/genre_reveal_state.json",
+        "help": "Path to the shared Genre Reveal progress file.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "state_path",
+        "nargs": 1,
+        "opts": [
+          "--state-path"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "TyperPath"
+      },
+      {
+        "default": "<REPO>/spotify_manager/files/genre_reveal_log.jsonl",
+        "help": "Path to the append-only Genre Reveal audit log.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "log_path",
+        "nargs": 1,
+        "opts": [
+          "--log-path"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "TyperPath"
+      },
+      {
+        "default": true,
+        "help": "Open the Every Noise and Spotify source pages after completion.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "open_pages",
+        "nargs": 1,
+        "opts": [
+          "--open-pages"
+        ],
+        "required": false,
+        "secondary_opts": [
+          "--no-open-pages"
+        ],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "import_queue_3_previous_year_command",
+    "help": "Import last year's Great Discoveries without advancing Queue 3.",
+    "name": "import-queue-3-previous-year",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Preview last year's Great Discoveries import without changing Queue 3.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "library_data_pull_command",
+    "help": "Hydrate canonical working files from the shared dataset.",
+    "name": "library-data-pull",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Pull albums, tracks, artists, or scrobbles; repeat as needed.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": true,
+        "name": "artifact",
+        "nargs": 1,
+        "opts": [
+          "--artifact",
+          "-a"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      }
+    ]
+  },
+  {
+    "handler": "library_data_push_command",
+    "help": "Publish canonical working files to the shared dataset.",
+    "name": "library-data-push",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Push albums, tracks, artists, or scrobbles; repeat as needed.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": true,
+        "name": "artifact",
+        "nargs": 1,
+        "opts": [
+          "--artifact",
+          "-a"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": false,
+        "help": "Publish without confirmation.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "yes",
+        "nargs": 1,
+        "opts": [
+          "--yes",
+          "-y"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "library_data_status_command",
+    "help": "Show durable versions and local synchronization for canonical files.",
+    "name": "library-data-status",
+    "parameters": []
+  },
+  {
+    "handler": "monthly_routines",
+    "help": "Run monthly routines.",
+    "name": "monthly-routines",
+    "parameters": []
+  },
+  {
+    "handler": "new_year_command",
+    "help": "Build the annual retrospective, or preview it without changing Spotify.",
+    "name": "new-year",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Completed source year; defaults to last year.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "year",
+        "nargs": 1,
+        "opts": [
+          "--year"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntParamType"
+      },
+      {
+        "default": true,
+        "help": null,
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [
+          "--apply"
+        ],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "plan_discographies_command",
+    "help": "Choose the next round-week discographies and clear their queue markers.",
+    "name": "plan-discographies",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Build the interactive plan without removing playlist markers.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "recover_removed_albums_command",
+    "help": "Audit removed albums, follow credited artists, and restore future releases.",
+    "name": "recover-removed-albums",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Report changes without following artists or restoring albums.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": null,
+        "help": "Process at most this many pending albums.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "limit",
+        "nargs": 1,
+        "opts": [
+          "--limit"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      }
+    ]
+  },
+  {
+    "handler": "refresh_spotify_tokens",
+    "help": "Authenticate or force-refresh every configured Spotify app token.",
+    "name": "refresh-spotify-tokens",
+    "parameters": []
+  },
+  {
+    "handler": "restore_library_sync_command",
+    "help": "Restore generated library files from an async or sync backup.",
+    "name": "restore-library-sync",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Completed library-analysis run id.",
+        "is_flag": false,
+        "kind": "TyperArgument",
+        "multiple": false,
+        "name": "run_id",
+        "nargs": 1,
+        "opts": [
+          "run_id"
+        ],
+        "required": true,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": false,
+        "help": "Restore without prompting.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "yes",
+        "nargs": 1,
+        "opts": [
+          "--yes"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "restore_your_library",
+    "help": ".",
+    "name": "restore-your-library",
+    "parameters": []
+  },
+  {
+    "handler": "review_album_limits_command",
+    "help": "Interactively remove saved albums below the liked-track threshold.",
+    "name": "review-album-limits",
+    "parameters": [
+      {
+        "default": 0.5,
+        "help": null,
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "threshold",
+        "nargs": 1,
+        "opts": [
+          "--threshold"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "FloatParamType"
+      },
+      {
+        "default": false,
+        "help": "Ignore the local tracklist cache for this run.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "no_cache",
+        "nargs": 1,
+        "opts": [
+          "--no-cache"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": false,
+        "help": "Re-fetch tracklists and update the cache.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "refresh_cache",
+        "nargs": 1,
+        "opts": [
+          "--refresh-cache"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "review_artists_command",
+    "help": "Review followed artists and place one track in the matching queue.",
+    "name": "review-artists",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Discard cached catalog candidates before reviewing.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "refresh_cache",
+        "nargs": 1,
+        "opts": [
+          "--refresh-cache"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": null,
+        "help": "Process at most this many pending artists.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "limit",
+        "nargs": 1,
+        "opts": [
+          "--limit"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "IntRange"
+      }
+    ]
+  },
+  {
+    "handler": "something_old_command",
+    "help": "Fill an empty Something Old slot from Last.fm Golden Oldies.",
+    "name": "something-old",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Resolve and display the selection without changing files or Spotify.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "state_edit_command",
+    "help": "Validate and apply an edited shared-state snapshot safely.",
+    "name": "state-edit",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Edited JSON state snapshot to apply.",
+        "is_flag": false,
+        "kind": "TyperArgument",
+        "multiple": false,
+        "name": "source",
+        "nargs": 1,
+        "opts": [
+          "source"
+        ],
+        "required": true,
+        "secondary_opts": [],
+        "type": "TyperPath"
+      },
+      {
+        "default": false,
+        "help": "Allow an older exported snapshot to replace the current state.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "force",
+        "nargs": 1,
+        "opts": [
+          "--force"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": false,
+        "help": "Apply without the confirmation prompt.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "yes",
+        "nargs": 1,
+        "opts": [
+          "--yes",
+          "-y"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "state_export_command",
+    "help": "Export a readable snapshot of the complete shared state.",
+    "name": "state-export",
+    "parameters": [
+      {
+        "default": "spotify-manager-state.json",
+        "help": "Destination JSON file.",
+        "is_flag": false,
+        "kind": "TyperArgument",
+        "multiple": false,
+        "name": "destination",
+        "nargs": 1,
+        "opts": [
+          "destination"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "TyperPath"
+      }
+    ]
+  },
+  {
+    "handler": "state_show_command",
+    "help": "Print the current shared state and its guarded revision.",
+    "name": "state-show",
+    "parameters": [
+      {
+        "default": null,
+        "help": "Show one namespace value instead of the complete state.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "namespace",
+        "nargs": 1,
+        "opts": [
+          "--namespace",
+          "-n"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      }
+    ]
+  },
+  {
+    "handler": "update_scrobble_history_command",
+    "help": "Update the canonical Last.fm export used by every history routine.",
+    "name": "update-scrobble-history",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Replace all history from the API, including past edits and deletions.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "full_rebuild",
+        "nargs": 1,
+        "opts": [
+          "--full-rebuild"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": false,
+        "help": "Fetch and report new scrobbles without changing local files.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "update_total_albums",
+    "help": "Update total album list, optional flag to just add the remaining pages.",
+    "name": "update-total-albums",
+    "parameters": [
+      {
+        "default": false,
+        "help": null,
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "just_update",
+        "nargs": 1,
+        "opts": [
+          "--just-update"
+        ],
+        "required": false,
+        "secondary_opts": [
+          "--no-just-update"
+        ],
+        "type": "BoolParamType"
+      }
+    ]
+  },
+  {
+    "handler": "upload_library_files_to_hf_command",
+    "help": "Upload refreshed Spotify and Last.fm exports to the HF Space.",
+    "name": "upload-library-files-to-hf",
+    "parameters": [
+      {
+        "default": false,
+        "help": "Upload YourLibrary.json without the Last.fm export.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "your_library_only",
+        "nargs": 1,
+        "opts": [
+          "--your-library-only"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": false,
+        "help": "Upload the Last.fm export without YourLibrary.json.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "lastfm_only",
+        "nargs": 1,
+        "opts": [
+          "--lastfm-only"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      },
+      {
+        "default": "cyborg-nomade/spotify-manager",
+        "help": "Hugging Face Space repository id.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "repo_id",
+        "nargs": 1,
+        "opts": [
+          "--repo-id"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": "main",
+        "help": "Hugging Face Space branch or revision.",
+        "is_flag": false,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "revision",
+        "nargs": 1,
+        "opts": [
+          "--revision"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType"
+      },
+      {
+        "default": false,
+        "help": "Validate and summarize without changing local files or HF.",
+        "is_flag": true,
+        "kind": "TyperOption",
+        "multiple": false,
+        "name": "dry_run",
+        "nargs": 1,
+        "opts": [
+          "--dry-run"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType"
+      }
+    ]
+  }
+]

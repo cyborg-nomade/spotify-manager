@@ -1,0 +1,1644 @@
+[
+  {
+    "declared_status_code": null,
+    "handler": "fastapi.applications.openapi",
+    "include_in_schema": false,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "openapi",
+    "path": "/openapi.json",
+    "response_model": null,
+    "source_line": 1108,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "fastapi.applications.swagger_ui_html",
+    "include_in_schema": false,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "swagger_ui_html",
+    "path": "/docs",
+    "response_model": null,
+    "source_line": 1123,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "fastapi.applications.swagger_ui_redirect",
+    "include_in_schema": false,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "swagger_ui_redirect",
+    "path": "/docs/oauth2-redirect",
+    "response_model": null,
+    "source_line": 1141,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "fastapi.applications.redoc_html",
+    "include_in_schema": false,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "redoc_html",
+    "path": "/redoc",
+    "response_model": null,
+    "source_line": 1151,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.health",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "health",
+    "path": "/health",
+    "response_model": "dict",
+    "source_line": 6157,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.auth_check",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "auth_check",
+    "path": "/auth/check",
+    "response_model": "dict",
+    "source_line": 6163,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.shared_state_summary",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "shared_state_summary",
+    "path": "/state/summary",
+    "response_model": "SharedStateSummary",
+    "source_line": 6169,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.shared_state",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "shared_state",
+    "path": "/state",
+    "response_model": "SharedStateSnapshot",
+    "source_line": 6188,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.shared_state_editor_schema",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "shared_state_editor_schema",
+    "path": "/state/schema",
+    "response_model": "dict",
+    "source_line": 6203,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.replace_shared_state_namespace",
+    "include_in_schema": true,
+    "methods": [
+      "PUT"
+    ],
+    "name": "replace_shared_state_namespace",
+    "path": "/state/namespaces/{namespace}",
+    "response_model": "SharedStateSnapshot",
+    "source_line": 6215,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.replace_shared_state",
+    "include_in_schema": true,
+    "methods": [
+      "PUT"
+    ],
+    "name": "replace_shared_state",
+    "path": "/state",
+    "response_model": "SharedStateSnapshot",
+    "source_line": 6256,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.export_shared_state",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "export_shared_state",
+    "path": "/state/export",
+    "response_model": null,
+    "source_line": 6277,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.refresh_library",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "refresh_library",
+    "path": "/library/refresh",
+    "response_model": "CommandResult",
+    "source_line": 6304,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.artist_stats",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "artist_stats",
+    "path": "/artists/stats",
+    "response_model": "ArtistLibraryStats",
+    "source_line": 6314,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.album_evaluation",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "album_evaluation",
+    "path": "/albums/evaluation",
+    "response_model": "AlbumEvaluation",
+    "source_line": 6348,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.track_scrobble_status",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "track_scrobble_status",
+    "path": "/tracks/scrobbles",
+    "response_model": "TrackScrobbleStatus",
+    "source_line": 6386,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_monthly_routines",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_monthly_routines",
+    "path": "/commands/monthly-routines",
+    "response_model": "CommandResult",
+    "source_line": 6426,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_update_total_albums",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_update_total_albums",
+    "path": "/commands/update-total-albums",
+    "response_model": "CommandResult",
+    "source_line": 6435,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_restore_your_library",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_restore_your_library",
+    "path": "/commands/restore-your-library",
+    "response_model": "CommandResult",
+    "source_line": 6446,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_compare_lib_files",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_compare_lib_files",
+    "path": "/commands/compare-lib-files",
+    "response_model": "CommandResult",
+    "source_line": 6453,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_analyse_comp",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_analyse_comp",
+    "path": "/commands/analyse-comp",
+    "response_model": "CommandResult",
+    "source_line": 6460,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_convert_lib",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_convert_lib",
+    "path": "/commands/convert-lib",
+    "response_model": "CommandResult",
+    "source_line": 6467,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_count_artists",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_count_artists",
+    "path": "/commands/count-artists",
+    "response_model": "CountResult",
+    "source_line": 6474,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_blast_from_the_past",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_blast_from_the_past",
+    "path": "/commands/blast-from-the-past",
+    "response_model": "BlastJobResult",
+    "source_line": 6480,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_blast_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_blast_jobs",
+    "path": "/commands/blast-from-the-past-jobs",
+    "response_model": "list",
+    "source_line": 6513,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_blast_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_blast_job",
+    "path": "/commands/blast-from-the-past-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 6528,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_blast_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_blast_job",
+    "path": "/commands/blast-from-the-past-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 6539,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_blast_from_the_past_artists",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_blast_from_the_past_artists",
+    "path": "/commands/blast-from-the-past-artists",
+    "response_model": "BlastJobResult",
+    "source_line": 6552,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_blast_artist_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_blast_artist_jobs",
+    "path": "/commands/blast-from-the-past-artists-jobs",
+    "response_model": "list",
+    "source_line": 6572,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_blast_artist_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_blast_artist_job",
+    "path": "/commands/blast-from-the-past-artists-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 6587,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_blast_artist_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_blast_artist_job",
+    "path": "/commands/blast-from-the-past-artists-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 6598,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_daily_mind_radio",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_daily_mind_radio",
+    "path": "/commands/daily-mind-radio",
+    "response_model": "BlastJobResult",
+    "source_line": 6611,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_daily_mind_radio_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_daily_mind_radio_jobs",
+    "path": "/commands/daily-mind-radio-jobs",
+    "response_model": "list",
+    "source_line": 6631,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_daily_mind_radio_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_daily_mind_radio_job",
+    "path": "/commands/daily-mind-radio-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 6646,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_daily_mind_radio_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_daily_mind_radio_job",
+    "path": "/commands/daily-mind-radio-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 6657,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_found_art",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_found_art",
+    "path": "/commands/found-art",
+    "response_model": "BlastJobResult",
+    "source_line": 6670,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_found_art_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_found_art_jobs",
+    "path": "/commands/found-art-jobs",
+    "response_model": "list",
+    "source_line": 6700,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_found_art_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_found_art_job",
+    "path": "/commands/found-art-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 6715,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_fill_sauvignon_from_lastfm",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_fill_sauvignon_from_lastfm",
+    "path": "/commands/fill-sauvignon-from-lastfm",
+    "response_model": "BlastJobResult",
+    "source_line": 6726,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_sauvignon_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_sauvignon_jobs",
+    "path": "/commands/fill-sauvignon-from-lastfm-jobs",
+    "response_model": "list",
+    "source_line": 6772,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_sauvignon_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_sauvignon_job",
+    "path": "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 6787,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_sauvignon_album",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_sauvignon_album",
+    "path": "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 6798,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_sauvignon_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_sauvignon_job",
+    "path": "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 6830,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_fill_queue_from_lastfm",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_fill_queue_from_lastfm",
+    "path": "/commands/fill-queue-from-lastfm",
+    "response_model": "BlastJobResult",
+    "source_line": 6867,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_queue_fill_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_queue_fill_jobs",
+    "path": "/commands/fill-queue-from-lastfm-jobs",
+    "response_model": "list",
+    "source_line": 6911,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_queue_fill_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_queue_fill_job",
+    "path": "/commands/fill-queue-from-lastfm-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 6926,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_queue_artist",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_queue_artist",
+    "path": "/commands/fill-queue-from-lastfm-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 6937,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_queue_fill_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_queue_fill_job",
+    "path": "/commands/fill-queue-from-lastfm-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 6992,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_flush_queue",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_flush_queue",
+    "path": "/commands/flush-queue",
+    "response_model": "BlastJobResult",
+    "source_line": 7001,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_queue_flush_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_queue_flush_jobs",
+    "path": "/commands/flush-queue-jobs",
+    "response_model": "list",
+    "source_line": 7018,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_queue_flush_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_queue_flush_job",
+    "path": "/commands/flush-queue-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 7033,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_queue_flush_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_queue_flush_job",
+    "path": "/commands/flush-queue-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 7044,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_flush_new_kids",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_flush_new_kids",
+    "path": "/commands/flush-new-kids",
+    "response_model": "BlastJobResult",
+    "source_line": 7053,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_new_kids_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_new_kids_jobs",
+    "path": "/commands/flush-new-kids-jobs",
+    "response_model": "list",
+    "source_line": 7102,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_new_kids_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_new_kids_job",
+    "path": "/commands/flush-new-kids-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 7117,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_new_kids_release",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_new_kids_release",
+    "path": "/commands/flush-new-kids-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 7128,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_new_kids_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_new_kids_job",
+    "path": "/commands/flush-new-kids-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 7163,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_flush_queue_2",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_flush_queue_2",
+    "path": "/commands/flush-queue-2",
+    "response_model": "BlastJobResult",
+    "source_line": 7182,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_queue_2_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_queue_2_jobs",
+    "path": "/commands/flush-queue-2-jobs",
+    "response_model": "list",
+    "source_line": 7196,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_queue_2_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_queue_2_job",
+    "path": "/commands/flush-queue-2-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 7211,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_queue_2_release",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_queue_2_release",
+    "path": "/commands/flush-queue-2-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 7222,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_queue_2_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_queue_2_job",
+    "path": "/commands/flush-queue-2-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 7257,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_flush_queue_3",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_flush_queue_3",
+    "path": "/commands/flush-queue-3",
+    "response_model": "BlastJobResult",
+    "source_line": 7276,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_import_queue_3_previous_year",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_import_queue_3_previous_year",
+    "path": "/commands/import-queue-3-previous-year",
+    "response_model": "BlastJobResult",
+    "source_line": 7294,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_queue_3_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_queue_3_jobs",
+    "path": "/commands/flush-queue-3-jobs",
+    "response_model": "list",
+    "source_line": 7317,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_queue_3_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_queue_3_job",
+    "path": "/commands/flush-queue-3-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 7332,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_queue_3",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_queue_3",
+    "path": "/commands/flush-queue-3-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 7343,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_queue_3_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_queue_3_job",
+    "path": "/commands/flush-queue-3-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 7380,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_flush_new_wine",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_flush_new_wine",
+    "path": "/commands/flush-new-wine",
+    "response_model": "BlastJobResult",
+    "source_line": 7399,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_new_wine_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_new_wine_jobs",
+    "path": "/commands/flush-new-wine-jobs",
+    "response_model": "list",
+    "source_line": 7438,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_new_wine_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_new_wine_job",
+    "path": "/commands/flush-new-wine-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 7453,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_new_wine_release",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_new_wine_release",
+    "path": "/commands/flush-new-wine-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 7464,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_new_wine_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_new_wine_job",
+    "path": "/commands/flush-new-wine-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 7510,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_flush_slow_listening",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_flush_slow_listening",
+    "path": "/commands/flush-slow-listening",
+    "response_model": "BlastJobResult",
+    "source_line": 7529,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_slow_listening_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_slow_listening_jobs",
+    "path": "/commands/flush-slow-listening-jobs",
+    "response_model": "list",
+    "source_line": 7553,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_slow_listening_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_slow_listening_job",
+    "path": "/commands/flush-slow-listening-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 7568,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_slow_listening_track",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_slow_listening_track",
+    "path": "/commands/flush-slow-listening-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 7579,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_slow_listening_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_slow_listening_job",
+    "path": "/commands/flush-slow-listening-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 7636,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_something_old",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_something_old",
+    "path": "/commands/something-old",
+    "response_model": "BlastJobResult",
+    "source_line": 7658,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_something_old_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_something_old_jobs",
+    "path": "/commands/something-old-jobs",
+    "response_model": "list",
+    "source_line": 7691,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_something_old_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_something_old_job",
+    "path": "/commands/something-old-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 7706,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_something_old",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_something_old",
+    "path": "/commands/something-old-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 7717,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_something_old_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_something_old_job",
+    "path": "/commands/something-old-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 7766,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_check_new_releases",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_check_new_releases",
+    "path": "/commands/check-new-releases",
+    "response_model": "BlastJobResult",
+    "source_line": 7788,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_release_check_state",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_release_check_state",
+    "path": "/commands/check-new-releases-state",
+    "response_model": "ReleaseCheckStateSnapshot",
+    "source_line": 7822,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_restore_release_check_state",
+    "include_in_schema": true,
+    "methods": [
+      "PUT"
+    ],
+    "name": "cmd_restore_release_check_state",
+    "path": "/commands/check-new-releases-state",
+    "response_model": "ReleaseCheckStateSnapshot",
+    "source_line": 7836,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_release_check_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_release_check_jobs",
+    "path": "/commands/check-new-releases-jobs",
+    "response_model": "list",
+    "source_line": 7886,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_release_check_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_release_check_job",
+    "path": "/commands/check-new-releases-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 7901,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_release_check",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_release_check",
+    "path": "/commands/check-new-releases-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 7912,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_release_check_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_release_check_job",
+    "path": "/commands/check-new-releases-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 7970,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_plan_discographies",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_plan_discographies",
+    "path": "/commands/plan-discographies",
+    "response_model": "BlastJobResult",
+    "source_line": 7992,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_discography_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_discography_jobs",
+    "path": "/commands/plan-discographies-jobs",
+    "response_model": "list",
+    "source_line": 8023,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_discography_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_discography_job",
+    "path": "/commands/plan-discographies-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 8038,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_choose_discography",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_choose_discography",
+    "path": "/commands/plan-discographies-jobs/{job_id}/choice",
+    "response_model": "BlastJobResult",
+    "source_line": 8049,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_discography_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_discography_job",
+    "path": "/commands/plan-discographies-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 8108,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_flush_requeue_for_a_dream",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_flush_requeue_for_a_dream",
+    "path": "/commands/flush-requeue-for-a-dream",
+    "response_model": "BlastJobResult",
+    "source_line": 8130,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_requeue_for_a_dream_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_requeue_for_a_dream_jobs",
+    "path": "/commands/flush-requeue-for-a-dream-jobs",
+    "response_model": "list",
+    "source_line": 8154,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_requeue_for_a_dream_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_requeue_for_a_dream_job",
+    "path": "/commands/flush-requeue-for-a-dream-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 8169,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_requeue_for_a_dream_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_requeue_for_a_dream_job",
+    "path": "/commands/flush-requeue-for-a-dream-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 8180,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_fill_palace_of_memory",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_fill_palace_of_memory",
+    "path": "/commands/fill-palace-of-memory",
+    "response_model": "BlastJobResult",
+    "source_line": 8200,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_palace_of_memory_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_palace_of_memory_jobs",
+    "path": "/commands/fill-palace-of-memory-jobs",
+    "response_model": "list",
+    "source_line": 8247,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_palace_of_memory_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_palace_of_memory_job",
+    "path": "/commands/fill-palace-of-memory-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 8262,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_palace_of_memory_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_palace_of_memory_job",
+    "path": "/commands/fill-palace-of-memory-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 8273,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_update_scrobble_history",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_update_scrobble_history",
+    "path": "/commands/update-scrobble-history",
+    "response_model": "BlastJobResult",
+    "source_line": 8293,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.library_mirror_files_status",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "library_mirror_files_status",
+    "path": "/library-mirrors/status",
+    "response_model": "LibraryMirrorFilesStatus",
+    "source_line": 8337,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_scrobble_history_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_scrobble_history_jobs",
+    "path": "/commands/update-scrobble-history-jobs",
+    "response_model": "list",
+    "source_line": 8365,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_scrobble_history_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_scrobble_history_job",
+    "path": "/commands/update-scrobble-history-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 8380,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_scrobble_history_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_scrobble_history_job",
+    "path": "/commands/update-scrobble-history-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 8391,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_analyse_library_async",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_analyse_library_async",
+    "path": "/commands/analyse-library-async",
+    "response_model": "AnalysisJobResult",
+    "source_line": 8404,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_analyse_library_sync",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_analyse_library_sync",
+    "path": "/commands/analyse-library-sync",
+    "response_model": "AnalysisJobResult",
+    "source_line": 8414,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_refresh_library_mirrors",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_refresh_library_mirrors",
+    "path": "/commands/refresh-library-mirrors",
+    "response_model": "AnalysisJobResult",
+    "source_line": 8424,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_refresh_library_mirror_resource",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_refresh_library_mirror_resource",
+    "path": "/commands/refresh-library-mirrors/{resource}",
+    "response_model": "AnalysisJobResult",
+    "source_line": 8437,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_library_analysis_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_library_analysis_jobs",
+    "path": "/commands/library-analysis-jobs",
+    "response_model": "list",
+    "source_line": 8456,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_library_analysis_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_library_analysis_job",
+    "path": "/commands/library-analysis-jobs/{job_id}",
+    "response_model": "AnalysisJobResult",
+    "source_line": 8470,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_library_analysis_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_library_analysis_job",
+    "path": "/commands/library-analysis-jobs/{job_id}/cancel",
+    "response_model": "AnalysisJobResult",
+    "source_line": 8481,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": 202,
+    "handler": "spotify_manager.api.cmd_new_year",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_new_year",
+    "path": "/commands/new-year",
+    "response_model": "BlastJobResult",
+    "source_line": 8555,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_active_new_year_jobs",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_active_new_year_jobs",
+    "path": "/commands/new-year-jobs",
+    "response_model": "list",
+    "source_line": 8586,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_new_year_job",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "cmd_new_year_job",
+    "path": "/commands/new-year-jobs/{job_id}",
+    "response_model": "BlastJobResult",
+    "source_line": 8598,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.api.cmd_cancel_new_year_job",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "cmd_cancel_new_year_job",
+    "path": "/commands/new-year-jobs/{job_id}/cancel",
+    "response_model": "BlastJobResult",
+    "source_line": 8606,
+    "surface": "api"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.web.index",
+    "include_in_schema": false,
+    "methods": [
+      "GET"
+    ],
+    "name": "index",
+    "path": "/",
+    "response_model": null,
+    "source_line": 77,
+    "surface": "web"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.web.genre_reveal_page",
+    "include_in_schema": false,
+    "methods": [
+      "GET"
+    ],
+    "name": "genre_reveal_page",
+    "path": "/genre-reveal",
+    "response_model": null,
+    "source_line": 83,
+    "surface": "web"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.web.get_genre_reveal_state",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_genre_reveal_state",
+    "path": "/genre-reveal/state",
+    "response_model": "GenreRevealState",
+    "source_line": 89,
+    "surface": "web"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.web.put_genre_reveal_state",
+    "include_in_schema": true,
+    "methods": [
+      "PUT"
+    ],
+    "name": "put_genre_reveal_state",
+    "path": "/genre-reveal/state",
+    "response_model": "GenreRevealState",
+    "source_line": 105,
+    "surface": "web"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.web.get_genre_reveal_source",
+    "include_in_schema": true,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_genre_reveal_source",
+    "path": "/genre-reveal/source",
+    "response_model": "GenreRevealSourcePreview",
+    "source_line": 124,
+    "surface": "web"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.web.run_next_genre_reveal",
+    "include_in_schema": true,
+    "methods": [
+      "POST"
+    ],
+    "name": "run_next_genre_reveal",
+    "path": "/genre-reveal/run-next",
+    "response_model": "GenreRevealRunResult",
+    "source_line": 139,
+    "surface": "web"
+  },
+  {
+    "declared_status_code": null,
+    "handler": "spotify_manager.web.favicon",
+    "include_in_schema": false,
+    "methods": [
+      "GET"
+    ],
+    "name": "favicon",
+    "path": "/favicon.ico",
+    "response_model": null,
+    "source_line": 211,
+    "surface": "web"
+  }
+]

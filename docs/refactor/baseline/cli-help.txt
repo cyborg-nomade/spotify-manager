@@ -1,0 +1,668 @@
+$ spotify-manager --help
+
+ Usage: spotify-manager [OPTIONS] COMMAND [ARGS]...
+
+ Hydrate durable canonical files before ordinary CLI commands.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --install-completion          Install completion for the current shell.                          │
+│ --show-completion             Show completion for the current shell, to copy it or customize the │
+│                               installation.                                                      │
+│ --help                        Show this message and exit.                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────╮
+│ monthly-routines              Run monthly routines.                                              │
+│ update-total-albums           Update total album list, optional flag to just add the remaining   │
+│                               pages.                                                             │
+│ restore-your-library          .                                                                  │
+│ compare-lib-files             .                                                                  │
+│ analyse-comp                  .                                                                  │
+│ convert-lib                   .                                                                  │
+│ count-artists                 Print the number of artists in the YourLibrary file.               │
+│ state-show                    Print the current shared state and its guarded revision.           │
+│ state-export                  Export a readable snapshot of the complete shared state.           │
+│ state-edit                    Validate and apply an edited shared-state snapshot safely.         │
+│ library-data-status           Show durable versions and local synchronization for canonical      │
+│                               files.                                                             │
+│ library-data-pull             Hydrate canonical working files from the shared dataset.           │
+│ library-data-push             Publish canonical working files to the shared dataset.             │
+│ upload-library-files-to-hf    Upload refreshed Spotify and Last.fm exports to the HF Space.      │
+│ new-year                      Build the annual retrospective, or preview it without changing     │
+│                               Spotify.                                                           │
+│ update-scrobble-history       Update the canonical Last.fm export used by every history routine. │
+│ something-old                 Fill an empty Something Old slot from Last.fm Golden Oldies.       │
+│ check-new-releases            Check Last.fm's most-played artists for newly released music.      │
+│ found-art                     Build Last.fm-style unheard recommendations for Found Art.         │
+│ fill-sauvignon-from-lastfm    Recommend unheard albums from Last.fm and add them to Sauvignon.   │
+│ fill-queue-from-lastfm        Recommend unheard artists from Last.fm and add them to The Queue.  │
+│ flush-queue                   Advance the first ten Queue artists through Spotify's top tracks.  │
+│ flush-new-kids                Advance New Kids artists and refill the playlist from Queue 2.     │
+│ flush-queue-2                 Fill New Kids, then advance the first ten Queue 2 artists.         │
+│ flush-new-wine                Advance every New Wine track once according to its release.        │
+│ import-queue-3-previous-year  Import last year's Great Discoveries without advancing Queue 3.    │
+│ flush-queue-3                 Advance the first ten Queue 3 artists through studio               │
+│                               discographies.                                                     │
+│ flush-slow-listening          Advance the first two Slow Listening tracks through studio         │
+│                               releases.                                                          │
+│ flush-requeue-for-a-dream     Advance the first Requeue for a Dream artist by one release.       │
+│ plan-discographies            Choose the next round-week discographies and clear their queue     │
+│                               markers.                                                           │
+│ fill-palace-of-memory         Add five alphabetical and five historical album first tracks.      │
+│ blast-from-the-past           Select past scrobbles and add their Spotify matches to the         │
+│                               playlist.                                                          │
+│ blast-from-the-past-artists   Add liked tracks from artists heard recently, but not this year.   │
+│ daily-mind-radio              Add tracks from today's Last.fm anniversaries to Daily Mind Radio. │
+│ genre-reveal                  Save and sample the first unchecked Every Noise genre playlist.    │
+│ refresh-spotify-tokens        Authenticate or force-refresh every configured Spotify app token.  │
+│ analyse-library-async         Build suffixed mirrors exclusively from YourLibrary.json.          │
+│ analyse-library-sync          Build suffixed mirrors exclusively from the live Spotify API.      │
+│ restore-library-sync          Restore generated library files from an async or sync backup.      │
+│ artist-stats                  Show live liked-track and saved-release counts for an artist.      │
+│ album-decision                Evaluate an album against live Spotify Liked Songs state.          │
+│ review-album-limits           Interactively remove saved albums below the liked-track threshold. │
+│ recover-removed-albums        Audit removed albums, follow credited artists, and restore future  │
+│                               releases.                                                          │
+│ review-artists                Review followed artists and place one track in the matching queue. │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager album-decision --help
+
+ Usage: spotify-manager album-decision [OPTIONS] [NAME]
+
+ Evaluate an album against live Spotify Liked Songs state.
+
+╭─ Arguments ──────────────────────────────────────────────────────────────────────────────────────╮
+│   [name]      TEXT  Exact Spotify album name.                                                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --album-id         TEXT   Spotify album id.                                                      │
+│ --artist           TEXT   Disambiguate by artist.                                                │
+│ --threshold        FLOAT  [default: 0.5]                                                         │
+│ --help                    Show this message and exit.                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager analyse-comp --help
+
+ Usage: spotify-manager analyse-comp [OPTIONS]
+
+ .
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager analyse-library-async --help
+
+ Usage: spotify-manager analyse-library-async [OPTIONS]
+
+ Build suffixed mirrors exclusively from YourLibrary.json.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager analyse-library-sync --help
+
+ Usage: spotify-manager analyse-library-sync [OPTIONS]
+
+ Build suffixed mirrors exclusively from the live Spotify API.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager artist-stats --help
+
+ Usage: spotify-manager artist-stats [OPTIONS] [NAME]
+
+ Show live liked-track and saved-release counts for an artist.
+
+╭─ Arguments ──────────────────────────────────────────────────────────────────────────────────────╮
+│   [name]      TEXT  Exact Spotify artist name.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --artist-id        TEXT  Spotify artist id.                                                      │
+│ --help                   Show this message and exit.                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager blast-from-the-past --help
+
+ Usage: spotify-manager blast-from-the-past [OPTIONS]
+
+ Select past scrobbles and add their Spotify matches to the playlist.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --count                      INTEGER RANGE [x>=1]  Number of unique scrobbled dates to process   │
+│                                                    (default: 10).                                │
+│ --max-playlist-length        INTEGER RANGE [x>=1]  Fill up to this playlist length instead of    │
+│                                                    using --count.                                │
+│ --dry-run                                          Resolve selections without changing the       │
+│                                                    Spotify playlist.                             │
+│ --help                                             Show this message and exit.                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager blast-from-the-past-artists --help
+
+ Usage: spotify-manager blast-from-the-past-artists [OPTIONS]
+
+ Add liked tracks from artists heard recently, but not this year.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --count          INTEGER RANGE [x>=1]  Number of alphabetically eligible artists to add          │
+│                                        (default: 5).                                             │
+│                                        [default: 5]                                              │
+│ --dry-run                              Resolve artists and tracks without changing the playlist. │
+│ --help                                 Show this message and exit.                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager check-new-releases --help
+
+ Usage: spotify-manager check-new-releases [OPTIONS]
+
+ Check Last.fm's most-played artists for newly released music.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Show release decisions without changing playlists; Last.fm history and artist │
+│                    mapping choices are still persisted.                                          │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager compare-lib-files --help
+
+ Usage: spotify-manager compare-lib-files [OPTIONS]
+
+ .
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager convert-lib --help
+
+ Usage: spotify-manager convert-lib [OPTIONS]
+
+ .
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager count-artists --help
+
+ Usage: spotify-manager count-artists [OPTIONS]
+
+ Print the number of artists in the YourLibrary file.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager daily-mind-radio --help
+
+ Usage: spotify-manager daily-mind-radio [OPTIONS]
+
+ Add tracks from today's Last.fm anniversaries to Daily Mind Radio.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Resolve anniversary tracks without changing the Spotify playlist.             │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager fill-palace-of-memory --help
+
+ Usage: spotify-manager fill-palace-of-memory [OPTIONS]
+
+ Add five alphabetical and five historical album first tracks.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run                                              Resolve the ten albums without changing   │
+│                                                        Spotify or the cursor.                    │
+│ --alphabetical-start             TEXT                  Start the alphabetical selection at this  │
+│                                                        1-based position, Spotify album           │
+│                                                        id/URI/URL, exact album title, or 'Artist │
+│                                                        - Album'.                                 │
+│ --set-alphabetical-cursor        INTEGER RANGE [x>=1]  Persist this 1-based position as the next │
+│                                                        alphabetical album and exit without       │
+│                                                        changing the playlist.                    │
+│ --help                                                 Show this message and exit.               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager fill-queue-from-lastfm --help
+
+ Usage: spotify-manager fill-queue-from-lastfm [OPTIONS]
+
+ Recommend unheard artists from Last.fm and add them to The Queue.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --count                      INTEGER RANGE [x>=1]  Number of unheard artists to add (default:    │
+│                                                    20).                                          │
+│ --max-playlist-length        INTEGER RANGE [x>=1]  Fill to this Queue length instead of using    │
+│                                                    --count.                                      │
+│ --seed-count                 INTEGER RANGE [x>=1]  Number of listening-history artists sent to   │
+│                                                    Last.fm.                                      │
+│                                                    [default: 30]                                 │
+│ --dry-run                                          Resolve recommendations without changing      │
+│                                                    Spotify.                                      │
+│ --help                                             Show this message and exit.                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager fill-sauvignon-from-lastfm --help
+
+ Usage: spotify-manager fill-sauvignon-from-lastfm [OPTIONS]
+
+ Recommend unheard albums from Last.fm and add them to Sauvignon.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --count                      INTEGER RANGE [x>=1]  Number of unheard albums to add.              │
+│ --max-playlist-length        INTEGER RANGE [x>=1]  Fill to this Sauvignon length instead of      │
+│                                                    using --count.                                │
+│ --seed-count                 INTEGER RANGE [x>=1]  Number of listening-history tracks sent to    │
+│                                                    Last.fm.                                      │
+│                                                    [default: 30]                                 │
+│ --dry-run                                          Resolve album recommendations without         │
+│                                                    changing Spotify.                             │
+│ --help                                             Show this message and exit.                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager flush-new-kids --help
+
+ Usage: spotify-manager flush-new-kids [OPTIONS]
+
+ Advance New Kids artists and refill the playlist from Queue 2.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Show the complete run without changing Spotify or durable state.              │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager flush-new-wine --help
+
+ Usage: spotify-manager flush-new-wine [OPTIONS]
+
+ Advance every New Wine track once according to its release.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run                         Show the complete flush plan without changing Spotify or       │
+│                                   state.                                                         │
+│ --no-discovery                    Refill only from artists with 18 liked tracks or 3 saved       │
+│                                   albums.                                                        │
+│ --choose-album-endpoints          Ask whether each current Album/EP track is its canonical       │
+│                                   endpoint.                                                      │
+│ --help                            Show this message and exit.                                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager flush-queue --help
+
+ Usage: spotify-manager flush-queue [OPTIONS]
+
+ Advance the first ten Queue artists through Spotify's top tracks.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Plan the first ten Queue artists without changing Spotify or state.           │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager flush-queue-2 --help
+
+ Usage: spotify-manager flush-queue-2 [OPTIONS]
+
+ Fill New Kids, then advance the first ten Queue 2 artists.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Show the Queue 2 run without changing Spotify or durable state.               │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager flush-queue-3 --help
+
+ Usage: spotify-manager flush-queue-3 [OPTIONS]
+
+ Advance the first ten Queue 3 artists through studio discographies.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Preview the annual import and next ten artist transitions without changing    │
+│                    Spotify or state.                                                             │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager flush-requeue-for-a-dream --help
+
+ Usage: spotify-manager flush-requeue-for-a-dream [OPTIONS]
+
+ Advance the first Requeue for a Dream artist by one release.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Show the next release transition without changing Spotify.                    │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager flush-slow-listening --help
+
+ Usage: spotify-manager flush-slow-listening [OPTIONS]
+
+ Advance the first two Slow Listening tracks through studio releases.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Show the next two transitions without changing Spotify or state.              │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager found-art --help
+
+ Usage: spotify-manager found-art [OPTIONS]
+
+ Build Last.fm-style unheard recommendations for Found Art.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --count                      INTEGER RANGE [x>=1]  Number of unheard tracks to add (default:     │
+│                                                    20).                                          │
+│ --max-playlist-length        INTEGER RANGE [x>=1]  Fill up to this playlist length instead of    │
+│                                                    using --count.                                │
+│ --seed-count                 INTEGER RANGE [x>=1]  Number of listening-history seeds sent to     │
+│                                                    Last.fm.                                      │
+│                                                    [default: 30]                                 │
+│ --dry-run                                          Rank and resolve recommendations without      │
+│                                                    changing Spotify.                             │
+│ --help                                             Show this message and exit.                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager genre-reveal --help
+
+ Usage: spotify-manager genre-reveal [OPTIONS]
+
+ Save and sample the first unchecked Every Noise genre playlist.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --state-path                       PATH  Path to the shared Genre Reveal progress file.          │
+│                                          [default:                                               │
+│                                          /Users/uriel.fiori/dev/spotify-manager/spotify_manager… │
+│ --log-path                         PATH  Path to the append-only Genre Reveal audit log.         │
+│                                          [default:                                               │
+│                                          /Users/uriel.fiori/dev/spotify-manager/spotify_manager… │
+│ --open-pages    --no-open-pages          Open the Every Noise and Spotify source pages after     │
+│                                          completion.                                             │
+│                                          [default: open-pages]                                   │
+│ --help                                   Show this message and exit.                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager import-queue-3-previous-year --help
+
+ Usage: spotify-manager import-queue-3-previous-year [OPTIONS]
+
+ Import last year's Great Discoveries without advancing Queue 3.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Preview last year's Great Discoveries import without changing Queue 3.        │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager library-data-pull --help
+
+ Usage: spotify-manager library-data-pull [OPTIONS]
+
+ Hydrate canonical working files from the shared dataset.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --artifact  -a      TEXT  Pull albums, tracks, artists, or scrobbles; repeat as needed.          │
+│ --help                    Show this message and exit.                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager library-data-push --help
+
+ Usage: spotify-manager library-data-push [OPTIONS]
+
+ Publish canonical working files to the shared dataset.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --artifact  -a      TEXT  Push albums, tracks, artists, or scrobbles; repeat as needed.          │
+│ --yes       -y            Publish without confirmation.                                          │
+│ --help                    Show this message and exit.                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager library-data-status --help
+
+ Usage: spotify-manager library-data-status [OPTIONS]
+
+ Show durable versions and local synchronization for canonical files.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager monthly-routines --help
+
+ Usage: spotify-manager monthly-routines [OPTIONS]
+
+ Run monthly routines.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager new-year --help
+
+ Usage: spotify-manager new-year [OPTIONS]
+
+ Build the annual retrospective, or preview it without changing Spotify.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --year                  INTEGER  Completed source year; defaults to last year.                   │
+│ --dry-run    --apply             [default: dry-run]                                              │
+│ --help                           Show this message and exit.                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager plan-discographies --help
+
+ Usage: spotify-manager plan-discographies [OPTIONS]
+
+ Choose the next round-week discographies and clear their queue markers.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Build the interactive plan without removing playlist markers.                 │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager recover-removed-albums --help
+
+ Usage: spotify-manager recover-removed-albums [OPTIONS]
+
+ Audit removed albums, follow credited artists, and restore future releases.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run                              Report changes without following artists or restoring     │
+│                                        albums.                                                   │
+│ --limit          INTEGER RANGE [x>=1]  Process at most this many pending albums.                 │
+│ --help                                 Show this message and exit.                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager refresh-spotify-tokens --help
+
+ Usage: spotify-manager refresh-spotify-tokens [OPTIONS]
+
+ Authenticate or force-refresh every configured Spotify app token.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager restore-library-sync --help
+
+ Usage: spotify-manager restore-library-sync [OPTIONS] RUN_ID
+
+ Restore generated library files from an async or sync backup.
+
+╭─ Arguments ──────────────────────────────────────────────────────────────────────────────────────╮
+│ *    run_id      TEXT  Completed library-analysis run id. [required]                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --yes           Restore without prompting.                                                       │
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager restore-your-library --help
+
+ Usage: spotify-manager restore-your-library [OPTIONS]
+
+ .
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager review-album-limits --help
+
+ Usage: spotify-manager review-album-limits [OPTIONS]
+
+ Interactively remove saved albums below the liked-track threshold.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --threshold            FLOAT  [default: 0.5]                                                     │
+│ --no-cache                    Ignore the local tracklist cache for this run.                     │
+│ --refresh-cache               Re-fetch tracklists and update the cache.                          │
+│ --help                        Show this message and exit.                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager review-artists --help
+
+ Usage: spotify-manager review-artists [OPTIONS]
+
+ Review followed artists and place one track in the matching queue.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --refresh-cache                              Discard cached catalog candidates before reviewing. │
+│ --limit                INTEGER RANGE [x>=1]  Process at most this many pending artists.          │
+│ --help                                       Show this message and exit.                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager something-old --help
+
+ Usage: spotify-manager something-old [OPTIONS]
+
+ Fill an empty Something Old slot from Last.fm Golden Oldies.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run          Resolve and display the selection without changing files or Spotify.          │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager state-edit --help
+
+ Usage: spotify-manager state-edit [OPTIONS] SOURCE
+
+ Validate and apply an edited shared-state snapshot safely.
+
+╭─ Arguments ──────────────────────────────────────────────────────────────────────────────────────╮
+│ *    source      PATH  Edited JSON state snapshot to apply. [required]                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --force            Allow an older exported snapshot to replace the current state.                │
+│ --yes    -y        Apply without the confirmation prompt.                                        │
+│ --help             Show this message and exit.                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager state-export --help
+
+ Usage: spotify-manager state-export [OPTIONS] [DESTINATION]
+
+ Export a readable snapshot of the complete shared state.
+
+╭─ Arguments ──────────────────────────────────────────────────────────────────────────────────────╮
+│   [destination]      PATH  Destination JSON file. [default: spotify-manager-state.json]          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager state-show --help
+
+ Usage: spotify-manager state-show [OPTIONS]
+
+ Print the current shared state and its guarded revision.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --namespace  -n      TEXT  Show one namespace value instead of the complete state.               │
+│ --help                     Show this message and exit.                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager update-scrobble-history --help
+
+ Usage: spotify-manager update-scrobble-history [OPTIONS]
+
+ Update the canonical Last.fm export used by every history routine.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --full-rebuild          Replace all history from the API, including past edits and deletions.    │
+│ --dry-run               Fetch and report new scrobbles without changing local files.             │
+│ --help                  Show this message and exit.                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager update-total-albums --help
+
+ Usage: spotify-manager update-total-albums [OPTIONS]
+
+ Update total album list, optional flag to just add the remaining pages.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --just-update    --no-just-update      [default: no-just-update]                                 │
+│ --help                                 Show this message and exit.                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+$ spotify-manager upload-library-files-to-hf --help
+
+ Usage: spotify-manager upload-library-files-to-hf [OPTIONS]
+
+ Upload refreshed Spotify and Last.fm exports to the HF Space.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --your-library-only              Upload YourLibrary.json without the Last.fm export.             │
+│ --lastfm-only                    Upload the Last.fm export without YourLibrary.json.             │
+│ --repo-id                  TEXT  Hugging Face Space repository id.                               │
+│                                  [default: cyborg-nomade/spotify-manager]                        │
+│ --revision                 TEXT  Hugging Face Space branch or revision. [default: main]          │
+│ --dry-run                        Validate and summarize without changing local files or HF.      │
+│ --help                           Show this message and exit.                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
