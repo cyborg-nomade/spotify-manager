@@ -29,6 +29,8 @@ prefer dry runs, checkpoint their progress, and keep JSON-lines audit logs.
 | Guide | Contents |
 | --- | --- |
 | [Documentation index](docs/README.md) | Reading paths and project glossary. |
+| [Architecture specification](docs/ARCHITECTURE_SPEC.md) | Concise current modules, APIs, schemas, delivery status, and backlog. |
+| [Approved refactor roadmap](docs/REFACTOR_ROADMAP.md) | Behavior-preserving Clean Architecture migration, test gates, and delivery workflow. |
 | [Architecture](docs/ARCHITECTURE.md) | Components, data flow, integrations, failure handling, and repository structure. |
 | [Configuration](docs/CONFIGURATION.md) | Requirements, installation, Spotify OAuth, every environment variable, and local execution. |
 | [Data and state](docs/DATA_AND_STATE.md) | Source exports, live mirrors, checkpoints, caches, logs, backups, and ownership rules. |
