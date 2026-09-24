@@ -1,5 +1,7 @@
 """Data processors for control file items."""
 
+from pytest_mock import MockerFixture
+
 # UFI
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
@@ -16,7 +18,15 @@ from spotify_manager.processors.control_file_processors import get_unevaluated_a
 
 
 def album(spotify_id: str, name: str) -> SimplifiedAlbum:
-    """Build one compact album fixture."""
+    """Build one compact album fixture.
+
+    Args:
+        spotify_id: Stable identifier used by the tested processor.
+        name: Album name and source of its ordering string.
+
+    Returns:
+        A minimal album with one fixed artist.
+    """
     return SimplifiedAlbum(
         spotify_id=spotify_id,
         name=name,
@@ -48,8 +58,12 @@ def test_get_unevaluated_albums() -> None:
     assert all(item.result == "" for item in result)
 
 
-def test_get_album_results_from_library(mocker) -> None:
-    """Test check against spotify library if albums have been removed or kept."""
+def test_get_album_results_from_library(mocker: MockerFixture) -> None:
+    """Retain saved-status lookup ordering for each unevaluated album.
+
+    Args:
+        mocker: Pytest mock manager for the Spotify client.
+    """
     spotify = mocker.Mock()
     spotify.current_user_saved_albums_contains.side_effect = [[True], [False]]
     unevaluated_albums = [
@@ -66,8 +80,12 @@ def test_get_album_results_from_library(mocker) -> None:
     ]
 
 
-def test_check_album_results(mocker) -> None:
-    """Test check if non evaluated albums in control file are saved in library."""
+def test_check_album_results(mocker: MockerFixture) -> None:
+    """Update album results and persist the control file after checking Spotify.
+
+    Args:
+        mocker: Pytest mock manager for client and persistence boundaries.
+    """
     spotify = mocker.Mock()
     control_file = [ControlFileItem(album=album("album", "Album"), result="")]
     total_albums = [control_file[0].album]

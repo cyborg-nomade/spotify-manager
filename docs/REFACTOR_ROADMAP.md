@@ -73,6 +73,12 @@ Use functions and small immutable data classes for business logic; introduce
 classes where they own state or resources. Avoid a generic workflow framework or
 one interface per function.
 
+Every item follows the [Python engineering fundamentals](../AGENTS.md): short,
+flat functions, explicit types, Google-style docstrings, and specific exception
+handling. Readability and maintainability take priority over additional layers
+or abstractions. These rules apply to tests and tooling as well as application
+code, with legacy code migrated in its assigned item.
+
 ```mermaid
 flowchart TD
     CLI[CLI adapters] --> APP[Application use cases by routine family]

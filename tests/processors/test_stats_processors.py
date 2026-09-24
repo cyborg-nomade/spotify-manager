@@ -2,13 +2,14 @@
 
 from unittest.mock import Mock
 
+from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.processors.stats_processors import calculate_stats
 from spotify_manager.processors.stats_processors import update_stats
 from tests.processors.test_control_file_processors import album
 
 
-def inputs():
+def _inputs() -> tuple[list[ControlFileItem], list[SimplifiedAlbum]]:
     albums = [album(str(index), str(index)) for index in range(4)]
     control = [
         ControlFileItem(album=albums[0], result="keep"),
@@ -18,7 +19,8 @@ def inputs():
 
 
 def test_calculate_stats() -> None:
-    result = calculate_stats(*inputs())
+    """Preserve exact counts, proportions, and the last listened album index."""
+    result = calculate_stats(*_inputs())
     assert result.model_dump() == {
         "total_saved_albums": 4,
         "total_listened_albums": 2,
@@ -32,5 +34,10 @@ def test_calculate_stats() -> None:
 
 
 def test_update_stats(mock_save_stats_file: Mock) -> None:
-    assert update_stats(*inputs()) is True
-    mock_save_stats_file.assert_called_once_with(calculate_stats(*inputs()))
+    """Persist the complete calculated statistics exactly once.
+
+    Args:
+        mock_save_stats_file: Recording replacement for the stats writer.
+    """
+    assert update_stats(*_inputs()) is True
+    mock_save_stats_file.assert_called_once_with(calculate_stats(*_inputs()))

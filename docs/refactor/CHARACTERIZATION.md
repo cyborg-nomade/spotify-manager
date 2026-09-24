@@ -7,6 +7,10 @@ The oracle is the unmodified application at `309ad9660e1e23ed11e08a45125175a987f
 Item 1's [interface baseline](README.md) remains frozen. This item adds workflow
 observations that later policy extractions and use cases must also preserve.
 
+The [project coding fundamentals](../../AGENTS.md) apply to this harness too.
+Named module-level helpers replace closures; function signatures are typed,
+docstrings describe the public helpers, and scenario setup stays explicit.
+
 ## What is covered
 
 There are **129 committed traces across 12 scenarios**: 12 ordinary runs, nine
@@ -60,6 +64,10 @@ an exception, not an OS kill in the middle of an individual file write. Existing
 atomic-storage tests cover lower-level write failures. Injected workflow errors
 are `EffectInterruptedError`; separate real-client tests exercise transport
 `Timeout`, HTTP errors, and their actual retry policies.
+
+The recorder catches only injected interruptions, library-sync/upload errors,
+`OSError`, and `SpotifyException`. Unexpected programming errors propagate and
+fail the test immediately; dedicated harness tests verify this distinction.
 
 Clocks and run IDs are fixed, as are catalog IDs, scrobbles, random selections,
 and choices. Traces preserve result fields, prompt arguments/answers, echo
@@ -146,13 +154,14 @@ The patch is scoped to each test; production source is never rewritten.
 
 ## Verification
 
-- **1,307 tests passed** with global randomized ordering; a second run with seed
-  `20260924` passed while measuring branches.
+- **1,309 tests passed** with global randomized ordering and seed `20260924`;
+  a second run with seed `20260925` passed while measuring branches.
 - **90.38% statements** (16,424 / 18,173), up from 90.22%.
 - **74.84% branches** (3,826 / 5,112), up from 74.43%.
 - All 129 traces replay unchanged; all 13 item 1 interface artifacts reproduce.
 - Ruff lint/format passes for application, baseline tooling, and changed tests;
-  mypy passes for application, baseline tooling, and new shared test support.
+  mypy passes for application, baseline tooling, and all Python files added or
+  changed in this item (89 files in total).
 - The existing Starlette/TestClient deprecation warning remains.
 
 The diagnostic branch run uses `--cov-branch --cov-fail-under=0` to measure

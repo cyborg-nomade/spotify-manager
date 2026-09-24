@@ -24,6 +24,13 @@ from spotify_manager.processors.library_lookups import required_liked_tracks
     ],
 )
 def test_keep_threshold_preserves_floor_and_empty_album_contract(
-    tracks, threshold, expected
-):
+    tracks: int, threshold: float, expected: int
+) -> None:
+    """Keep rounding and empty-album behavior at the specified policy boundaries.
+
+    Args:
+        tracks: Album track count, including invalid and empty inputs.
+        threshold: Required liked-track proportion.
+        expected: Legacy minimum count at this boundary.
+    """
     assert required_liked_tracks(tracks, threshold) == expected

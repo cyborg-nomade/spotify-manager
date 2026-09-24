@@ -6,6 +6,7 @@ from spotify_manager import main
 
 
 def test_library_data_status_and_manual_seed() -> None:
+    """Report a manually seeded library artifact through the public CLI."""
     from spotify_manager.core.library_data.runtime import DEFAULT_ARTIFACT_PATHS
 
     DEFAULT_ARTIFACT_PATHS["albums"].write_text("[]", encoding="utf-8")
@@ -26,6 +27,7 @@ def test_library_data_status_and_manual_seed() -> None:
 
 
 def test_library_data_command_rejects_unknown_artifact() -> None:
+    """Reject unsupported artifact names with the existing CLI error."""
     result = CliRunner().invoke(
         main.app,
         ["library-data-pull", "--artifact", "playlists"],
