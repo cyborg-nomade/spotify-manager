@@ -16,13 +16,18 @@ and a responsive web cockpit.
 
 ### Understanding or changing the project
 
-1. Read [Architecture](ARCHITECTURE.md).
-2. Read [Data and state](DATA_AND_STATE.md) before touching anything under
+1. Start with the concise [Architecture Specification](ARCHITECTURE_SPEC.md).
+2. Read the detailed [Architecture](ARCHITECTURE.md) when changing internals.
+3. Read [Data and state](DATA_AND_STATE.md) before touching anything under
    `spotify_manager/files/`.
-3. Use the routine-specific section in the [README](../README.md) together with
+4. Use the routine-specific section in the [README](../README.md) together with
    the corresponding module under `spotify_manager/routines/`.
-4. Run the quality checks documented in
+5. Run the quality checks documented in
    [Architecture: development workflow](ARCHITECTURE.md#development-workflow).
+
+For the approved Clean Architecture refactor, follow the
+[refactor roadmap](REFACTOR_ROADMAP.md), including its compatibility gates and
+per-item branch, review, deployment, and merge workflow.
 
 ### Operating the Hugging Face Space
 
@@ -37,6 +42,8 @@ and a responsive web cockpit.
 | Document | Primary audience | Purpose |
 | --- | --- | --- |
 | [`README.md`](../README.md) | Users and operators | Quick start and detailed CLI routine reference. |
+| [`ARCHITECTURE_SPEC.md`](ARCHITECTURE_SPEC.md) | Maintainers and reviewers | Concise current-state specification: modules, APIs, schemas, progress, and backlog. |
+| [`REFACTOR_ROADMAP.md`](REFACTOR_ROADMAP.md) | Maintainers and reviewers | Approved refactor sequence, behavior-preservation tests, and delivery workflow. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Maintainers | System context, layers, execution paths, integrations, and extension points. |
 | [`CONFIGURATION.md`](CONFIGURATION.md) | Users and operators | Dependencies, credentials, settings, local authentication, and startup commands. |
 | [`DATA_AND_STATE.md`](DATA_AND_STATE.md) | Operators and maintainers | File taxonomy, source-of-truth hierarchy, persistence, backups, and recovery. |
