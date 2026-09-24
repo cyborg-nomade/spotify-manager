@@ -1,0 +1,5 @@
+[
+  {"operation": "run", "phase": "result", "value": {"lastfm_parts": [], "repo_id": "fixture/space", "resources": [{"item_count": 0, "local_path": "<TMP>/YourLibrary.json", "name": "YourLibrary.json", "path_in_repo": "spotify_manager/files/YourLibrary.json", "size_bytes": 43}], "revision": "main"}},
+  {"operation": "remote", "phase": "snapshot", "value": {"message": "", "operations": []}},
+  {"operation": "files", "phase": "snapshot", "value": {"YourLibrary.json": {"albums": [], "artists": [], "tracks": []}}}
+]

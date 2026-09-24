@@ -1,0 +1,20 @@
+[
+  {"operation": "spotify.album", "phase": "call", "value": {"args": ["alb1"], "kwargs": {}}},
+  {"operation": "spotify.album", "phase": "accepted", "value": {"artists": [{"id": "art1", "name": "Radiohead"}], "id": "alb1", "name": "OK Computer"}},
+  {"operation": "spotify.album_tracks", "phase": "call", "value": {"args": ["alb1"], "kwargs": {"limit": 50}}},
+  {"operation": "spotify.album_tracks", "phase": "accepted", "value": {"items": [{"id": "t1", "name": "Track 1", "uri": "spotify:track:t1"}, {"id": "t2", "name": "Track 2", "uri": "spotify:track:t2"}, {"id": "t3", "name": "Track 3", "uri": "spotify:track:t3"}], "next": null}},
+  {"operation": "spotify.album_tracks", "phase": "interrupted", "value": "after"},
+  {"operation": "run", "phase": "error", "value": {"message": "spotify.album_tracks: after acceptance", "type": "EffectInterruptedError"}},
+  {"operation": "remote", "phase": "snapshot", "value": {"deleted": [], "followed": []}},
+  {"operation": "files", "phase": "snapshot", "value": {}},
+  {"operation": "process", "phase": "restart", "value": null},
+  {"operation": "spotify.album", "phase": "call", "value": {"args": ["alb1"], "kwargs": {}}},
+  {"operation": "spotify.album", "phase": "accepted", "value": {"artists": [{"id": "art1", "name": "Radiohead"}], "id": "alb1", "name": "OK Computer"}},
+  {"operation": "spotify.album_tracks", "phase": "call", "value": {"args": ["alb1"], "kwargs": {"limit": 50}}},
+  {"operation": "spotify.album_tracks", "phase": "accepted", "value": {"items": [{"id": "t1", "name": "Track 1", "uri": "spotify:track:t1"}, {"id": "t2", "name": "Track 2", "uri": "spotify:track:t2"}, {"id": "t3", "name": "Track 3", "uri": "spotify:track:t3"}], "next": null}},
+  {"operation": "spotify.contains", "phase": "call", "value": {"args": [["t1", "t2", "t3"]], "kwargs": {}}},
+  {"operation": "spotify.contains", "phase": "accepted", "value": [true, false, false]},
+  {"operation": "run", "phase": "result", "value": {"album_id": "alb1", "album_name": "OK Computer", "artist_name": "Radiohead", "decision": "keep", "from_cache": false, "liked_ratio": 0.3333333333333333, "liked_tracks": 1, "required_liked_tracks": 1, "source": "spotify-live", "threshold": 0.5, "total_tracks": 3, "tracks": [{"liked": true, "name": "Track 1", "spotify_id": "t1", "uri": "spotify:track:t1"}, {"liked": false, "name": "Track 2", "spotify_id": "t2", "uri": "spotify:track:t2"}, {"liked": false, "name": "Track 3", "spotify_id": "t3", "uri": "spotify:track:t3"}]}},
+  {"operation": "remote", "phase": "snapshot", "value": {"deleted": [], "followed": []}},
+  {"operation": "files", "phase": "snapshot", "value": {}}
+]

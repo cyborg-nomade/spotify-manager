@@ -1,0 +1,9 @@
+[
+  {"operation": "echo", "phase": "message", "value": "Would add next track: Track 2 (Album)"},
+  {"operation": "echo", "phase": "message", "value": "Would remove previous track: Track 1"},
+  {"operation": "audit", "phase": "call", "value": {"args": ["20260924T120000000000Z", {"action": "advance", "artist": "Artist", "dry_run": true, "reason": null, "skipped_candidates": [], "source_release": "Album", "source_track": "Track 1", "target_release": "Album", "target_track": "Track 2"}, "<TMP>/log.jsonl"], "kwargs": {}}},
+  {"operation": "audit", "phase": "accepted", "value": null},
+  {"operation": "run", "phase": "result", "value": {"advanced": 1, "completed_artists": 0, "dry_run": true, "paused": false, "processed": 1, "results": [{"action": "advance", "artist": "Artist", "dry_run": true, "reason": null, "skipped_candidates": [], "source_release": "Album", "source_track": "Track 1", "target_release": "Album", "target_track": "Track 2"}], "resumed": false, "run_id": "20260924T120000000000Z", "skipped": 0, "total": 1}},
+  {"operation": "remote", "phase": "snapshot", "value": {"mutations": [], "playlists": {"slow": ["t1"]}}},
+  {"operation": "files", "phase": "snapshot", "value": {"log.jsonl": [{"action": "advance", "artist": "Artist", "dry_run": true, "reason": null, "recorded_at": "2026-09-24T12:00:00+00:00", "run_id": "20260924T120000000000Z", "skipped_candidates": [], "source_release": "Album", "source_track": "Track 1", "target_release": "Album", "target_track": "Track 2"}]}}
+]

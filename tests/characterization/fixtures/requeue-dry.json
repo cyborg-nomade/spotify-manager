@@ -1,0 +1,5 @@
+[
+  {"operation": "run", "phase": "result", "value": {"action": "advance", "artist": "Artist", "dry_run": true, "playlist_id": "playlist", "playlist_length_after": 1, "playlist_length_before": 1, "reason": null, "recorded_at": "2026-09-24T12:00:00+00:00", "source_release": "First", "source_track": "Current", "target_already_present": false, "target_release": "Second", "target_release_date": "2022-01-01", "target_release_type": "Album", "target_track": "First Track"}},
+  {"operation": "remote", "phase": "snapshot", "value": {"mutations": [], "playlist": ["t1"]}},
+  {"operation": "files", "phase": "snapshot", "value": {}}
+]

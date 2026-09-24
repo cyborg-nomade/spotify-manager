@@ -6,6 +6,9 @@ from spotify_manager import main
 
 
 def test_library_data_status_and_manual_seed() -> None:
+    from spotify_manager.core.library_data.runtime import DEFAULT_ARTIFACT_PATHS
+
+    DEFAULT_ARTIFACT_PATHS["albums"].write_text("[]", encoding="utf-8")
     runner = CliRunner()
 
     seeded = runner.invoke(

@@ -1,8 +1,6 @@
 """Data processors for control file items."""
 
 # UFI
-from spotify_manager.loaders_savers import load_control_file
-from spotify_manager.loaders_savers import load_total_albums_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
@@ -29,21 +27,24 @@ def album(spotify_id: str, name: str) -> SimplifiedAlbum:
 
 def test_get_index_for_first_unevaluated_album() -> None:
     """Test get index for first unevaluated album in control file."""
-    control_file = load_control_file()
+    control_file = [
+        ControlFileItem(album=album("kept", "Kept"), result="keep"),
+        ControlFileItem(album=album("pending", "Pending"), result=""),
+        ControlFileItem(album=album("later", "Later"), result=""),
+    ]
     result = get_index_for_first_unevaluated_album(control_file)
-    print(result)
-    print(control_file[result])
-    assert isinstance(result, int)
-    assert result >= 0
+    assert result == 1
 
 
 def test_get_unevaluated_albums() -> None:
     """Test get list of unevaluated albums from control file."""
-    control_file = load_control_file()
+    control_file = [
+        ControlFileItem(album=album("kept", "Kept"), result="keep"),
+        ControlFileItem(album=album("pending", "Pending"), result=""),
+        ControlFileItem(album=album("later", "Later"), result=""),
+    ]
     result = get_unevaluated_albums(control_file)
-    print(len(result))
-    print(result[0].result)
-    assert len(result) >= 200
+    assert [item.album.spotify_id for item in result] == ["pending", "later"]
     assert all(item.result == "" for item in result)
 
 
@@ -92,7 +93,14 @@ def test_check_album_results(mocker) -> None:
 
 def test_get_starting_index() -> None:
     """Test get starting index in total album list from last listened in control."""
-    control_file = load_control_file()
-    total_albums_file = load_total_albums_file()
+    control_file = [
+        ControlFileItem(album=album("kept", "Kept"), result="keep"),
+        ControlFileItem(album=album("pending", "Pending"), result=""),
+        ControlFileItem(album=album("later", "Later"), result=""),
+    ]
+    total_albums_file = [
+        album("before", "Before"),
+        *[item.album for item in control_file],
+    ]
     result = get_starting_index(control_file, total_albums_file)
-    print(result)
+    assert result == 2
