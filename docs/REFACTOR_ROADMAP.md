@@ -1,12 +1,14 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: roadmap, item 1, and ADR-001 approved by the user on 2026-09-24.**
+**Status: roadmap, item 1, and ADR-001 approved; item 2 implemented for review.**
 
 Item 1 deliverables are in the [compatibility inventory](refactor/README.md),
 including frozen interface snapshots and the accepted
 [architecture decision](adr/001-refactor-boundaries-and-async-lifetimes.md).
-Application refactoring has not started. Item 2 is paused pending the user's
-instruction to begin; later items remain pending.
+Item 1 was deployed and merged in PR #60. Item 2's
+[characterization and fault-injection evidence](refactor/CHARACTERIZATION.md)
+is ready for review. Application refactoring has not started; later items remain
+pending. Item 2 deployment and merge require the user's approval.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,
@@ -70,6 +72,12 @@ Keep a single deployable modular monolith, organized around the listening rules.
 Use functions and small immutable data classes for business logic; introduce
 classes where they own state or resources. Avoid a generic workflow framework or
 one interface per function.
+
+Every item follows the [Python engineering fundamentals](../AGENTS.md): short,
+flat functions, explicit types, Google-style docstrings, and specific exception
+handling. Readability and maintainability take priority over additional layers
+or abstractions. These rules apply to tests and tooling as well as application
+code, with legacy code migrated in its assigned item.
 
 ```mermaid
 flowchart TD

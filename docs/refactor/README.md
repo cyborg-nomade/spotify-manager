@@ -1,7 +1,9 @@
 # Item 1: compatibility and dependency baseline
 
 **Status:** implemented and approved by the repository owner on 2026-09-24 in
-the review of PR #60; no application behavior changed. Item 2 awaits authorization.
+the review of PR #60, subsequently deployed and merged; no application behavior
+changed. [Item 2 characterization coverage](CHARACTERIZATION.md) is now implemented
+for review.
 
 **Source baseline:** `37ff9f28930f22807af2f4723ebf9f13f5f9104c` on `master`.
 The application code is the same as the roadmap's `fbcfc65` audit baseline.
@@ -104,6 +106,6 @@ are no timestamp/job-ID substitutions because no jobs are executed.
 - The 115 application route registrations match the 115 captured OpenAPI
   operations; 44 unique commands have 45 help captures including root help.
 
-The user-approved Git workflow still applies: this item is submitted on its own
-branch and PR. Deployment and merge require the user's approval; item 2 starts
-only after deployment, merge, cleanup, and return to current `master`.
+The user-approved Git workflow still applies. Item 1 completed deployment,
+merge, and branch cleanup before item 2 began. Every later item requires its own
+PR approval before deployment and merge.

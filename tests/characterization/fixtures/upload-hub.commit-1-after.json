@@ -1,0 +1,18 @@
+[
+  {"operation": "hub.list", "phase": "call", "value": {"args": [], "kwargs": {"repo_id": "fixture/space", "repo_type": "space", "revision": "main"}}},
+  {"operation": "hub.list", "phase": "accepted", "value": []},
+  {"operation": "hub.commit", "phase": "call", "value": {"args": [], "kwargs": {"commit_message": "Update library exports: YourLibrary.json", "operations": [{"add": "spotify_manager/files/YourLibrary.json", "sha256": "ae89206a38acfcdfe44af0ebbfb9f667a97500ad066ce1e01375ba4ebc9e3d72"}], "repo_id": "fixture/space", "repo_type": "space", "revision": "main"}}},
+  {"operation": "hub.commit", "phase": "accepted", "value": {"commit_url": "https://huggingface.co/spaces/example/commit/1"}},
+  {"operation": "hub.commit", "phase": "interrupted", "value": "after"},
+  {"operation": "run", "phase": "error", "value": {"message": "HF upload to 'fixture/space' failed: hub.commit: after acceptance. The local fallback parts are current, so the command can be retried.", "type": "LibraryFilesUploadError"}},
+  {"operation": "remote", "phase": "snapshot", "value": {"message": "Update library exports: YourLibrary.json", "operations": [{"add": "spotify_manager/files/YourLibrary.json", "sha256": "ae89206a38acfcdfe44af0ebbfb9f667a97500ad066ce1e01375ba4ebc9e3d72"}]}},
+  {"operation": "files", "phase": "snapshot", "value": {"YourLibrary.json": {"albums": [], "artists": [], "tracks": []}}},
+  {"operation": "process", "phase": "restart", "value": null},
+  {"operation": "hub.list", "phase": "call", "value": {"args": [], "kwargs": {"repo_id": "fixture/space", "repo_type": "space", "revision": "main"}}},
+  {"operation": "hub.list", "phase": "accepted", "value": []},
+  {"operation": "hub.commit", "phase": "call", "value": {"args": [], "kwargs": {"commit_message": "Update library exports: YourLibrary.json", "operations": [{"add": "spotify_manager/files/YourLibrary.json", "sha256": "ae89206a38acfcdfe44af0ebbfb9f667a97500ad066ce1e01375ba4ebc9e3d72"}], "repo_id": "fixture/space", "repo_type": "space", "revision": "main"}}},
+  {"operation": "hub.commit", "phase": "accepted", "value": {"commit_url": "https://huggingface.co/spaces/example/commit/1"}},
+  {"operation": "run", "phase": "result", "value": {"commit_url": "https://huggingface.co/spaces/example/commit/1", "deleted_stale_parts": 0, "upload_size_bytes": 43, "uploaded_files": 1}},
+  {"operation": "remote", "phase": "snapshot", "value": {"message": "Update library exports: YourLibrary.json", "operations": [{"add": "spotify_manager/files/YourLibrary.json", "sha256": "ae89206a38acfcdfe44af0ebbfb9f667a97500ad066ce1e01375ba4ebc9e3d72"}]}},
+  {"operation": "files", "phase": "snapshot", "value": {"YourLibrary.json": {"albums": [], "artists": [], "tracks": []}}}
+]

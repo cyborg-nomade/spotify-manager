@@ -1,0 +1,18 @@
+[
+  {"operation": "spotify._post", "phase": "call", "value": {"args": ["playlists/playlist/items"], "kwargs": {"payload": {"uris": ["spotify:track:t2a"]}}}},
+  {"operation": "spotify._post", "phase": "accepted", "value": {}},
+  {"operation": "spotify._post", "phase": "interrupted", "value": "after"},
+  {"operation": "run", "phase": "error", "value": {"message": "spotify._post: after acceptance", "type": "EffectInterruptedError"}},
+  {"operation": "remote", "phase": "snapshot", "value": {"mutations": [["add", "t2a"]], "playlist": ["t1", "t2a"]}},
+  {"operation": "files", "phase": "snapshot", "value": {}},
+  {"operation": "process", "phase": "restart", "value": null},
+  {"operation": "echo", "phase": "message", "value": "First Track is already present; it was not duplicated."},
+  {"operation": "spotify._delete", "phase": "call", "value": {"args": ["playlists/playlist/items"], "kwargs": {"payload": {"items": [{"uri": "spotify:track:t1"}]}}}},
+  {"operation": "spotify._delete", "phase": "accepted", "value": {}},
+  {"operation": "echo", "phase": "message", "value": "Removed Current (First)."},
+  {"operation": "audit", "phase": "call", "value": {"args": [{"action": "advance", "artist": "Artist", "dry_run": false, "playlist_id": "playlist", "playlist_length_after": 1, "playlist_length_before": 2, "reason": null, "recorded_at": "2026-09-24T12:00:00+00:00", "source_release": "First", "source_track": "Current", "target_already_present": true, "target_release": "Second", "target_release_date": "2022-01-01", "target_release_type": "Album", "target_track": "First Track"}, "<TMP>/log.jsonl"], "kwargs": {}}},
+  {"operation": "audit", "phase": "accepted", "value": null},
+  {"operation": "run", "phase": "result", "value": {"action": "advance", "artist": "Artist", "dry_run": false, "playlist_id": "playlist", "playlist_length_after": 1, "playlist_length_before": 2, "reason": null, "recorded_at": "2026-09-24T12:00:00+00:00", "source_release": "First", "source_track": "Current", "target_already_present": true, "target_release": "Second", "target_release_date": "2022-01-01", "target_release_type": "Album", "target_track": "First Track"}},
+  {"operation": "remote", "phase": "snapshot", "value": {"mutations": [["add", "t2a"], ["remove", "t1"]], "playlist": ["t2a"]}},
+  {"operation": "files", "phase": "snapshot", "value": {"log.jsonl": [{"action": "advance", "artist": "Artist", "dry_run": false, "playlist_id": "playlist", "playlist_length_after": 1, "playlist_length_before": 2, "reason": null, "recorded_at": "2026-09-24T12:00:00+00:00", "source_release": "First", "source_track": "Current", "target_already_present": true, "target_release": "Second", "target_release_date": "2022-01-01", "target_release_type": "Album", "target_track": "First Track"}]}}
+]
