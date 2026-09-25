@@ -1,8 +1,13 @@
 # Item 3: pure listening policies
 
-**Status:** implemented for review. Hugging Face deployment and merge await the
-owner's PR review and local web testing. Item 2 was deployed and merged as PR #61;
-its source baseline for this extraction is `724c0bcaf7f4ee252b45962261fdcd81f178ab9d`.
+**Status:** approved, deployed, and merged as PR #62 on 2026-09-25.
+The source baseline for this extraction is `724c0bcaf7f4ee252b45962261fdcd81f178ab9d`.
+Hugging Face is running `84763a87c7eb5e899d556a57a82145b3acd40b6e`, from approved
+GitHub commit `177a6f74572e86978d6d231aeaee8d910a5b95b4`. All 29 uploaded files
+matched the approved commit; unrelated Space files and durable dataset revisions
+were unchanged. The [post-deployment check](https://github.com/cyborg-nomade/spotify-manager/actions/runs/36130409488)
+confirmed authentication, shared state, all four library artifacts, and no active
+jobs across 20 routine endpoints before the merge.
 
 ## Scope and ownership
 

@@ -72,6 +72,13 @@ test-domain:
     uv run mypy --strict spotify_manager/domain tests/domain
     uv run pytest --confcutdir=tests/domain --cov=spotify_manager.domain --cov-branch --cov-fail-under=100 tests/domain
 
+# Verify injected album assessment without application fixtures or SDK startup.
+test-application:
+    uv run ruff check spotify_manager/application tests/application
+    uv run ruff format --check spotify_manager/application tests/application
+    uv run mypy --strict spotify_manager/application tests/application
+    uv run pytest --confcutdir=tests/application --cov=spotify_manager.application.album_review --cov=spotify_manager.application.music --cov-branch --cov-fail-under=100 tests/application
+
 # Run lint and tests with a JUnit report for CI.
 ci-test: lint
     uv run pytest --junitxml={{ quote(pytest_report_path) }} --random-order --show-capture=no --cov-report term-missing --cov={{ package_path }} tests

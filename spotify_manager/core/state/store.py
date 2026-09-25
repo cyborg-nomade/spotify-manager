@@ -1,21 +1,3 @@
-"""Storage port for the single shared state document."""
+"""Compatibility import for the application-owned state port."""
 
-from typing import Protocol
-
-from spotify_manager.core.state.models import StateSnapshot
-
-
-class StateStore(Protocol):
-    """Read and compare-and-swap one versioned JSON document."""
-
-    def read(self) -> StateSnapshot:
-        """Return the current state and its immutable store revision."""
-
-    def write(
-        self,
-        document: dict[str, object],
-        *,
-        expected_revision: str,
-        message: str,
-    ) -> StateSnapshot:
-        """Replace state only when the store still has the expected revision."""
+from spotify_manager.application.ports.state import StateStore as StateStore

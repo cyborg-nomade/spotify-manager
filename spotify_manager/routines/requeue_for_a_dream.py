@@ -11,6 +11,8 @@ from typing import Literal
 
 from spotipy import Spotify
 
+from spotify_manager.application.music import NamedTrack
+
 # UFI
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening
@@ -94,7 +96,7 @@ def _next_release(
 def _add_track(
     spotify: Spotify,
     playlist_id: str,
-    track: new_wine.ReleaseTrack,
+    track: NamedTrack,
     retry_call: RetryCall,
 ) -> None:
     """Append the replacement before the source is removed."""
@@ -110,7 +112,7 @@ def _add_track(
 def _remove_track(
     spotify: Spotify,
     playlist_id: str,
-    track: new_wine.PlaylistTrack,
+    track: NamedTrack,
     retry_call: RetryCall,
 ) -> None:
     """Remove the old playlist marker after its replacement is secure."""

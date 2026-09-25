@@ -3,8 +3,9 @@
 **Status:** implemented and approved by the repository owner on 2026-09-24 in
 the review of PR #60, subsequently deployed and merged; no application behavior
 changed. [Item 2 characterization coverage](CHARACTERIZATION.md) was approved,
-deployed, and merged in PR #61. [Item 3 domain policies](DOMAIN_POLICIES.md) are
-implemented for review.
+deployed, and merged in PR #61. [Item 3 domain policies](DOMAIN_POLICIES.md) were
+deployed and merged in PR #62. [Item 4 integration ports](INTEGRATION_PORTS.md)
+are implemented for review.
 
 **Source baseline:** `37ff9f28930f22807af2f4723ebf9f13f5f9104c` on `master`.
 The application code is the same as the roadmap's `fbcfc65` audit baseline.
