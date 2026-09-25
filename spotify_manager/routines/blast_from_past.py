@@ -24,7 +24,10 @@ from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 from spotipy import Spotify
-from unidecode import unidecode
+
+from spotify_manager.domain import history as history_policy
+from spotify_manager.domain.history import Scrobble as Scrobble
+from spotify_manager.domain.history import ScrobbleSelection as ScrobbleSelection
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -93,35 +96,11 @@ def check_cancel(cancel_check: CancelCheck | None) -> None:
 
 
 @dataclass(frozen=True)
-class Scrobble:
-    """One normalized Last.fm scrobble."""
-
-    track: str
-    artist: str
-    album: str
-    timestamp_ms: int
-
-
-@dataclass(frozen=True)
 class RandomIndexSet:
     """Unique indexes and the Random.org generation timestamp."""
 
     indexes: tuple[int, ...]
     generated_at: datetime
-
-
-@dataclass(frozen=True)
-class ScrobbleSelection:
-    """One date-to-scrobble selection with its rule trace."""
-
-    selected_date: date
-    date_index: int
-    scrobbles_on_date: int
-    page: int
-    total_pages: int
-    direction: Direction
-    position: int
-    scrobble: Scrobble
 
 
 @dataclass(frozen=True)
@@ -321,15 +300,18 @@ def load_scrobbles_by_date(
 
 
 def eligible_dates(
-    scrobbles_by_date: dict[date, list[Scrobble]],
-    cutoff: date,
+    scrobbles_by_date: dict[date, list[Scrobble]], cutoff: date
 ) -> list[date]:
-    """Return chronological dates with scrobbles inside the Friday range."""
-    return sorted(
-        scrobble_date
-        for scrobble_date, scrobbles in scrobbles_by_date.items()
-        if scrobbles and FIRST_ELIGIBLE_DATE <= scrobble_date <= cutoff
-    )
+    """Return populated historical dates inside the configured Friday range.
+
+    Args:
+        scrobbles_by_date: Loaded scrobbles grouped by date.
+        cutoff: Inclusive upper bound.
+
+    Returns:
+        Eligible dates in chronological order.
+    """
+    return history_policy.eligible_dates(scrobbles_by_date, FIRST_ELIGIBLE_DATE, cutoff)
 
 
 def parse_playlist_id(
@@ -354,8 +336,15 @@ def parse_playlist_id(
 
 
 def normalize_name(value: str) -> str:
-    """Normalize punctuation, accents, spacing, and case for name matching."""
-    return re.sub(r"[^a-z0-9]+", "", unidecode(value).casefold())
+    """Normalize a name through the existing Last.fm identity policy.
+
+    Args:
+        value: Artist, album, or track title.
+
+    Returns:
+        Lowercase ASCII letters and digits without punctuation or spaces.
+    """
+    return history_policy.normalize_name(value)
 
 
 def without_sliding_qualifiers(value: str) -> str:
@@ -646,17 +635,19 @@ def fetch_random_timestamp() -> datetime:
 
 
 def page_for_timestamp(generated_at: datetime, total_pages: int) -> int:
-    """Map the Random.org timestamp to a wrapped Last.fm page number."""
-    if total_pages < 1:
-        raise ValueError("total_pages must be at least 1")
+    """Return the historical track page selected by a Random.org timestamp.
 
-    minute = generated_at.minute
-    if total_pages >= 7 and minute == 0 and generated_at.hour > 12:
-        requested_page = 7
-    else:
-        first_minute_digit = minute // 10
-        requested_page = 6 if first_minute_digit == 0 else first_minute_digit
-    return ((requested_page - 1) % total_pages) + 1
+    Args:
+        generated_at: Timestamp supplied by the random source.
+        total_pages: Number of populated pages.
+
+    Returns:
+        Wrapped one-based page number.
+
+    Raises:
+        ValueError: There are no pages.
+    """
+    return history_policy.page_for_timestamp(generated_at, total_pages)
 
 
 def select_scrobble(
@@ -665,30 +656,26 @@ def select_scrobble(
     scrobbles: list[Scrobble],
     generated_at: datetime,
 ) -> ScrobbleSelection:
-    """Map one selected date and timestamp to its Last.fm scrobble."""
-    if not scrobbles:
-        raise ValueError("cannot select from a date without scrobbles")
+    """Apply the pure historical track selection to loaded scrobbles.
 
-    total_pages = (len(scrobbles) + LASTFM_PAGE_SIZE - 1) // LASTFM_PAGE_SIZE
-    page = page_for_timestamp(generated_at, total_pages)
-    page_start = (page - 1) * LASTFM_PAGE_SIZE
-    page_scrobbles = scrobbles[page_start : page_start + LASTFM_PAGE_SIZE]
+    Args:
+        selected_date: Date selected by the random source.
+        date_index: Original eligible-date index.
+        scrobbles: Ordered scrobbles on that date.
+        generated_at: Random source timestamp.
 
-    direction: Direction = "top down" if generated_at.minute % 10 <= 4 else "bottom up"
-    ordered_page = (
-        page_scrobbles if direction == "top down" else list(reversed(page_scrobbles))
-    )
-    selected_offset = generated_at.second % len(ordered_page)
+    Returns:
+        Selection and its explanatory page, direction, and position.
 
-    return ScrobbleSelection(
-        selected_date=selected_date,
-        date_index=date_index,
-        scrobbles_on_date=len(scrobbles),
-        page=page,
-        total_pages=total_pages,
-        direction=direction,
-        position=selected_offset + 1,
-        scrobble=ordered_page[selected_offset],
+    Raises:
+        ValueError: The selected date has no scrobbles.
+    """
+    return history_policy.select_scrobble(
+        selected_date,
+        date_index,
+        scrobbles,
+        generated_at,
+        LASTFM_PAGE_SIZE,
     )
 
 

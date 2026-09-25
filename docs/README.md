@@ -30,6 +30,8 @@ For the approved Clean Architecture refactor, follow the
 per-item branch, review, deployment, and merge workflow.
 The [item 1 compatibility inventory](refactor/README.md) freezes the existing
 interfaces and maps listening rules to current implementation and test evidence.
+The [item 3 policy guide](refactor/DOMAIN_POLICIES.md) describes the extracted
+domain rules, independent tests, and local web review workflow.
 
 ### Operating the Hugging Face Space
 

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from spotipy import Spotify
 
-from spotify_manager.processors import library_lookups
+from spotify_manager.domain import albums as album_policy
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import requeue_for_a_dream
 from tests.characterization.scenarios import FACTORIES
@@ -52,7 +52,7 @@ def _install_regression(patch: pytest.MonkeyPatch, mutation: str) -> None:
         mutation: One of the four regression names in the parametrized test.
     """
     if mutation == "ceil-threshold":
-        patch.setattr(library_lookups, "floor", math.ceil)
+        patch.setattr(album_policy, "floor", math.ceil)
         return
     if mutation == "missing-audit":
         patch.setattr(requeue_for_a_dream, "_append_log", _ignore_audit)

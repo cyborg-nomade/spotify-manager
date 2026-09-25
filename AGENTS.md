@@ -37,6 +37,8 @@ Follow the approved roadmap in `docs/REFACTOR_ROADMAP.md`. For each roadmap item
 1. Start from a clean, up-to-date `master` and create a dedicated branch.
 2. Implement and verify the item, then commit the changes.
 3. Open a GitHub pull request for user review.
+   Starting with item 3, also launch the local web environment on the item's
+   branch and provide its URL so the user can test the changes before approval.
 4. Wait for the user's approval before deploying or merging.
 5. After approval, deploy the changes to Hugging Face, verify the deployment,
    then merge the pull request.

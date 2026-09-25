@@ -17,11 +17,16 @@ from typing import Literal
 
 from spotipy import Spotify
 
-# UFI
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
 from spotify_manager.core.state.compat import routine_state
+
+# UFI
+from spotify_manager.domain import artists as artist_policy
+from spotify_manager.domain import completion
+from spotify_manager.domain import progression
+from spotify_manager.domain import releases as release_policy
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
@@ -339,16 +344,7 @@ def _release_type(
 
 
 def _release_date_key(value: str) -> tuple[int, int, int, str]:
-    try:
-        parts = [int(part) for part in value.split("-")]
-    except ValueError:
-        return (9999, 12, 31, value)
-    return (
-        parts[0] if parts else 9999,
-        parts[1] if len(parts) > 1 else 12,
-        parts[2] if len(parts) > 2 else 31,
-        value,
-    )
+    return release_policy.review_date_key(value)
 
 
 def _raw_release(
@@ -847,29 +843,43 @@ def release_was_played_this_year(
     liked: dict[str, bool],
     annual_scrobbles: AnnualScrobbleIndex,
 ) -> bool:
-    """Return whether current-year scrobbles satisfy the played-release rule."""
-    matched_names = {
-        track_name
-        for track in tracks
-        if (track_name := _scrobble_track_identity(track.name))
-        in annual_scrobbles.get(
-            _annual_release_key(track.primary_artist_name, release.name),
-            frozenset(),
-        )
-    }
-    if len(matched_names) < release_scrobble_threshold(release):
-        return False
-    liked_names = {
-        _scrobble_track_identity(track.name)
-        for track in tracks
-        if liked.get(track.spotify_id, False)
-    }
-    return liked_names <= matched_names
+    """Evaluate completion after applying the existing title and credit codecs.
+
+    Args:
+        release: Release being reviewed.
+        tracks: Its parsed catalog tracks.
+        liked: Observed liked statuses, with missing entries treated as false.
+        annual_scrobbles: Current-year normalized titles grouped by artist/release.
+
+    Returns:
+        Whether enough distinct titles and every liked title were played.
+    """
+    matched_names: set[str] = set()
+    liked_names: set[str] = set()
+    for track in tracks:
+        name = _scrobble_track_identity(track.name)
+        key = _annual_release_key(track.primary_artist_name, release.name)
+        if name in annual_scrobbles.get(key, frozenset()):
+            matched_names.add(name)
+        if liked.get(track.spotify_id, False):
+            liked_names.add(name)
+    return completion.release_completed(
+        matched_names,
+        liked_names,
+        release_scrobble_threshold(release),
+    )
 
 
 def release_scrobble_threshold(release: RankedRelease) -> int:
-    """Return the distinct-track threshold for one reviewed release."""
-    return MIN_SCROBBLED_TRACKS_PER_RELEASE if release.tier == 0 else 1
+    """Return the pure completion threshold for this release tier.
+
+    Args:
+        release: Parsed review-catalog release.
+
+    Returns:
+        Studio minimum or the single-track fallback minimum.
+    """
+    return completion.scrobble_threshold(release.tier, MIN_SCROBBLED_TRACKS_PER_RELEASE)
 
 
 def release_review_catalog(
@@ -1267,22 +1277,28 @@ def _promotion_reasons(
     liked_tracks: int,
     total_tracks: int,
 ) -> tuple[str, ...]:
-    """Return every live-library rule that promotes a completed artist."""
-    saved_count = sum(saved.values())
-    albums = [release for release in catalog if release.release_type == "Album"]
-    all_albums_saved = bool(albums) and all(
-        saved.get(release.spotify_id, False) for release in albums
+    """Translate parsed catalog facts into stable legacy promotion messages.
+
+    Args:
+        catalog: Parsed releases, retaining duplicate album entries.
+        saved: Live saved statuses, including entries outside the catalog.
+        liked_tracks: Liked primary-artist track count.
+        total_tracks: Total primary-artist track count.
+
+    Returns:
+        User-visible promotion reasons in the existing order.
+    """
+    album_statuses = []
+    for release in catalog:
+        if release.release_type == "Album":
+            album_statuses.append(saved.get(release.spotify_id, False))
+    facts = artist_policy.ArtistFacts(
+        liked_tracks,
+        total_tracks,
+        sum(saved.values()),
+        tuple(album_statuses),
     )
-    reasons: list[str] = []
-    if liked_tracks >= 18:
-        reasons.append("18 liked tracks")
-    if saved_count >= 3:
-        reasons.append("3 saved releases")
-    if all_albums_saved:
-        reasons.append("all albums saved")
-    if total_tracks > 0 and liked_tracks == total_tracks:
-        reasons.append("all tracks liked")
-    return tuple(reasons)
+    return tuple(reason.value for reason in artist_policy.promotion_reasons(facts))
 
 
 def assess_artist(
@@ -1903,9 +1919,7 @@ def _flush_review_playlist(
         if all(release.identity != current_release.identity for release in catalog):
             catalog = (current_release, *catalog)
         current_tracks = tracks_for(current_release)
-        primary_tracks = tuple(
-            track for track in current_tracks if track.primary_artist_id == artist_id
-        )
+        primary_tracks = progression.primary_artist_tracks(current_tracks, artist_id)
         source_index = _track_index(primary_tracks, source)
 
         if plan is None:
@@ -1926,11 +1940,10 @@ def _flush_review_playlist(
                     liked_cache,
                     retry,
                 )
-                for preceding_track in reversed(preceding):
-                    if liked_cache[preceding_track.spotify_id]:
-                        break
-                    prior_streak += 1
-            streak = 0 if current_liked else prior_streak + 1
+                prior_streak += progression.trailing_unliked(
+                    liked_cache[track.spotify_id] for track in reversed(preceding)
+                )
+            streak = progression.advance_streak(prior_streak, current_liked)
             target: CatalogTrack | None = None
             advance_reason = "next track"
             if streak >= 3:
@@ -1940,17 +1953,10 @@ def _flush_review_playlist(
                     liked_cache,
                     retry,
                 )
-                target = (
-                    next(
-                        (
-                            track
-                            for track in primary_tracks[source_index + 1 :]
-                            if liked_cache[track.spotify_id]
-                        ),
-                        None,
-                    )
-                    if source_index is not None
-                    else None
+                target = progression.next_liked_track(
+                    primary_tracks,
+                    source_index,
+                    liked_cache,
                 )
                 advance_reason = "next liked track"
             elif source_index is not None and source_index + 1 < len(primary_tracks):

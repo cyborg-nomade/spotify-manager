@@ -119,7 +119,7 @@ accident in this refactor.
 
 1. [x] Freeze command, route, source dependency, configuration, and integration
    inventories with an offline capture/check command (item 1).
-2. [ ] Add characterization and fault-injection scenarios (item 2).
+2. [x] Add characterization and fault-injection scenarios (item 2, PR #61).
 3. [ ] Extract pure domain policies and production adapters behind ports (items 3–4).
 4. [ ] Prove vertical slices and migrate the remaining families (items 5–6).
 5. [ ] Consolidate interface/job ownership without schema changes (item 7).

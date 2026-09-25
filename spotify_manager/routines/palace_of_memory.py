@@ -2,7 +2,6 @@
 
 import json
 import shutil
-from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -15,10 +14,13 @@ from typing import Literal
 
 from spotipy import Spotify
 
-# UFI
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+
+# UFI
+from spotify_manager.domain import history as history_policy
+from spotify_manager.domain.history import HistoricalAlbum as HistoricalAlbum
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
@@ -64,15 +66,6 @@ class PalaceOfMemoryDataError(PalaceOfMemoryError):
 
 class PalaceOfMemoryStateError(PalaceOfMemoryError):
     """Raised when the alphabetical cursor cannot be read or persisted."""
-
-
-@dataclass(frozen=True)
-class HistoricalAlbum:
-    """One album in a date's Last.fm ranking."""
-
-    artist: str
-    album: str
-    scrobbles: int
 
 
 @dataclass(frozen=True)
@@ -457,36 +450,15 @@ def resolve_alphabetical_start(
 def rank_albums(
     scrobbles: list[blast_from_past.Scrobble],
 ) -> tuple[HistoricalAlbum, ...]:
-    """Reproduce a date's album ranking by descending scrobble count."""
-    names: dict[tuple[str, str], tuple[str, str]] = {}
-    counts: Counter[tuple[str, str]] = Counter()
-    for scrobble in scrobbles:
-        if not scrobble.album.strip():
-            continue
-        key = (
-            blast_from_past.normalize_name(scrobble.artist),
-            blast_from_past.normalize_name(scrobble.album),
-        )
-        if not all(key):
-            continue
-        names.setdefault(key, (scrobble.artist, scrobble.album))
-        counts[key] += 1
-    ranked = [
-        HistoricalAlbum(
-            artist=names[key][0],
-            album=names[key][1],
-            scrobbles=count,
-        )
-        for key, count in counts.items()
-    ]
-    ranked.sort(
-        key=lambda item: (
-            -item.scrobbles,
-            blast_from_past.normalize_name(item.album),
-            blast_from_past.normalize_name(item.artist),
-        )
-    )
-    return tuple(ranked)
+    """Rank loaded scrobbles using the pure historical album policy.
+
+    Args:
+        scrobbles: Ordered plays from one date.
+
+    Returns:
+        Ranked albums retaining first-seen display names.
+    """
+    return history_policy.rank_albums(scrobbles)
 
 
 def select_historical_albums(
@@ -534,7 +506,10 @@ def select_historical_albums(
     for date_index in random_indexes.indexes:
         selected_date = available_dates[date_index]
         albums = rankings[selected_date]
-        selected_offset = random_indexes.generated_at.second % len(albums)
+        selected_offset = history_policy.historical_album_offset(
+            random_indexes.generated_at,
+            len(albums),
+        )
         selections.append(
             HistoricalAlbumSelection(
                 selected_date=selected_date,

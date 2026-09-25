@@ -1,14 +1,16 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: roadmap, item 1, and ADR-001 approved; item 2 implemented for review.**
+**Status: items 1–2 deployed and merged; item 3 implemented for review.**
 
 Item 1 deliverables are in the [compatibility inventory](refactor/README.md),
 including frozen interface snapshots and the accepted
 [architecture decision](adr/001-refactor-boundaries-and-async-lifetimes.md).
-Item 1 was deployed and merged in PR #60. Item 2's
+Items 1 and 2 were deployed and merged in PRs #60 and #61. The
 [characterization and fault-injection evidence](refactor/CHARACTERIZATION.md)
-is ready for review. Application refactoring has not started; later items remain
-pending. Item 2 deployment and merge require the user's approval.
+is the unchanged workflow oracle for the
+[item 3 policy extraction](refactor/DOMAIN_POLICIES.md). Item 3 deployment and
+merge await approval after PR review and local web testing; later items remain
+pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,
@@ -336,6 +338,8 @@ and coverage targets on 2026-09-24. For every roadmap item:
 1. Start from clean, current `master` and create a dedicated branch.
 2. Implement, verify, and commit the changes for that item.
 3. Open a GitHub pull request for user review.
+   From item 3 onward, also start the local web environment on that branch and
+   provide its URL for the user's testing before approval.
 4. Wait for the user's approval.
 5. After approval, deploy to Hugging Face and verify the deployment, then merge
    the pull request.
