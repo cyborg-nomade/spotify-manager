@@ -1,7 +1,7 @@
 # Item 4: integration ports and explicit composition
 
-**Status:** implemented for review. Deployment and merge await owner approval
-after PR review and local web testing. The source baseline is item 3's merge,
+**Status:** approved, deployed, and merged in PR #63 on 2026-09-25.
+The source baseline is item 3's merge,
 `24bc53a`, on `master`. The [accepted ADR](../adr/001-refactor-boundaries-and-async-lifetimes.md)
 and [approved roadmap](../REFACTOR_ROADMAP.md) define this milestone.
 
@@ -54,11 +54,12 @@ new music contracts use typed values.
 The temporary `infrastructure.legacy` adapters call existing parsers and selected
 private effect helpers. This dependency is confined to the compatibility bridge.
 It avoids duplicating tolerant payload parsing or inventing a shared retry policy
-before the routine migrations. Item 5 moves the complete album and Requeue slices,
-including their CLI/HTTP presenters, across these boundaries. The new album use
-case is proven against the old path but is not yet substituted into those public
-entry points. Current production changes are composition relocation, the shared
-membership helper, and structural track annotations for Requeue writes.
+before the routine migrations. At the item 4 boundary, the album use case was
+proven against the old path but not substituted into public entry points.
+Item 4 production changes were composition relocation, the shared membership
+helper, and structural track annotations for Requeue writes. The subsequent
+[item 5 slices](VERTICAL_SLICES.md) connect the complete album and Requeue flows
+to these boundaries through the existing CLI/HTTP compatibility facades.
 
 ## Preserved details
 
@@ -131,5 +132,12 @@ credentials and shared state/data backends. Startup hydration refreshes local
 canonical files; those runtime data changes are excluded from the PR.
 Existing routine-specific preview effects still apply.
 
-After approval, deploy this PR's approved commit, verify the running revision and
-production checks, merge, and return to clean `master` before item 5.
+## Deployment record
+
+The approved head `ffd2275ca276efe0562f318801d0e0d62458a45f` was deployed as
+Hugging Face revision `ed3fdfd982e5ec210488302a5e2a801f99864ab0`. All 36 approved
+files were verified; unrelated Space files and both state/data dataset revisions
+were preserved. Authenticated production checks passed in GitHub Actions run
+`36163084198`, including shared state, all four library artifacts, and 20 idle
+job families. PR #63 was then merged and its branch removed. Item 5 started from
+clean, updated `master` at `c4f808e`.

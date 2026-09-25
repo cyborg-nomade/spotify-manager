@@ -22,6 +22,9 @@ from spotify_manager.core.state.compat import routine_state
 
 # UFI
 from spotify_manager.domain import progression
+from spotify_manager.domain.catalog import PlaylistTrack as PlaylistTrack
+from spotify_manager.domain.catalog import ReleaseCandidate as ReleaseCandidate
+from spotify_manager.domain.catalog import ReleaseTrack as ReleaseTrack
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import AlbumTrackLikedStatus
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -79,43 +82,6 @@ class NewWineConfigError(NewWineError):
 
 class NewWineStateError(NewWineError):
     """Raised when restart state cannot be read or written safely."""
-
-
-@dataclass(frozen=True)
-class ReleaseTrack:
-    """One ordered track in a Spotify release."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    disc_number: int
-    track_number: int
-
-
-@dataclass(frozen=True)
-class ReleaseCandidate:
-    """A current-year release available for interactive selection."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    primary_artist_id: str
-    primary_artist_name: str
-
-
-@dataclass(frozen=True)
-class PlaylistTrack:
-    """One source entry from New Wine at the start of a flush."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    primary_artist_id: str
-    primary_artist_name: str
-    release: ReleaseCandidate
 
 
 @dataclass(frozen=True)

@@ -54,7 +54,13 @@ def requeue_audit(
     Returns:
         A writer for the unchanged Requeue summary and error semantics.
     """
-    return partial(requeue_for_a_dream._append_log, path=path)
+    return partial(_write_requeue_audit, path)
+
+
+def _write_requeue_audit(
+    path: Path, summary: requeue_for_a_dream.RequeueForADreamSummary
+) -> None:
+    requeue_for_a_dream._append_log(summary, path)
 
 
 def listening_history(path: Path) -> ListeningHistory:

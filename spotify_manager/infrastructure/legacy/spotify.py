@@ -12,9 +12,14 @@ from spotify_manager.application.music import Album
 from spotify_manager.application.music import NamedTrack
 from spotify_manager.application.music import Track
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.requeue_result import RequeueForADreamError
+from spotify_manager.domain.catalog import DiscographyRelease
+from spotify_manager.domain.catalog import PlaylistTrack
+from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.processors import library_lookups
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import requeue_for_a_dream
+from spotify_manager.routines import slow_listening
 
 
 @dataclass
@@ -108,6 +113,23 @@ class RequeuePlaylistAccess:
     client: Spotify
     retry: RetryCall
 
+    def sources(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+        """Read complete markers with the public routine's error translation.
+
+        Args:
+            playlist_id: Source playlist, including the final live recheck.
+
+        Returns:
+            Ordered parsed markers, preserving their original values.
+
+        Raises:
+            RequeueForADreamError: The existing playlist parser rejects a response.
+        """
+        try:
+            return new_wine.load_playlist_tracks(self.client, playlist_id, self.retry)
+        except new_wine.NewWineError as exc:
+            raise RequeueForADreamError(str(exc)) from exc
+
     def tracks(self, playlist_id: str) -> tuple[Track, ...]:
         """Read playable markers through the original pagination and codec.
 
@@ -142,3 +164,50 @@ class RequeuePlaylistAccess:
             track: Marker to remove.
         """
         requeue_for_a_dream._remove_track(self.client, playlist_id, track, self.retry)
+
+
+@dataclass
+class SpotifyRequeueCatalog:
+    """Reuse catalog I/O while the shared legacy loaders migrate by routine family.
+
+    Args:
+        client: Caller-owned synchronous client.
+        retry: Existing retry policy with its original descriptions and boundaries.
+    """
+
+    client: Spotify
+    retry: RetryCall
+
+    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+        """Load the selected studio discography with unchanged error translation.
+
+        Args:
+            artist_id: Primary artist of the source marker.
+
+        Returns:
+            Ordered, deduplicated studio editions selected by the domain policy.
+
+        Raises:
+            RequeueForADreamError: The shared catalog parser rejects a response.
+        """
+        try:
+            return slow_listening.load_discography(self.client, artist_id, self.retry)
+        except slow_listening.SlowListeningError as exc:
+            raise RequeueForADreamError(str(exc)) from exc
+
+    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+        """Load playable successor tracks with unchanged error translation.
+
+        Args:
+            release: Selected successor edition.
+
+        Returns:
+            Original parsed tracks in disc and track order.
+
+        Raises:
+            RequeueForADreamError: The shared track parser rejects a response.
+        """
+        try:
+            return slow_listening.load_release_tracks(self.client, release, self.retry)
+        except slow_listening.SlowListeningError as exc:
+            raise RequeueForADreamError(str(exc)) from exc

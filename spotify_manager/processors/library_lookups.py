@@ -666,40 +666,26 @@ def evaluate_album_live(
     artist: str | None = None,
     threshold: float = 0.5,
 ) -> AlbumEvaluation:
-    """Evaluate one album using a fresh Spotify track list and Liked statuses."""
-    resolved_id, resolved_name, resolved_artist = resolve_live_album(
-        sp,
-        name=name,
-        album_id=album_id,
-        artist=artist,
-    )
-    tracks = _fetch_album_tracks(sp, resolved_id)
-    track_ids = [str(track.get("id")) for track in tracks if track.get("id")]
-    liked_by_id = load_live_liked_statuses(sp, track_ids)
+    """Evaluate live album observations through the typed application use case.
 
-    statuses = [
-        AlbumTrackLikedStatus(
-            name=str(track["name"]),
-            uri=str(track["uri"]),
-            liked=liked_by_id.get(str(track.get("id")), False),
-            spotify_id=str(track.get("id")) if track.get("id") else None,
-        )
-        for track in tracks
-    ]
-    liked_count = sum(status.liked for status in statuses)
-    total = len(statuses)
-    assessment = album_policy.assess_album(total, liked_count, threshold)
-    return AlbumEvaluation(
-        album_name=resolved_name,
-        album_id=resolved_id,
-        artist_name=resolved_artist,
-        total_tracks=total,
-        liked_tracks=liked_count,
-        required_liked_tracks=assessment.required_liked_tracks,
-        liked_ratio=assessment.liked_ratio,
-        threshold=threshold,
-        decision=assessment.decision,
-        tracks=statuses,
-        source="spotify-live",
-        from_cache=False,
+    Args:
+        sp: Existing synchronous client.
+        name: Exact name when no identifier is supplied.
+        album_id: Direct identifier, taking precedence over name.
+        artist: Optional primary-artist disambiguation.
+        threshold: Original retention threshold.
+
+    Returns:
+        The unchanged CLI and HTTP album evaluation model.
+
+    Raises:
+        AlbumNotFoundError: No album matches the reference.
+        AmbiguousAlbumError: Several albums match the name.
+        SpotifyLookupResponseError: A response fails existing validation.
+        ValueError: Input or the numeric threshold is invalid.
+    """
+    from spotify_manager.bootstrap.albums import evaluate_live_album
+
+    return evaluate_live_album(
+        sp, name=name, album_id=album_id, artist=artist, threshold=threshold
     )

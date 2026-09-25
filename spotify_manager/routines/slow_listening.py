@@ -21,6 +21,8 @@ from spotify_manager.core.state.service import StateService
 
 # UFI
 from spotify_manager.domain import releases as release_policy
+from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRelease
+from spotify_manager.domain.discography import select_editions
 from spotify_manager.routines import new_wine
 
 
@@ -75,25 +77,6 @@ class SlowListeningStateError(SlowListeningError):
 
 class SlowListeningCancelledError(SlowListeningError):
     """Raised when interactive release ordering is cancelled."""
-
-
-@dataclass(frozen=True)
-class DiscographyRelease:
-    """One selected studio album or EP edition."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    release_type: str
-    release_date: str
-    chronology_date: str
-    total_tracks: int
-    primary_artist_id: str
-    primary_artist_name: str
-    identity: str
-    saved: bool
-    plain: bool
-    edition_rank: int
 
 
 @dataclass(frozen=True)
@@ -254,29 +237,9 @@ def _load_saved_statuses(
         )
         if not isinstance(response, list) or len(response) != len(batch):
             raise SlowListeningError("Spotify returned invalid saved-album statuses.")
-        statuses.update(
-            {
-                spotify_id: bool(saved)
-                for spotify_id, saved in zip(batch, response, strict=True)
-            }
-        )
+        for spotify_id, saved in zip(batch, response, strict=True):
+            statuses[spotify_id] = bool(saved)
     return statuses
-
-
-def _edition_preference(release: DiscographyRelease) -> release_policy.EditionKey:
-    return release_policy.edition_preference(
-        release.saved,
-        release.plain,
-        release.edition_rank,
-        release.total_tracks,
-        release.release_date,
-        release.name,
-        release.spotify_id,
-    )
-
-
-def _preferred_edition(editions: list[DiscographyRelease]) -> DiscographyRelease:
-    return min(editions, key=_edition_preference)
 
 
 def _tie_key(artist_id: str, chronology_date: str) -> str:
@@ -284,71 +247,71 @@ def _tie_key(artist_id: str, chronology_date: str) -> str:
     return f"{artist_id}:{chronology_date}"
 
 
-def load_discography(
-    sp: Spotify,
-    artist_id: str,
-    retry_call: RetryCall,
-) -> tuple[DiscographyRelease, ...]:
-    """Load, filter, collapse, and chronologically sort an artist catalog."""
+def _artist_release_page(
+    sp: Spotify, artist_id: str, offset: int, retry_call: RetryCall
+) -> dict[str, object]:
+    response = retry_call(
+        partial(
+            sp.artist_albums,
+            artist_id,
+            include_groups="album,single",
+            limit=ARTIST_RELEASE_PAGE_LIMIT,
+            offset=offset,
+        ),
+        f"loading Slow Listening releases for {artist_id} at offset {offset}",
+    )
+    if not isinstance(response, dict) or not isinstance(response.get("items"), list):
+        raise SlowListeningError("Spotify returned invalid artist releases.")
+    return cast(dict[str, object], response)
+
+
+def _collect_candidates(
+    raw_items: list[object], artist_id: str, candidates: dict[str, DiscographyRelease]
+) -> None:
+    for raw_release in raw_items:
+        candidate = _release_candidate(raw_release, artist_id)
+        if candidate is not None:
+            candidates[candidate.spotify_id] = candidate
+
+
+def _load_candidates(
+    sp: Spotify, artist_id: str, retry_call: RetryCall
+) -> list[DiscographyRelease]:
     candidates: dict[str, DiscographyRelease] = {}
     offset = 0
     while True:
-        response = retry_call(
-            partial(
-                sp.artist_albums,
-                artist_id,
-                include_groups="album,single",
-                limit=ARTIST_RELEASE_PAGE_LIMIT,
-                offset=offset,
-            ),
-            f"loading Slow Listening releases for {artist_id} at offset {offset}",
-        )
-        if not isinstance(response, dict) or not isinstance(
-            response.get("items"), list
-        ):
-            raise SlowListeningError("Spotify returned invalid artist releases.")
-        raw_items = response["items"]
-        for raw_release in raw_items:
-            candidate = _release_candidate(raw_release, artist_id)
-            if candidate is not None:
-                candidates[candidate.spotify_id] = candidate
+        response = _artist_release_page(sp, artist_id, offset, retry_call)
+        raw_items = cast(list[object], response["items"])
+        _collect_candidates(raw_items, artist_id, candidates)
         offset += len(raw_items)
         if not response.get("next"):
-            break
+            return list(candidates.values())
         if not raw_items:
             raise SlowListeningError("Spotify returned an empty artist release page.")
 
-    releases = list(candidates.values())
+
+def load_discography(
+    sp: Spotify, artist_id: str, retry_call: RetryCall
+) -> tuple[DiscographyRelease, ...]:
+    """Gather catalog facts and delegate edition selection to the pure policy.
+
+    Args:
+        sp: Existing synchronous client.
+        artist_id: Artist whose primary-credit releases are eligible.
+        retry_call: Original retry policy, preserving descriptions and read order.
+
+    Returns:
+        Selected studio editions in the existing chronological order.
+
+    Raises:
+        SlowListeningError: Catalog or membership responses are malformed.
+    """
+    releases = _load_candidates(sp, artist_id, retry_call)
     saved = _load_saved_statuses(sp, releases, retry_call)
-    releases = [
-        replace(release, saved=saved.get(release.spotify_id, False))
-        for release in releases
-    ]
-
-    editions_by_identity: dict[str, list[DiscographyRelease]] = defaultdict(list)
+    observed = []
     for release in releases:
-        editions_by_identity[release.identity].append(release)
-
-    selected: list[DiscographyRelease] = []
-    for editions in editions_by_identity.values():
-        preferred = _preferred_edition(editions)
-        chronology_date = min(
-            (edition.release_date for edition in editions),
-            key=_release_date_key,
-        )
-        selected.append(replace(preferred, chronology_date=chronology_date))
-
-    return tuple(
-        sorted(
-            selected,
-            key=lambda release: (
-                _release_date_key(release.chronology_date),
-                release.release_type,
-                release.name.casefold(),
-                release.spotify_id,
-            ),
-        )
-    )
+        observed.append(replace(release, saved=saved.get(release.spotify_id, False)))
+    return select_editions(observed)
 
 
 def _ordered_date_group(
