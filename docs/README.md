@@ -32,6 +32,8 @@ The [item 1 compatibility inventory](refactor/README.md) freezes the existing
 interfaces and maps listening rules to current implementation and test evidence.
 The [item 3 policy guide](refactor/DOMAIN_POLICIES.md) describes the extracted
 domain rules, independent tests, and local web review workflow.
+The [item 4 integration guide](refactor/INTEGRATION_PORTS.md) explains the typed
+ports, explicit construction, compatibility bridges, and their verification.
 
 ### Operating the Hugging Face Space
 

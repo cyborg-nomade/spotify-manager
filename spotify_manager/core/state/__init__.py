@@ -1,6 +1,6 @@
 """Central, versioned application state."""
 
-from spotify_manager.core.state.compat import RoutineState
+from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.core.state.editor import namespace_editor_schema
 from spotify_manager.core.state.editor import state_editor_schema
 from spotify_manager.core.state.editor import validate_namespace_editor_change

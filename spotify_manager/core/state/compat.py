@@ -5,26 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from typing import Protocol
 
+from spotify_manager.application.ports.state import RoutineState as RoutineState
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.core.state.service import StateService
 from spotify_manager.core.state.service import StateValidator
-
-
-class RoutineState(Protocol):
-    """Minimal state interface consumed by routine business logic."""
-
-    def load(self) -> dict[str, Any]:
-        """Load this routine's validated state."""
-
-    def save(
-        self,
-        value: dict[str, Any],
-        *,
-        message: str | None = None,
-    ) -> object:
-        """Persist this routine's complete state."""
 
 
 class LegacyFileState:

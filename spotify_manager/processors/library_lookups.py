@@ -631,6 +631,33 @@ def resolve_live_album(
     return resolved_id, resolved_name, resolved_artist or None
 
 
+def load_live_liked_statuses(sp: Spotify, track_ids: list[str]) -> dict[str, bool]:
+    """Read fresh membership with the album instrument's original batches.
+
+    Args:
+        sp: Existing synchronous client.
+        track_ids: Ordered identifiers, including duplicates.
+
+    Returns:
+        Last observed boolean status per identifier.
+
+    Raises:
+        SpotifyLookupResponseError: A status response has the wrong shape or length.
+    """
+    liked_by_id: dict[str, bool] = {}
+    for start in range(0, len(track_ids), SPOTIFY_CONTAINS_BATCH_SIZE):
+        batch = track_ids[start : start + SPOTIFY_CONTAINS_BATCH_SIZE]
+        response = sp.current_user_saved_tracks_contains(batch)
+        if not isinstance(response, list) or len(response) != len(batch):
+            raise SpotifyLookupResponseError(
+                "Spotify returned invalid Liked Songs statuses."
+            )
+        for track_id, liked in zip(batch, response, strict=True):
+            liked_by_id[track_id] = bool(liked)
+
+    return liked_by_id
+
+
 def evaluate_album_live(
     sp: Spotify,
     *,
@@ -648,20 +675,7 @@ def evaluate_album_live(
     )
     tracks = _fetch_album_tracks(sp, resolved_id)
     track_ids = [str(track.get("id")) for track in tracks if track.get("id")]
-    liked_by_id: dict[str, bool] = {}
-    for start in range(0, len(track_ids), SPOTIFY_CONTAINS_BATCH_SIZE):
-        batch = track_ids[start : start + SPOTIFY_CONTAINS_BATCH_SIZE]
-        response = sp.current_user_saved_tracks_contains(batch)
-        if not isinstance(response, list) or len(response) != len(batch):
-            raise SpotifyLookupResponseError(
-                "Spotify returned invalid Liked Songs statuses."
-            )
-        liked_by_id.update(
-            {
-                track_id: bool(liked)
-                for track_id, liked in zip(batch, response, strict=True)
-            }
-        )
+    liked_by_id = load_live_liked_statuses(sp, track_ids)
 
     statuses = [
         AlbumTrackLikedStatus(
