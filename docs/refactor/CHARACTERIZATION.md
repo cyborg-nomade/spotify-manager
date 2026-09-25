@@ -1,7 +1,8 @@
 # Item 2: offline characterization and fault injection
 
-**Status:** implemented for review. Application code, dependencies, and public
-contracts are unchanged. Deployment and merge await approval of this item's PR.
+**Status:** approved, deployed, and merged in PR #61 on 2026-09-25. Item 2
+changed no application code, dependencies, or public contracts. Its frozen
+traces remain the oracle for the [item 3 extraction](DOMAIN_POLICIES.md).
 
 The oracle is the unmodified application at `309ad9660e1e23ed11e08a45125175a987fda182`.
 Item 1's [interface baseline](README.md) remains frozen. This item adds workflow

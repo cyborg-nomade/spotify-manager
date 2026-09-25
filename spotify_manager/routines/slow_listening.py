@@ -1,14 +1,12 @@
 """Advance the first two Slow Listening entries through studio discographies."""
 
 import json
-import re
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import replace
 from datetime import UTC
-from datetime import date
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -16,12 +14,13 @@ from typing import Literal
 from typing import cast
 
 from spotipy import Spotify
-from unidecode import unidecode
 
-# UFI
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+
+# UFI
+from spotify_manager.domain import releases as release_policy
 from spotify_manager.routines import new_wine
 
 
@@ -36,42 +35,12 @@ CHOICE_ADVANCE = "advance"
 CHOICE_SKIP = "skip"
 CHOICE_QUIT = "quit"
 
-EDITION_QUALIFIER = re.compile(
-    r"\b(?:anniversary|bonus|collector(?:'s)?|deluxe|edition|expanded|legacy|"
-    r"mono|remaster(?:ed)?|reissue|special|stereo|super deluxe)\b",
-    re.IGNORECASE,
-)
-BRACKETED_SUFFIX = re.compile(r"\s*[\[(]([^)\]]+)[)\]]\s*$")
-DASHED_SUFFIX = re.compile(r"\s+[-\N{EN DASH}\N{EM DASH}]\s+(.+?)\s*$")
-TRAILING_EDITION = re.compile(
-    r"\s+(?:(?:\d{2,4}(?:st|nd|rd|th)?\s+)?"
-    r"(?:anniversary|deluxe|expanded|legacy|remaster(?:ed)?|reissue|special)"
-    r"(?:\s+(?:edition|version))?)\s*$",
-    re.IGNORECASE,
-)
-EP_MARKER = re.compile(r"(?:^|[\s\-[(])e\.?p\.?(?:$|[\s\-)\]])", re.IGNORECASE)
-NON_STUDIO_PATTERNS = (
-    re.compile(
-        r"^live(?:!|$|\s+(?:at|from|in|on)\b)",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"(?:[\[(][^)\]]*\blive\b[^)\]]*[)\]]|"
-        r"\s[-\N{EN DASH}\N{EM DASH}]\s.*\blive\b.*)$",
-        re.IGNORECASE,
-    ),
-    re.compile(r"\b(?:ao vivo|en vivo|in concert|unplugged)\b", re.IGNORECASE),
-    re.compile(
-        r"\b(?:anthology|best of|collection|compilation|greatest hits|"
-        r"rarities)\b",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"\b(?:cast recording|motion picture|original score|soundtrack)\b",
-        re.IGNORECASE,
-    ),
-    re.compile(r"\b(?:bootleg|demos?|karaoke|remix(?:es)?)\b", re.IGNORECASE),
-)
+EDITION_QUALIFIER = release_policy.EDITION_QUALIFIER
+BRACKETED_SUFFIX = release_policy.BRACKETED_SUFFIX
+DASHED_SUFFIX = release_policy.DASHED_SUFFIX
+TRAILING_EDITION = release_policy.TRAILING_EDITION
+EP_MARKER = release_policy.EP_MARKER
+NON_STUDIO_PATTERNS = release_policy.NON_STUDIO_PATTERNS
 
 Echo = Callable[[str], None]
 ProgressCallback = Callable[[int, int, str], None]
@@ -195,34 +164,19 @@ def _artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
 
 
 def _edition_details(name: str) -> tuple[str, int]:
-    """Return an edition-neutral title and its decoration penalty."""
-    base = name.strip()
-    penalty = 0
-    while True:
-        changed = False
-        for pattern in (BRACKETED_SUFFIX, DASHED_SUFFIX):
-            match = pattern.search(base)
-            if match and EDITION_QUALIFIER.search(match.group(1)):
-                base = base[: match.start()].strip()
-                penalty += 1
-                changed = True
-                break
-        if changed:
-            continue
-        match = TRAILING_EDITION.search(base)
-        if match:
-            base = base[: match.start()].strip()
-            penalty += 1
-            continue
-        break
-    return base or name.strip(), penalty
+    return release_policy.edition_details(name)
 
 
 def release_identity(name: str) -> str:
-    """Return a stable identity shared by plain and decorated editions."""
-    base, _penalty = _edition_details(name)
-    normalized = re.sub(r"[^a-z0-9]+", " ", unidecode(base).casefold())
-    return " ".join(normalized.split())
+    """Return the shared edition-neutral release identity.
+
+    Args:
+        name: Original release title.
+
+    Returns:
+        Normalized title shared by plain and decorated editions.
+    """
+    return release_policy.release_identity(name)
 
 
 def _track_identity(name: str) -> str:
@@ -231,8 +185,7 @@ def _track_identity(name: str) -> str:
 
 
 def _is_non_studio_title(name: str) -> bool:
-    """Conservatively identify releases that are not studio albums or EPs."""
-    return any(pattern.search(name) for pattern in NON_STUDIO_PATTERNS)
+    return release_policy.is_non_studio_title(name)
 
 
 def _release_candidate(
@@ -282,18 +235,7 @@ def _release_candidate(
 
 
 def _release_date_key(value: str) -> tuple[int, int, int, str]:
-    """Sort partial Spotify dates chronologically, with unknown dates last."""
-    if value == "Unknown":
-        return (1, 9999, 12, value)
-    try:
-        parts = [int(part) for part in value.split("-")]
-        year = parts[0]
-        month = parts[1] if len(parts) > 1 else 1
-        day = parts[2] if len(parts) > 2 else 1
-        parsed = date(year, month, day)
-    except ValueError, IndexError:
-        return (1, 9999, 12, value)
-    return (0, parsed.toordinal(), 0, value)
+    return release_policy.studio_date_key(value)
 
 
 def _load_saved_statuses(
@@ -321,22 +263,20 @@ def _load_saved_statuses(
     return statuses
 
 
-def _preferred_edition(
-    editions: list[DiscographyRelease],
-) -> DiscographyRelease:
-    """Prefer saved editions, then plain and minimally decorated editions."""
-    return min(
-        editions,
-        key=lambda release: (
-            not release.saved,
-            not release.plain,
-            release.edition_rank,
-            release.total_tracks,
-            _release_date_key(release.release_date),
-            release.name.casefold(),
-            release.spotify_id,
-        ),
+def _edition_preference(release: DiscographyRelease) -> release_policy.EditionKey:
+    return release_policy.edition_preference(
+        release.saved,
+        release.plain,
+        release.edition_rank,
+        release.total_tracks,
+        release.release_date,
+        release.name,
+        release.spotify_id,
     )
+
+
+def _preferred_edition(editions: list[DiscographyRelease]) -> DiscographyRelease:
+    return min(editions, key=_edition_preference)
 
 
 def _tie_key(artist_id: str, chronology_date: str) -> str:

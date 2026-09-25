@@ -15,11 +15,13 @@ from typing import cast
 
 from spotipy import Spotify
 
-# UFI
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
 from spotify_manager.core.state.compat import routine_state
+
+# UFI
+from spotify_manager.domain import progression
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import AlbumTrackLikedStatus
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -1338,11 +1340,12 @@ def flush_new_wine(
                         liked_cache,
                         retry,
                     )
-                    for preceding_track in reversed(preceding):
-                        if liked_cache[preceding_track.spotify_id]:
-                            break
-                        prior_streak += 1
-            consecutive_unliked = 0 if current_liked else prior_streak + 1
+                    prior_streak += progression.trailing_unliked(
+                        liked_cache[track.spotify_id] for track in reversed(preceding)
+                    )
+            consecutive_unliked = progression.advance_streak(
+                prior_streak, current_liked
+            )
 
             if (
                 active_endpoint_mode
@@ -1397,17 +1400,10 @@ def flush_new_wine(
                     liked_cache,
                     retry,
                 )
-                next_liked_track = (
-                    next(
-                        (
-                            track
-                            for track in base_tracks[base_index + 1 :]
-                            if liked_cache[track.spotify_id]
-                        ),
-                        None,
-                    )
-                    if base_index is not None
-                    else None
+                next_liked_track = progression.next_liked_track(
+                    base_tracks,
+                    base_index,
+                    liked_cache,
                 )
                 if next_liked_track is not None:
                     plan = {

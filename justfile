@@ -65,6 +65,13 @@ lint-audit:
 test: lint
     uv run pytest --random-order --show-capture=no --cov-report term-missing --cov={{ package_path }} tests
 
+# Verify pure policies without application fixtures, configuration, or SDKs.
+test-domain:
+    uv run ruff check spotify_manager/domain tests/domain
+    uv run ruff format --check spotify_manager/domain tests/domain
+    uv run mypy --strict spotify_manager/domain tests/domain
+    uv run pytest --confcutdir=tests/domain --cov=spotify_manager.domain --cov-branch --cov-fail-under=100 tests/domain
+
 # Run lint and tests with a JUnit report for CI.
 ci-test: lint
     uv run pytest --junitxml={{ quote(pytest_report_path) }} --random-order --show-capture=no --cov-report term-missing --cov={{ package_path }} tests

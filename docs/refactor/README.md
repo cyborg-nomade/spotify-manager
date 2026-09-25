@@ -2,8 +2,9 @@
 
 **Status:** implemented and approved by the repository owner on 2026-09-24 in
 the review of PR #60, subsequently deployed and merged; no application behavior
-changed. [Item 2 characterization coverage](CHARACTERIZATION.md) is now implemented
-for review.
+changed. [Item 2 characterization coverage](CHARACTERIZATION.md) was approved,
+deployed, and merged in PR #61. [Item 3 domain policies](DOMAIN_POLICIES.md) are
+implemented for review.
 
 **Source baseline:** `37ff9f28930f22807af2f4723ebf9f13f5f9104c` on `master`.
 The application code is the same as the roadmap's `fbcfc65` audit baseline.
@@ -11,7 +12,7 @@ The inventories below were captured on 2026-09-24 with the locked environment.
 
 This is the review package for [roadmap item 1](../REFACTOR_ROADMAP.md).
 It defines what later items must preserve. It does not claim to establish
-complete behavioral coverage; expanded characterization tests belong to item 2.
+complete behavioral coverage; expanded characterization tests were added in item 2.
 
 ## Review order
 
@@ -51,7 +52,11 @@ inferred from a generic job-endpoint pattern; capabilities vary between jobs.
 Static references are evidence, not a complete dynamic call graph. Function and
 line references help reviewers locate the baseline implementation and will change
 when modules move. Compare interface artifacts separately from these source
-location inventories during later milestones.
+location inventories during later milestones. Use
+[`check_interfaces.py`](check_interfaces.py) against a separately captured
+directory: it checks ten public artifacts byte-for-byte and the Spotify inventory
+with only source line numbers removed. The source/dependency reports remain
+historical evidence; the baseline is never regenerated to accept source moves.
 
 ## Reproduce and verify
 

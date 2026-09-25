@@ -7,7 +7,6 @@ Songs status directly from the API.
 
 import re
 from collections.abc import Callable
-from math import floor
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -15,6 +14,7 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 # UFI
+from spotify_manager.domain import albums as album_policy
 from spotify_manager.loaders_savers import load_album_tracks_cache
 from spotify_manager.loaders_savers import load_your_library_file
 from spotify_manager.loaders_savers import save_album_tracks_cache
@@ -439,12 +439,20 @@ def get_album_tracklist(
 
 
 def required_liked_tracks(total_tracks: int, threshold: float) -> int:
-    """Return the whole-track keep threshold for an album."""
-    if total_tracks <= 0:
-        return 1
-    if threshold <= 0:
-        return 0
-    return max(1, floor(total_tracks * threshold))
+    """Return the legacy album keep threshold through the pure policy.
+
+    Args:
+        total_tracks: Observed album size.
+        threshold: Required liked proportion.
+
+    Returns:
+        Minimum liked-track count.
+
+    Raises:
+        ValueError: A positive-size album has a NaN threshold.
+        OverflowError: A positive-size album has positive infinite threshold.
+    """
+    return album_policy.required_liked_tracks(total_tracks, threshold)
 
 
 def evaluate_album(
@@ -496,9 +504,7 @@ def evaluate_album(
         )
 
     total = len(statuses)
-    ratio = (liked_count / total) if total else 0.0
-    required_liked_count = required_liked_tracks(total, threshold)
-    decision = "keep" if liked_count >= required_liked_count else "remove"
+    assessment = album_policy.assess_album(total, liked_count, threshold)
 
     return AlbumEvaluation(
         album_name=resolved_name or resolved_id,
@@ -506,10 +512,10 @@ def evaluate_album(
         artist_name=resolved_artist,
         total_tracks=total,
         liked_tracks=liked_count,
-        required_liked_tracks=required_liked_count,
-        liked_ratio=ratio,
+        required_liked_tracks=assessment.required_liked_tracks,
+        liked_ratio=assessment.liked_ratio,
         threshold=threshold,
-        decision=decision,
+        decision=assessment.decision,
         tracks=statuses,
         source="files" if from_cache else "files+api",
         from_cache=from_cache,
@@ -668,17 +674,17 @@ def evaluate_album_live(
     ]
     liked_count = sum(status.liked for status in statuses)
     total = len(statuses)
-    required_liked_count = required_liked_tracks(total, threshold)
+    assessment = album_policy.assess_album(total, liked_count, threshold)
     return AlbumEvaluation(
         album_name=resolved_name,
         album_id=resolved_id,
         artist_name=resolved_artist,
         total_tracks=total,
         liked_tracks=liked_count,
-        required_liked_tracks=required_liked_count,
-        liked_ratio=liked_count / total if total else 0.0,
+        required_liked_tracks=assessment.required_liked_tracks,
+        liked_ratio=assessment.liked_ratio,
         threshold=threshold,
-        decision="keep" if liked_count >= required_liked_count else "remove",
+        decision=assessment.decision,
         tracks=statuses,
         source="spotify-live",
         from_cache=False,
