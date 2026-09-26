@@ -1,16 +1,17 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–3 deployed and merged; item 4 implemented for review.**
+**Status: items 1–4 deployed and merged; item 5 implemented for review.**
 
 Item 1 deliverables are in the [compatibility inventory](refactor/README.md),
 including frozen interface snapshots and the accepted
 [architecture decision](adr/001-refactor-boundaries-and-async-lifetimes.md).
-Items 1–3 were deployed and merged in PRs #60, #61, and #62. The
+Items 1–4 were deployed and merged in PRs #60, #61, #62, and #63. The
 [characterization and fault-injection evidence](refactor/CHARACTERIZATION.md)
 is the unchanged workflow oracle for the
 [item 3 policy extraction](refactor/DOMAIN_POLICIES.md). The
-[item 4 integration ports and composition](refactor/INTEGRATION_PORTS.md) await
-approval after PR review and local web testing. Later items remain pending.
+[item 4 integration ports and composition](refactor/INTEGRATION_PORTS.md) are
+deployed. The [item 5 vertical slices](refactor/VERTICAL_SLICES.md) await approval
+after PR review and local web testing. Later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,

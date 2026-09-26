@@ -121,8 +121,10 @@ accident in this refactor.
    inventories with an offline capture/check command (item 1).
 2. [x] Add characterization and fault-injection scenarios (item 2, PR #61).
 3. [x] Extract pure domain policies (item 3, deployed and merged in PR #62).
-   Integration ports and production composition are implemented in item 4 for review.
+   Integration ports and production composition are deployed and merged in PR #63.
 4. [ ] Prove vertical slices and migrate the remaining families (items 5–6).
+   [Item 5 album and Requeue slices](../refactor/VERTICAL_SLICES.md) are implemented
+   for review; the remaining families await item 6.
 5. [ ] Consolidate interface/job ownership without schema changes (item 7).
 6. [ ] Implement async transport and execution with compatibility evidence (items 8–9).
 7. [ ] Optimize proven independent reads and enforce dependency boundaries (items 10–11).

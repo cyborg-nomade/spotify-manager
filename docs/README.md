@@ -34,6 +34,9 @@ The [item 3 policy guide](refactor/DOMAIN_POLICIES.md) describes the extracted
 domain rules, independent tests, and local web review workflow.
 The [item 4 integration guide](refactor/INTEGRATION_PORTS.md) explains the typed
 ports, explicit construction, compatibility bridges, and their verification.
+The [item 5 vertical-slice guide](refactor/VERTICAL_SLICES.md) follows album
+evaluation and Requeue from CLI/HTTP entry points through application use cases,
+pure policies, and integration adapters.
 
 ### Operating the Hugging Face Space
 

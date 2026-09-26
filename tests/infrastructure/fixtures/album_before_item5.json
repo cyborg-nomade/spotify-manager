@@ -1,0 +1,596 @@
+{
+  "commit": "ffd2275ca276efe0562f318801d0e0d62458a45f",
+  "cases": [
+    {
+      "identifiers": [],
+      "statuses": [],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 0,
+        "liked_tracks": 0,
+        "required_liked_tracks": 1,
+        "liked_ratio": 0.0,
+        "threshold": 0.5,
+        "decision": "remove",
+        "tracks": [],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        null
+      ],
+      "statuses": [],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 1,
+        "liked_tracks": 0,
+        "required_liked_tracks": 1,
+        "liked_ratio": 0.0,
+        "threshold": 0.5,
+        "decision": "remove",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": false,
+            "spotify_id": null
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        "x"
+      ],
+      "statuses": [
+        true
+      ],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 1,
+        "liked_tracks": 1,
+        "required_liked_tracks": 1,
+        "liked_ratio": 1.0,
+        "threshold": 0.5,
+        "decision": "keep",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": "x"
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        },
+        {
+          "method": "current_user_saved_tracks_contains",
+          "args": [
+            [
+              "x"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        "x",
+        "x"
+      ],
+      "statuses": [
+        true,
+        false
+      ],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 2,
+        "liked_tracks": 0,
+        "required_liked_tracks": 1,
+        "liked_ratio": 0.0,
+        "threshold": 0.5,
+        "decision": "remove",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": false,
+            "spotify_id": "x"
+          },
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": false,
+            "spotify_id": "x"
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        },
+        {
+          "method": "current_user_saved_tracks_contains",
+          "args": [
+            [
+              "x",
+              "x"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        null,
+        "x",
+        "x"
+      ],
+      "statuses": [
+        0,
+        "truthy"
+      ],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 3,
+        "liked_tracks": 2,
+        "required_liked_tracks": 1,
+        "liked_ratio": 0.6666666666666666,
+        "threshold": 0.5,
+        "decision": "keep",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": false,
+            "spotify_id": null
+          },
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": "x"
+          },
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": "x"
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        },
+        {
+          "method": "current_user_saved_tracks_contains",
+          "args": [
+            [
+              "x",
+              "x"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        123,
+        "123"
+      ],
+      "statuses": [
+        true,
+        false
+      ],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 2,
+        "liked_tracks": 0,
+        "required_liked_tracks": 1,
+        "liked_ratio": 0.0,
+        "threshold": 0.5,
+        "decision": "remove",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": false,
+            "spotify_id": "123"
+          },
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": false,
+            "spotify_id": "123"
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        },
+        {
+          "method": "current_user_saved_tracks_contains",
+          "args": [
+            [
+              "123",
+              "123"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        false,
+        "False"
+      ],
+      "statuses": [
+        true
+      ],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 2,
+        "liked_tracks": 2,
+        "required_liked_tracks": 1,
+        "liked_ratio": 1.0,
+        "threshold": 0.5,
+        "decision": "keep",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": null
+          },
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": "False"
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        },
+        {
+          "method": "current_user_saved_tracks_contains",
+          "args": [
+            [
+              "False"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        0,
+        "0"
+      ],
+      "statuses": [
+        true
+      ],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 2,
+        "liked_tracks": 2,
+        "required_liked_tracks": 1,
+        "liked_ratio": 1.0,
+        "threshold": 0.5,
+        "decision": "keep",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": null
+          },
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": "0"
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        },
+        {
+          "method": "current_user_saved_tracks_contains",
+          "args": [
+            [
+              "0"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        null,
+        "None"
+      ],
+      "statuses": [
+        true
+      ],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 2,
+        "liked_tracks": 2,
+        "required_liked_tracks": 1,
+        "liked_ratio": 1.0,
+        "threshold": 0.5,
+        "decision": "keep",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": null
+          },
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": "None"
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        },
+        {
+          "method": "current_user_saved_tracks_contains",
+          "args": [
+            [
+              "None"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "identifiers": [
+        "",
+        "x"
+      ],
+      "statuses": [
+        true
+      ],
+      "result": {
+        "album_name": "Album",
+        "album_id": "album",
+        "artist_name": "Artist",
+        "total_tracks": 2,
+        "liked_tracks": 1,
+        "required_liked_tracks": 1,
+        "liked_ratio": 0.5,
+        "threshold": 0.5,
+        "decision": "keep",
+        "tracks": [
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": false,
+            "spotify_id": null
+          },
+          {
+            "name": "Track",
+            "uri": "spotify:track:track",
+            "liked": true,
+            "spotify_id": "x"
+          }
+        ],
+        "source": "spotify-live",
+        "from_cache": false
+      },
+      "calls": [
+        {
+          "method": "album",
+          "args": [
+            "album"
+          ],
+          "kwargs": {}
+        },
+        {
+          "method": "album_tracks",
+          "args": [
+            "album"
+          ],
+          "kwargs": {
+            "limit": 50
+          }
+        },
+        {
+          "method": "current_user_saved_tracks_contains",
+          "args": [
+            [
+              "x"
+            ]
+          ],
+          "kwargs": {}
+        }
+      ]
+    }
+  ]
+}

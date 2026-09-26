@@ -9,13 +9,13 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 from unittest.mock import Mock
 
 import pytest
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.application.album_review import AlbumReview
 from spotify_manager.application.album_review import review_album
 from spotify_manager.application.music import Track
 from spotify_manager.application.ports.listening import RetryCall
@@ -43,31 +43,14 @@ def _client(tracks: list[object], statuses: object) -> Mock:
     return client
 
 
-def _payload(result: AlbumReview) -> dict[str, object]:
-    tracks = []
-    for track, liked in zip(result.tracks, result.liked, strict=True):
-        tracks.append(
-            {
-                "name": track.name,
-                "uri": track.uri,
-                "liked": liked,
-                "spotify_id": track.spotify_id,
-            }
-        )
-    return {
-        "album_name": result.album.name,
-        "album_id": result.album.spotify_id,
-        "artist_name": result.album.artist,
-        "total_tracks": len(result.tracks),
-        "liked_tracks": sum(result.liked),
-        "threshold": result.threshold,
-        "required_liked_tracks": result.assessment.required_liked_tracks,
-        "liked_ratio": result.assessment.liked_ratio,
-        "decision": result.assessment.decision,
-        "tracks": tracks,
-        "source": "spotify-live",
-        "from_cache": False,
-    }
+def _recorded_album(identifiers: list[object]) -> dict[str, object]:
+    path = Path(__file__).parent / "fixtures/album_before_item5.json"
+    records = json.loads(path.read_text())["cases"]
+    key = json.dumps(identifiers)
+    for record in records:
+        if json.dumps(record["identifiers"]) == key:
+            return cast(dict[str, object], record)
+    raise AssertionError(f"No pre-migration recording for {key}")
 
 
 @pytest.mark.parametrize(
@@ -88,19 +71,23 @@ def _payload(result: AlbumReview) -> dict[str, object]:
 def test_album_ports_match_legacy_values_and_calls(
     identifiers: list[object], statuses: list[object]
 ) -> None:
-    """Compare typed results and complete SDK call traces to the legacy evaluator.
+    """Compare the migrated public facade to independently frozen legacy recordings.
 
     Args:
         identifiers: Raw identifiers, including malformed values.
         statuses: Scripted membership observations.
     """
     tracks: list[object] = [_track(identifier) for identifier in identifiers]
-    original = _client(tracks, statuses)
     adapted = _client(tracks, statuses)
-    expected = library_lookups.evaluate_album_live(original, album_id="album")
-    actual = review_album(*album_review_ports(adapted), album_id="album")
-    assert _payload(actual) == expected.model_dump()
-    assert adapted.mock_calls == original.mock_calls
+    expected = _recorded_album(identifiers)
+    actual = library_lookups.evaluate_album_live(adapted, album_id="album")
+    calls = []
+    for call in adapted.mock_calls:
+        calls.append(
+            {"method": call[0], "args": list(call.args), "kwargs": call.kwargs}
+        )
+    assert actual.model_dump() == expected["result"]
+    assert calls == expected["calls"]
 
 
 @pytest.mark.parametrize("count", [0, 1, 19, 20, 21, 40, 41])
@@ -132,13 +119,13 @@ def test_bad_membership_response_retains_exception(response: object) -> None:
     Args:
         response: Malformed membership response.
     """
-    original = _client([_track("x")], response)
-    adapted = _client([_track("x")], response)
-    with pytest.raises(library_lookups.SpotifyLookupResponseError) as old:
-        library_lookups.evaluate_album_live(original, album_id="album")
-    with pytest.raises(type(old.value), match=str(old.value)):
-        review_album(*album_review_ports(adapted), album_id="album")
-    assert adapted.mock_calls == original.mock_calls
+    client = _client([_track("x")], response)
+    with pytest.raises(
+        library_lookups.SpotifyLookupResponseError,
+        match=r"^Spotify returned invalid Liked Songs statuses\.$",
+    ):
+        library_lookups.evaluate_album_live(client, album_id="album")
+    client.current_user_saved_tracks_contains.assert_called_once_with(["x"])
 
 
 def test_album_pagination_preserves_filtered_items_and_page_order() -> None:

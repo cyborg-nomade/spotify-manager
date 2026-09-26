@@ -3,19 +3,35 @@
 import json
 from collections.abc import Callable
 from dataclasses import asdict
-from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
+from functools import partial
 from pathlib import Path
-from typing import Literal
 
 from spotipy import Spotify
 
 from spotify_manager.application.music import NamedTrack
+from spotify_manager.application.requeue import flush_requeue
+from spotify_manager.application.requeue_result import (
+    RequeueForADreamChangedError as RequeueForADreamChangedError,
+)
+from spotify_manager.application.requeue_result import (
+    RequeueForADreamConfigError as RequeueForADreamConfigError,
+)
+from spotify_manager.application.requeue_result import (
+    RequeueForADreamError as RequeueForADreamError,
+)
+from spotify_manager.application.requeue_result import (
+    RequeueForADreamLogError as RequeueForADreamLogError,
+)
+from spotify_manager.application.requeue_result import (
+    RequeueForADreamSummary as RequeueForADreamSummary,
+)
+from spotify_manager.domain.requeue import RequeueAction as RequeueAction
 
 # UFI
 from spotify_manager.routines import new_wine
-from spotify_manager.routines import slow_listening
+from spotify_manager.routines import slow_listening as slow_listening
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -23,48 +39,20 @@ DEFAULT_LOG_PATH = FILES_DIR / "requeue_for_a_dream_log.jsonl"
 RetryCall = Callable[[Callable[[], object], str], object]
 Echo = Callable[[str], None]
 ProgressCallback = Callable[[str], None]
-RequeueAction = Literal["advance", "drop", "empty", "skip"]
-
-
-class RequeueForADreamError(RuntimeError):
-    """Base error for Requeue for a Dream flushes."""
-
-
-class RequeueForADreamConfigError(RequeueForADreamError):
-    """Raised when the playlist setting is missing or invalid."""
-
-
-class RequeueForADreamChangedError(RequeueForADreamError):
-    """Raised when the playlist head changes before a real mutation."""
-
-
-class RequeueForADreamLogError(RequeueForADreamError):
-    """Raised when a completed real transition cannot be logged."""
-
-
-@dataclass(frozen=True)
-class RequeueForADreamSummary:
-    """Outcome of one playlist-head transition."""
-
-    recorded_at: datetime
-    playlist_id: str
-    dry_run: bool
-    action: RequeueAction
-    playlist_length_before: int
-    playlist_length_after: int
-    artist: str | None = None
-    source_track: str | None = None
-    source_release: str | None = None
-    target_track: str | None = None
-    target_release: str | None = None
-    target_release_type: str | None = None
-    target_release_date: str | None = None
-    target_already_present: bool = False
-    reason: str | None = None
 
 
 def parse_playlist_id(reference: str | None) -> str:
-    """Extract the configured Requeue for a Dream playlist id."""
+    """Extract the configured Requeue for a Dream playlist id.
+
+    Args:
+        reference: Configured identifier, URI, or share link.
+
+    Returns:
+        The original parsed playlist identifier.
+
+    Raises:
+        RequeueForADreamConfigError: The setting is absent or malformed.
+    """
     try:
         return new_wine.parse_playlist_id(
             reference,
@@ -72,25 +60,6 @@ def parse_playlist_id(reference: str | None) -> str:
         )
     except new_wine.NewWineConfigError as exc:
         raise RequeueForADreamConfigError(str(exc)) from exc
-
-
-def _next_release(
-    source: new_wine.PlaylistTrack,
-    discography: tuple[slow_listening.DiscographyRelease, ...],
-) -> slow_listening.DiscographyRelease | None:
-    """Return the release after the source edition's canonical identity."""
-    source_identity = slow_listening.release_identity(source.release.name)
-    current_index = next(
-        (
-            index
-            for index, release in enumerate(discography)
-            if release.identity == source_identity
-        ),
-        None,
-    )
-    if current_index is None or current_index + 1 >= len(discography):
-        return None
-    return discography[current_index + 1]
 
 
 def _add_track(
@@ -101,10 +70,7 @@ def _add_track(
 ) -> None:
     """Append the replacement before the source is removed."""
     retry_call(
-        lambda: spotify._post(
-            f"playlists/{playlist_id}/items",
-            payload={"uris": [track.uri]},
-        ),
+        partial(_post_track, spotify, playlist_id, track),
         f"adding {track.name} to Requeue for a Dream",
     )
 
@@ -117,11 +83,22 @@ def _remove_track(
 ) -> None:
     """Remove the old playlist marker after its replacement is secure."""
     retry_call(
-        lambda: spotify._delete(
-            f"playlists/{playlist_id}/items",
-            payload={"items": [{"uri": track.uri}]},
-        ),
+        partial(_delete_track, spotify, playlist_id, track),
         f"removing {track.name} from Requeue for a Dream",
+    )
+
+
+def _post_track(spotify: Spotify, playlist_id: str, track: NamedTrack) -> object:
+    return spotify._post(
+        f"playlists/{playlist_id}/items",
+        payload={"uris": [track.uri]},
+    )
+
+
+def _delete_track(spotify: Spotify, playlist_id: str, track: NamedTrack) -> object:
+    return spotify._delete(
+        f"playlists/{playlist_id}/items",
+        payload={"items": [{"uri": track.uri}]},
     )
 
 
@@ -139,39 +116,12 @@ def _append_log(summary: RequeueForADreamSummary, path: Path) -> None:
         ) from exc
 
 
-def _summary(
-    playlist_id: str,
-    dry_run: bool,
-    action: RequeueAction,
-    before: int,
-    after: int,
-    *,
-    source: new_wine.PlaylistTrack | None = None,
-    target: new_wine.ReleaseTrack | None = None,
-    target_release: slow_listening.DiscographyRelease | None = None,
-    target_already_present: bool = False,
-    reason: str | None = None,
-) -> RequeueForADreamSummary:
-    """Build a consistent result for mutation and no-op paths."""
-    return RequeueForADreamSummary(
-        recorded_at=datetime.now(UTC),
-        playlist_id=playlist_id,
-        dry_run=dry_run,
-        action=action,
-        playlist_length_before=before,
-        playlist_length_after=after,
-        artist=source.primary_artist_name if source else None,
-        source_track=source.name if source else None,
-        source_release=source.release.name if source else None,
-        target_track=target.name if target else None,
-        target_release=target_release.name if target_release else None,
-        target_release_type=(target_release.release_type if target_release else None),
-        target_release_date=(
-            target_release.chronology_date if target_release else None
-        ),
-        target_already_present=target_already_present,
-        reason=reason,
-    )
+def _clock() -> datetime:
+    return datetime.now(UTC)
+
+
+def _direct_retry(operation: Callable[[], object], _description: str) -> object:
+    return operation()
 
 
 def flush_requeue_for_a_dream(
@@ -184,133 +134,27 @@ def flush_requeue_for_a_dream(
     retry_call: RetryCall | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
 ) -> RequeueForADreamSummary:
-    """Replace the playlist head with the next release's first track."""
-    retry = retry_call or (lambda operation, _description: operation())
-    if progress_callback is not None:
-        progress_callback("Loading Requeue for a Dream")
-    try:
-        playlist = new_wine.load_playlist_tracks(spotify, playlist_id, retry)
-    except new_wine.NewWineError as exc:
-        raise RequeueForADreamError(str(exc)) from exc
-    before = len(playlist)
-    if not playlist:
-        return _summary(
-            playlist_id,
-            dry_run,
-            "empty",
-            0,
-            0,
-            reason="playlist is empty",
-        )
+    """Advance the playlist through the application use case.
 
-    source = playlist[0]
-    if progress_callback is not None:
-        progress_callback(f"Loading {source.primary_artist_name}'s discography")
-    try:
-        discography = slow_listening.load_discography(
-            spotify,
-            source.primary_artist_id,
-            retry,
-        )
-    except slow_listening.SlowListeningError as exc:
-        raise RequeueForADreamError(str(exc)) from exc
+    Args:
+        spotify: Existing synchronous client.
+        playlist_id: Already-parsed playlist identifier.
+        dry_run: Preview without mutation, final recheck, or audit.
+        echo: Mutation message sink.
+        progress_callback: Optional progress and cancellation boundary.
+        retry_call: Existing interface retry policy, or direct execution.
+        log_path: Original JSONL audit destination.
 
-    source_identity = slow_listening.release_identity(source.release.name)
-    current_release = next(
-        (release for release in discography if release.identity == source_identity),
-        None,
+    Returns:
+        The original summary, consumed unchanged by CLI and HTTP presenters.
+
+    Raises:
+        RequeueForADreamError: A read, head check, or audit fails.
+        RuntimeError: The caller interrupts execution through its retry callback.
+    """
+    from spotify_manager.bootstrap.requeue import requeue_dependencies
+
+    dependencies = requeue_dependencies(
+        spotify, retry_call or _direct_retry, echo, progress_callback, log_path, _clock
     )
-    if current_release is None:
-        summary = _summary(
-            playlist_id,
-            dry_run,
-            "skip",
-            before,
-            before,
-            source=source,
-            reason="current release is not an eligible studio album or EP",
-        )
-        if not dry_run:
-            _append_log(summary, log_path)
-        return summary
-
-    target_release = _next_release(source, discography)
-    target: new_wine.ReleaseTrack | None = None
-    target_already_present = False
-    action: RequeueAction = "drop"
-    after = before - 1
-    if target_release is not None:
-        if progress_callback is not None:
-            progress_callback(f"Loading {target_release.name}")
-        try:
-            target_tracks = slow_listening.load_release_tracks(
-                spotify,
-                target_release,
-                retry,
-            )
-        except slow_listening.SlowListeningError as exc:
-            raise RequeueForADreamError(str(exc)) from exc
-        if not target_tracks:
-            summary = _summary(
-                playlist_id,
-                dry_run,
-                "skip",
-                before,
-                before,
-                source=source,
-                target_release=target_release,
-                reason="next release has no playable tracks",
-            )
-            if not dry_run:
-                _append_log(summary, log_path)
-            return summary
-        target = target_tracks[0]
-        target_already_present = any(
-            track.spotify_id == target.spotify_id for track in playlist
-        )
-        action = "advance"
-        after = before - int(target_already_present)
-
-    if not dry_run:
-        if progress_callback is not None:
-            progress_callback("Rechecking the playlist head")
-        try:
-            current_playlist = new_wine.load_playlist_tracks(
-                spotify,
-                playlist_id,
-                retry,
-            )
-        except new_wine.NewWineError as exc:
-            raise RequeueForADreamError(str(exc)) from exc
-        if not current_playlist or current_playlist[0].spotify_id != source.spotify_id:
-            raise RequeueForADreamChangedError(
-                "Requeue for a Dream changed before the update; nothing was changed."
-            )
-
-        if target is not None and not target_already_present:
-            _add_track(spotify, playlist_id, target, retry)
-            echo(
-                f"Added {target.name} "
-                f"({target_release.name if target_release else 'unknown release'})."
-            )
-        elif target is not None:
-            echo(f"{target.name} is already present; it was not duplicated.")
-        _remove_track(spotify, playlist_id, source, retry)
-        echo(f"Removed {source.name} ({source.release.name}).")
-
-    reason = "last eligible release" if action == "drop" else None
-    summary = _summary(
-        playlist_id,
-        dry_run,
-        action,
-        before,
-        after,
-        source=source,
-        target=target,
-        target_release=target_release,
-        target_already_present=target_already_present,
-        reason=reason,
-    )
-    if not dry_run:
-        _append_log(summary, log_path)
-    return summary
+    return flush_requeue(dependencies, playlist_id, dry_run=dry_run)
