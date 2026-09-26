@@ -106,3 +106,22 @@ Checkpoint evidence:
 
 This is a checkpoint within the release wave. Item 6 is not yet ready for review,
 deployment or merge.
+
+### Wine Cellar refill checkpoint
+
+Wine Cellar refill now has an injected application use case. It owns pending
+transfer intent, destination capacity, duplicate handling, library-affinity
+checks, accepted additions/removals and audit order. Its presenter retains the
+original transfer messages. The library-affinity service preserves album-first
+membership checks, whole-batch counts, early stopping and omitted liked counts
+when saved albums already qualify an artist. The main New Wine flush remains
+under migration.
+
+Eighteen refill traces were captured before changing New Wine at checkpoint
+`19f6207`. They cover real/preview execution and failures before/after Spotify
+append/removal, both audit records and four checkpoints. All remain unchanged
+after extraction. The combined New Wine and characterization suite passes 178
+tests; 35 independent refill/affinity tests cover every statement and branch in
+the extracted services. The complete application gate now passes 220 tests with
+100% coverage for its use-case/value targets. The eleven public artifact
+comparisons also remain unchanged.

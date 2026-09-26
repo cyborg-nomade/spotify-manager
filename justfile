@@ -84,6 +84,9 @@ test-application:
         --cov=spotify_manager.application.artist_follows \
         --cov=spotify_manager.application.credited_artists \
         --cov=spotify_manager.application.library_statistics \
+        --cov=spotify_manager.application.library_affinity \
+        --cov=spotify_manager.application.new_wine_values \
+        --cov=spotify_manager.application.wine_cellar \
         --cov=spotify_manager.application.recovery_values \
         --cov=spotify_manager.application.music \
         --cov=spotify_manager.application.requeue \
