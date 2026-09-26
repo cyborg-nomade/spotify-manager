@@ -88,6 +88,10 @@ test-application:
         --cov=spotify_manager.application.music \
         --cov=spotify_manager.application.requeue \
         --cov=spotify_manager.application.requeue_result \
+        --cov=spotify_manager.application.slow_listening \
+        --cov=spotify_manager.application.slow_listening_plan \
+        --cov=spotify_manager.application.slow_listening_state \
+        --cov=spotify_manager.application.slow_listening_values \
         --cov-branch --cov-fail-under=100 tests/application
 
 # Run lint and tests with a JUnit report for CI.

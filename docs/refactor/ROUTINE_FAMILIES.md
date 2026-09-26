@@ -9,7 +9,7 @@ The full milestone remains one PR under the approved roadmap.
 | Wave | Status | Destinations |
 | --- | --- | --- |
 | Foundation | Implemented and verified | Album review/recovery and artist-follow use cases in `application`; date policy in `domain`; explicit wiring in `bootstrap`; presentation and legacy integration adapters. |
-| Release progression | Pending | New Wine, Slow Listening, New Kids/Queue 2, composer playlists, Queue 3, shared Requeue integrations. |
+| Release progression | In progress | Composer matching/observations and Slow Listening implemented; New Wine, New Kids/Queue 2, Queue 3 and shared Requeue integration remain. |
 | History and discovery | Pending | History, radio, discovery, releases, The Queue and genre workflows. |
 | Deep listening and retrospectives | Pending | Something Old, Palace of Memory, Discography and New Year. |
 | Library and legacy workflows | Pending | Analysis, artist review, conversion, monthly workflows, counts and remaining loaders/processors. |
@@ -67,3 +67,42 @@ Reproduce with `just test-domain`, `just test-application`, the randomized full
 pytest suite and the interface capture/comparison commands documented in
 `VERTICAL_SLICES.md`. Subsequent wave evidence will be recorded below as each
 wave is implemented.
+
+## Release progression: composer discovery and Slow Listening
+
+Composer matching now belongs to `domain.composers`. The adapter owns tolerant
+Spotify page parsing and owner-anchor discovery. Fourteen additional observation
+tests were first run against the original implementation, before moving that
+boundary. The original routine re-exports its public values and functions.
+
+Slow Listening now has an application workflow with explicit playlist, catalog,
+state, audit and interaction dependencies. Its planner requests equal-date
+ordering only when a transition reaches that date; its observations are cached
+only within one invocation. Track mapping and date grouping are pure policies.
+The application owns the existing durable records and preserves their tolerant
+constructor behavior, including unknown fields/actions where previously allowed.
+
+The run separately handles planning, accepted playlist changes, completion
+acknowledgement, audit and checkpoints. It retains replacement-before-removal,
+saved skips, pause/resume, live refresh after completion acknowledgement and the
+legacy audit writes during previews. The unchanged synchronous SDK calls remain
+behind compatibility integration helpers. Shared catalog loader ownership and
+Queue 3's remaining private-helper dependencies will be addressed later in this
+same release-progression wave.
+
+Checkpoint evidence:
+
+- The full randomized suite passes **1,794 tests** with seed `20260933`, including
+  all unchanged frozen traces. Statement coverage is **91.44%** (17,734 / 19,394)
+  and diagnostic branch coverage is **77.19%** (4,034 / 5,226).
+- Independent domain and application suites each pass **182 tests**. Extracted
+  policy/use-case/value targets retain **100% statement and branch coverage**.
+- Five further CLI/HTTP integration tests pass with real command/job execution:
+  tie ordering, track choices, preview, completion acknowledgement after removal,
+  and restart after an accepted append whose removal fails. Worker cleanup is
+  guaranteed by the test fixture. These tests do not replace the workflow with a
+  stub.
+- All eleven public artifact comparisons still pass; package mypy and Ruff pass.
+
+This is a checkpoint within the release wave. Item 6 is not yet ready for review,
+deployment or merge.
