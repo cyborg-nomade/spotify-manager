@@ -24,15 +24,15 @@ from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+from spotify_manager.infrastructure.spotify.retry import TRANSIENT_MAX_ATTEMPTS
+from spotify_manager.infrastructure.spotify.retry import TRANSIENT_RETRY_DELAY_SECONDS
+from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
+from spotify_manager.infrastructure.spotify.retry import SpotifyTransientServerError
+from spotify_manager.infrastructure.spotify.retry import retry_spotify_server_errors
 from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
 from spotify_manager.routines.recover_removed_albums import period_report
-from spotify_manager.routines.review_album_limits import TRANSIENT_MAX_ATTEMPTS
-from spotify_manager.routines.review_album_limits import TRANSIENT_RETRY_DELAY_SECONDS
-from spotify_manager.routines.review_album_limits import SpotifyRateLimitError
-from spotify_manager.routines.review_album_limits import SpotifyTransientServerError
-from spotify_manager.routines.review_album_limits import retry_spotify_server_errors
 from spotify_manager.utils.growth import calculate_growth
 from spotify_manager.utils.sorting import artist_sort_key
 

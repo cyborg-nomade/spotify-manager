@@ -30,9 +30,9 @@ from spotify_manager._auth import PasswordMiddleware
 from spotify_manager.api import ClientDep
 from spotify_manager.api import app
 from spotify_manager.core.state.runtime import get_state_service
+from spotify_manager.infrastructure.spotify.retry import format_retry_delay
+from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
 from spotify_manager.routines import genre_reveal
-from spotify_manager.routines.review_album_limits import format_retry_delay
-from spotify_manager.routines.review_album_limits import get_retry_after_seconds
 from spotify_manager.settings import Settings
 
 

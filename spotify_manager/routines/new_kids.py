@@ -27,6 +27,7 @@ from spotify_manager.domain import artists as artist_policy
 from spotify_manager.domain import completion
 from spotify_manager.domain import progression
 from spotify_manager.domain import releases as release_policy
+from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
@@ -35,7 +36,6 @@ from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines.recover_removed_albums import sync_stats_history_counts
-from spotify_manager.routines.review_album_limits import REMOVED_ALBUMS_LOG_PATH
 from spotify_manager.routines.review_album_limits import append_removed_album_log
 from spotify_manager.routines.review_artists import add_playlist_item
 from spotify_manager.routines.review_artists import remove_library_artists

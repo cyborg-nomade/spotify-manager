@@ -27,12 +27,12 @@ from spotify_manager.client.lastfm import LastFmSimilarArtist
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+from spotify_manager.domain.library import AlbumArtist
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import release_check
-from spotify_manager.routines.review_album_limits import AlbumArtist
 from spotify_manager.routines.review_album_limits import record_followed_artist
 from spotify_manager.routines.review_artists import add_playlist_item
 from spotify_manager.routines.review_artists import remove_library_artists

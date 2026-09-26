@@ -77,7 +77,18 @@ test-application:
     uv run ruff check spotify_manager/application tests/application
     uv run ruff format --check spotify_manager/application tests/application
     uv run mypy --strict spotify_manager/application tests/application
-    uv run pytest --confcutdir=tests/application --cov=spotify_manager.application.album_review --cov=spotify_manager.application.music --cov=spotify_manager.application.requeue --cov=spotify_manager.application.requeue_result --cov-branch --cov-fail-under=100 tests/application
+    uv run pytest --confcutdir=tests/application \
+        --cov=spotify_manager.application.album_review \
+        --cov=spotify_manager.application.album_limits \
+        --cov=spotify_manager.application.album_recovery \
+        --cov=spotify_manager.application.artist_follows \
+        --cov=spotify_manager.application.credited_artists \
+        --cov=spotify_manager.application.library_statistics \
+        --cov=spotify_manager.application.recovery_values \
+        --cov=spotify_manager.application.music \
+        --cov=spotify_manager.application.requeue \
+        --cov=spotify_manager.application.requeue_result \
+        --cov-branch --cov-fail-under=100 tests/application
 
 # Run lint and tests with a JUnit report for CI.
 ci-test: lint

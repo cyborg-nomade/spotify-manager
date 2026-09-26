@@ -24,6 +24,9 @@ from spotipy.exceptions import SpotifyException
 
 # UFI
 from spotify_manager.core.library_data.runtime import publish_managed_path
+from spotify_manager.infrastructure.library_records import current_stats_history_key
+from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
+from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
 from spotify_manager.models.stats import AlbumsStats
 from spotify_manager.models.stats import ArtistsStats
 from spotify_manager.models.stats import StatsReport
@@ -32,9 +35,6 @@ from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
-from spotify_manager.routines.review_album_limits import SpotifyRateLimitError
-from spotify_manager.routines.review_album_limits import current_stats_history_key
-from spotify_manager.routines.review_album_limits import get_retry_after_seconds
 from spotify_manager.utils.growth import calculate_growth
 from spotify_manager.utils.sorting import album_sort_key
 from spotify_manager.utils.sorting import artist_sort_key

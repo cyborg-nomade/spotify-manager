@@ -1,7 +1,6 @@
 # Item 5: album evaluation and Requeue vertical slices
 
-**Status:** implemented for review. Deployment and merge await owner approval
-after PR review and local web testing. The source baseline is item 4's merge,
+**Status:** deployed and merged in PR #64 after owner approval. The source baseline is item 4's merge,
 `c4f808e`, on `master`. The [approved roadmap](../REFACTOR_ROADMAP.md) and
 [accepted ADR](../adr/001-refactor-boundaries-and-async-lifetimes.md) define this
 milestone.
@@ -108,5 +107,10 @@ preview, then inspect the result and progress messages. The app uses configured
 Spotify credentials and shared state/data backends. Startup hydration refreshes
 local canonical files; these runtime data changes are excluded from the PR.
 
-After approval, deploy the approved commit, verify the running revision and
-authenticated production checks, merge, and return to clean `master` before item 6.
+The approved commit `adfb6b45c8554edfa4b4354727788821c522f0c2` was deployed as
+Hugging Face Space revision `9a83d88de2bc01620f9f5f5c76de016f7870c7cf`.
+All 30 approved files were verified against the deployment; shared state and
+library dataset revisions remained unchanged. Authenticated production checks
+passed in GitHub Actions run `36231359717`, including all 20 idle job endpoints.
+PR #64 was then merged as `3d7c1df00a3a1102c62eecb0356655cd07b0d167` and its
+branch was removed before item 6 began.

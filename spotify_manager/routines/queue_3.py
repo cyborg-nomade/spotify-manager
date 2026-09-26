@@ -19,12 +19,12 @@ from spotipy import Spotify
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening
-from spotify_manager.routines.review_album_limits import REMOVED_ALBUMS_LOG_PATH
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
