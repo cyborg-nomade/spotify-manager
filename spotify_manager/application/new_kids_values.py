@@ -30,3 +30,15 @@ class ArtistAssessment:
     reasons: tuple[str, ...]
     representative_track: CatalogTrack | None
     top_liked_track: CatalogTrack | None
+
+
+class NewKidsError(RuntimeError):
+    """Base error for the New Kids routine."""
+
+
+class NewKidsConfigError(NewKidsError):
+    """Raised when a required playlist is not configured."""
+
+
+class NewKidsStateError(NewKidsError):
+    """Raised when durable routine state is malformed or cannot be saved."""

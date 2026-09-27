@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import asdict
@@ -17,8 +16,17 @@ from typing import Literal
 
 from spotipy import Spotify
 
+from spotify_manager.application import composer_progression
+from spotify_manager.application import composer_routes
 from spotify_manager.application.new_kids_values import (
     ArtistAssessment as ArtistAssessment,
+)
+from spotify_manager.application.new_kids_values import (
+    NewKidsConfigError as NewKidsConfigError,
+)
+from spotify_manager.application.new_kids_values import NewKidsError as NewKidsError
+from spotify_manager.application.new_kids_values import (
+    NewKidsStateError as NewKidsStateError,
 )
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
@@ -28,12 +36,17 @@ from spotify_manager.domain import completion
 
 # UFI
 from spotify_manager.domain import discovery_history as history_policy
+from spotify_manager.domain import discovery_progression as discovery_policy
 from spotify_manager.domain import progression
 from spotify_manager.domain import releases as release_policy
 from spotify_manager.domain.discovery import CatalogTrack as CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease as RankedRelease
 from spotify_manager.domain.discovery import ReleaseTier as ReleaseTier
 from spotify_manager.domain.discovery_assessment import qualification_reasons
+from spotify_manager.domain.discovery_progression import (
+    DECORATED_PATTERN as DECORATED_PATTERN,
+)
+from spotify_manager.domain.discovery_progression import LIVE_PATTERN as LIVE_PATTERN
 from spotify_manager.domain.releases import release_identity
 from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
 from spotify_manager.models.lookups import AlbumEvaluation
@@ -73,30 +86,10 @@ TRACK_BATCH_SIZE = 50
 CHOICE_SKIP = "__skip__"
 CHOICE_QUIT = "__quit__"
 
-LIVE_PATTERN = re.compile(
-    r"(?:\blive\b|ao vivo|en vivo|in concert|unplugged|concert)",
-    re.IGNORECASE,
-)
-DECORATED_PATTERN = re.compile(
-    r"(?:deluxe|expanded|anniversary|remaster|reissue|special edition|bonus)",
-    re.IGNORECASE,
-)
 
 Echo = Callable[[str], None]
 ProgressCallback = Callable[[int, int, str], None]
 RetryCall = Callable[[Callable[[], object], str], object]
-
-
-class NewKidsError(RuntimeError):
-    """Base error for the New Kids routine."""
-
-
-class NewKidsConfigError(NewKidsError):
-    """Raised when a required playlist is not configured."""
-
-
-class NewKidsStateError(NewKidsError):
-    """Raised when durable routine state is malformed or cannot be saved."""
 
 
 ChoiceCandidate = RankedRelease | composer_playlists.OwnedPlaylist
@@ -287,16 +280,7 @@ def _release_type(
     total_tracks: int,
     name: str,
 ) -> tuple[str, ReleaseTier]:
-    normalized = str(raw_type or "").casefold()
-    if normalized == "compilation":
-        return "Compilation", 3
-    if LIVE_PATTERN.search(name):
-        return "Live", 2
-    if normalized == "album":
-        return "Album", 0
-    if normalized == "ep" or (normalized == "single" and total_tracks >= 4):
-        return "EP", 0
-    return "Single", 1
+    return discovery_policy.release_kind(raw_type, total_tracks, name)
 
 
 def _release_date_key(value: str) -> tuple[int, int, int, str]:
@@ -342,27 +326,7 @@ def _raw_release(
 
 
 def _source_release(source: new_wine.PlaylistTrack) -> RankedRelease:
-    release_type, tier = _release_type(
-        source.release.release_type,
-        source.release.total_tracks,
-        source.release.name,
-    )
-    return RankedRelease(
-        spotify_id=source.release.spotify_id,
-        uri=source.release.uri,
-        name=source.release.name,
-        release_type=release_type,
-        release_date=source.release.release_date,
-        total_tracks=source.release.total_tracks,
-        primary_artist_id=source.primary_artist_id,
-        primary_artist_name=source.primary_artist_name,
-        popularity=None,
-        top_track_rank=None,
-        tier=tier,
-        identity=release_identity(source.release.name),
-        saved=False,
-        plain=not DECORATED_PATTERN.search(source.release.name),
-    )
+    return discovery_policy.source_release(source)
 
 
 def _composer_release(
@@ -371,14 +335,7 @@ def _composer_release(
     artist_name: str,
 ) -> RankedRelease:
     """Represent a works-playlist track's release under the logical composer."""
-    release = _source_release(source)
-    return RankedRelease(
-        **{
-            **asdict(release),
-            "primary_artist_id": artist_id,
-            "primary_artist_name": artist_name,
-        }
-    )
+    return discovery_policy.composer_release(source, artist_id, artist_name)
 
 
 def _composer_track(
@@ -387,15 +344,7 @@ def _composer_track(
     artist_name: str,
 ) -> CatalogTrack:
     """Adapt one works-playlist marker to the normal durable track model."""
-    return CatalogTrack(
-        spotify_id=source.spotify_id,
-        uri=source.uri,
-        name=source.name,
-        disc_number=1,
-        track_number=1,
-        primary_artist_id=artist_id,
-        primary_artist_name=artist_name,
-    )
+    return discovery_policy.composer_track(source, artist_id, artist_name)
 
 
 def _composer_source_index(
@@ -403,20 +352,7 @@ def _composer_source_index(
     tracks: tuple[new_wine.PlaylistTrack, ...],
 ) -> int | None:
     """Locate the current marker by id, then by one unique normalized title."""
-    id_matches = [
-        index
-        for index, track in enumerate(tracks)
-        if track.spotify_id == source.spotify_id
-    ]
-    if id_matches:
-        return id_matches[0]
-    source_tokens = composer_playlists.name_tokens(source.name)
-    title_matches = [
-        index
-        for index, track in enumerate(tracks)
-        if composer_playlists.name_tokens(track.name) == source_tokens
-    ]
-    return title_matches[0] if len(title_matches) == 1 else None
+    return discovery_policy.composer_source_index(source, tracks)
 
 
 def _composer_step(
@@ -424,16 +360,9 @@ def _composer_step(
     tracks: tuple[new_wine.PlaylistTrack, ...],
 ) -> tuple[int, new_wine.PlaylistTrack | None]:
     """Return completed works and the next marker in stored playlist order."""
-    if not tracks:
-        raise NewKidsError("The matched composer works playlist is empty.")
-    source_index = _composer_source_index(source, tracks)
-    if source_index is None:
-        return 0, tracks[0]
-    completed = source_index + 1
-    limit = min(COMPOSER_TRACKS_PER_ARTIST, len(tracks))
-    if completed >= limit:
-        return completed, None
-    return completed, tracks[source_index + 1]
+    return composer_progression.composer_step(
+        source, tracks, COMPOSER_TRACKS_PER_ARTIST
+    )
 
 
 def _resolve_composer_playlist(
@@ -446,48 +375,16 @@ def _resolve_composer_playlist(
     choice_reader: ReleaseChoiceReader,
 ) -> tuple[composer_playlists.OwnedPlaylist | None, str | None]:
     """Resolve and remember one owned works playlist for a logical artist."""
-    routes = state.get("composer_routes")
-    if not isinstance(routes, dict):
-        raise NewKidsStateError("New Kids composer-route state is invalid.")
-    candidates = composer_playlists.composer_playlist_candidates(
+    return composer_routes.resolve_composer_route(
+        state,
+        artist_id,
         artist_name,
+        source_track_id,
         owned_playlists,
-        excluded_playlist_ids=excluded_playlist_ids,
+        excluded_playlist_ids,
+        choice_reader,
+        _utc_now,
     )
-    existing = routes.get(artist_id)
-    if isinstance(existing, dict):
-        existing_id = str(existing.get("playlist_id") or "")
-        selected = next(
-            (playlist for playlist in candidates if playlist.spotify_id == existing_id),
-            None,
-        )
-        if selected is not None:
-            return selected, None
-        routes.pop(artist_id, None)
-
-    if not candidates:
-        return None, None
-    if len(candidates) == 1:
-        selected = candidates[0]
-    else:
-        choice = choice_reader(artist_name, candidates)
-        if choice in {CHOICE_SKIP, CHOICE_QUIT}:
-            return None, choice
-        selected = next(
-            (playlist for playlist in candidates if playlist.spotify_id == choice),
-            None,
-        )
-        if selected is None:
-            raise NewKidsError("Selected composer playlist is not available.")
-
-    routes[artist_id] = {
-        "artist_name": artist_name,
-        "playlist_id": selected.spotify_id,
-        "playlist_name": selected.name,
-        "current_track_id": source_track_id,
-        "updated_at": datetime.now(UTC).isoformat(),
-    }
-    return selected, None
 
 
 def _composer_plan(
@@ -501,48 +398,16 @@ def _composer_plan(
     assessment: ArtistAssessment | None,
 ) -> dict[str, object]:
     """Plan one of the first forty works in stored Spotify playlist order."""
-    completed, next_source = _composer_step(source, tracks)
-    current_release = _composer_release(source, artist_id, artist_name)
-    common: dict[str, object] = {
-        "current_release": asdict(current_release),
-        "current_liked": current_liked,
-        "consecutive_unliked": 0,
-        "next_prior_unliked_streak": 0,
-        "composer_playlist_id": playlist.spotify_id,
-        "composer_playlist_name": playlist.name,
-        "composer_position": completed,
-        "composer_limit": min(COMPOSER_TRACKS_PER_ARTIST, len(tracks)),
-    }
-    if next_source is not None:
-        return {
-            **common,
-            "action": "advance",
-            "result_action": "advance",
-            "target_release": asdict(
-                _composer_release(next_source, artist_id, artist_name)
-            ),
-            "target": asdict(_composer_track(next_source, artist_id, artist_name)),
-            "advance_reason": "next composer work",
-        }
-    if assessment is None:
-        raise NewKidsStateError("Composer completion plan lacks assessment.")
-    if assessment.top_liked_track is None:
-        result_action = "unfollowed"
-    elif assessment.qualifies:
-        result_action = "great discovery"
-    else:
-        result_action = "unlucky"
-    return {
-        **common,
-        "action": "finish",
-        "result_action": result_action,
-        "target_release": None,
-        "target": None,
-        "assessment": asdict(assessment),
-        "composer_destination_track": asdict(
-            _composer_track(tracks[0], artist_id, artist_name)
-        ),
-    }
+    return composer_progression.composer_plan(
+        source,
+        artist_id,
+        artist_name,
+        playlist,
+        tracks,
+        current_liked=current_liked,
+        assessment=assessment,
+        limit=COMPOSER_TRACKS_PER_ARTIST,
+    )
 
 
 def _batched_contains(
@@ -2485,3 +2350,7 @@ def flush_queue_2(
         resumed=review.resumed,
         dry_run=dry_run,
     )
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)

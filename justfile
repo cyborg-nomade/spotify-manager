@@ -86,6 +86,8 @@ test-application:
         --cov=spotify_manager.application.new_kids_values \
         --cov=spotify_manager.application.release_history \
         --cov=spotify_manager.application.credited_artists \
+        --cov=spotify_manager.application.composer_routes \
+        --cov=spotify_manager.application.composer_progression \
         --cov=spotify_manager.application.library_statistics \
         --cov=spotify_manager.application.library_affinity \
         --cov=spotify_manager.application.new_wine_values \

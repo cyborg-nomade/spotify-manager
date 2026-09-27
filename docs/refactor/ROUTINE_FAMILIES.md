@@ -212,3 +212,29 @@ Checkpoint evidence:
 
 Composer routing, the New Kids/Queue 2 coordinator and Queue 3 remain in progress;
 this checkpoint does not complete the release wave or Item 6.
+
+### Composer progression checkpoint
+
+New Kids composer routing now uses an application service over observed owned
+playlists, an explicit choice callback and an injected clock. Valid saved routes
+remain untouched; stale route removal still precedes skip, quit or selection
+failure. Route acceptance retains the original timestamp and marker fields.
+
+Composer works planning is independent of SDK/state I/O. It retains first-ID
+mapping, unique normalized-title fallback, stored playlist order, the forty-work
+limit and the original logical-composer credits. A missing liked top track still
+takes precedence over otherwise qualifying promotion criteria. Completion still
+uses the first work as the composer's destination marker.
+
+The original routine re-exports its error classes and constants and keeps its
+compatibility helper signatures. Release classification and source/composer
+catalog adaptation now have pure domain owners. The main coordinator remains
+under migration.
+
+- Full suite: **2,048 tests pass**, randomized with seed `20260936`.
+- Separate coverage: **92.10% statements** (18,585 / 20,179) and **78.83% branches**
+  (4,159 / 5,276); the existing statement baseline remains satisfied.
+- Independent gates: **221 domain tests**, **365 application tests**, both at
+  **100% statement and branch coverage** for their configured targets.
+- All eleven frozen public artifacts and unchanged characterization traces pass;
+  package/inner-layer Ruff, format and mypy checks pass.
