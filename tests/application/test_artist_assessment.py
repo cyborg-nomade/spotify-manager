@@ -1,98 +1,14 @@
 """Independent artist completion observes memberships, caches and marker precedence."""
 
-from dataclasses import dataclass
-from dataclasses import field
 from dataclasses import replace
 
 import pytest
 
 from spotify_manager.application.artist_assessment import assess_artist
 from spotify_manager.domain.discovery import CatalogTrack
-from spotify_manager.domain.discovery import RankedRelease
+from tests.support.assessment_memory import Catalog
 from tests.support.discovery_values import release
 from tests.support.discovery_values import track
-
-
-@dataclass
-class Catalog:
-    """Script catalog facts while recording every application boundary.
-
-    Args:
-        releases: Release tracks supplied on demand.
-        albums: Live saved membership observations.
-        likes: Live liked membership observations.
-        top: Eligible top-track response.
-        popularity: Fallback live popularities.
-        events: Ordered requested observations.
-    """
-
-    releases: dict[str, tuple[CatalogTrack, ...]] = field(default_factory=dict)
-    albums: dict[str, bool] = field(default_factory=dict)
-    likes: dict[str, bool] = field(default_factory=dict)
-    top: tuple[CatalogTrack, ...] = ()
-    popularity: dict[str, int] = field(default_factory=dict)
-    events: list[tuple[str, object]] = field(default_factory=list)
-
-    def saved(self, ids: list[str]) -> dict[str, bool]:
-        """Read scripted album memberships.
-
-        Args:
-            ids: Requested catalog IDs, retaining duplicates.
-
-        Returns:
-            Detached accepted observations.
-        """
-        self.events.append(("saved", ids))
-        return dict(self.albums)
-
-    def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
-        """Read tracks for one previously unobserved release.
-
-        Args:
-            release: Requested catalog entry.
-
-        Returns:
-            Scripted response, including empty releases.
-        """
-        self.events.append(("tracks", release.spotify_id))
-        return self.releases.get(release.spotify_id, ())
-
-    def liked(self, ids: list[str], *, top: bool = False) -> dict[str, bool]:
-        """Read scripted likes at the requested context boundary.
-
-        Args:
-            ids: Requested unique catalog IDs or ordered top-track IDs.
-            top: Whether the request belongs to top-track selection.
-
-        Returns:
-            Detached observed memberships.
-        """
-        self.events.append(("top_likes" if top else "likes", ids))
-        return dict(self.likes)
-
-    def top_tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
-        """Observe artist top tracks after catalog assessment.
-
-        Args:
-            artist_id: Artist being assessed.
-
-        Returns:
-            Original-order scripted response.
-        """
-        self.events.append(("top", artist_id))
-        return self.top
-
-    def popularities(self, ids: list[str]) -> dict[str, int]:
-        """Observe fallback popularity only when needed.
-
-        Args:
-            ids: Unique liked primary-artist tracks.
-
-        Returns:
-            Detached scripted popularities.
-        """
-        self.events.append(("popularity", ids))
-        return dict(self.popularity)
 
 
 def test_assessment_retains_exact_observation_order_and_shared_cache() -> None:
@@ -101,7 +17,7 @@ def test_assessment_retains_exact_observation_order_and_shared_cache() -> None:
     guest = replace(track("guest"), primary_artist_id="guest")
     catalog = Catalog(
         releases={"album": (first, second, guest)},
-        likes={"first": True},
+        liked_statuses={"first": True},
         albums={"album": True},
         top=(second, first),
     )
@@ -148,7 +64,7 @@ def test_repeated_tracks_keep_first_encountered_catalog_facts() -> None:
     primary = replace(guest, primary_artist_id="artist")
     catalog = Catalog(
         releases={"a": (original, guest), "b": (other, primary)},
-        likes={"same": True},
+        liked_statuses={"same": True},
         top=(),
     )
     result = assess_artist(catalog, "artist", (release("a"), release("b")), {})
@@ -167,7 +83,7 @@ def test_top_likes_precede_popularity_fallback(top_liked: bool) -> None:
     first, second = track("first"), track("second")
     catalog = Catalog(
         releases={"album": (first, second)},
-        likes={"first": True, "second": True},
+        liked_statuses={"first": True, "second": True},
         top=(first,) if top_liked else (),
         popularity={"second": 100},
     )
@@ -179,7 +95,7 @@ def test_top_likes_precede_popularity_fallback(top_liked: bool) -> None:
 def test_empty_catalog_can_still_supply_a_liked_top_marker() -> None:
     """Catalog qualification does not short-circuit the later top-track observation."""
     marker = track("top")
-    catalog = Catalog(top=(marker,), likes={"top": True})
+    catalog = Catalog(top=(marker,), liked_statuses={"top": True})
     result = assess_artist(catalog, "artist", (), {})
     assert result.top_liked_track == marker and result.representative_track is None
     assert result.liked_tracks == result.total_releases == 0 and not result.qualifies

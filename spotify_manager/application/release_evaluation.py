@@ -3,6 +3,8 @@
 from spotify_manager.domain.albums import assess_album
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
+from spotify_manager.domain.discovery import CatalogTrack
+from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import AlbumTrackLikedStatus
 
@@ -52,3 +54,40 @@ def _track_statuses(
             )
         )
     return statuses
+
+
+def evaluate_catalog_release(
+    release: RankedRelease, tracks: tuple[CatalogTrack, ...], liked: dict[str, bool]
+) -> AlbumEvaluation:
+    """Evaluate discovery catalog values through the original shared album rule.
+
+    Args:
+        release: Selected ranked discovery release.
+        tracks: Complete observed release tracks, including guest credits.
+        liked: Shared live memberships, treating absent IDs as unliked.
+
+    Returns:
+        Original public live evaluation with catalog-only metadata omitted.
+    """
+    candidate = ReleaseCandidate(
+        release.spotify_id,
+        release.uri,
+        release.name,
+        release.release_type,
+        release.release_date,
+        release.total_tracks,
+        release.primary_artist_id,
+        release.primary_artist_name,
+    )
+    observed = []
+    for track in tracks:
+        observed.append(
+            ReleaseTrack(
+                track.spotify_id,
+                track.uri,
+                track.name,
+                track.disc_number,
+                track.track_number,
+            )
+        )
+    return evaluate_release(candidate, tuple(observed), liked)

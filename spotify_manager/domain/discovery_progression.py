@@ -134,3 +134,42 @@ def composer_source_index(
         if name_tokens(track.name) == source_tokens:
             matches.append(index)
     return matches[0] if len(matches) == 1 else None
+
+
+def catalog_track_index(
+    tracks: tuple[CatalogTrack, ...], source: PlaylistTrack
+) -> int | None:
+    """Map review tracks by first exact ID, then a unique case-insensitive title.
+
+    Args:
+        tracks: Primary-credit review tracks in original order.
+        source: Current playlist marker.
+
+    Returns:
+        Original index, retaining significant title whitespace and edition suffixes.
+    """
+    for index, track in enumerate(tracks):
+        if track.spotify_id == source.spotify_id:
+            return index
+    matches = []
+    for index, track in enumerate(tracks):
+        if track.name.casefold() == source.name.casefold():
+            matches.append(index)
+    return matches[0] if len(matches) == 1 else None
+
+
+def next_release_options(
+    releases: tuple[RankedRelease, ...],
+) -> tuple[RankedRelease, ...]:
+    """Return only entries in the highest-priority remaining discovery tier.
+
+    Args:
+        releases: Viable releases in original ranked order.
+
+    Returns:
+        Entries in the minimum tier, retaining their order and duplicates.
+    """
+    if not releases:
+        return ()
+    tier = min(release.tier for release in releases)
+    return tuple(release for release in releases if release.tier == tier)

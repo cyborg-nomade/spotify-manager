@@ -238,3 +238,27 @@ under migration.
   **100% statement and branch coverage** for their configured targets.
 - All eleven frozen public artifacts and unchanged characterization traces pass;
   package/inner-layer Ruff, format and mypy checks pass.
+
+### Ordinary discovery planning and durable records checkpoint
+
+New Kids and Queue 2 now share an injected ordinary-release planner. It observes
+the current marker before reconstructing a missing streak, checks all primary
+tracks after three unliked markers, and retains the original case-insensitive
+title fallback without trimming whitespace. Completion evaluates guest tracks
+too, writes the historical-progress audit before interaction, and checks every
+remaining candidate before applying the preferred tier and ten-choice limit.
+
+Durable source, release, track, progress, run and result translation now has an
+application owner. Unknown fields, legacy-key removal, boolean streak values,
+clock boundaries and malformed-record behavior remain characterized. The original
+coordinator shares its existing observation caches with the new planner. Its
+playlist effects, library reconciliation, refill and checkpoint orchestration
+remain in progress; this checkpoint does not complete New Kids or Item 6.
+
+- Full suite: **2,102 tests pass**, randomized with seed `20260937`.
+- Separate coverage: **92.11% statements** (18,752 / 20,359) and **79.21% branches**
+  (4,192 / 5,292); the frozen statement baseline remains satisfied.
+- Independent gates: **223 domain tests** and **417 application tests**, both at
+  **100% statement and branch coverage** for their configured targets.
+- All eleven frozen interface artifacts, unchanged characterization fixtures,
+  package Ruff/format/mypy and strict inner-layer checks pass.

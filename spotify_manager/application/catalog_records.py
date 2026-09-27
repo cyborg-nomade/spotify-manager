@@ -2,6 +2,8 @@
 
 from typing import TypedDict
 
+from spotify_manager.domain.discovery import ReleaseTier
+
 
 class ReleaseRecord(TypedDict):
     """Existing serialized release fields used at the durable state boundary."""
@@ -34,3 +36,22 @@ class TrackRecord(TypedDict):
     name: str
     disc_number: int
     track_number: int
+
+
+class RankedReleaseRecord(ReleaseRecord):
+    """Original discovery metadata stored beside a release's catalog fields."""
+
+    popularity: int | None
+    top_track_rank: int | None
+    tier: ReleaseTier
+    identity: str
+    saved: bool
+    plain: bool
+
+
+class CatalogTrackRecord(TrackRecord):
+    """Original primary-credit and popularity fields stored in discovery plans."""
+
+    primary_artist_id: str
+    primary_artist_name: str
+    popularity: int | None

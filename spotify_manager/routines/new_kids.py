@@ -6,21 +6,24 @@ import json
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import asdict
-from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
-from typing import Literal
 
 from spotipy import Spotify
 
 from spotify_manager.application import composer_progression
 from spotify_manager.application import composer_routes
+from spotify_manager.application import new_kids_state as discovery_state
+from spotify_manager.application.new_kids_planner import ReviewSource
 from spotify_manager.application.new_kids_values import (
     ArtistAssessment as ArtistAssessment,
 )
+from spotify_manager.application.new_kids_values import FillResult as FillResult
+from spotify_manager.application.new_kids_values import FlushResult as FlushResult
+from spotify_manager.application.new_kids_values import FlushSummary as FlushSummary
 from spotify_manager.application.new_kids_values import (
     NewKidsConfigError as NewKidsConfigError,
 )
@@ -28,6 +31,8 @@ from spotify_manager.application.new_kids_values import NewKidsError as NewKidsE
 from spotify_manager.application.new_kids_values import (
     NewKidsStateError as NewKidsStateError,
 )
+from spotify_manager.application.new_kids_values import Queue2Summary as Queue2Summary
+from spotify_manager.application.release_evaluation import evaluate_catalog_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
@@ -96,74 +101,6 @@ ChoiceCandidate = RankedRelease | composer_playlists.OwnedPlaylist
 ReleaseChoiceReader = Callable[[str, tuple[ChoiceCandidate, ...]], str]
 
 
-@dataclass(frozen=True)
-class FillResult:
-    """One Queue 2 marker considered while filling New Kids."""
-
-    artist: str
-    track: str
-    action: Literal["moved", "reconciled", "skipped"]
-
-
-@dataclass(frozen=True)
-class FlushResult:
-    """One snapshotted New Kids track decision."""
-
-    artist: str
-    source_track: str
-    source_release: str
-    current_liked: bool
-    consecutive_unliked: int
-    action: Literal[
-        "advance",
-        "next release",
-        "great discovery",
-        "unlucky",
-        "unfollowed",
-        "skip",
-    ]
-    target_track: str | None = None
-    target_release: str | None = None
-    release_number: int | None = None
-    album_decision: str | None = None
-    album_liked_tracks: int | None = None
-    album_total_tracks: int | None = None
-    qualification_reasons: tuple[str, ...] = ()
-    composer_playlist: str | None = None
-    composer_position: int | None = None
-    composer_limit: int | None = None
-    dry_run: bool = False
-
-
-@dataclass(frozen=True)
-class FlushSummary:
-    """Complete result of one restart-safe New Kids run."""
-
-    results: tuple[FlushResult, ...]
-    prefill: tuple[FillResult, ...]
-    postfill: tuple[FillResult, ...]
-    playlist_length_before: int
-    playlist_length_after: int
-    paused: bool
-    resumed: bool
-    dry_run: bool
-
-
-@dataclass(frozen=True)
-class Queue2Summary:
-    """Complete result of one restart-safe Queue 2 run."""
-
-    results: tuple[FlushResult, ...]
-    prefill: tuple[FillResult, ...]
-    queue_length_before: int
-    queue_length_after: int
-    new_kids_length_before: int
-    new_kids_length_after: int
-    paused: bool
-    resumed: bool
-    dry_run: bool
-
-
 AnnualReleaseKey = history_policy.AnnualReleaseKey
 AnnualScrobbleIndex = history_policy.AnnualScrobbleIndex
 
@@ -177,9 +114,7 @@ def parse_playlist_id(value: str | None, variable: str) -> str:
 
 
 def _positive_int(value: object, fallback: int = 0) -> int:
-    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-        return value
-    return fallback
+    return discovery_state.positive_int(value, fallback)
 
 
 def _annual_release_key(artist: str, release: str) -> AnnualReleaseKey:
@@ -832,30 +767,15 @@ def append_event(path: Path, event: str, **details: object) -> None:
 
 
 def _source_from_record(raw: object) -> new_wine.PlaylistTrack:
-    if not isinstance(raw, dict) or not isinstance(raw.get("release"), dict):
-        raise NewKidsStateError("New Kids run contains an invalid source track.")
-    return new_wine.PlaylistTrack(
-        spotify_id=str(raw["spotify_id"]),
-        uri=str(raw["uri"]),
-        name=str(raw["name"]),
-        primary_artist_id=str(raw["primary_artist_id"]),
-        primary_artist_name=str(raw["primary_artist_name"]),
-        release=new_wine.ReleaseCandidate(**raw["release"]),
-    )
+    return discovery_state.source_from_record(raw)
 
 
 def _release_from_record(raw: object) -> RankedRelease:
-    if not isinstance(raw, dict):
-        raise NewKidsStateError("New Kids plan contains an invalid release.")
-    return RankedRelease(**raw)
+    return discovery_state.release_from_record(raw)
 
 
 def _track_from_record(raw: object) -> CatalogTrack | None:
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        raise NewKidsStateError("New Kids plan contains an invalid track.")
-    return CatalogTrack(**raw)
+    return discovery_state.track_from_record(raw)
 
 
 def _artist_progress(
@@ -864,40 +784,16 @@ def _artist_progress(
     artist_id: str,
     artist_name: str,
 ) -> dict[str, object]:
-    artists = state["artists"]
-    assert isinstance(artists, dict)
-    raw = artists.get(artist_id)
-    if not isinstance(raw, dict):
-        release = _source_release(source)
-        raw = {
-            "artist_name": artist_name,
-            "current_release_id": release.spotify_id,
-            "prior_unliked_streak": None,
-            "updated_at": datetime.now(UTC).isoformat(),
-        }
-        artists[artist_id] = raw
-    for legacy_key in (
-        "selected_release_ids",
-        "selected_release_identities",
-        "completed_release_ids",
-    ):
-        raw.pop(legacy_key, None)
-    return raw
+    return discovery_state.artist_progress(
+        state, source, artist_id, artist_name, _utc_now
+    )
 
 
 def _track_index(
     tracks: tuple[CatalogTrack, ...],
     source: new_wine.PlaylistTrack,
 ) -> int | None:
-    for index, track in enumerate(tracks):
-        if track.spotify_id == source.spotify_id:
-            return index
-    matches = [
-        index
-        for index, track in enumerate(tracks)
-        if track.name.casefold() == source.name.casefold()
-    ]
-    return matches[0] if len(matches) == 1 else None
+    return discovery_policy.catalog_track_index(tracks, source)
 
 
 def _live_evaluation(
@@ -905,27 +801,7 @@ def _live_evaluation(
     tracks: tuple[CatalogTrack, ...],
     liked: dict[str, bool],
 ) -> AlbumEvaluation:
-    as_new_wine = new_wine.ReleaseCandidate(
-        spotify_id=release.spotify_id,
-        uri=release.uri,
-        name=release.name,
-        release_type=release.release_type,
-        release_date=release.release_date,
-        total_tracks=release.total_tracks,
-        primary_artist_id=release.primary_artist_id,
-        primary_artist_name=release.primary_artist_name,
-    )
-    as_tracks = tuple(
-        new_wine.ReleaseTrack(
-            spotify_id=track.spotify_id,
-            uri=track.uri,
-            name=track.name,
-            disc_number=track.disc_number,
-            track_number=track.track_number,
-        )
-        for track in tracks
-    )
-    return new_wine._live_evaluation(as_new_wine, as_tracks, liked)
+    return evaluate_catalog_release(release, tracks, liked)
 
 
 def _read_json_list(path: Path) -> list[object]:
@@ -1310,17 +1186,7 @@ def _logical_artist(
     track: new_wine.PlaylistTrack,
 ) -> tuple[str, str]:
     """Recover a composer's identity from the current works-playlist marker."""
-    routes = state.get("composer_routes")
-    if isinstance(routes, dict):
-        for artist_id, raw_route in routes.items():
-            if not isinstance(raw_route, dict):
-                continue
-            if str(raw_route.get("current_track_id") or "") != track.spotify_id:
-                continue
-            artist_name = str(raw_route.get("artist_name") or "").strip()
-            if artist_name:
-                return str(artist_id), artist_name
-    return track.primary_artist_id, track.primary_artist_name
+    return discovery_state.logical_artist(state, track)
 
 
 def _new_run(
@@ -1328,39 +1194,14 @@ def _new_run(
     tracks: list[new_wine.PlaylistTrack],
     state: dict[str, object],
 ) -> dict[str, object]:
-    entries: list[dict[str, object]] = []
-    seen_artists: set[str] = set()
-    for track in tracks:
-        artist_id, artist_name = _logical_artist(state, track)
-        if artist_id in seen_artists:
-            continue
-        seen_artists.add(artist_id)
-        entries.append(
-            {
-                "source": asdict(track),
-                "artist_id": artist_id,
-                "artist_name": artist_name,
-                "status": "pending",
-                "plan": None,
-            }
-        )
-    return {
-        "run_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ"),
-        "playlist_id": playlist_id,
-        "status": "active",
-        "entries": entries,
-        "started_at": datetime.now(UTC).isoformat(),
-    }
+    return discovery_state.new_run(playlist_id, tracks, state, _utc_now)
 
 
 def next_release_options(
     releases: tuple[RankedRelease, ...],
 ) -> tuple[RankedRelease, ...]:
     """Return only the highest-priority release tier still available."""
-    if not releases:
-        return ()
-    best_tier = min(release.tier for release in releases)
-    return tuple(release for release in releases if release.tier == best_tier)
+    return discovery_policy.next_release_options(releases)
 
 
 def _plan_result(
@@ -1370,48 +1211,8 @@ def _plan_result(
     *,
     artist_name: str | None = None,
 ) -> FlushResult:
-    target = _track_from_record(plan.get("target"))
-    target_release = (
-        _release_from_record(plan["target_release"])
-        if plan.get("target_release") is not None
-        else None
-    )
-    assessment = plan.get("assessment")
-    reasons: tuple[str, ...] = ()
-    if isinstance(assessment, dict):
-        raw_reasons = assessment.get("reasons")
-        if isinstance(raw_reasons, (list, tuple)):
-            reasons = tuple(str(reason) for reason in raw_reasons)
-    evaluation = plan.get("evaluation")
-    liked_tracks: int | None = None
-    total_tracks: int | None = None
-    decision: str | None = None
-    if isinstance(evaluation, dict):
-        liked_tracks = _positive_int(evaluation.get("liked_tracks"))
-        total_tracks = _positive_int(evaluation.get("total_tracks"))
-        decision = str(evaluation.get("decision") or "") or None
-    return FlushResult(
-        artist=artist_name or source.primary_artist_name,
-        source_track=source.name,
-        source_release=source.release.name,
-        current_liked=bool(plan.get("current_liked")),
-        consecutive_unliked=_positive_int(plan.get("consecutive_unliked")),
-        action=str(plan["result_action"]),  # type: ignore[arg-type]
-        target_track=target.name if target else None,
-        target_release=target_release.name if target_release else None,
-        release_number=(_positive_int(plan.get("release_number")) or None),
-        album_decision=decision,
-        album_liked_tracks=liked_tracks,
-        album_total_tracks=total_tracks,
-        qualification_reasons=reasons,
-        composer_playlist=(
-            str(plan.get("composer_playlist_name"))
-            if plan.get("composer_playlist_name")
-            else None
-        ),
-        composer_position=(_positive_int(plan.get("composer_position")) or None),
-        composer_limit=(_positive_int(plan.get("composer_limit")) or None),
-        dry_run=dry_run,
+    return discovery_state.result_from_plan(
+        source, plan, dry_run, artist_name=artist_name
     )
 
 
@@ -1548,15 +1349,25 @@ def _flush_review_playlist(
     results: list[FlushResult] = []
     paused = False
 
-    def catalog_for(artist_id: str) -> tuple[RankedRelease, ...]:
-        if artist_id not in catalog_cache:
-            catalog_cache[artist_id] = load_ranked_catalog(sp, artist_id, retry)
-        return catalog_cache[artist_id]
+    from spotify_manager.bootstrap.new_kids import review_planner
 
-    def tracks_for(release: RankedRelease) -> tuple[CatalogTrack, ...]:
-        if release.spotify_id not in track_cache:
-            track_cache[release.spotify_id] = load_release_tracks(sp, release, retry)
-        return track_cache[release.spotify_id]
+    planner = review_planner(
+        sp,
+        retry,
+        choice_reader,
+        year=active_year,
+        dry_run=dry_run,
+        history=annual_scrobbles,
+        release_limit=RELEASES_PER_ARTIST,
+        studio_minimum=MIN_SCROBBLED_TRACKS_PER_RELEASE,
+        log_path=log_path,
+        echo=echo,
+        catalogs=catalog_cache,
+        tracks=track_cache,
+        liked=liked_cache,
+        works=composer_track_cache,
+    )
+    observations = planner.observations
 
     def membership(playlist_id: str) -> tuple[set[str], set[str]]:
         if playlist_id not in membership_cache:
@@ -1645,7 +1456,7 @@ def _flush_review_playlist(
                     assess_artist(
                         sp,
                         artist_id,
-                        catalog_for(artist_id),
+                        observations.catalog(artist_id),
                         retry,
                         track_cache,
                     )
@@ -1665,7 +1476,7 @@ def _flush_review_playlist(
                 if not dry_run:
                     state_access.save(state)
 
-        catalog = catalog_for(artist_id)
+        catalog = observations.catalog(artist_id)
         current_release = next(
             (
                 release
@@ -1676,240 +1487,41 @@ def _flush_review_playlist(
         )
         if all(release.identity != current_release.identity for release in catalog):
             catalog = (current_release, *catalog)
-        current_tracks = tracks_for(current_release)
+        current_tracks = observations.tracks(current_release)
         primary_tracks = progression.primary_artist_tracks(current_tracks, artist_id)
         source_index = _track_index(primary_tracks, source)
 
         if plan is None:
-            new_wine.get_liked_statuses(
-                sp,
-                [source.spotify_id],
-                liked_cache,
-                retry,
+            context = ReviewSource(
+                source,
+                artist_id,
+                artist_name,
+                progress,
+                catalog,
+                current_release,
+                current_tracks,
+                primary_tracks,
+                source_index,
             )
-            current_liked = liked_cache[source.spotify_id]
-            raw_prior = progress.get("prior_unliked_streak")
-            prior_streak = raw_prior if isinstance(raw_prior, int) else 0
-            if not isinstance(raw_prior, int) and source_index is not None:
-                preceding = list(primary_tracks[:source_index])
-                new_wine.get_liked_statuses(
-                    sp,
-                    [track.spotify_id for track in preceding],
-                    liked_cache,
-                    retry,
-                )
-                prior_streak += progression.trailing_unliked(
-                    liked_cache[track.spotify_id] for track in reversed(preceding)
-                )
-            streak = progression.advance_streak(prior_streak, current_liked)
-            target: CatalogTrack | None = None
-            advance_reason = "next track"
-            if streak >= 3:
-                new_wine.get_liked_statuses(
-                    sp,
-                    [track.spotify_id for track in primary_tracks],
-                    liked_cache,
-                    retry,
-                )
-                target = progression.next_liked_track(
-                    primary_tracks,
-                    source_index,
-                    liked_cache,
-                )
-                advance_reason = "next liked track"
-            elif source_index is not None and source_index + 1 < len(primary_tracks):
-                target = primary_tracks[source_index + 1]
-
-            if target is not None:
-                plan = {
-                    "action": "advance",
-                    "result_action": "advance",
-                    "current_release": asdict(current_release),
-                    "target_release": asdict(current_release),
-                    "target": asdict(target),
-                    "current_liked": current_liked,
-                    "consecutive_unliked": streak,
-                    "next_prior_unliked_streak": (
-                        0 if advance_reason == "next liked track" else streak
-                    ),
-                    "advance_reason": advance_reason,
-                }
-            else:
-                new_wine.get_liked_statuses(
-                    sp,
-                    [track.spotify_id for track in current_tracks],
-                    liked_cache,
-                    retry,
-                )
-                evaluation = _live_evaluation(
-                    current_release,
-                    current_tracks,
-                    liked_cache,
-                )
-                review_catalog = release_review_catalog(catalog)
-                played_releases = played_releases_from_history(
-                    sp,
-                    review_catalog,
-                    annual_scrobbles,
-                    retry,
-                    track_cache,
-                    liked_cache,
-                )
-                played_identity_set = {release.identity for release in played_releases}
-                echo(
-                    f"{artist_name}: {len(played_releases)} "
-                    f"release(s) completed from {active_year} Last.fm scrobbles."
-                )
+            decision = planner.plan(context)
+            if decision is None:
+                paused = True
+                break
+            if isinstance(decision, FlushResult):
+                raw_entry["status"] = "skipped"
+                results.append(decision)
                 append_event(
                     log_path,
-                    "annual_release_progress_checked",
+                    "artist_skipped_run",
                     artist=artist_name,
                     artist_id=artist_id,
-                    year=active_year,
-                    played_release_ids=[
-                        release.spotify_id for release in played_releases
-                    ],
-                    played_release_names=[release.name for release in played_releases],
                     dry_run=dry_run,
                 )
-
-                if len(played_releases) >= RELEASES_PER_ARTIST:
-                    assessment = assess_artist(
-                        sp,
-                        artist_id,
-                        catalog,
-                        retry,
-                        track_cache,
-                    )
-                    if assessment.top_liked_track is None:
-                        result_action = "unfollowed"
-                    elif assessment.qualifies:
-                        result_action = "great discovery"
-                    elif assessment.top_liked_track is not None:
-                        result_action = "unlucky"
-                    else:
-                        result_action = "unfollowed"
-                    plan = {
-                        "action": "finish",
-                        "result_action": result_action,
-                        "current_release": asdict(current_release),
-                        "target_release": None,
-                        "target": None,
-                        "current_liked": current_liked,
-                        "consecutive_unliked": streak,
-                        "evaluation": evaluation.model_dump(mode="json"),
-                        "assessment": asdict(assessment),
-                    }
-                else:
-                    remaining = tuple(
-                        release
-                        for release in review_catalog
-                        if release.identity not in played_identity_set
-                        and release.identity != current_release.identity
-                    )
-                    viable: list[RankedRelease] = []
-                    for candidate in remaining:
-                        candidate_tracks = tracks_for(candidate)
-                        if any(
-                            track.primary_artist_id == artist_id
-                            for track in candidate_tracks
-                        ):
-                            viable.append(candidate)
-                    options = next_release_options(tuple(viable))
-                    if not options:
-                        assessment = assess_artist(
-                            sp,
-                            artist_id,
-                            catalog,
-                            retry,
-                            track_cache,
-                        )
-                        plan = {
-                            "action": "finish",
-                            "result_action": (
-                                "unfollowed"
-                                if assessment.top_liked_track is None
-                                else (
-                                    "great discovery"
-                                    if assessment.qualifies
-                                    else "unlucky"
-                                )
-                            ),
-                            "current_release": asdict(current_release),
-                            "target_release": None,
-                            "target": None,
-                            "current_liked": current_liked,
-                            "consecutive_unliked": streak,
-                            "evaluation": evaluation.model_dump(mode="json"),
-                            "assessment": asdict(assessment),
-                        }
-                    else:
-                        displayed = options[:10]
-                        choice = choice_reader(artist_name, displayed)
-                        if choice == CHOICE_QUIT:
-                            paused = True
-                            break
-                        if choice == CHOICE_SKIP:
-                            raw_entry["status"] = "skipped"
-                            result = FlushResult(
-                                artist=artist_name,
-                                source_track=source.name,
-                                source_release=source.release.name,
-                                current_liked=current_liked,
-                                consecutive_unliked=streak,
-                                action="skip",
-                                dry_run=dry_run,
-                            )
-                            results.append(result)
-                            append_event(
-                                log_path,
-                                "artist_skipped_run",
-                                artist=artist_name,
-                                artist_id=artist_id,
-                                dry_run=dry_run,
-                            )
-                            if not dry_run:
-                                state_access.save(state)
-                            continue
-                        selected = next(
-                            (
-                                release
-                                for release in displayed
-                                if release.spotify_id == choice
-                            ),
-                            None,
-                        )
-                        if selected is None:
-                            raise NewKidsError("Selected release is not available.")
-                        selected_tracks = tracks_for(selected)
-                        next_track = next(
-                            (
-                                track
-                                for track in selected_tracks
-                                if track.primary_artist_id == artist_id
-                            ),
-                            None,
-                        )
-                        if next_track is None:
-                            raise NewKidsError(
-                                f"{selected.name} has no primary-artist tracks."
-                            )
-                        plan = {
-                            "action": "next_release",
-                            "result_action": "next release",
-                            "current_release": asdict(current_release),
-                            "target_release": asdict(selected),
-                            "target": asdict(next_track),
-                            "current_liked": current_liked,
-                            "consecutive_unliked": streak,
-                            "next_prior_unliked_streak": 0,
-                            "release_number": len(played_releases) + 1,
-                            "evaluation": evaluation.model_dump(mode="json"),
-                        }
-
+                _checkpoint_review(state_access, state, dry_run)
+                continue
+            plan = decision
             raw_entry["plan"] = plan
-            if not dry_run:
-                state_access.save(state)
+            _checkpoint_review(state_access, state, dry_run)
 
         assert plan is not None
         action = str(plan["action"])
@@ -2354,3 +1966,10 @@ def flush_queue_2(
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def _checkpoint_review(
+    access: RoutineState, state: dict[str, object], dry_run: bool
+) -> None:
+    if not dry_run:
+        access.save(state)
