@@ -1037,26 +1037,20 @@ def _great_discoveries_playlist(
     state_access: RoutineState,
     echo: Echo,
 ) -> str | None:
-    playlists = state["great_discoveries_playlists"]
-    assert isinstance(playlists, dict)
-    stored = playlists.get(str(year))
-    if isinstance(stored, str) and stored:
-        return stored
-    if year == 2026:
-        if not dry_run:
-            playlists[str(year)] = seed_2026_playlist_id
-            state_access.save(state)
-        return seed_2026_playlist_id
-    if dry_run:
-        echo(
-            f"Would create Great Discoveries {year}. Spotify's API cannot place "
-            "it in a playlist folder."
-        )
-        return None
+    from spotify_manager.bootstrap.new_kids import great_discoveries
+
+    service = great_discoveries(sp, retry_call, state_access, echo)
+    return service.resolve(state, year, seed_2026_playlist_id, dry_run)
+
+
+def _current_user_id(sp: Spotify, retry_call: RetryCall) -> str:
     profile = retry_call(sp.current_user, "loading the current Spotify profile")
-    user_id = str(profile.get("id") or "") if isinstance(profile, dict) else ""
-    if not user_id:
-        raise NewKidsError("Spotify returned an invalid current-user profile.")
+    return str(profile.get("id") or "") if isinstance(profile, dict) else ""
+
+
+def _create_great_playlist(
+    sp: Spotify, user_id: str, year: int, retry_call: RetryCall
+) -> str:
     created = retry_call(
         partial(
             sp.user_playlist_create,
@@ -1069,16 +1063,7 @@ def _great_discoveries_playlist(
         ),
         f"creating Great Discoveries {year}",
     )
-    playlist_id = str(created.get("id") or "") if isinstance(created, dict) else ""
-    if not playlist_id:
-        raise NewKidsError("Spotify did not return the created playlist id.")
-    playlists[str(year)] = playlist_id
-    state_access.save(state)
-    echo(
-        f"Created Great Discoveries {year}. Move it into the intended folder "
-        "manually; Spotify's API does not expose playlist folders."
-    )
-    return playlist_id
+    return str(created.get("id") or "") if isinstance(created, dict) else ""
 
 
 def _move_queue_entries(
@@ -1098,67 +1083,41 @@ def _move_queue_entries(
     tuple[FillResult, ...],
     list[new_wine.PlaylistTrack],
 ]:
-    queue_tracks = queue
-    if queue_tracks is None:
-        queue_tracks = list(
-            new_wine.load_playlist_tracks(sp, queue_2_playlist_id, retry_call)
-        )
-    current_ids = {track.spotify_id for track in current}
-    current_artists = {_logical_artist(state, track)[0] for track in current}
-    results: list[FillResult] = []
-    remaining: list[new_wine.PlaylistTrack] = []
-    for index, source in enumerate(queue_tracks):
-        artist_id, artist_name = _logical_artist(state, source)
-        if len(current) >= PLAYLIST_CAP:
-            remaining.extend(queue_tracks[index:])
-            break
-        if artist_id in current_artists:
-            if not dry_run:
-                retry_call(
-                    partial(
-                        remove_playlist_items,
-                        sp,
-                        queue_2_playlist_id,
-                        [source.uri],
-                    ),
-                    f"removing reconciled Queue 2 marker for {artist_name}",
-                )
-            results.append(FillResult(artist_name, source.name, "reconciled"))
-            continue
-        if source.spotify_id not in current_ids and not dry_run:
-            retry_call(
-                partial(add_playlist_item, sp, new_kids_playlist_id, source.uri),
-                f"adding {artist_name} to New Kids",
-            )
-        if not dry_run:
-            retry_call(
-                partial(
-                    remove_playlist_items,
-                    sp,
-                    queue_2_playlist_id,
-                    [source.uri],
-                ),
-                f"removing {artist_name} from Queue 2",
-            )
-        current.append(source)
-        current_ids.add(source.spotify_id)
-        current_artists.add(artist_id)
-        result = FillResult(artist_name, source.name, "moved")
-        results.append(result)
-        append_event(
-            log_path,
-            "queue_2_moved",
-            artist=artist_name,
-            artist_id=artist_id,
-            track=source.name,
-            track_id=source.spotify_id,
-            dry_run=dry_run,
-        )
-        echo(
-            f"{'Would move' if dry_run else 'Moved'} "
-            f"{artist_name} from Queue 2 to New Kids."
-        )
-    return current, tuple(results), remaining
+    from spotify_manager.bootstrap.new_kids import queue_transfer
+
+    service = queue_transfer(
+        sp,
+        retry_call,
+        new_kids_playlist_id,
+        queue_2_playlist_id,
+        PLAYLIST_CAP,
+        dry_run,
+        log_path,
+        echo,
+    )
+    return service.move(current, state, queue)
+
+
+def _append_queue_track(
+    sp: Spotify,
+    playlist_id: str,
+    source: new_wine.PlaylistTrack,
+    description: str,
+    retry_call: RetryCall,
+) -> None:
+    retry_call(partial(add_playlist_item, sp, playlist_id, source.uri), description)
+
+
+def _remove_queue_track(
+    sp: Spotify,
+    playlist_id: str,
+    source: new_wine.PlaylistTrack,
+    description: str,
+    retry_call: RetryCall,
+) -> None:
+    retry_call(
+        partial(remove_playlist_items, sp, playlist_id, [source.uri]), description
+    )
 
 
 def _logical_artist(

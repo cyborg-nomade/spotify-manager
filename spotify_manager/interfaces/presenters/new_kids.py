@@ -95,3 +95,36 @@ class NewKidsPresenter:
             dry_run: Whether to use preview wording.
         """
         self.echo(f"{'Would unfollow' if dry_run else 'Unfollowed'} {name}.")
+
+    def preview_creation(self, year: int) -> None:
+        """Explain destination creation during previews.
+
+        Args:
+            year: Original review year.
+        """
+        self.echo(
+            f"Would create Great Discoveries {year}. Spotify's API cannot place "
+            "it in a playlist folder."
+        )
+
+    def created(self, year: int) -> None:
+        """Explain manual folder placement after successful creation and checkpoint.
+
+        Args:
+            year: Original review year.
+        """
+        self.echo(
+            f"Created Great Discoveries {year}. Move it into the intended folder "
+            "manually; Spotify's API does not expose playlist folders."
+        )
+
+    def moved(self, artist: str, dry_run: bool) -> None:
+        """Show a successful or projected Queue 2 transfer after its audit.
+
+        Args:
+            artist: Logical artist display name.
+            dry_run: Whether to use preview wording.
+        """
+        self.echo(
+            f"{'Would move' if dry_run else 'Moved'} {artist} from Queue 2 to New Kids."
+        )

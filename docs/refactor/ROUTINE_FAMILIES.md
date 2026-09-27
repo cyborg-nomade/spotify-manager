@@ -307,3 +307,26 @@ actions and malformed optional records retain their original handling.
   package/inner-layer lint, formatting and type checks pass.
 - Great Discoveries creation, Queue 2 transfer/refill and shared run coordination
   remain to be extracted before this routine family is complete.
+
+### Discovery destination creation and queue transfer checkpoint
+
+Yearly playlist resolution now belongs to an application service. Stored IDs,
+the configured 2026 seed, future-year previews, profile validation, private playlist
+creation, namespace checkpoint and folder-placement messages retain their original
+ordering. Checkpoint failures retain accepted IDs in the working namespace.
+
+Queue 2 transfers now use a separate application service over explicit playlist,
+audit and presentation boundaries. Capacity is checked before reconciliation,
+logical composer credits control deduplication, additions precede removals, and
+the destination list changes only after queue removal. Previews retain projected
+membership, transfer audit and messages. Existing same-track/different-credit and
+explicit-empty-queue behavior remain covered without tightening validation.
+
+- Full suite: **2,188 tests pass**, seed `20260940`; **92.25% statements**
+  (19,030 / 20,629) and **79.66% branches** (4,206 / 5,280).
+- All **503 independent application tests** pass at **100% statement and branch
+  coverage** for configured targets. Twenty-nine new tests cover destination and
+  transfer decisions, remote failures, projection timing and checkpoint failures.
+- All 233 New Kids/characterization tests, eleven frozen interface artifacts,
+  package lint, formatting and type checks pass.
+- Shared run coordination and Queue 2 invocation preparation remain in progress.

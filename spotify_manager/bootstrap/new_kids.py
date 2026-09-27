@@ -8,8 +8,10 @@ from spotipy import Spotify
 
 from spotify_manager.application.composer_routes import ReleaseChoiceReader
 from spotify_manager.application.discovery_completion import DiscoveryCompletion
+from spotify_manager.application.discovery_destinations import GreatDiscoveries
 from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.discovery_observations import DiscoveryObservations
+from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
 from spotify_manager.application.new_kids_execution import NewKidsExecution
 from spotify_manager.application.new_kids_planner import NewKidsPlanner
 from spotify_manager.application.ports.listening import RetryCall
@@ -22,7 +24,13 @@ from spotify_manager.infrastructure.legacy.discovery import LegacyDiscoveryAudit
 from spotify_manager.infrastructure.legacy.discovery import LegacyDiscoveryCatalog
 from spotify_manager.infrastructure.legacy.discovery import LegacyDiscoveryLibrary
 from spotify_manager.infrastructure.legacy.discovery_execution import (
+    LegacyDiscoveryCreation,
+)
+from spotify_manager.infrastructure.legacy.discovery_execution import (
     LegacyDiscoveryEffects,
+)
+from spotify_manager.infrastructure.legacy.discovery_execution import (
+    LegacyDiscoveryQueue,
 )
 from spotify_manager.interfaces.presenters.new_kids import NewKidsPresenter
 
@@ -178,4 +186,62 @@ def review_execution(
         label,
         dry_run,
         clock,
+    )
+
+
+def great_discoveries(
+    client: Spotify,
+    retry: RetryCall,
+    state_access: RoutineState,
+    echo: Callable[[str], None],
+) -> GreatDiscoveries:
+    """Compose yearly playlist creation with original observations and state writes.
+
+    Args:
+        client: Caller-owned synchronous Spotify client.
+        retry: Existing retry/cancellation callback.
+        state_access: Original namespace checkpoint boundary.
+        echo: Existing CLI or job output sink.
+
+    Returns:
+        Yearly destination resolver over the original external boundaries.
+    """
+    return GreatDiscoveries(
+        LegacyDiscoveryCreation(client, retry), state_access, NewKidsPresenter(echo)
+    )
+
+
+def queue_transfer(
+    client: Spotify,
+    retry: RetryCall,
+    destination: str,
+    source: str,
+    capacity: int,
+    dry_run: bool,
+    log_path: Path,
+    echo: Callable[[str], None],
+) -> DiscoveryQueueTransfer:
+    """Compose queue transfers over the original observation and audit boundaries.
+
+    Args:
+        client: Caller-owned synchronous Spotify client.
+        retry: Existing retry/cancellation callback.
+        destination: New Kids destination identifier.
+        source: Queue 2 source identifier.
+        capacity: Original destination marker-count cap.
+        dry_run: Whether to project transfers without remote writes.
+        log_path: Existing routine event log.
+        echo: Existing CLI or job output sink.
+
+    Returns:
+        Queue transfer service preserving original marker and logical-artist rules.
+    """
+    return DiscoveryQueueTransfer(
+        LegacyDiscoveryQueue(client, retry),
+        LegacyDiscoveryAudit(log_path),
+        NewKidsPresenter(echo),
+        destination,
+        source,
+        capacity,
+        dry_run,
     )

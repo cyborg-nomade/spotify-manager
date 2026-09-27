@@ -89,6 +89,8 @@ test-application:
         --cov=spotify_manager.application.discovery_observations \
         --cov=spotify_manager.application.discovery_library \
         --cov=spotify_manager.application.discovery_completion \
+        --cov=spotify_manager.application.discovery_destinations \
+        --cov=spotify_manager.application.discovery_queue \
         --cov=spotify_manager.application.new_kids_execution \
         --cov=spotify_manager.application.release_history \
         --cov=spotify_manager.application.credited_artists \

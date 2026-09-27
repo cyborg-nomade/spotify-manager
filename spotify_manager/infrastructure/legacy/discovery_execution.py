@@ -121,3 +121,86 @@ class LegacyDiscoveryEffects:
             artist_id: Logical artist identifier.
         """
         new_kids.remove_local_artist(artist_id, self.artists_path)
+
+
+@dataclass(frozen=True)
+class LegacyDiscoveryCreation:
+    """Bind original Spotify identity and playlist creation observations.
+
+    Args:
+        client: Caller-owned synchronous Spotify client.
+        retry: Existing retry/cancellation callback.
+    """
+
+    client: Spotify
+    retry: RetryCall
+
+    def current_user(self) -> str:
+        """Read the original profile ID using tolerant response parsing.
+
+        Returns:
+            Observed profile identifier, or an empty string.
+        """
+        return new_kids._current_user_id(self.client, self.retry)
+
+    def create(self, user_id: str, year: int) -> str:
+        """Create the original private yearly playlist.
+
+        Args:
+            user_id: Accepted profile identifier.
+            year: Original review year for name and description.
+
+        Returns:
+            Created identifier, or an empty string for an invalid response.
+        """
+        return new_kids._create_great_playlist(self.client, user_id, year, self.retry)
+
+
+@dataclass(frozen=True)
+class LegacyDiscoveryQueue:
+    """Bind queue transfers to original playlist observation and mutation helpers.
+
+    Args:
+        client: Caller-owned synchronous Spotify client.
+        retry: Existing retry/cancellation callback.
+    """
+
+    client: Spotify
+    retry: RetryCall
+
+    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+        """Observe playable queue markers in their original order.
+
+        Args:
+            playlist_id: Queue source identifier.
+
+        Returns:
+            Original markers, retaining duplicates.
+        """
+        return new_kids.new_wine.load_playlist_tracks(
+            self.client, playlist_id, self.retry
+        )
+
+    def append(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+        """Secure a queue marker through the original append helper.
+
+        Args:
+            playlist_id: Destination identifier.
+            source: Original queue marker.
+            description: Original retry message.
+        """
+        new_kids._append_queue_track(
+            self.client, playlist_id, source, description, self.retry
+        )
+
+    def remove(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+        """Remove a moved or reconciled marker through the original helper.
+
+        Args:
+            playlist_id: Queue source identifier.
+            source: Original queue marker.
+            description: Original retry message.
+        """
+        new_kids._remove_queue_track(
+            self.client, playlist_id, source, description, self.retry
+        )
