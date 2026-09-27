@@ -24,9 +24,11 @@ ALLOWED_IMPORTS = {
 IMPORT_SMOKE = """
 import importlib
 import sys
+from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-for name in ('albums', 'artists', 'completion', 'history', 'progression', 'releases'):
-    importlib.import_module('spotify_manager.domain.' + name)
+domain = Path(sys.argv[1]) / 'spotify_manager' / 'domain'
+for path in sorted(domain.glob('*.py')):
+    importlib.import_module('spotify_manager.domain.' + path.stem)
 for name in sys.modules:
     assert not name.startswith(('spotipy', 'requests', 'httpx', 'pydantic', 'fastapi'))
     assert not name.startswith(('spotify_manager.settings', 'spotify_manager.client'))

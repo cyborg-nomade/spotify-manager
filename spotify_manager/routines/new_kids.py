@@ -17,16 +17,24 @@ from typing import Literal
 
 from spotipy import Spotify
 
+from spotify_manager.application.new_kids_values import (
+    ArtistAssessment as ArtistAssessment,
+)
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
 from spotify_manager.core.state.compat import routine_state
+from spotify_manager.domain import completion
 
 # UFI
-from spotify_manager.domain import artists as artist_policy
-from spotify_manager.domain import completion
+from spotify_manager.domain import discovery_history as history_policy
 from spotify_manager.domain import progression
 from spotify_manager.domain import releases as release_policy
+from spotify_manager.domain.discovery import CatalogTrack as CatalogTrack
+from spotify_manager.domain.discovery import RankedRelease as RankedRelease
+from spotify_manager.domain.discovery import ReleaseTier as ReleaseTier
+from spotify_manager.domain.discovery_assessment import qualification_reasons
+from spotify_manager.domain.releases import release_identity
 from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -40,7 +48,6 @@ from spotify_manager.routines.review_album_limits import append_removed_album_lo
 from spotify_manager.routines.review_artists import add_playlist_item
 from spotify_manager.routines.review_artists import remove_library_artists
 from spotify_manager.routines.review_artists import remove_playlist_items
-from spotify_manager.routines.slow_listening import release_identity
 from spotify_manager.utils.sorting import album_sort_key
 from spotify_manager.utils.sorting import artist_sort_key
 
@@ -78,7 +85,6 @@ DECORATED_PATTERN = re.compile(
 Echo = Callable[[str], None]
 ProgressCallback = Callable[[int, int, str], None]
 RetryCall = Callable[[Callable[[], object], str], object]
-ReleaseTier = Literal[0, 1, 2, 3]
 
 
 class NewKidsError(RuntimeError):
@@ -93,42 +99,8 @@ class NewKidsStateError(NewKidsError):
     """Raised when durable routine state is malformed or cannot be saved."""
 
 
-@dataclass(frozen=True)
-class RankedRelease:
-    """One canonical primary-artist release ranked for discovery."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    primary_artist_id: str
-    primary_artist_name: str
-    popularity: int | None
-    top_track_rank: int | None
-    tier: ReleaseTier
-    identity: str
-    saved: bool
-    plain: bool
-
-
 ChoiceCandidate = RankedRelease | composer_playlists.OwnedPlaylist
 ReleaseChoiceReader = Callable[[str, tuple[ChoiceCandidate, ...]], str]
-
-
-@dataclass(frozen=True)
-class CatalogTrack:
-    """One ordered release track with its primary credit."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    disc_number: int
-    track_number: int
-    primary_artist_id: str
-    primary_artist_name: str
-    popularity: int | None = None
 
 
 @dataclass(frozen=True)
@@ -138,21 +110,6 @@ class FillResult:
     artist: str
     track: str
     action: Literal["moved", "reconciled", "skipped"]
-
-
-@dataclass(frozen=True)
-class ArtistAssessment:
-    """Live completion criteria for one artist."""
-
-    liked_tracks: int
-    saved_releases: int
-    total_releases: int
-    liked_primary_tracks: int
-    total_primary_tracks: int
-    qualifies: bool
-    reasons: tuple[str, ...]
-    representative_track: CatalogTrack | None
-    top_liked_track: CatalogTrack | None
 
 
 @dataclass(frozen=True)
@@ -214,8 +171,8 @@ class Queue2Summary:
     dry_run: bool
 
 
-AnnualReleaseKey = tuple[str, str]
-AnnualScrobbleIndex = dict[AnnualReleaseKey, frozenset[str]]
+AnnualReleaseKey = history_policy.AnnualReleaseKey
+AnnualScrobbleIndex = history_policy.AnnualScrobbleIndex
 
 
 def parse_playlist_id(value: str | None, variable: str) -> str:
@@ -234,15 +191,12 @@ def _positive_int(value: object, fallback: int = 0) -> int:
 
 def _annual_release_key(artist: str, release: str) -> AnnualReleaseKey:
     """Return the edition-tolerant Last.fm identity for one artist release."""
-    return (
-        blast_from_past.normalize_name(artist),
-        release_identity(release),
-    )
+    return history_policy.annual_release_key(artist, release)
 
 
 def _scrobble_track_identity(name: str) -> str:
     """Normalize one Last.fm or Spotify track title across edition suffixes."""
-    return release_identity(blast_from_past.without_sliding_qualifiers(name))
+    return history_policy.scrobble_track_identity(name)
 
 
 def load_annual_scrobble_index(
@@ -250,7 +204,18 @@ def load_annual_scrobble_index(
     *,
     year: int,
 ) -> AnnualScrobbleIndex:
-    """Index distinct release tracks scrobbled in one Berlin calendar year."""
+    """Index distinct release tracks scrobbled in one Berlin calendar year.
+
+    Args:
+        path: Existing Last.fm export path.
+        year: Active local calendar year.
+
+    Returns:
+        Nonempty normalized titles grouped by artist/release identity.
+
+    Raises:
+        NewKidsStateError: Loading or decoding the source export fails.
+    """
     try:
         scrobbles_by_date = blast_from_past.load_scrobbles_by_date(path)
     except blast_from_past.LastFmExportError as exc:
@@ -258,16 +223,7 @@ def load_annual_scrobble_index(
             f"Could not load the {year} Last.fm scrobble history: {exc}"
         ) from exc
 
-    indexed: dict[AnnualReleaseKey, set[str]] = defaultdict(set)
-    for scrobble_date, scrobbles in scrobbles_by_date.items():
-        if scrobble_date.year != year:
-            continue
-        for scrobble in scrobbles:
-            key = _annual_release_key(scrobble.artist, scrobble.album)
-            track = _scrobble_track_identity(scrobble.track)
-            if all(key) and track:
-                indexed[key].add(track)
-    return {key: frozenset(tracks) for key, tracks in indexed.items()}
+    return history_policy.annual_scrobble_index(scrobbles_by_date, year)
 
 
 def refresh_scrobbles_for_release_progress(
@@ -854,19 +810,8 @@ def release_was_played_this_year(
     Returns:
         Whether enough distinct titles and every liked title were played.
     """
-    matched_names: set[str] = set()
-    liked_names: set[str] = set()
-    for track in tracks:
-        name = _scrobble_track_identity(track.name)
-        key = _annual_release_key(track.primary_artist_name, release.name)
-        if name in annual_scrobbles.get(key, frozenset()):
-            matched_names.add(name)
-        if liked.get(track.spotify_id, False):
-            liked_names.add(name)
-    return completion.release_completed(
-        matched_names,
-        liked_names,
-        release_scrobble_threshold(release),
+    return history_policy.release_was_played(
+        release, tracks, liked, annual_scrobbles, MIN_SCROBBLED_TRACKS_PER_RELEASE
     )
 
 
@@ -885,9 +830,15 @@ def release_scrobble_threshold(release: RankedRelease) -> int:
 def release_review_catalog(
     catalog: tuple[RankedRelease, ...],
 ) -> tuple[RankedRelease, ...]:
-    """Use fallback releases only when fewer than four studio releases exist."""
-    preferred = tuple(release for release in catalog if release.tier == 0)
-    return preferred if len(preferred) >= RELEASES_PER_ARTIST else catalog
+    """Use fallback releases only when fewer than four studio releases exist.
+
+    Args:
+        catalog: Original ordered catalog, retaining duplicate entries.
+
+    Returns:
+        Preferred studios when sufficient, otherwise the complete catalog.
+    """
+    return history_policy.review_catalog(catalog, RELEASES_PER_ARTIST)
 
 
 def played_releases_from_history(
@@ -898,37 +849,35 @@ def played_releases_from_history(
     track_cache: dict[str, tuple[CatalogTrack, ...]],
     liked_cache: dict[str, bool],
 ) -> tuple[RankedRelease, ...]:
-    """Return catalog releases completed according to current-year Last.fm data."""
-    played: list[RankedRelease] = []
-    for release in release_review_catalog(catalog):
-        threshold = release_scrobble_threshold(release)
-        scrobbled_names = set().union(
-            *(
-                names
-                for (_artist, album), names in annual_scrobbles.items()
-                if album == release.identity
-            )
-        )
-        if len(scrobbled_names) < threshold:
-            continue
-        tracks = track_cache.get(release.spotify_id)
-        if tracks is None:
-            tracks = load_release_tracks(sp, release, retry_call)
-            track_cache[release.spotify_id] = tracks
-        new_wine.get_liked_statuses(
-            sp,
-            [track.spotify_id for track in tracks],
-            liked_cache,
-            retry_call,
-        )
-        if release_was_played_this_year(
-            release,
-            tracks,
-            liked_cache,
-            annual_scrobbles,
-        ):
-            played.append(release)
-    return tuple(played)
+    """Return catalog releases completed according to current-year Last.fm data.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        catalog: Original ranked catalog observations.
+        annual_scrobbles: Current-year normalized listening evidence.
+        retry_call: Existing retry/cancellation callback.
+        track_cache: Shared run-owned catalog observations, updated in place.
+        liked_cache: Shared run-owned memberships, updated in place.
+
+    Returns:
+        Completed entries in catalog order, retaining duplicates.
+
+    Raises:
+        NewKidsError: Spotify returns malformed release observations.
+        new_wine.NewWineError: Spotify returns malformed liked statuses.
+    """
+    from spotify_manager.bootstrap.release_history import observe_played_releases
+
+    return observe_played_releases(
+        sp,
+        catalog,
+        annual_scrobbles,
+        retry_call,
+        track_cache,
+        liked_cache,
+        release_limit=RELEASES_PER_ARTIST,
+        studio_minimum=MIN_SCROBBLED_TRACKS_PER_RELEASE,
+    )
 
 
 def _default_state() -> dict[str, Any]:
@@ -1288,17 +1237,9 @@ def _promotion_reasons(
     Returns:
         User-visible promotion reasons in the existing order.
     """
-    album_statuses = []
-    for release in catalog:
-        if release.release_type == "Album":
-            album_statuses.append(saved.get(release.spotify_id, False))
-    facts = artist_policy.ArtistFacts(
-        liked_tracks,
-        total_tracks,
-        sum(saved.values()),
-        tuple(album_statuses),
+    return qualification_reasons(
+        catalog, saved, liked_tracks=liked_tracks, total_tracks=total_tracks
     )
-    return tuple(reason.value for reason in artist_policy.promotion_reasons(facts))
 
 
 def assess_artist(
@@ -1308,95 +1249,47 @@ def assess_artist(
     retry_call: RetryCall,
     track_cache: dict[str, tuple[CatalogTrack, ...]],
 ) -> ArtistAssessment:
-    """Evaluate all four promotion criteria against live Spotify state."""
-    release_ids = [release.spotify_id for release in catalog]
-    saved = _batched_contains(
-        release_ids,
-        sp.current_user_saved_albums_contains,
-        "Saved Albums",
-        retry_call,
-    )
-    all_tracks: dict[str, CatalogTrack] = {}
-    for release in catalog:
-        tracks = track_cache.get(release.spotify_id)
-        if tracks is None:
-            tracks = load_release_tracks(sp, release, retry_call)
-            track_cache[release.spotify_id] = tracks
-        for track in tracks:
-            if track.primary_artist_id == artist_id:
-                all_tracks.setdefault(track.spotify_id, track)
+    """Evaluate all four promotion criteria against live Spotify state.
 
-    liked = _batched_contains(
-        list(all_tracks),
-        sp.current_user_saved_tracks_contains,
-        "Liked Songs",
-        retry_call,
-    )
-    liked_tracks = [
-        track for track_id, track in all_tracks.items() if liked.get(track_id, False)
-    ]
-    saved_count = sum(saved.values())
-    reasons = _promotion_reasons(
-        catalog,
-        saved,
-        liked_tracks=len(liked_tracks),
-        total_tracks=len(all_tracks),
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        artist_id: Primary artist being assessed.
+        catalog: Original ranked release observations.
+        retry_call: Existing retry and cancellation callback.
+        track_cache: Shared run-scoped track observations, updated in place.
+
+    Returns:
+        Original live assessment, promotion reasons and marker choices.
+
+    Raises:
+        NewKidsError: A catalog or membership response is malformed.
+    """
+    from spotify_manager.bootstrap.artist_assessment import observe_artist_assessment
+
+    return observe_artist_assessment(sp, artist_id, catalog, retry_call, track_cache)
+
+
+def _assessment_saved(
+    sp: Spotify, release_ids: list[str], retry_call: RetryCall
+) -> dict[str, bool]:
+    return _batched_contains(
+        release_ids, sp.current_user_saved_albums_contains, "Saved Albums", retry_call
     )
 
-    representative: CatalogTrack | None = None
-    chronological = sorted(
-        catalog,
-        key=lambda release: (
-            release.tier != 0,
-            _release_date_key(release.release_date),
-            release.name.casefold(),
-        ),
-    )
-    for release in chronological:
-        tracks = track_cache.get(release.spotify_id, ())
-        representative = next(
-            (track for track in tracks if track.primary_artist_id == artist_id),
-            None,
-        )
-        if representative is not None:
-            break
 
-    top_liked: CatalogTrack | None = None
-    _album_ranks, top_tracks = load_top_track_data(sp, artist_id, retry_call)
-    top_statuses = _batched_contains(
-        [track.spotify_id for track in top_tracks],
-        sp.current_user_saved_tracks_contains,
-        "top Liked Songs",
-        retry_call,
+def _assessment_liked(
+    sp: Spotify, track_ids: list[str], retry_call: RetryCall
+) -> dict[str, bool]:
+    return _batched_contains(
+        track_ids, sp.current_user_saved_tracks_contains, "Liked Songs", retry_call
     )
-    top_liked = next(
-        (track for track in top_tracks if top_statuses.get(track.spotify_id, False)),
-        None,
-    )
-    if top_liked is None and liked_tracks:
-        popularities = _catalog_track_popularities(
-            sp,
-            [track.spotify_id for track in liked_tracks],
-            retry_call,
-        )
-        top_liked = max(
-            liked_tracks,
-            key=lambda track: (
-                popularities.get(track.spotify_id, -1),
-                track.name.casefold(),
-            ),
-        )
 
-    return ArtistAssessment(
-        liked_tracks=len(liked_tracks),
-        saved_releases=saved_count,
-        total_releases=len(catalog),
-        liked_primary_tracks=len(liked_tracks),
-        total_primary_tracks=len(all_tracks),
-        qualifies=bool(reasons),
-        reasons=reasons,
-        representative_track=representative,
-        top_liked_track=top_liked,
+
+def _assessment_top_liked(
+    sp: Spotify, track_ids: list[str], retry_call: RetryCall
+) -> dict[str, bool]:
+    return _batched_contains(
+        track_ids, sp.current_user_saved_tracks_contains, "top Liked Songs", retry_call
     )
 
 

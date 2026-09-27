@@ -82,6 +82,9 @@ test-application:
         --cov=spotify_manager.application.album_limits \
         --cov=spotify_manager.application.album_recovery \
         --cov=spotify_manager.application.artist_follows \
+        --cov=spotify_manager.application.artist_assessment \
+        --cov=spotify_manager.application.new_kids_values \
+        --cov=spotify_manager.application.release_history \
         --cov=spotify_manager.application.credited_artists \
         --cov=spotify_manager.application.library_statistics \
         --cov=spotify_manager.application.library_affinity \

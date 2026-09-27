@@ -172,3 +172,43 @@ Checkpoint evidence:
   pass strict mypy and dependency-direction checks.
 
 New Kids/Queue 2 and Queue 3 are next. This checkpoint does not complete Item 6.
+
+### New Kids/Queue 2 assessment and history checkpoint
+
+Artist-completion assessment is now an injected application service. Saved
+membership is observed before catalog tracks; primary credits are filtered before
+track-ID deduplication, with the first encountered track facts retained. Artist
+top tracks are still observed even for an empty catalog. The popularity fallback
+runs only when those top tracks supply no liked marker, preserving descending
+title ties and the original shared track-cache behavior.
+
+Ranked release and primary-credit track values now have domain owners. Promotion
+reason translation and representative/fallback marker selection are pure
+policies. Four observation tests were added and passed against the original
+assessment before its extraction; all still pass afterward.
+
+Current-year release completion now has a separate application observation
+service. The inexpensive history prefilter intentionally unions matching release
+titles across artists. The final completion rule then matches each track's actual
+primary credit and requires every liked title. Catalog preference, edition-aware
+title normalization, year filtering and distinct-title indexing have pure domain
+owners. The shared title normalizer retains the Blast from the Past compatibility
+entry point and unchanged behavior; the rest of that routine remains for its wave.
+
+Checkpoint evidence:
+
+- Full randomized suite: **2,014 tests pass**, seed `20260935`.
+- Separate coverage: **92.05% statements** (18,513 / 20,111) and **78.67% branches**
+  (4,141 / 5,264). The statement baseline passes; legacy branch coverage remains
+  diagnostic. Capture both metrics with `--cov-branch --cov-fail-under=0`, then
+  check the statement baseline separately rather than applying it to a combined
+  metric.
+- Independent gates: **210 domain tests** and **342 application tests**, with
+  **100% statement and branch coverage** for their configured targets.
+- The fresh-interpreter dependency test now imports every domain module, avoiding
+  an outdated fixed list as new policies are added.
+- All eleven frozen interface artifacts, package Ruff and mypy, and strict
+  inner-layer checks pass. Existing characterization fixtures remain unchanged.
+
+Composer routing, the New Kids/Queue 2 coordinator and Queue 3 remain in progress;
+this checkpoint does not complete the release wave or Item 6.

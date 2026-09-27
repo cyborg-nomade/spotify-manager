@@ -26,8 +26,12 @@ from zoneinfo import ZoneInfo
 from spotipy import Spotify
 
 from spotify_manager.domain import history as history_policy
+from spotify_manager.domain import titles as title_policy
 from spotify_manager.domain.history import Scrobble as Scrobble
 from spotify_manager.domain.history import ScrobbleSelection as ScrobbleSelection
+from spotify_manager.domain.titles import BRACKETED_SUFFIX as BRACKETED_SUFFIX
+from spotify_manager.domain.titles import DASHED_SUFFIX as DASHED_SUFFIX
+from spotify_manager.domain.titles import SLIDING_QUALIFIER as SLIDING_QUALIFIER
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -46,13 +50,6 @@ SPOTIFY_PLAYLIST_ADD_BATCH_SIZE = 100
 TRACK_MATCH_THRESHOLD = 0.9
 ALBUM_MATCH_THRESHOLD = 0.9
 
-SLIDING_QUALIFIER = re.compile(
-    r"(?:remaster(?:ed)?|live|deluxe|edition|version|mix|mono|stereo|"
-    r"anniversary|bonus|reissue|radio|acoustic|explicit|clean|feat(?:uring)?\.?)",
-    re.IGNORECASE,
-)
-BRACKETED_SUFFIX = re.compile(r"\s*[\[(]([^)\]]+)[)\]]\s*$")
-DASHED_SUFFIX = re.compile(r"\s+[-\N{EN DASH}\N{EM DASH}]\s+(.+?)\s*$")
 
 Direction = Literal["top down", "bottom up"]
 ProgressCallback = Callable[[str], None]
@@ -348,18 +345,15 @@ def normalize_name(value: str) -> str:
 
 
 def without_sliding_qualifiers(value: str) -> str:
-    """Remove recognized trailing edition/version descriptions from a name."""
-    result = value.strip()
-    while True:
-        previous = result
-        bracketed = BRACKETED_SUFFIX.search(result)
-        if bracketed and SLIDING_QUALIFIER.search(bracketed.group(1)):
-            result = result[: bracketed.start()].rstrip()
-        dashed = DASHED_SUFFIX.search(result)
-        if dashed and SLIDING_QUALIFIER.search(dashed.group(1)):
-            result = result[: dashed.start()].rstrip()
-        if result == previous:
-            return result
+    """Remove recognized trailing edition/version descriptions from a name.
+
+    Args:
+        value: Original display title.
+
+    Returns:
+        Title without recognized trailing qualifiers.
+    """
+    return title_policy.without_sliding_qualifiers(value)
 
 
 def name_similarity(expected: str, candidate: str) -> float:
