@@ -8,12 +8,19 @@ from datetime import UTC
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Any
 from typing import Literal
 from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.new_wine import NewWineOptions
+from spotify_manager.application.new_wine import new_run
+from spotify_manager.application.new_wine_plans import drop_plan
+from spotify_manager.application.new_wine_plans import record_evaluation
+from spotify_manager.application.new_wine_state import release_from_record
+from spotify_manager.application.new_wine_state import result_from_plan
+from spotify_manager.application.new_wine_state import source_from_record
+from spotify_manager.application.new_wine_state import track_from_record
 from spotify_manager.application.new_wine_values import (
     CellarRefillResult as CellarRefillResult,
 )
@@ -29,23 +36,24 @@ from spotify_manager.application.new_wine_values import NewWineError as NewWineE
 from spotify_manager.application.new_wine_values import (
     NewWineStateError as NewWineStateError,
 )
+from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
 from spotify_manager.core.state.compat import routine_state
+from spotify_manager.domain import new_wine as wine_policy
 
 # UFI
-from spotify_manager.domain import progression
 from spotify_manager.domain.catalog import PlaylistTrack as PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate as ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack as ReleaseTrack
 from spotify_manager.models.lookups import AlbumEvaluation
-from spotify_manager.models.lookups import AlbumTrackLikedStatus
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryTrack
-from spotify_manager.processors.library_lookups import required_liked_tracks
 from spotify_manager.routines.recover_removed_albums import sync_stats_history_counts
-from spotify_manager.routines.review_album_limits import append_removed_album_log
+from spotify_manager.routines.review_album_limits import (
+    append_removed_album_log as append_removed_album_log,
+)
 from spotify_manager.utils.sorting import album_sort_key
 
 
@@ -87,7 +95,18 @@ FlushAction = Literal[
 
 
 def parse_playlist_id(reference: str | None, setting_name: str) -> str:
-    """Extract a Spotify playlist id from a URL, URI, or bare id."""
+    """Extract a Spotify playlist ID from a URL, URI, or bare ID.
+
+    Args:
+        reference: Configured playlist reference.
+        setting_name: Setting name used in the original diagnostic.
+
+    Returns:
+        Nonempty Spotify playlist identifier.
+
+    Raises:
+        NewWineConfigError: The reference is absent or malformed.
+    """
     if not reference or not reference.strip():
         raise NewWineConfigError(f"{setting_name} is not configured.")
     value = reference.strip()
@@ -118,7 +137,15 @@ def _artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
 
 
 def classify_release(raw_type: object, total_tracks: int) -> str:
-    """Classify Spotify releases while distinguishing EPs from singles."""
+    """Classify Spotify releases while distinguishing EPs from singles.
+
+    Args:
+        raw_type: Original Spotify release classification.
+        total_tracks: Observed track count used to distinguish EPs.
+
+    Returns:
+        Existing display classification, including tolerant unknown types.
+    """
     release_type = str(raw_type or "unknown").casefold()
     if release_type == "album":
         return "Album"
@@ -135,15 +162,13 @@ def _track_position(raw: object, fallback: int) -> int:
     """Parse Spotify's one-based disc/track position defensively."""
     if isinstance(raw, int) and not isinstance(raw, bool) and raw > 0:
         return raw
-    if isinstance(raw, str):
-        try:
-            parsed = int(raw.strip())
-        except ValueError:
-            pass
-        else:
-            if parsed > 0:
-                return parsed
-    return fallback
+    if not isinstance(raw, str):
+        return fallback
+    try:
+        parsed = int(raw.strip())
+    except ValueError:
+        return fallback
+    return parsed if parsed > 0 else fallback
 
 
 def _release_candidate(
@@ -200,22 +225,40 @@ def _playlist_track(raw_entry: object) -> PlaylistTrack | None:
     )
 
 
+def _playlist_request(
+    sp: Spotify, playlist_id: str, offset: int
+) -> Callable[[], object]:
+    return partial(
+        sp._get,
+        f"playlists/{playlist_id}/items",
+        limit=PLAYLIST_PAGE_LIMIT,
+        offset=offset,
+    )
+
+
 def load_playlist_tracks(
     sp: Spotify,
     playlist_id: str,
     retry_call: RetryCall,
 ) -> tuple[PlaylistTrack, ...]:
-    """Load every playable item in playlist order."""
+    """Load every playable item in playlist order.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        playlist_id: Playlist to observe.
+        retry_call: Existing retry and cancellation boundary.
+
+    Returns:
+        Ordered playable markers, preserving duplicate observations.
+
+    Raises:
+        NewWineError: A page is invalid or pagination stalls.
+    """
     tracks: list[PlaylistTrack] = []
     offset = 0
     while True:
         response = retry_call(
-            partial(
-                sp._get,
-                f"playlists/{playlist_id}/items",
-                limit=PLAYLIST_PAGE_LIMIT,
-                offset=offset,
-            ),
+            _playlist_request(sp, playlist_id, offset),
             f"loading playlist {playlist_id} at offset {offset}",
         )
         if not isinstance(response, dict) or not isinstance(
@@ -223,11 +266,7 @@ def load_playlist_tracks(
         ):
             raise NewWineError("Spotify returned invalid playlist data.")
         raw_items = response["items"]
-        tracks.extend(
-            track
-            for raw_item in raw_items
-            if (track := _playlist_track(raw_item)) is not None
-        )
+        _append_playlist_items(tracks, raw_items)
         offset += len(raw_items)
         total = response.get("total")
         has_more = bool(response.get("next"))
@@ -244,7 +283,19 @@ def load_release_tracks(
     release: ReleaseCandidate,
     retry_call: RetryCall,
 ) -> tuple[ReleaseTrack, ...]:
-    """Load and order a release's complete Spotify track list."""
+    """Load and order a release's complete Spotify track list.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        release: Selected release to observe.
+        retry_call: Existing retry and cancellation boundary.
+
+    Returns:
+        Playable tracks ordered by disc and track position.
+
+    Raises:
+        NewWineError: A page is invalid or pagination stalls.
+    """
     tracks: list[ReleaseTrack] = []
     offset = 0
     while True:
@@ -264,25 +315,7 @@ def load_release_tracks(
                 f"Spotify returned invalid track data for {release.name}."
             )
         raw_items = response["items"]
-        for raw_track in raw_items:
-            if not isinstance(raw_track, dict):
-                continue
-            spotify_id = str(raw_track.get("id") or "").strip()
-            uri = str(raw_track.get("uri") or "").strip()
-            if not spotify_id or not uri:
-                continue
-            tracks.append(
-                ReleaseTrack(
-                    spotify_id=spotify_id,
-                    uri=uri,
-                    name=str(raw_track.get("name") or spotify_id),
-                    disc_number=_track_position(raw_track.get("disc_number"), 1),
-                    track_number=_track_position(
-                        raw_track.get("track_number"),
-                        len(tracks) + 1,
-                    ),
-                )
-            )
+        _append_release_items(tracks, raw_items)
         offset += len(raw_items)
         if not response.get("next"):
             break
@@ -290,15 +323,7 @@ def load_release_tracks(
             raise NewWineError(
                 f"Spotify returned an empty track page for {release.name}."
             )
-    return tuple(
-        sorted(
-            tracks,
-            key=lambda track: (
-                track.disc_number,
-                track.track_number,
-            ),
-        )
-    )
+    return tuple(sorted(tracks, key=_release_track_order))
 
 
 def current_year_releases(
@@ -307,7 +332,20 @@ def current_year_releases(
     year: int,
     retry_call: RetryCall,
 ) -> tuple[ReleaseCandidate, ...]:
-    """Return current-year primary-artist albums, EPs, and singles."""
+    """Return current-year primary-artist albums, EPs, and singles.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        artist_id: Required first credited artist.
+        year: Existing invocation year.
+        retry_call: Existing retry and cancellation boundary.
+
+    Returns:
+        Deduplicated candidates in the original date/type/title/ID order.
+
+    Raises:
+        NewWineError: A page is invalid or pagination stalls.
+    """
     releases: dict[str, ReleaseCandidate] = {}
     offset = 0
     while True:
@@ -326,33 +364,13 @@ def current_year_releases(
         ):
             raise NewWineError("Spotify returned invalid artist release data.")
         raw_items = response["items"]
-        for raw_release in raw_items:
-            candidate = _release_candidate(
-                raw_release,
-                target_artist_id=artist_id,
-            )
-            if (
-                candidate is not None
-                and candidate.release_type != "Compilation"
-                and candidate.release_date.startswith(f"{year:04d}")
-            ):
-                releases[candidate.spotify_id] = candidate
+        _append_current_year_releases(releases, raw_items, artist_id, year)
         offset += len(raw_items)
         if not response.get("next"):
             break
         if not raw_items:
             raise NewWineError("Spotify returned an empty artist release page.")
-    return tuple(
-        sorted(
-            releases.values(),
-            key=lambda release: (
-                release.release_date,
-                release.release_type,
-                release.name.casefold(),
-                release.spotify_id,
-            ),
-        )
-    )
+    return tuple(sorted(releases.values(), key=_current_release_order))
 
 
 def _track_index(
@@ -360,16 +378,7 @@ def _track_index(
     source: PlaylistTrack,
 ) -> int | None:
     """Locate the source in a selected release by id, then normalized name."""
-    for index, track in enumerate(tracks):
-        if track.spotify_id == source.spotify_id:
-            return index
-    normalized_name = source.name.strip().casefold()
-    matches = [
-        index
-        for index, track in enumerate(tracks)
-        if track.name.strip().casefold() == normalized_name
-    ]
-    return matches[0] if len(matches) == 1 else None
+    return wine_policy.track_index(tracks, source)
 
 
 def get_liked_statuses(
@@ -378,10 +387,21 @@ def get_liked_statuses(
     cache: dict[str, bool],
     retry_call: RetryCall,
 ) -> dict[str, bool]:
-    """Fill and return live Liked Songs statuses in conservative batches."""
-    missing = list(
-        dict.fromkeys(track_id for track_id in track_ids if track_id not in cache)
-    )
+    """Fill and return live Liked Songs statuses in conservative batches.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        track_ids: Requested IDs in observation order.
+        cache: Run-scoped statuses, updated in place.
+        retry_call: Existing retry and cancellation boundary.
+
+    Returns:
+        The supplied cache with missing memberships populated.
+
+    Raises:
+        NewWineError: Spotify returns an invalid batch response.
+    """
+    missing = _missing_track_ids(track_ids, cache)
     for start in range(0, len(missing), LIKED_TRACK_BATCH_SIZE):
         batch = missing[start : start + LIKED_TRACK_BATCH_SIZE]
         response = retry_call(
@@ -390,12 +410,8 @@ def get_liked_statuses(
         )
         if not isinstance(response, list) or len(response) != len(batch):
             raise NewWineError("Spotify returned invalid Liked Songs statuses.")
-        cache.update(
-            {
-                track_id: bool(liked)
-                for track_id, liked in zip(batch, response, strict=True)
-            }
-        )
+        for track_id, liked in zip(batch, response, strict=True):
+            cache[track_id] = bool(liked)
     return cache
 
 
@@ -405,34 +421,10 @@ def _live_evaluation(
     liked: dict[str, bool],
 ) -> AlbumEvaluation:
     """Build the usual album keep decision entirely from live Spotify state."""
-    liked_count = sum(liked.get(track.spotify_id, False) for track in tracks)
-    total = len(tracks)
-    required = required_liked_tracks(total, 0.5)
-    return AlbumEvaluation(
-        album_name=release.name,
-        album_id=release.spotify_id,
-        artist_name=release.primary_artist_name,
-        total_tracks=total,
-        liked_tracks=liked_count,
-        required_liked_tracks=required,
-        liked_ratio=liked_count / total if total else 0,
-        threshold=0.5,
-        decision="keep" if liked_count >= required else "remove",
-        tracks=[
-            AlbumTrackLikedStatus(
-                name=track.name,
-                uri=track.uri,
-                liked=liked.get(track.spotify_id, False),
-                spotify_id=track.spotify_id,
-            )
-            for track in tracks
-        ],
-        source="spotify-live",
-        from_cache=False,
-    )
+    return evaluate_release(release, tracks, liked)
 
 
-def _default_state() -> dict[str, Any]:
+def _default_state() -> dict[str, object]:
     """Return an empty versioned restart state."""
     return {
         "version": STATE_VERSION,
@@ -441,19 +433,39 @@ def _default_state() -> dict[str, Any]:
     }
 
 
-def validate_state(raw: object) -> dict[str, Any]:
-    """Validate the New Wine namespace independently of storage."""
+def validate_state(raw: object) -> dict[str, object]:
+    """Validate the New Wine namespace independently of storage.
+
+    Args:
+        raw: Decoded namespace retaining unknown fields.
+
+    Returns:
+        Original mutable namespace without copying or normalization.
+
+    Raises:
+        NewWineStateError: The version or progress container is invalid.
+    """
     if (
         not isinstance(raw, dict)
         or raw.get("version") != STATE_VERSION
         or not isinstance(raw.get("track_progress"), dict)
     ):
         raise NewWineStateError("New Wine state is invalid.")
-    return raw
+    return cast(dict[str, object], raw)
 
 
-def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
-    """Load restart state, rejecting malformed data instead of discarding it."""
+def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
+    """Load restart state without discarding malformed data.
+
+    Args:
+        path: Existing namespace path.
+
+    Returns:
+        Decoded namespace, or defaults when the file is absent.
+
+    Raises:
+        NewWineStateError: Reading, decoding or namespace validation fails.
+    """
     if not path.exists():
         return _default_state()
     try:
@@ -466,8 +478,16 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
         raise NewWineStateError(f"New Wine state is invalid: {path}") from exc
 
 
-def save_state(state: dict[str, Any], path: Path = DEFAULT_STATE_PATH) -> None:
-    """Persist restart state atomically after each successful boundary."""
+def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> None:
+    """Persist restart state atomically after each successful boundary.
+
+    Args:
+        state: Complete namespace, including unknown fields.
+        path: Original namespace destination.
+
+    Raises:
+        NewWineStateError: Creating or replacing the checkpoint fails.
+    """
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -502,7 +522,16 @@ def append_log(
     result: FlushResult,
     path: Path = DEFAULT_LOG_PATH,
 ) -> None:
-    """Append one reviewable source-track outcome."""
+    """Append one reviewable source-track outcome.
+
+    Args:
+        run_id: Existing execution identifier.
+        result: Completed or skipped outcome, including previews.
+        path: Original append-only audit destination.
+
+    Raises:
+        NewWineStateError: The audit record cannot be written.
+    """
     record = {
         "recorded_at": datetime.now(UTC).isoformat(),
         "run_id": run_id,
@@ -521,7 +550,16 @@ def append_cellar_log(
     result: CellarRefillResult,
     path: Path = DEFAULT_LOG_PATH,
 ) -> None:
-    """Append one reviewable Wine Cellar refill decision."""
+    """Append one reviewable Wine Cellar refill decision.
+
+    Args:
+        run_id: Existing execution identifier.
+        result: Refill outcome, including previews.
+        path: Original append-only audit destination.
+
+    Raises:
+        NewWineStateError: The audit record cannot be written.
+    """
     record = {
         "recorded_at": datetime.now(UTC).isoformat(),
         "run_id": run_id,
@@ -563,16 +601,7 @@ def _load_no_discovery_inventory(
         track_ids.setdefault(_artist_key(track.artist), []).append(track.spotify_id)
     for album in albums:
         album_ids.setdefault(_artist_key(album.artist), []).append(album.spotify_id)
-    return (
-        {
-            artist: tuple(dict.fromkeys(spotify_ids))
-            for artist, spotify_ids in track_ids.items()
-        },
-        {
-            artist: tuple(dict.fromkeys(spotify_ids))
-            for artist, spotify_ids in album_ids.items()
-        },
-    )
+    return _unique_inventory_ids(track_ids), _unique_inventory_ids(album_ids)
 
 
 def _live_no_discovery_counts(
@@ -606,56 +635,30 @@ def _new_run(
     choose_album_endpoints: bool,
 ) -> dict[str, object]:
     """Build a durable snapshot so each original entry advances once."""
-    return {
-        "run_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ"),
-        "playlist_id": playlist_id,
-        "wine_cellar_playlist_id": wine_cellar_playlist_id,
-        "no_discovery": no_discovery,
-        "choose_album_endpoints": choose_album_endpoints,
-        "status": "active",
-        "created_at": datetime.now(UTC).isoformat(),
-        "entries": [
-            {
-                "source": asdict(track),
-                "status": "pending",
-                "plan": None,
-                "endpoint_choice": None,
-            }
-            for track in tracks
-        ],
-        "refill_pending": None,
-    }
+    options = NewWineOptions(
+        playlist_id,
+        "",
+        wine_cellar_playlist_id,
+        no_discovery,
+        choose_album_endpoints,
+        False,
+    )
+    return new_run(options, tracks, _clock)
 
 
 def _playlist_track_from_record(raw: object) -> PlaylistTrack:
     """Rebuild one snapshotted source track."""
-    if not isinstance(raw, dict) or not isinstance(raw.get("release"), dict):
-        raise NewWineStateError("New Wine run contains an invalid source track.")
-    release = ReleaseCandidate(**raw["release"])
-    return PlaylistTrack(
-        spotify_id=str(raw["spotify_id"]),
-        uri=str(raw["uri"]),
-        name=str(raw["name"]),
-        primary_artist_id=str(raw["primary_artist_id"]),
-        primary_artist_name=str(raw["primary_artist_name"]),
-        release=release,
-    )
+    return source_from_record(raw)
 
 
 def _release_from_record(raw: object) -> ReleaseCandidate:
     """Rebuild a release stored in one durable plan."""
-    if not isinstance(raw, dict):
-        raise NewWineStateError("New Wine run contains an invalid release plan.")
-    return ReleaseCandidate(**raw)
+    return release_from_record(raw)
 
 
 def _track_from_record(raw: object) -> ReleaseTrack | None:
     """Rebuild an optional target track stored in one durable plan."""
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        raise NewWineStateError("New Wine run contains an invalid target track.")
-    return ReleaseTrack(**raw)
+    return track_from_record(raw)
 
 
 def _load_local_albums(path: Path) -> list[YourLibraryAlbum]:
@@ -723,62 +726,7 @@ def _record_album_evaluation(
     evaluation: AlbumEvaluation,
 ) -> None:
     """Store one live keep decision in a durable New Wine plan."""
-    plan.update(
-        {
-            "album_liked_tracks": evaluation.liked_tracks,
-            "album_total_tracks": evaluation.total_tracks,
-            "should_save": evaluation.decision == "keep",
-            "evaluation": evaluation.model_dump(mode="json"),
-        }
-    )
-
-
-def _save_qualifying_sauvignon_album(
-    sp: Spotify,
-    release: ReleaseCandidate,
-    evaluation: AlbumEvaluation,
-    *,
-    dry_run: bool,
-    retry_call: RetryCall,
-    albums_path: Path,
-    echo: Echo,
-) -> None:
-    """Save and mirror one Sauvignon album when it passes the keep rule."""
-    if evaluation.decision != "keep":
-        echo(
-            f"Left {release.name} unsaved: {evaluation.liked_tracks}/"
-            f"{evaluation.total_tracks} liked."
-        )
-        return
-    response = retry_call(
-        partial(
-            sp.current_user_saved_albums_contains,
-            [release.spotify_id],
-        ),
-        f"checking whether {release.name} is saved",
-    )
-    is_saved = bool(response[0]) if isinstance(response, list) and response else False
-    if not dry_run and not is_saved:
-        retry_call(
-            partial(
-                sp.current_user_saved_albums_add,
-                [release.spotify_id],
-            ),
-            f"saving {release.name}",
-        )
-    if not dry_run:
-        _add_local_album(release, albums_path)
-    save_action = (
-        "Would save"
-        if dry_run and not is_saved
-        else "Saved"
-        if not is_saved
-        else "Kept saved"
-    )
-    echo(
-        f"{save_action} {release.name}: {evaluation.liked_tracks}/"
-        f"{evaluation.total_tracks} liked."
-    )
+    record_evaluation(plan, evaluation)
 
 
 def _add_playlist_track(
@@ -789,10 +737,7 @@ def _add_playlist_track(
 ) -> None:
     """Add one track through Spotify's current playlist-items endpoint."""
     retry_call(
-        lambda: sp._post(
-            f"playlists/{playlist_id}/items",
-            payload={"uris": [track.uri]},
-        ),
+        partial(_post_track, sp, playlist_id, track),
         f"adding {track.name} to playlist {playlist_id}",
     )
 
@@ -805,10 +750,7 @@ def _remove_playlist_track(
 ) -> None:
     """Remove the source only after all required additions succeed."""
     retry_call(
-        lambda: sp._delete(
-            f"playlists/{playlist_id}/items",
-            payload={"items": [{"uri": track.uri}]},
-        ),
+        partial(_delete_track, sp, playlist_id, track),
         f"removing {track.name} from playlist {playlist_id}",
     )
 
@@ -821,7 +763,7 @@ def _refill_new_wine(
     no_discovery: bool,
     dry_run: bool,
     retry_call: RetryCall,
-    state: dict[str, Any],
+    state: dict[str, object],
     run: dict[str, object],
     log_path: Path,
     liked_tracks_path: Path,
@@ -866,60 +808,7 @@ def _plan_result(
     album_unsaved: bool = False,
 ) -> FlushResult:
     """Convert a durable plan into the public result model."""
-    release = _release_from_record(plan["release"])
-    target = _track_from_record(plan.get("target"))
-    continuation_release = (
-        _release_from_record(plan["continuation_release"])
-        if plan.get("continuation_release") is not None
-        else None
-    )
-    continuation_target = _track_from_record(plan.get("continuation_target"))
-    return FlushResult(
-        source_track=source.name,
-        artist=source.primary_artist_name,
-        release=release.name,
-        release_type=release.release_type,
-        current_liked=bool(plan["current_liked"]),
-        consecutive_unliked=cast(int, plan["consecutive_unliked"]),
-        action=cast(FlushAction, str(plan["action"])),
-        target_track=target.name if target is not None else None,
-        album_liked_tracks=(
-            cast(int, plan["album_liked_tracks"])
-            if plan.get("album_liked_tracks") is not None
-            else None
-        ),
-        album_total_tracks=(
-            cast(int, plan["album_total_tracks"])
-            if plan.get("album_total_tracks") is not None
-            else None
-        ),
-        album_unsaved=album_unsaved,
-        advance_reason=(
-            str(plan["advance_reason"])
-            if plan.get("advance_reason") is not None
-            else None
-        ),
-        drop_reason=(
-            str(plan["drop_reason"]) if plan.get("drop_reason") is not None else None
-        ),
-        continuation_release=(
-            continuation_release.name if continuation_release is not None else None
-        ),
-        continuation_track=(
-            continuation_target.name if continuation_target is not None else None
-        ),
-        canonical_track_count=(
-            cast(int, plan["canonical_track_count"])
-            if plan.get("canonical_track_count") is not None
-            else None
-        ),
-        canonical_cutoff_track=(
-            str(plan["canonical_cutoff_track"])
-            if plan.get("canonical_cutoff_track") is not None
-            else None
-        ),
-        dry_run=dry_run,
-    )
+    return result_from_plan(source, plan, dry_run=dry_run, album_unsaved=album_unsaved)
 
 
 def _drop_plan(
@@ -931,19 +820,13 @@ def _drop_plan(
     reason: str,
 ) -> dict[str, object]:
     """Build a durable drop plan with its live album evaluation."""
-    return {
-        "action": "drop",
-        "release": asdict(release),
-        "target": None,
-        "current_liked": current_liked,
-        "consecutive_unliked": consecutive_unliked,
-        "album_liked_tracks": evaluation.liked_tracks,
-        "album_total_tracks": evaluation.total_tracks,
-        "should_unsave": evaluation.decision == "remove",
-        "evaluation": evaluation.model_dump(mode="json"),
-        "album_unsaved": False,
-        "drop_reason": reason,
-    }
+    return drop_plan(
+        release,
+        evaluation,
+        current_liked=current_liked,
+        consecutive_unliked=consecutive_unliked,
+        reason=reason,
+    )
 
 
 def flush_new_wine(
@@ -968,684 +851,62 @@ def flush_new_wine(
     liked_tracks_path: Path = DEFAULT_LIKED_TRACKS_PATH,
     removed_albums_log_path: Path = DEFAULT_REMOVED_ALBUMS_LOG_PATH,
 ) -> FlushSummary:
-    """Advance every snapshotted New Wine track exactly once."""
-    retry = retry_call or (lambda operation, _description: operation())
-    active_year = year or datetime.now().year
-    live_tracks = load_playlist_tracks(sp, new_wine_playlist_id, retry)
-    new_wine_ids = {track.spotify_id for track in live_tracks}
-    sauvignon_tracks = load_playlist_tracks(sp, sauvignon_playlist_id, retry)
-    sauvignon_ids = {track.spotify_id for track in sauvignon_tracks}
+    """Advance each snapshotted marker through the injected New Wine workflow.
 
-    resumed = False
-    state_access = _state_access(state_path, state_service)
-    state = _default_state() if dry_run else state_access.load()
-    active_run = state.get("active_run")
-    if (
-        not dry_run
-        and isinstance(active_run, dict)
-        and active_run.get("status") == "active"
-        and active_run.get("playlist_id") == new_wine_playlist_id
-    ):
-        run = active_run
-        resumed = True
-    else:
-        run = _new_run(
-            new_wine_playlist_id,
-            live_tracks,
-            wine_cellar_playlist_id,
-            no_discovery,
-            choose_album_endpoints,
-        )
-        if not dry_run:
-            state["active_run"] = run
-            state_access.save(state)
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        new_wine_playlist_id: Source and progression destination.
+        sauvignon_playlist_id: Completed-album destination.
+        choice_reader: Existing release selection callback.
+        endpoint_choice_reader: Optional album/EP endpoint callback.
+        choose_album_endpoints: Whether endpoint selection is requested.
+        wine_cellar_playlist_id: Optional post-flush refill source.
+        no_discovery: Whether refill requires existing library affinity.
+        dry_run: Preview effects while retaining legacy audit writes.
+        year: Existing current-year override.
+        echo: Original message sink.
+        progress_callback: Optional progress/cancellation callback.
+        retry_call: Existing retry callback, or direct invocation.
+        state_path: Original namespace path.
+        state_service: Optional shared state service.
+        log_path: Original audit destination.
+        albums_path: Canonical saved-album mirror.
+        liked_tracks_path: Canonical liked-track mirror.
+        removed_albums_log_path: Removed-album recovery log.
 
-    run_id = str(run["run_id"])
-    raw_entries = run.get("entries")
-    if not isinstance(raw_entries, list):
-        raise NewWineStateError("New Wine run contains invalid entries.")
-    progress_state = state.get("track_progress")
-    if not isinstance(progress_state, dict):
-        raise NewWineStateError("New Wine track progress is invalid.")
+    Returns:
+        Original result including pause, resume and refill outcomes.
 
-    liked_cache: dict[str, bool] = {}
-    release_track_cache: dict[str, tuple[ReleaseTrack, ...]] = {}
-    artist_release_cache: dict[str, tuple[ReleaseCandidate, ...]] = {}
-    results: list[FlushResult] = []
-    refill: CellarRefillSummary | None = None
-    paused = False
-    active_endpoint_mode = bool(
-        run.get("choose_album_endpoints", choose_album_endpoints)
+    Raises:
+        NewWineError: Observations, choices or durable records are invalid.
+    """
+    from spotify_manager.bootstrap.new_wine import run_new_wine
+
+    options = NewWineOptions(
+        new_wine_playlist_id,
+        sauvignon_playlist_id,
+        wine_cellar_playlist_id,
+        no_discovery,
+        choose_album_endpoints,
+        dry_run,
     )
-    if active_endpoint_mode and endpoint_choice_reader is None:
-        raise NewWineConfigError(
-            "Album endpoint selection requires an endpoint choice reader."
-        )
-
-    def release_tracks(release: ReleaseCandidate) -> tuple[ReleaseTrack, ...]:
-        if release.spotify_id not in release_track_cache:
-            release_track_cache[release.spotify_id] = load_release_tracks(
-                sp,
-                release,
-                retry,
-            )
-        return release_track_cache[release.spotify_id]
-
-    total = len(raw_entries)
-    for index, raw_entry in enumerate(raw_entries, start=1):
-        if not isinstance(raw_entry, dict):
-            raise NewWineStateError("New Wine run contains an invalid entry.")
-        if raw_entry.get("status") in {"completed", "skipped"}:
-            continue
-        source = _playlist_track_from_record(raw_entry.get("source"))
-        if progress_callback is not None:
-            progress_callback(
-                index - 1,
-                total,
-                f"{source.primary_artist_name} - {source.name}",
-            )
-
-        raw_plan = raw_entry.get("plan")
-        plan = raw_plan if isinstance(raw_plan, dict) else None
-        if plan is None:
-            base_tracks = release_tracks(source.release)
-            base_index = _track_index(base_tracks, source)
-            endpoint_choice = raw_entry.get("endpoint_choice")
-            get_liked_statuses(
-                sp,
-                [source.spotify_id],
-                liked_cache,
-                retry,
-            )
-            current_liked = liked_cache[source.spotify_id]
-            stored_progress = progress_state.get(source.spotify_id)
-            prior_streak: int | None = None
-            if isinstance(stored_progress, dict):
-                raw_streak = stored_progress.get("prior_unliked_streak")
-                if isinstance(raw_streak, int):
-                    prior_streak = raw_streak
-            if prior_streak is None:
-                prior_streak = 0
-                if base_index is not None:
-                    preceding = list(base_tracks[:base_index])
-                    get_liked_statuses(
-                        sp,
-                        [track.spotify_id for track in preceding],
-                        liked_cache,
-                        retry,
-                    )
-                    prior_streak += progression.trailing_unliked(
-                        liked_cache[track.spotify_id] for track in reversed(preceding)
-                    )
-            consecutive_unliked = progression.advance_streak(
-                prior_streak, current_liked
-            )
-
-            if (
-                active_endpoint_mode
-                and source.release.release_type in {"Album", "EP"}
-                and base_index is not None
-            ):
-                if endpoint_choice not in {CHOICE_CUTOFF, CHOICE_CONTINUE}:
-                    assert endpoint_choice_reader is not None
-                    endpoint_choice = endpoint_choice_reader(
-                        source,
-                        base_tracks,
-                        base_index,
-                    )
-                    if endpoint_choice == CHOICE_QUIT:
-                        paused = True
-                        break
-                    if endpoint_choice == CHOICE_SKIP:
-                        raw_entry["status"] = "skipped"
-                        result = FlushResult(
-                            source_track=source.name,
-                            artist=source.primary_artist_name,
-                            release=source.release.name,
-                            release_type=source.release.release_type,
-                            current_liked=current_liked,
-                            consecutive_unliked=consecutive_unliked,
-                            action="skip",
-                            dry_run=dry_run,
-                        )
-                        results.append(result)
-                        append_log(run_id, result, log_path)
-                        if not dry_run:
-                            state_access.save(state)
-                        continue
-                    if endpoint_choice not in {CHOICE_CUTOFF, CHOICE_CONTINUE}:
-                        raise NewWineError(
-                            "The album endpoint choice is not available."
-                        )
-                    raw_entry["endpoint_choice"] = endpoint_choice
-                    if not dry_run:
-                        state_access.save(state)
-                if endpoint_choice == CHOICE_CUTOFF:
-                    base_tracks = base_tracks[: base_index + 1]
-                    echo(
-                        f"Using {source.name} as the canonical endpoint of "
-                        f"{source.release.name} ({len(base_tracks)} tracks)."
-                    )
-
-            if consecutive_unliked >= 3:
-                get_liked_statuses(
-                    sp,
-                    [track.spotify_id for track in base_tracks],
-                    liked_cache,
-                    retry,
-                )
-                next_liked_track = progression.next_liked_track(
-                    base_tracks,
-                    base_index,
-                    liked_cache,
-                )
-                if next_liked_track is not None:
-                    plan = {
-                        "action": "advance",
-                        "release": asdict(source.release),
-                        "target": asdict(next_liked_track),
-                        "current_liked": current_liked,
-                        "consecutive_unliked": consecutive_unliked,
-                        "next_prior_unliked_streak": 0,
-                        "album_liked_tracks": None,
-                        "album_total_tracks": None,
-                        "should_unsave": False,
-                        "album_unsaved": False,
-                        "advance_reason": "next_liked_track",
-                        "drop_reason": None,
-                    }
-                else:
-                    evaluation = _live_evaluation(
-                        source.release,
-                        base_tracks,
-                        liked_cache,
-                    )
-                    plan = _drop_plan(
-                        source.release,
-                        evaluation,
-                        current_liked=current_liked,
-                        consecutive_unliked=consecutive_unliked,
-                        reason="three_consecutive_unliked",
-                    )
-            else:
-                selected_release = source.release
-                if source.release.release_type == "Single":
-                    candidates = artist_release_cache.get(source.primary_artist_id)
-                    if candidates is None:
-                        candidates = current_year_releases(
-                            sp,
-                            source.primary_artist_id,
-                            active_year,
-                            retry,
-                        )
-                        artist_release_cache[source.primary_artist_id] = candidates
-                    if not candidates:
-                        echo(
-                            f"No {active_year} primary-artist releases found for "
-                            f"{source.primary_artist_name}; skipping this run."
-                        )
-                        raw_entry["status"] = "skipped"
-                        result = FlushResult(
-                            source_track=source.name,
-                            artist=source.primary_artist_name,
-                            release=source.release.name,
-                            release_type=source.release.release_type,
-                            current_liked=current_liked,
-                            consecutive_unliked=consecutive_unliked,
-                            action="skip",
-                            dry_run=dry_run,
-                        )
-                        results.append(result)
-                        append_log(run_id, result, log_path)
-                        if not dry_run:
-                            state_access.save(state)
-                        continue
-                    only_current_single = (
-                        len(candidates) == 1
-                        and candidates[0].spotify_id == source.release.spotify_id
-                        and candidates[0].release_type == "Single"
-                    )
-                    if only_current_single:
-                        echo(
-                            f"{source.release.name} is the only {active_year} "
-                            f"release for {source.primary_artist_name}; "
-                            "dropping it automatically."
-                        )
-                        choice = CHOICE_DROP
-                        drop_reason = "only_current_year_single"
-                    else:
-                        choice = choice_reader(source, candidates)
-                        drop_reason = "manual_selection"
-                    if choice == CHOICE_QUIT:
-                        paused = True
-                        break
-                    if choice == CHOICE_SKIP:
-                        raw_entry["status"] = "skipped"
-                        result = FlushResult(
-                            source_track=source.name,
-                            artist=source.primary_artist_name,
-                            release=source.release.name,
-                            release_type=source.release.release_type,
-                            current_liked=current_liked,
-                            consecutive_unliked=consecutive_unliked,
-                            action="skip",
-                            dry_run=dry_run,
-                        )
-                        results.append(result)
-                        append_log(run_id, result, log_path)
-                        if not dry_run:
-                            state_access.save(state)
-                        continue
-                    if choice == CHOICE_DROP:
-                        get_liked_statuses(
-                            sp,
-                            [track.spotify_id for track in base_tracks],
-                            liked_cache,
-                            retry,
-                        )
-                        evaluation = _live_evaluation(
-                            source.release,
-                            base_tracks,
-                            liked_cache,
-                        )
-                        plan = _drop_plan(
-                            source.release,
-                            evaluation,
-                            current_liked=current_liked,
-                            consecutive_unliked=consecutive_unliked,
-                            reason=drop_reason,
-                        )
-                    else:
-                        selected_choice = next(
-                            (
-                                candidate
-                                for candidate in candidates
-                                if candidate.spotify_id == choice
-                            ),
-                            None,
-                        )
-                        if selected_choice is None:
-                            raise NewWineError("The selected release is not available.")
-                        selected_release = selected_choice
-
-                if plan is None:
-                    selected_tracks = release_tracks(selected_release)
-                    if (
-                        selected_release.spotify_id == source.release.spotify_id
-                        and endpoint_choice == CHOICE_CUTOFF
-                        and base_index is not None
-                    ):
-                        selected_tracks = selected_tracks[: base_index + 1]
-                    if not selected_tracks:
-                        echo(
-                            f"{selected_release.name} has no available tracks; "
-                            "skipping."
-                        )
-                        raw_entry["status"] = "skipped"
-                        result = FlushResult(
-                            source_track=source.name,
-                            artist=source.primary_artist_name,
-                            release=selected_release.name,
-                            release_type=selected_release.release_type,
-                            current_liked=current_liked,
-                            consecutive_unliked=consecutive_unliked,
-                            action="skip",
-                            dry_run=dry_run,
-                        )
-                        results.append(result)
-                        append_log(run_id, result, log_path)
-                        if not dry_run:
-                            state_access.save(state)
-                        continue
-                    selected_index = _track_index(selected_tracks, source)
-                    switched_release = (
-                        selected_release.spotify_id != source.release.spotify_id
-                    )
-                    if switched_release or selected_index is None:
-                        action: FlushAction = "advance"
-                        target = selected_tracks[0]
-                    elif selected_index + 1 < len(selected_tracks):
-                        action = "advance"
-                        target = selected_tracks[selected_index + 1]
-                    elif selected_release.release_type in {"Album", "EP"}:
-                        action = "sauvignon"
-                        target = selected_tracks[0]
-                    else:
-                        action = "complete single"
-                        target = None
-                    plan = {
-                        "action": action,
-                        "release": asdict(selected_release),
-                        "target": asdict(target) if target is not None else None,
-                        "current_liked": current_liked,
-                        "consecutive_unliked": consecutive_unliked,
-                        "next_prior_unliked_streak": consecutive_unliked,
-                        "album_liked_tracks": None,
-                        "album_total_tracks": None,
-                        "should_unsave": False,
-                        "album_unsaved": False,
-                        "advance_reason": None,
-                        "drop_reason": None,
-                    }
-                    if action == "sauvignon":
-                        get_liked_statuses(
-                            sp,
-                            [track.spotify_id for track in selected_tracks],
-                            liked_cache,
-                            retry,
-                        )
-                        _record_album_evaluation(
-                            plan,
-                            _live_evaluation(
-                                selected_release,
-                                selected_tracks,
-                                liked_cache,
-                            ),
-                        )
-
-            if endpoint_choice == CHOICE_CUTOFF:
-                plan["canonical_track_count"] = len(base_tracks)
-                plan["canonical_cutoff_track"] = source.name
-
-            if str(plan["action"]) in {
-                "drop",
-                "sauvignon",
-            } and source.release.release_type in {"Album", "EP"}:
-                candidates = artist_release_cache.get(source.primary_artist_id)
-                if candidates is None:
-                    candidates = current_year_releases(
-                        sp,
-                        source.primary_artist_id,
-                        active_year,
-                        retry,
-                    )
-                    artist_release_cache[source.primary_artist_id] = candidates
-                continuation_candidates = tuple(
-                    candidate
-                    for candidate in candidates
-                    if candidate.spotify_id != source.release.spotify_id
-                )
-                if continuation_candidates:
-                    choice = choice_reader(source, continuation_candidates)
-                    if choice == CHOICE_QUIT:
-                        paused = True
-                        break
-                    if choice == CHOICE_SKIP:
-                        raw_entry["status"] = "skipped"
-                        result = FlushResult(
-                            source_track=source.name,
-                            artist=source.primary_artist_name,
-                            release=source.release.name,
-                            release_type=source.release.release_type,
-                            current_liked=current_liked,
-                            consecutive_unliked=consecutive_unliked,
-                            action="skip",
-                            dry_run=dry_run,
-                        )
-                        results.append(result)
-                        append_log(run_id, result, log_path)
-                        if not dry_run:
-                            state_access.save(state)
-                        continue
-                    if choice not in {CHOICE_FINISH, CHOICE_DROP}:
-                        selected_continuation = next(
-                            (
-                                candidate
-                                for candidate in continuation_candidates
-                                if candidate.spotify_id == choice
-                            ),
-                            None,
-                        )
-                        if selected_continuation is None:
-                            raise NewWineError("The selected release is not available.")
-                        continuation_tracks = release_tracks(selected_continuation)
-                        if continuation_tracks:
-                            plan["continuation_release"] = asdict(selected_continuation)
-                            plan["continuation_target"] = asdict(continuation_tracks[0])
-                        else:
-                            echo(
-                                f"{selected_continuation.name} has no available "
-                                "tracks; finishing without a follow-up release."
-                            )
-
-            raw_entry["plan"] = plan
-            if not dry_run:
-                state_access.save(state)
-
-        release = _release_from_record(plan["release"])
-        target = _track_from_record(plan.get("target"))
-        continuation_release = (
-            _release_from_record(plan["continuation_release"])
-            if plan.get("continuation_release") is not None
-            else None
-        )
-        continuation_target = _track_from_record(plan.get("continuation_target"))
-        planned_action = str(plan["action"])
-        album_unsaved = bool(plan.get("album_unsaved"))
-
-        if planned_action == "sauvignon" and plan.get("evaluation") is None:
-            evaluated_tracks = release_tracks(release)
-            canonical_count = plan.get("canonical_track_count")
-            if isinstance(canonical_count, int):
-                evaluated_tracks = evaluated_tracks[:canonical_count]
-            get_liked_statuses(
-                sp,
-                [track.spotify_id for track in evaluated_tracks],
-                liked_cache,
-                retry,
-            )
-            _record_album_evaluation(
-                plan,
-                _live_evaluation(release, evaluated_tracks, liked_cache),
-            )
-            raw_entry["plan"] = plan
-            if not dry_run:
-                state_access.save(state)
-
-        if planned_action == "sauvignon":
-            _save_qualifying_sauvignon_album(
-                sp,
-                release,
-                AlbumEvaluation.model_validate(plan["evaluation"]),
-                dry_run=dry_run,
-                retry_call=retry,
-                albums_path=albums_path,
-                echo=echo,
-            )
-
-        if not dry_run and source.spotify_id not in new_wine_ids:
-            echo(f"Source already removed; completing saved plan for {source.name}.")
-        elif planned_action == "advance" and target is not None:
-            if target.spotify_id not in new_wine_ids:
-                if not dry_run:
-                    _add_playlist_track(
-                        sp,
-                        new_wine_playlist_id,
-                        target,
-                        retry,
-                    )
-                new_wine_ids.add(target.spotify_id)
-                echo(f"{'Would add' if dry_run else 'Added'} next track: {target.name}")
-        elif (
-            planned_action == "sauvignon"
-            and target is not None
-            and target.spotify_id not in sauvignon_ids
-        ):
-            if not dry_run:
-                _add_playlist_track(
-                    sp,
-                    sauvignon_playlist_id,
-                    target,
-                    retry,
-                )
-            sauvignon_ids.add(target.spotify_id)
-            echo(
-                f"{'Would add' if dry_run else 'Added'} to Sauvignon "
-                f"Terre-Neuve: {release.name}"
-            )
-        elif planned_action == "drop" and bool(plan.get("should_unsave")):
-            evaluation = AlbumEvaluation.model_validate(plan["evaluation"])
-            response = retry(
-                partial(
-                    sp.current_user_saved_albums_contains,
-                    [release.spotify_id],
-                ),
-                f"checking whether {release.name} is saved",
-            )
-            is_saved = (
-                bool(response[0]) if isinstance(response, list) and response else False
-            )
-            if dry_run:
-                album_unsaved = is_saved
-            elif not album_unsaved and is_saved:
-                retry(
-                    partial(
-                        sp.current_user_saved_albums_delete,
-                        [release.spotify_id],
-                    ),
-                    f"unsaving {release.name}",
-                )
-                _remove_local_album(release.spotify_id, albums_path)
-                append_removed_album_log(
-                    album=YourLibraryAlbum(
-                        artist=release.primary_artist_name,
-                        album=release.name,
-                        uri=release.uri,
-                    ),
-                    evaluation=evaluation,
-                    log_path=removed_albums_log_path,
-                    action=f"new_wine_{plan.get('drop_reason') or 'drop'}",
-                    live_liked_tracks=evaluation.liked_tracks,
-                )
-                album_unsaved = True
-                plan["album_unsaved"] = True
-                state_access.save(state)
-            if is_saved:
-                echo(
-                    f"{'Would unsave' if dry_run else 'Unsave check complete for'} "
-                    f"{release.name}: {evaluation.liked_tracks}/"
-                    f"{evaluation.total_tracks} liked."
-                )
-            else:
-                echo(
-                    f"{release.name} is already absent from saved albums; "
-                    "no library removal needed."
-                )
-
-        if (
-            continuation_release is not None
-            and continuation_target is not None
-            and (dry_run or source.spotify_id in new_wine_ids)
-        ):
-            if continuation_target.spotify_id not in new_wine_ids:
-                if not dry_run:
-                    _add_playlist_track(
-                        sp,
-                        new_wine_playlist_id,
-                        continuation_target,
-                        retry,
-                    )
-                new_wine_ids.add(continuation_target.spotify_id)
-                echo(
-                    f"{'Would start' if dry_run else 'Started'} follow-up release: "
-                    f"{continuation_release.name} - {continuation_target.name}"
-                )
-
-        if not dry_run and source.spotify_id in new_wine_ids:
-            _remove_playlist_track(
-                sp,
-                new_wine_playlist_id,
-                source,
-                retry,
-            )
-        if source.spotify_id in new_wine_ids:
-            new_wine_ids.discard(source.spotify_id)
-        echo(
-            f"{'Would remove' if dry_run else 'Removed'} previous track: {source.name}"
-        )
-
-        if not dry_run:
-            progress_state.pop(source.spotify_id, None)
-            if continuation_release is not None and continuation_target is not None:
-                progress_state[continuation_target.spotify_id] = {
-                    "release": asdict(continuation_release),
-                    "prior_unliked_streak": 0,
-                    "updated_at": datetime.now(UTC).isoformat(),
-                }
-            elif planned_action == "advance" and target is not None:
-                progress_state[target.spotify_id] = {
-                    "release": asdict(release),
-                    "prior_unliked_streak": cast(
-                        int,
-                        plan.get(
-                            "next_prior_unliked_streak",
-                            plan["consecutive_unliked"],
-                        ),
-                    ),
-                    "updated_at": datetime.now(UTC).isoformat(),
-                }
-            raw_entry["status"] = "completed"
-            state_access.save(state)
-
-        result = _plan_result(
-            source,
-            plan,
-            dry_run=dry_run,
-            album_unsaved=album_unsaved,
-        )
-        results.append(result)
-        append_log(run_id, result, log_path)
-        if progress_callback is not None:
-            progress_callback(index, total, f"Completed {source.name}")
-
-    refill_playlist_id = run.get("wine_cellar_playlist_id")
-    if not isinstance(refill_playlist_id, str) or not refill_playlist_id:
-        refill_playlist_id = wine_cellar_playlist_id
-    refill_no_discovery = (
-        bool(run["no_discovery"]) if "no_discovery" in run else no_discovery
-    )
-    if not paused and refill_playlist_id:
-        refill = _refill_new_wine(
-            sp,
-            new_wine_playlist_id,
-            refill_playlist_id,
-            no_discovery=refill_no_discovery,
-            dry_run=dry_run,
-            retry_call=retry,
-            state=state,
-            run=run,
-            state_access=state_access,
-            log_path=log_path,
-            liked_tracks_path=liked_tracks_path,
-            albums_path=albums_path,
-            echo=echo,
-            projected_new_wine_ids=set(new_wine_ids) if dry_run else None,
-        )
-
-    if not dry_run and not paused:
-        if all(
-            isinstance(entry, dict) and entry.get("status") in {"completed", "skipped"}
-            for entry in raw_entries
-        ):
-            run["status"] = "completed"
-            run["completed_at"] = datetime.now(UTC).isoformat()
-            state_access.save(state)
-
-    return FlushSummary(
-        run_id=run_id,
-        total=total,
-        processed=len(results),
-        advanced=sum(result.action == "advance" for result in results),
-        dropped=sum(result.action == "drop" for result in results),
-        sent_to_sauvignon=sum(result.action == "sauvignon" for result in results),
-        completed_singles=sum(result.action == "complete single" for result in results),
-        skipped=sum(result.action == "skip" for result in results),
-        albums_unsaved=sum(result.album_unsaved for result in results),
-        paused=paused,
-        dry_run=dry_run,
-        resumed=resumed,
-        results=tuple(results),
-        refill=refill,
+    return run_new_wine(
+        sp,
+        options,
+        choice_reader,
+        endpoint_choice_reader,
+        year,
+        echo,
+        progress_callback,
+        retry_call,
+        state_path,
+        state_service,
+        log_path,
+        albums_path,
+        liked_tracks_path,
+        removed_albums_log_path,
+        _clock,
+        _local_year,
     )
 
 
@@ -1671,3 +932,134 @@ def _affinity_track_statuses(
     if not isinstance(response, list) or len(response) != len(batch):
         raise NewWineError("Spotify returned invalid Liked Songs statuses.")
     return tuple(bool(liked) for liked in response)
+
+
+def _clock() -> datetime:
+    return datetime.now(UTC)
+
+
+def _local_year() -> int:
+    return datetime.now().year
+
+
+def _post_track(sp: Spotify, playlist_id: str, track: ReleaseTrack) -> object:
+    return sp._post(f"playlists/{playlist_id}/items", payload={"uris": [track.uri]})
+
+
+def _delete_track(sp: Spotify, playlist_id: str, track: PlaylistTrack) -> object:
+    return sp._delete(
+        f"playlists/{playlist_id}/items", payload={"items": [{"uri": track.uri}]}
+    )
+
+
+def _saved_for_keep(
+    sp: Spotify, release: ReleaseCandidate, retry_call: RetryCall
+) -> bool:
+    response = retry_call(
+        partial(sp.current_user_saved_albums_contains, [release.spotify_id]),
+        f"checking whether {release.name} is saved",
+    )
+    return bool(response[0]) if isinstance(response, list) and response else False
+
+
+def _saved_for_drop(sp: Spotify, release: ReleaseCandidate, retry: RetryCall) -> bool:
+    response = retry(
+        partial(sp.current_user_saved_albums_contains, [release.spotify_id]),
+        f"checking whether {release.name} is saved",
+    )
+    return bool(response[0]) if isinstance(response, list) and response else False
+
+
+def _save_album(sp: Spotify, release: ReleaseCandidate, retry_call: RetryCall) -> None:
+    retry_call(
+        partial(sp.current_user_saved_albums_add, [release.spotify_id]),
+        f"saving {release.name}",
+    )
+
+
+def _unsave_album(sp: Spotify, release: ReleaseCandidate, retry: RetryCall) -> None:
+    retry(
+        partial(sp.current_user_saved_albums_delete, [release.spotify_id]),
+        f"unsaving {release.name}",
+    )
+
+
+def _append_playlist_items(
+    tracks: list[PlaylistTrack], raw_items: list[object]
+) -> None:
+    for raw in raw_items:
+        track = _playlist_track(raw)
+        if track is not None:
+            tracks.append(track)
+
+
+def _release_track(raw: object, fallback_position: int) -> ReleaseTrack | None:
+    if not isinstance(raw, dict):
+        return None
+    spotify_id = str(raw.get("id") or "").strip()
+    uri = str(raw.get("uri") or "").strip()
+    if not spotify_id or not uri:
+        return None
+    return ReleaseTrack(
+        spotify_id=spotify_id,
+        uri=uri,
+        name=str(raw.get("name") or spotify_id),
+        disc_number=_track_position(raw.get("disc_number"), 1),
+        track_number=_track_position(raw.get("track_number"), fallback_position),
+    )
+
+
+def _append_release_items(tracks: list[ReleaseTrack], raw_items: list[object]) -> None:
+    for raw in raw_items:
+        track = _release_track(raw, len(tracks) + 1)
+        if track is not None:
+            tracks.append(track)
+
+
+def _release_track_order(track: ReleaseTrack) -> tuple[int, int]:
+    return track.disc_number, track.track_number
+
+
+def _append_current_year_releases(
+    releases: dict[str, ReleaseCandidate],
+    raw_items: list[object],
+    artist_id: str,
+    year: int,
+) -> None:
+    for raw in raw_items:
+        candidate = _release_candidate(raw, target_artist_id=artist_id)
+        if _eligible_current_release(candidate, year):
+            assert candidate is not None
+            releases[candidate.spotify_id] = candidate
+
+
+def _eligible_current_release(candidate: ReleaseCandidate | None, year: int) -> bool:
+    if candidate is None or candidate.release_type == "Compilation":
+        return False
+    return candidate.release_date.startswith(f"{year:04d}")
+
+
+def _current_release_order(release: ReleaseCandidate) -> tuple[str, str, str, str]:
+    return (
+        release.release_date,
+        release.release_type,
+        release.name.casefold(),
+        release.spotify_id,
+    )
+
+
+def _missing_track_ids(track_ids: list[str], cache: dict[str, bool]) -> list[str]:
+    missing: dict[str, None] = {}
+    for track_id in track_ids:
+        if track_id not in cache:
+            missing[track_id] = None
+    return list(missing)
+
+
+def _unique_inventory_ids(
+    inventory: dict[str, list[str]],
+) -> dict[str, tuple[str, ...]]:
+    unique = {}
+    for artist, spotify_ids in inventory.items():
+        unique[artist] = tuple(dict.fromkeys(spotify_ids))
+    return unique

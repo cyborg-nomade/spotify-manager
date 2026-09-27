@@ -1,9 +1,11 @@
 """Existing Slow Listening state records and their tolerant reconstruction rules."""
 
 from dataclasses import asdict
-from typing import TypedDict
 from typing import cast
 
+from spotify_manager.application.catalog_records import DiscographyRecord
+from spotify_manager.application.catalog_records import ReleaseRecord
+from spotify_manager.application.catalog_records import TrackRecord
 from spotify_manager.application.slow_listening_values import FlushAction
 from spotify_manager.application.slow_listening_values import FlushResult
 from spotify_manager.application.slow_listening_values import SlowListeningStateError
@@ -11,39 +13,6 @@ from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
-
-
-class ReleaseRecord(TypedDict):
-    """Existing serialized release fields used at the durable state boundary."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    primary_artist_id: str
-    primary_artist_name: str
-
-
-class DiscographyRecord(ReleaseRecord):
-    """Selected-edition fields retained alongside the original release fields."""
-
-    chronology_date: str
-    identity: str
-    saved: bool
-    plain: bool
-    edition_rank: int
-
-
-class TrackRecord(TypedDict):
-    """Existing ordered-track fields stored in a durable transition plan."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    disc_number: int
-    track_number: int
 
 
 def source_from_record(raw: object) -> PlaylistTrack:

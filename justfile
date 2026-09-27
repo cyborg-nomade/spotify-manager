@@ -86,6 +86,13 @@ test-application:
         --cov=spotify_manager.application.library_statistics \
         --cov=spotify_manager.application.library_affinity \
         --cov=spotify_manager.application.new_wine_values \
+        --cov=spotify_manager.application.new_wine \
+        --cov=spotify_manager.application.new_wine_execution \
+        --cov=spotify_manager.application.new_wine_observations \
+        --cov=spotify_manager.application.new_wine_planner \
+        --cov=spotify_manager.application.new_wine_plans \
+        --cov=spotify_manager.application.new_wine_state \
+        --cov=spotify_manager.application.release_evaluation \
         --cov=spotify_manager.application.wine_cellar \
         --cov=spotify_manager.application.recovery_values \
         --cov=spotify_manager.application.music \

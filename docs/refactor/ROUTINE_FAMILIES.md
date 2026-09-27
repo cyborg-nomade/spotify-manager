@@ -125,3 +125,50 @@ tests; 35 independent refill/affinity tests cover every statement and branch in
 the extracted services. The complete application gate now passes 220 tests with
 100% coverage for its use-case/value targets. The eleven public artifact
 comparisons also remain unchanged.
+
+### New Wine flush checkpoint
+
+New Wine now delegates through composition into an injected application workflow.
+The planner owns source observations, streak progression, canonical endpoints,
+current-year release choices and optional continuations. The executor owns album
+qualification, ordered remote and mirror effects, marker membership projections
+and durable progress. Presentation uses an explicit port; run-scoped caches keep
+the original read boundaries. Durable records retain their original layouts,
+coercions and tolerant handling of older plans.
+
+The migration intentionally preserves differing failure contracts. Completed
+entries are checkpointed before the result audit; skipped entries are audited
+before their checkpoint. An accepted album removal can leave downstream mirror
+or audit work incomplete on restart because the original workflow then observes
+an absent album. Saved-plan execution still suppresses replacement writes after
+source removal without requiring the replacement to remain present. None of
+these behaviors has been silently repaired during extraction.
+
+The legacy integration helpers now use typed module-level parsers, named sorting
+keys and explicit loops. The public entry point, callbacks, messages and Spotify
+expressions remain compatible. Shared catalog record types and live release
+evaluation have application owners; broader shared-loader ownership remains part
+of the New Kids/Queue 3 work in this wave.
+
+Checkpoint evidence:
+
+- All **1,973 tests** pass in the full randomized run (seed `20260934`).
+- Coverage is **91.93% statements** (18,351 / 19,962), above the frozen 90.22%
+  baseline, and **78.33% branches** (4,106 / 5,242). These are separate metrics.
+  The diagnostic run used `--cov-branch` with the existing 90% combined pytest-cov
+  floor and therefore returned a coverage failure at 89.10% combined coverage;
+  the tests themselves all passed. Legacy branch coverage remains diagnostic.
+- `just test-domain` passes **188 tests** and `just test-application` passes
+  **327 tests**, both with **100% statement and branch coverage** for their
+  configured targets. The application gate now includes the complete New Wine
+  planner, executor, observations, state translation, plans and shared evaluation.
+- The independent New Wine tests cover operator choices, exact read/effect order,
+  canonical endpoints, accepted-effect failures, partial album removal and restart.
+- Five additional real CLI/HTTP integration cases cover release choice, preview,
+  canonical endpoint choice and restart after an accepted append.
+- All eleven frozen public artifact comparisons pass, including the unchanged
+  Spotify endpoint inventory. All existing characterization traces remain intact.
+- Package and touched-test Ruff/format checks and mypy pass; inner-layer suites
+  pass strict mypy and dependency-direction checks.
+
+New Kids/Queue 2 and Queue 3 are next. This checkpoint does not complete Item 6.
