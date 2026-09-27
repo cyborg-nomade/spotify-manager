@@ -6,6 +6,7 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.composer_routes import ReleaseChoiceReader
+from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.discovery_observations import DiscoveryObservations
 from spotify_manager.application.new_kids_planner import NewKidsPlanner
 from spotify_manager.application.ports.listening import RetryCall
@@ -15,6 +16,7 @@ from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.domain.discovery_history import AnnualScrobbleIndex
 from spotify_manager.infrastructure.legacy.discovery import LegacyDiscoveryAudit
 from spotify_manager.infrastructure.legacy.discovery import LegacyDiscoveryCatalog
+from spotify_manager.infrastructure.legacy.discovery import LegacyDiscoveryLibrary
 from spotify_manager.interfaces.presenters.new_kids import NewKidsPresenter
 
 
@@ -66,5 +68,36 @@ def review_planner(
         LegacyDiscoveryAudit(log_path),
         NewKidsPresenter(echo),
         year,
+        dry_run,
+    )
+
+
+def library_reconciliation(
+    client: Spotify,
+    retry: RetryCall,
+    albums_path: Path,
+    removed_path: Path,
+    log_path: Path,
+    echo: Callable[[str], None],
+    dry_run: bool,
+) -> DiscoveryLibraryReconciliation:
+    """Compose release-boundary reconciliation with existing integrations.
+
+    Args:
+        client: Caller-owned synchronous Spotify client.
+        retry: Existing retry and cancellation callback.
+        albums_path: Existing local album mirror.
+        removed_path: Existing removed-album recovery log.
+        log_path: Existing routine audit destination.
+        echo: Existing CLI or job message sink.
+        dry_run: Whether to suppress remote and mirror writes.
+
+    Returns:
+        Reconciliation service retaining the original effect boundaries.
+    """
+    return DiscoveryLibraryReconciliation(
+        LegacyDiscoveryLibrary(client, retry, albums_path, removed_path),
+        LegacyDiscoveryAudit(log_path),
+        NewKidsPresenter(echo),
         dry_run,
     )

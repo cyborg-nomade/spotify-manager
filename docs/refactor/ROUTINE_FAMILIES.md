@@ -262,3 +262,24 @@ remain in progress; this checkpoint does not complete New Kids or Item 6.
   **100% statement and branch coverage** for their configured targets.
 - All eleven frozen interface artifacts, unchanged characterization fixtures,
   package Ruff/format/mypy and strict inner-layer checks pass.
+
+### Discovery library reconciliation checkpoint
+
+Release-boundary reconciliation now runs through an injected application service.
+It retains live membership reads, remote changes, removal recovery records, mirror
+publication, routine audit and presentation in their original order. Real runs
+repair mirrors even when remote membership already matches; previews still read,
+audit and display their decisions without changing the library or mirror.
+
+Independent tests cover every saved/keep/preview combination and failures at each
+effect boundary. A recovery-log failure after remote removal intentionally retains
+the original retry behavior: the next attempt observes an absent album, repairs
+the mirror and does not repeat the removal recovery record.
+
+- Full suite: **2,120 tests pass**, seed `20260938`; **92.13% statements**
+  (18,808 / 20,415) and **79.26% branches** (4,193 / 5,290).
+- All **435 independent application tests** pass with **100% statement and branch
+  coverage** for their configured targets; the 233 New Kids/characterization tests
+  and all eleven frozen interface artifacts pass unchanged.
+- Package lint, formatting and mypy pass. Playlist completion and coordinator
+  extraction remain pending within the same Item 6 branch.

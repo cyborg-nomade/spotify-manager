@@ -3,6 +3,9 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from spotify_manager.domain.discovery import RankedRelease
+from spotify_manager.models.lookups import AlbumEvaluation
+
 
 @dataclass(frozen=True)
 class NewKidsPresenter:
@@ -24,4 +27,24 @@ class NewKidsPresenter:
         """
         self.echo(
             f"{artist}: {completed} release(s) completed from {year} Last.fm scrobbles."
+        )
+
+    def reconciled(
+        self,
+        release: RankedRelease,
+        evaluation: AlbumEvaluation,
+        action: str,
+        dry_run: bool,
+    ) -> None:
+        """Show reconciliation after the original routine audit.
+
+        Args:
+            release: Completed release.
+            evaluation: Accepted live decision and track counts.
+            action: Original persisted or preview outcome.
+            dry_run: Whether to use preview wording.
+        """
+        self.echo(
+            f"{'Would reconcile' if dry_run else 'Reconciled'} {release.name}: "
+            f"{evaluation.liked_tracks}/{evaluation.total_tracks} liked, {action}."
         )

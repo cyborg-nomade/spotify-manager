@@ -3,11 +3,16 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from spotipy import Spotify
+
+from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.infrastructure.legacy.artist_assessment import (
     LegacyAssessmentCatalog,
 )
+from spotify_manager.models.lookups import AlbumEvaluation
+from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 
@@ -70,3 +75,77 @@ class LegacyDiscoveryAudit:
             details: Original structured fields in application-supplied order.
         """
         new_kids.append_event(self.path, name, **details)
+
+
+@dataclass(frozen=True)
+class LegacyDiscoveryLibrary:
+    """Bind discovery library effects to the existing SDK and canonical files.
+
+    Args:
+        client: Caller-owned synchronous Spotify client.
+        retry: Existing retry and cancellation callback.
+        albums_path: Existing local album mirror.
+        removed_path: Existing removed-album recovery log.
+    """
+
+    client: Spotify
+    retry: RetryCall
+    albums_path: Path
+    removed_path: Path
+
+    def saved(self, release: RankedRelease) -> bool:
+        """Observe saved membership through the original retry boundary.
+
+        Args:
+            release: Completed release.
+
+        Returns:
+            First truthy status, or false for an absent/malformed response.
+        """
+        return new_kids._release_saved(self.client, release, self.retry)
+
+    def save_album(self, release: RankedRelease) -> None:
+        """Save one accepted release remotely.
+
+        Args:
+            release: Accepted release.
+        """
+        new_kids._save_release(self.client, release, self.retry)
+
+    def remove_album(self, release: RankedRelease) -> None:
+        """Remove one rejected release remotely.
+
+        Args:
+            release: Rejected release.
+        """
+        new_kids._remove_release(self.client, release, self.retry)
+
+    def removed_audit(
+        self, release: RankedRelease, evaluation: AlbumEvaluation
+    ) -> None:
+        """Append the original recovery record after a successful remote removal.
+
+        Args:
+            release: Removed release.
+            evaluation: Accepted live removal decision.
+        """
+        new_kids.append_removed_album_log(
+            YourLibraryAlbum(
+                artist=release.primary_artist_name,
+                album=release.name,
+                uri=release.uri,
+            ),
+            evaluation,
+            log_path=self.removed_path,
+            action="new_kids_release_boundary",
+            live_liked_tracks=evaluation.liked_tracks,
+        )
+
+    def mirror(self, release: RankedRelease, should_save: bool) -> None:
+        """Apply the original canonical mirror and statistics synchronization.
+
+        Args:
+            release: Completed release.
+            should_save: Desired membership from the live decision.
+        """
+        new_kids._sync_local_album(release, should_save, self.albums_path)

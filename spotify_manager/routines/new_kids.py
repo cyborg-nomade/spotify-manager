@@ -62,7 +62,9 @@ from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines.recover_removed_albums import sync_stats_history_counts
-from spotify_manager.routines.review_album_limits import append_removed_album_log
+from spotify_manager.routines.review_album_limits import (
+    append_removed_album_log as append_removed_album_log,
+)
 from spotify_manager.routines.review_artists import add_playlist_item
 from spotify_manager.routines.review_artists import remove_library_artists
 from spotify_manager.routines.review_artists import remove_playlist_items
@@ -882,57 +884,34 @@ def _reconcile_release_library(
     log_path: Path,
     echo: Echo,
 ) -> str:
+    from spotify_manager.bootstrap.new_kids import library_reconciliation
+
+    service = library_reconciliation(
+        sp, retry_call, albums_path, removed_albums_log_path, log_path, echo, dry_run
+    )
+    return service.reconcile(release, evaluation)
+
+
+def _release_saved(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> bool:
     response = retry_call(
         partial(sp.current_user_saved_albums_contains, [release.spotify_id]),
         f"checking whether {release.name} is saved",
     )
-    is_saved = bool(response[0]) if isinstance(response, list) and response else False
-    should_save = evaluation.decision == "keep"
-    action = "kept" if should_save else "absent"
-    if should_save and not is_saved:
-        action = "would save" if dry_run else "saved"
-        if not dry_run:
-            retry_call(
-                partial(sp.current_user_saved_albums_add, [release.spotify_id]),
-                f"saving {release.name}",
-            )
-    elif not should_save and is_saved:
-        action = "would remove" if dry_run else "removed"
-        if not dry_run:
-            retry_call(
-                partial(sp.current_user_saved_albums_delete, [release.spotify_id]),
-                f"unsaving {release.name}",
-            )
-            append_removed_album_log(
-                YourLibraryAlbum(
-                    artist=release.primary_artist_name,
-                    album=release.name,
-                    uri=release.uri,
-                ),
-                evaluation,
-                log_path=removed_albums_log_path,
-                action="new_kids_release_boundary",
-                live_liked_tracks=evaluation.liked_tracks,
-            )
-    if not dry_run:
-        _sync_local_album(release, should_save, albums_path)
-    append_event(
-        log_path,
-        "release_library_checked",
-        artist=release.primary_artist_name,
-        release=release.name,
-        release_id=release.spotify_id,
-        liked_tracks=evaluation.liked_tracks,
-        total_tracks=evaluation.total_tracks,
-        decision=evaluation.decision,
-        action=action,
-        dry_run=dry_run,
+    return bool(response[0]) if isinstance(response, list) and response else False
+
+
+def _save_release(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> None:
+    retry_call(
+        partial(sp.current_user_saved_albums_add, [release.spotify_id]),
+        f"saving {release.name}",
     )
-    echo(
-        f"{'Would reconcile' if dry_run else 'Reconciled'} {release.name}: "
-        f"{evaluation.liked_tracks}/{evaluation.total_tracks} liked, {action}."
+
+
+def _remove_release(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> None:
+    retry_call(
+        partial(sp.current_user_saved_albums_delete, [release.spotify_id]),
+        f"unsaving {release.name}",
     )
-    return action
 
 
 def _catalog_track_popularities(
