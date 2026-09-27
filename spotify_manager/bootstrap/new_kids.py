@@ -12,11 +12,14 @@ from spotify_manager.application.discovery_destinations import GreatDiscoveries
 from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.discovery_observations import DiscoveryObservations
 from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
+from spotify_manager.application.discovery_review import DiscoveryReview
+from spotify_manager.application.discovery_review import ProgressCallback
 from spotify_manager.application.new_kids_execution import NewKidsExecution
 from spotify_manager.application.new_kids_planner import NewKidsPlanner
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
+from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.domain.discovery_history import AnnualScrobbleIndex
@@ -244,4 +247,43 @@ def queue_transfer(
         source,
         capacity,
         dry_run,
+    )
+
+
+def entry_review(
+    planner: NewKidsPlanner,
+    execution: NewKidsExecution,
+    owned: tuple[OwnedPlaylist, ...],
+    excluded: frozenset[str],
+    clock: Callable[[], datetime],
+    composer_limit: int,
+    progress_callback: ProgressCallback | None,
+    echo: Callable[[str], None],
+) -> DiscoveryReview:
+    """Compose entry review over the already accepted run-owned services.
+
+    Args:
+        planner: Ordinary release decisions and shared observations.
+        execution: Accepted plan effects and namespace.
+        owned: Observed owned playlists.
+        excluded: Review playlist identifiers excluded from composer routing.
+        clock: Original UTC clock for progress and composer route acceptance.
+        composer_limit: Original maximum reviewed works.
+        progress_callback: Existing progress sink, if configured.
+        echo: Existing CLI or job message sink.
+
+    Returns:
+        Entry coordinator sharing the original invocation-owned dependencies.
+    """
+    return DiscoveryReview(
+        planner,
+        execution,
+        execution.state_access,
+        execution.library.audit,
+        NewKidsPresenter(echo),
+        owned,
+        excluded,
+        clock,
+        composer_limit,
+        progress_callback,
     )

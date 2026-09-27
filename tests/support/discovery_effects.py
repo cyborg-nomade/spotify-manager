@@ -158,3 +158,29 @@ class MemoryEffects(MemoryLibrary):
     def artist_unfollowed(self, name: str, dry_run: bool) -> None:
         """Record unfollow presentation after remote and local effects."""
         self._record("artist_unfollowed", (name, dry_run))
+
+    def stale_plan(self, artist: str) -> None:
+        """Observe stale plan removal before checkpoint.
+
+        Args:
+            artist: Logical artist display name.
+        """
+        self._record("stale", artist)
+
+    def skipped(self, artist: str) -> None:
+        """Observe composer skip after checkpoint.
+
+        Args:
+            artist: Logical artist display name.
+        """
+        self._record("skipped", artist)
+
+    def progress(self, done: int, total: int, message: str) -> None:
+        """Observe original progress callback boundaries.
+
+        Args:
+            done: Accepted completed-entry count.
+            total: Original snapshot size.
+            message: Original progress description.
+        """
+        self._record("progress", (done, total, message))

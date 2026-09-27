@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Callable
-from dataclasses import asdict
 from datetime import UTC
 from datetime import datetime
 from functools import partial
@@ -17,8 +16,6 @@ from spotipy import Spotify
 from spotify_manager.application import composer_progression
 from spotify_manager.application import composer_routes
 from spotify_manager.application import new_kids_state as discovery_state
-from spotify_manager.application.discovery_completion import ReviewArtist
-from spotify_manager.application.new_kids_planner import ReviewSource
 from spotify_manager.application.new_kids_values import (
     ArtistAssessment as ArtistAssessment,
 )
@@ -43,7 +40,6 @@ from spotify_manager.domain import completion
 # UFI
 from spotify_manager.domain import discovery_history as history_policy
 from spotify_manager.domain import discovery_progression as discovery_policy
-from spotify_manager.domain import progression
 from spotify_manager.domain import releases as release_policy
 from spotify_manager.domain.discovery import CatalogTrack as CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease as RankedRelease
@@ -1284,8 +1280,6 @@ def _flush_review_playlist(
     track_cache: dict[str, tuple[CatalogTrack, ...]] = {}
     composer_track_cache: dict[str, tuple[new_wine.PlaylistTrack, ...]] = {}
     liked_cache: dict[str, bool] = {}
-    results: list[FlushResult] = []
-    paused = False
 
     from spotify_manager.bootstrap.new_kids import review_planner
 
@@ -1305,7 +1299,6 @@ def _flush_review_playlist(
         liked=liked_cache,
         works=composer_track_cache,
     )
-    observations = planner.observations
 
     from spotify_manager.bootstrap.new_kids import review_execution
 
@@ -1330,164 +1323,19 @@ def _flush_review_playlist(
         clock=_utc_now,
     )
 
-    total = len(raw_entries)
-    for index, raw_entry in enumerate(raw_entries, start=1):
-        if not isinstance(raw_entry, dict):
-            raise NewKidsStateError("New Kids run contains an invalid entry.")
-        if raw_entry.get("status") in {"completed", "skipped"}:
-            continue
-        source = _source_from_record(raw_entry.get("source"))
-        artist_id = str(raw_entry.get("artist_id") or source.primary_artist_id)
-        artist_name = str(raw_entry.get("artist_name") or source.primary_artist_name)
-        if progress_callback:
-            progress_callback(
-                index - 1,
-                total,
-                f"{artist_name} - {source.name}",
-            )
-        progress = _artist_progress(state, source, artist_id, artist_name)
+    from spotify_manager.bootstrap.new_kids import entry_review
 
-        raw_plan = raw_entry.get("plan")
-        plan = raw_plan if isinstance(raw_plan, dict) else None
-        excluded_playlist_ids = frozenset({new_kids_playlist_id, queue_2_playlist_id})
-        if plan is not None and plan.get("composer_playlist_id"):
-            composer_playlist_id = str(plan["composer_playlist_id"])
-            if not composer_playlists.is_composer_playlist_candidate(
-                artist_name,
-                composer_playlist_id,
-                owned_playlists,
-                excluded_playlist_ids=excluded_playlist_ids,
-            ):
-                plan = None
-                raw_entry["plan"] = None
-                routes = state.get("composer_routes")
-                if isinstance(routes, dict):
-                    routes.pop(artist_id, None)
-                echo(f"Discarded a stale composer-playlist plan for {artist_name}.")
-                if not dry_run:
-                    state_access.save(state)
-        if plan is None:
-            composer_playlist, composer_choice = _resolve_composer_playlist(
-                state,
-                artist_id,
-                artist_name,
-                source.spotify_id,
-                owned_playlists,
-                excluded_playlist_ids,
-                choice_reader,
-            )
-            if composer_choice == CHOICE_QUIT:
-                paused = True
-                break
-            if composer_choice == CHOICE_SKIP:
-                raw_entry["status"] = "skipped"
-                if not dry_run:
-                    state_access.save(state)
-                echo(f"Skipped {artist_name} for this run.")
-                continue
-            if composer_playlist is not None:
-                composer_tracks = composer_track_cache.get(composer_playlist.spotify_id)
-                if composer_tracks is None:
-                    composer_tracks = new_wine.load_playlist_tracks(
-                        sp,
-                        composer_playlist.spotify_id,
-                        retry,
-                    )
-                    composer_track_cache[composer_playlist.spotify_id] = composer_tracks
-                new_wine.get_liked_statuses(
-                    sp,
-                    [source.spotify_id],
-                    liked_cache,
-                    retry,
-                )
-                _completed, next_composer_track = _composer_step(
-                    source,
-                    composer_tracks,
-                )
-                assessment = (
-                    assess_artist(
-                        sp,
-                        artist_id,
-                        observations.catalog(artist_id),
-                        retry,
-                        track_cache,
-                    )
-                    if next_composer_track is None
-                    else None
-                )
-                plan = _composer_plan(
-                    source,
-                    artist_id,
-                    artist_name,
-                    composer_playlist,
-                    composer_tracks,
-                    current_liked=liked_cache[source.spotify_id],
-                    assessment=assessment,
-                )
-                raw_entry["plan"] = plan
-                if not dry_run:
-                    state_access.save(state)
-
-        catalog = observations.catalog(artist_id)
-        current_release = next(
-            (
-                release
-                for release in catalog
-                if release.spotify_id == source.release.spotify_id
-            ),
-            _composer_release(source, artist_id, artist_name),
-        )
-        if all(release.identity != current_release.identity for release in catalog):
-            catalog = (current_release, *catalog)
-        current_tracks = observations.tracks(current_release)
-        primary_tracks = progression.primary_artist_tracks(current_tracks, artist_id)
-        source_index = _track_index(primary_tracks, source)
-
-        if plan is None:
-            context = ReviewSource(
-                source,
-                artist_id,
-                artist_name,
-                progress,
-                catalog,
-                current_release,
-                current_tracks,
-                primary_tracks,
-                source_index,
-            )
-            decision = planner.plan(context)
-            if decision is None:
-                paused = True
-                break
-            if isinstance(decision, FlushResult):
-                raw_entry["status"] = "skipped"
-                results.append(decision)
-                append_event(
-                    log_path,
-                    "artist_skipped_run",
-                    artist=artist_name,
-                    artist_id=artist_id,
-                    dry_run=dry_run,
-                )
-                _checkpoint_review(state_access, state, dry_run)
-                continue
-            plan = decision
-            raw_entry["plan"] = plan
-            _checkpoint_review(state_access, state, dry_run)
-
-        assert plan is not None
-        result = execution.execute(
-            source, ReviewArtist(artist_id, artist_name), raw_entry, progress, plan
-        )
-        results.append(result)
-        append_event(
-            log_path,
-            "track_completed",
-            run_id=run.get("run_id"),
-            result=asdict(result),
-        )
-        if progress_callback:
-            progress_callback(index, total, f"Completed {artist_name}")
+    reviewer = entry_review(
+        planner,
+        execution,
+        owned_playlists,
+        frozenset({new_kids_playlist_id, queue_2_playlist_id}),
+        _utc_now,
+        COMPOSER_TRACKS_PER_ARTIST,
+        progress_callback,
+        echo,
+    )
+    reviewed, paused = reviewer.review(raw_entries, run.get("run_id"))
 
     postfill: tuple[FillResult, ...] = ()
     if not paused and _fill_from_queue:
@@ -1521,7 +1369,7 @@ def _flush_review_playlist(
         length_after = len(live_ids)
 
     return FlushSummary(
-        results=tuple(results),
+        results=reviewed,
         prefill=prefill,
         postfill=postfill,
         playlist_length_before=length_before,

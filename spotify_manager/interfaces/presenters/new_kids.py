@@ -128,3 +128,19 @@ class NewKidsPresenter:
         self.echo(
             f"{'Would move' if dry_run else 'Moved'} {artist} from Queue 2 to New Kids."
         )
+
+    def stale_plan(self, artist: str) -> None:
+        """Show discarded composer routing before its checkpoint.
+
+        Args:
+            artist: Logical artist display name.
+        """
+        self.echo(f"Discarded a stale composer-playlist plan for {artist}.")
+
+    def skipped(self, artist: str) -> None:
+        """Show a composer skip after its checkpoint.
+
+        Args:
+            artist: Logical artist display name.
+        """
+        self.echo(f"Skipped {artist} for this run.")

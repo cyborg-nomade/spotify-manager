@@ -330,3 +330,25 @@ explicit-empty-queue behavior remain covered without tightening validation.
 - All 233 New Kids/characterization tests, eleven frozen interface artifacts,
   package lint, formatting and type checks pass.
 - Shared run coordination and Queue 2 invocation preparation remain in progress.
+
+### Shared discovery entry coordination checkpoint
+
+The entry coordinator now lives in the application layer and shares the accepted
+planner/executor observations. Saved ordinary plans still observe the current
+catalog before execution. New composer plans are checkpointed before the original
+unconditional source reads; valid saved composer plans skip new route/works reads.
+Stale plans clear their route, display the existing message, then checkpoint before
+replanning or reporting malformed route state.
+
+Ordinary skips still return a public result and audit before checkpointing.
+Composer skips checkpoint before their message and produce neither that result
+nor a skip audit. Pauses leave entries pending and stop before later entries.
+Completion is acknowledged before its audit and final progress notification.
+
+- Full suite: **2,212 tests pass**, seed `20260941`; **92.32% statements**
+  (19,114 / 20,704) and **79.90% branches** (4,222 / 5,284).
+- All **527 independent application tests** pass at **100% statement and branch
+  coverage** for configured targets, including every entry-coordination branch.
+- All 233 New Kids/characterization tests and eleven frozen interface artifacts
+  pass; package and strict inner-layer lint, formatting and mypy checks pass.
+- Run preparation/finalization and Queue 2 invocation preparation remain pending.
