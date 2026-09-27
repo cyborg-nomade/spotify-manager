@@ -9,6 +9,7 @@ from typing import cast
 from spotify_manager.application.catalog_records import CatalogTrackRecord
 from spotify_manager.application.catalog_records import RankedReleaseRecord
 from spotify_manager.application.catalog_records import ReleaseRecord
+from spotify_manager.application.new_kids_values import ArtistAssessment
 from spotify_manager.application.new_kids_values import FlushResult
 from spotify_manager.application.new_kids_values import NewKidsStateError
 from spotify_manager.domain.catalog import PlaylistTrack
@@ -31,6 +32,34 @@ def positive_int(value: object, fallback: int = 0) -> int:
     if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
         return value
     return fallback
+
+
+def assessment_from_record(raw: object) -> ArtistAssessment:
+    """Rebuild completion criteria using the original tolerant count coercions.
+
+    Args:
+        raw: Saved completion assessment.
+
+    Returns:
+        Original assessment, retaining iterable reason coercion and track defaults.
+
+    Raises:
+        NewKidsStateError: The assessment or a track is not a record.
+        TypeError: Reasons are not iterable or a track constructor rejects fields.
+    """
+    if not isinstance(raw, dict):
+        raise NewKidsStateError("Artist completion plan lacks assessment.")
+    return ArtistAssessment(
+        liked_tracks=positive_int(raw.get("liked_tracks")),
+        saved_releases=positive_int(raw.get("saved_releases")),
+        total_releases=positive_int(raw.get("total_releases")),
+        liked_primary_tracks=positive_int(raw.get("liked_primary_tracks")),
+        total_primary_tracks=positive_int(raw.get("total_primary_tracks")),
+        qualifies=bool(raw.get("qualifies")),
+        reasons=tuple(str(value) for value in raw.get("reasons", [])),
+        representative_track=track_from_record(raw.get("representative_track")),
+        top_liked_track=track_from_record(raw.get("top_liked_track")),
+    )
 
 
 def source_from_record(raw: object) -> PlaylistTrack:

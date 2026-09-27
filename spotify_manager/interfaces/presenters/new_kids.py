@@ -48,3 +48,50 @@ class NewKidsPresenter:
             f"{'Would reconcile' if dry_run else 'Reconciled'} {release.name}: "
             f"{evaluation.liked_tracks}/{evaluation.total_tracks} liked, {action}."
         )
+
+    def marker_added(self, name: str, dry_run: bool) -> None:
+        """Show a secured review marker.
+
+        Args:
+            name: Replacement track name.
+            dry_run: Whether to use preview wording.
+        """
+        self.echo(f"{'Would add' if dry_run else 'Added'}: {name}")
+
+    def marker_removed(self, name: str, dry_run: bool) -> None:
+        """Show removal of an existing review marker.
+
+        Args:
+            name: Original track name.
+            dry_run: Whether to use preview wording.
+        """
+        self.echo(f"{'Would remove' if dry_run else 'Removed'}: {name}")
+
+    def artist_added(self, name: str, label: str, dry_run: bool) -> None:
+        """Show an artist marker added to an existing destination.
+
+        Args:
+            name: Logical artist display name.
+            label: Destination display label.
+            dry_run: Whether to use preview wording.
+        """
+        self.echo(f"{'Would add' if dry_run else 'Added'} {name} to {label}.")
+
+    def future_artist_added(self, name: str, label: str, track: str) -> None:
+        """Preview an artist marker for a destination awaiting creation.
+
+        Args:
+            name: Logical artist display name.
+            label: Future destination label.
+            track: Selected promotion marker name.
+        """
+        self.echo(f"Would add {name} to {label}: {track}")
+
+    def artist_unfollowed(self, name: str, dry_run: bool) -> None:
+        """Show unfollowing after any required mirror removal succeeds.
+
+        Args:
+            name: Logical artist display name.
+            dry_run: Whether to use preview wording.
+        """
+        self.echo(f"{'Would unfollow' if dry_run else 'Unfollowed'} {name}.")

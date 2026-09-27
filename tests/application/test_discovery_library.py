@@ -1,78 +1,16 @@
 """Discovery reconciliation preserves recovery, mirror and preview boundaries."""
 
-from dataclasses import dataclass
-from dataclasses import field
-
 import pytest
 
 from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.release_evaluation import evaluate_catalog_release
-from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.models.lookups import AlbumEvaluation
+from tests.support.discovery_effects import MemoryLibrary
 from tests.support.discovery_values import release
 from tests.support.discovery_values import track
 
 
 ALBUM = release("album")
-
-
-@dataclass
-class MemoryLibrary:
-    """Observe effects and fail at a selected external boundary.
-
-    Args:
-        is_saved: Current remote membership.
-        fail_at: Optional effect that fails before changing remote membership.
-        events: Ordered effect observations.
-    """
-
-    is_saved: bool = False
-    fail_at: str | None = None
-    events: list[tuple[str, object]] = field(default_factory=list)
-
-    def _record(self, name: str, value: object) -> None:
-        self.events.append((name, value))
-        if self.fail_at == name:
-            raise OSError(name)
-
-    def saved(self, release: RankedRelease) -> bool:
-        """Record the membership read and return the current remote state."""
-        self._record("saved", release)
-        return self.is_saved
-
-    def save_album(self, release: RankedRelease) -> None:
-        """Accept a remote save after its failure boundary."""
-        self._record("save", release)
-        self.is_saved = True
-
-    def remove_album(self, release: RankedRelease) -> None:
-        """Accept a remote removal after its failure boundary."""
-        self._record("remove", release)
-        self.is_saved = False
-
-    def removed_audit(
-        self, release: RankedRelease, evaluation: AlbumEvaluation
-    ) -> None:
-        """Record recovery details before mirror reconciliation."""
-        self._record("recovery", (release, evaluation))
-
-    def mirror(self, release: RankedRelease, should_save: bool) -> None:
-        """Record the desired mirror membership even without a remote change."""
-        self._record("mirror", (release, should_save))
-
-    def event(self, name: str, **details: object) -> None:
-        """Record original routine event fields in insertion order."""
-        self._record("audit", (name, details))
-
-    def reconciled(
-        self,
-        release: RankedRelease,
-        evaluation: AlbumEvaluation,
-        action: str,
-        dry_run: bool,
-    ) -> None:
-        """Record presentation after routine audit success."""
-        self._record("message", (release, evaluation, action, dry_run))
 
 
 def _evaluation(keep: bool) -> AlbumEvaluation:

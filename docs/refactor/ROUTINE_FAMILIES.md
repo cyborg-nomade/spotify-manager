@@ -283,3 +283,27 @@ the mirror and does not repeat the removal recovery record.
   and all eleven frozen interface artifacts pass unchanged.
 - Package lint, formatting and mypy pass. Playlist completion and coordinator
   extraction remain pending within the same Item 6 branch.
+
+### Discovery execution checkpoint
+
+Saved-plan execution and artist completion now have application owners. Release
+reconciliation precedes playlist effects; Great Discoveries precedes Newfoundland;
+replacement markers precede source removal; progress acknowledgment precedes the
+coordinator's completion audit. Destination memberships remain scoped to one run,
+deduplicating logical artists and projecting accepted additions during previews.
+
+The original absent-source behavior is preserved: a missing replacement is still
+secured before checking source presence. Missing liked top tracks still override
+promotion qualification. Unfollowed artists retain the original skip of mirror
+repair. Artist and composer progress retain separate timestamp reads, and unknown
+actions and malformed optional records retain their original handling.
+
+- Full suite: **2,157 tests pass**, seed `20260939`; **92.18% statements**
+  (18,942 / 20,549) and **79.49% branches** (4,200 / 5,284).
+- Independent gates: **223 domain tests**, **472 application tests**, both at
+  **100% statement and branch coverage** for configured targets. The new executor
+  and completion tests cover every branch, effect ordering and interrupted writes.
+- All 233 New Kids/characterization tests and eleven frozen public artifacts pass;
+  package/inner-layer lint, formatting and type checks pass.
+- Great Discoveries creation, Queue 2 transfer/refill and shared run coordination
+  remain to be extracted before this routine family is complete.

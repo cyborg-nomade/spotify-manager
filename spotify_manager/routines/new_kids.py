@@ -17,6 +17,7 @@ from spotipy import Spotify
 from spotify_manager.application import composer_progression
 from spotify_manager.application import composer_routes
 from spotify_manager.application import new_kids_state as discovery_state
+from spotify_manager.application.discovery_completion import ReviewArtist
 from spotify_manager.application.new_kids_planner import ReviewSource
 from spotify_manager.application.new_kids_values import (
     ArtistAssessment as ArtistAssessment,
@@ -1324,7 +1325,6 @@ def _flush_review_playlist(
     track_cache: dict[str, tuple[CatalogTrack, ...]] = {}
     composer_track_cache: dict[str, tuple[new_wine.PlaylistTrack, ...]] = {}
     liked_cache: dict[str, bool] = {}
-    membership_cache: dict[str, tuple[set[str], set[str]]] = {}
     results: list[FlushResult] = []
     paused = False
 
@@ -1348,14 +1348,28 @@ def _flush_review_playlist(
     )
     observations = planner.observations
 
-    def membership(playlist_id: str) -> tuple[set[str], set[str]]:
-        if playlist_id not in membership_cache:
-            membership_cache[playlist_id] = _playlist_artist_ids(
-                sp,
-                playlist_id,
-                retry,
-            )
-        return membership_cache[playlist_id]
+    from spotify_manager.bootstrap.new_kids import review_execution
+
+    execution = review_execution(
+        sp,
+        retry,
+        state_access=state_access,
+        state=state,
+        live_ids=live_ids,
+        playlist_id=new_kids_playlist_id,
+        label=_playlist_label,
+        newfoundland=newfoundland_playlist_id,
+        unlucky=unlucky_ones_playlist_id,
+        great_seed=great_discoveries_2026_playlist_id,
+        year=active_year,
+        albums_path=albums_path,
+        artists_path=artists_path,
+        removed_path=removed_albums_log_path,
+        log_path=log_path,
+        echo=echo,
+        dry_run=dry_run,
+        clock=_utc_now,
+    )
 
     total = len(raw_entries)
     for index, raw_entry in enumerate(raw_entries, start=1):
@@ -1503,208 +1517,9 @@ def _flush_review_playlist(
             _checkpoint_review(state_access, state, dry_run)
 
         assert plan is not None
-        action = str(plan["action"])
-        current_release = _release_from_record(plan["current_release"])
-        target_release = (
-            _release_from_record(plan["target_release"])
-            if plan.get("target_release") is not None
-            else None
+        result = execution.execute(
+            source, ReviewArtist(artist_id, artist_name), raw_entry, progress, plan
         )
-        target = _track_from_record(plan.get("target"))
-
-        if isinstance(plan.get("evaluation"), dict):
-            evaluation = AlbumEvaluation.model_validate(plan["evaluation"])
-            _reconcile_release_library(
-                sp,
-                current_release,
-                evaluation,
-                dry_run=dry_run,
-                retry_call=retry,
-                albums_path=albums_path,
-                removed_albums_log_path=removed_albums_log_path,
-                log_path=log_path,
-                echo=echo,
-            )
-
-        if action in {"advance", "next_release"} and target is not None:
-            if target.spotify_id not in live_ids:
-                if not dry_run:
-                    retry(
-                        partial(
-                            add_playlist_item,
-                            sp,
-                            new_kids_playlist_id,
-                            target.uri,
-                        ),
-                        f"adding {target.name} to {_playlist_label}",
-                    )
-                live_ids.add(target.spotify_id)
-                echo(f"{'Would add' if dry_run else 'Added'}: {target.name}")
-        elif action == "finish":
-            raw_assessment = plan.get("assessment")
-            if not isinstance(raw_assessment, dict):
-                raise NewKidsStateError("Artist completion plan lacks assessment.")
-            assessment = ArtistAssessment(
-                liked_tracks=_positive_int(raw_assessment.get("liked_tracks")),
-                saved_releases=_positive_int(raw_assessment.get("saved_releases")),
-                total_releases=_positive_int(raw_assessment.get("total_releases")),
-                liked_primary_tracks=_positive_int(
-                    raw_assessment.get("liked_primary_tracks")
-                ),
-                total_primary_tracks=_positive_int(
-                    raw_assessment.get("total_primary_tracks")
-                ),
-                qualifies=bool(raw_assessment.get("qualifies")),
-                reasons=tuple(
-                    str(value) for value in raw_assessment.get("reasons", [])
-                ),
-                representative_track=_track_from_record(
-                    raw_assessment.get("representative_track")
-                ),
-                top_liked_track=_track_from_record(
-                    raw_assessment.get("top_liked_track")
-                ),
-            )
-            composer_destination_track = _track_from_record(
-                plan.get("composer_destination_track")
-            )
-            if assessment.top_liked_track is not None and assessment.qualifies:
-                destination_track = (
-                    composer_destination_track or assessment.representative_track
-                )
-                if destination_track is None:
-                    raise NewKidsError(
-                        f"{artist_name} qualifies for promotion, but "
-                        "Spotify returned no primary-artist representative track."
-                    )
-                great_id = _great_discoveries_playlist(
-                    sp,
-                    state,
-                    active_year,
-                    great_discoveries_2026_playlist_id,
-                    dry_run=dry_run,
-                    retry_call=retry,
-                    state_access=state_access,
-                    echo=echo,
-                )
-                for playlist_id, label in (
-                    (great_id, f"Great Discoveries {active_year}"),
-                    (newfoundland_playlist_id, "Newfoundland"),
-                ):
-                    if playlist_id is None:
-                        echo(
-                            f"Would add {artist_name} to {label}: "
-                            f"{destination_track.name}"
-                        )
-                        continue
-                    artist_ids, track_ids = membership(playlist_id)
-                    if artist_id not in artist_ids:
-                        if not dry_run:
-                            retry(
-                                partial(
-                                    add_playlist_item,
-                                    sp,
-                                    playlist_id,
-                                    destination_track.uri,
-                                ),
-                                f"adding {artist_name} to {label}",
-                            )
-                        artist_ids.add(artist_id)
-                        track_ids.add(destination_track.spotify_id)
-                        echo(
-                            f"{'Would add' if dry_run else 'Added'} "
-                            f"{artist_name} to {label}."
-                        )
-            else:
-                if assessment.top_liked_track is not None:
-                    destination_track = (
-                        composer_destination_track or assessment.top_liked_track
-                    )
-                    artist_ids, track_ids = membership(unlucky_ones_playlist_id)
-                    if artist_id not in artist_ids:
-                        if not dry_run:
-                            retry(
-                                partial(
-                                    add_playlist_item,
-                                    sp,
-                                    unlucky_ones_playlist_id,
-                                    destination_track.uri,
-                                ),
-                                f"adding {artist_name} to Unlucky Ones",
-                            )
-                        artist_ids.add(artist_id)
-                        track_ids.add(destination_track.spotify_id)
-                        echo(
-                            f"{'Would add' if dry_run else 'Added'} "
-                            f"{artist_name} to Unlucky Ones."
-                        )
-                followed = retry(
-                    partial(
-                        sp.current_user_following_artists,
-                        [artist_id],
-                    ),
-                    f"checking follow status for {artist_name}",
-                )
-                is_followed = (
-                    bool(followed[0])
-                    if isinstance(followed, list) and followed
-                    else False
-                )
-                if is_followed:
-                    if not dry_run:
-                        retry(
-                            partial(
-                                remove_library_artists,
-                                sp,
-                                [f"spotify:artist:{artist_id}"],
-                            ),
-                            f"unfollowing {artist_name}",
-                        )
-                        remove_local_artist(artist_id, artists_path)
-                    echo(
-                        f"{'Would unfollow' if dry_run else 'Unfollowed'} "
-                        f"{artist_name}."
-                    )
-
-        if source.spotify_id in live_ids:
-            if not dry_run:
-                retry(
-                    partial(
-                        remove_playlist_items,
-                        sp,
-                        new_kids_playlist_id,
-                        [source.uri],
-                    ),
-                    f"removing previous {_playlist_label} track {source.name}",
-                )
-            live_ids.discard(source.spotify_id)
-            echo(f"{'Would remove' if dry_run else 'Removed'}: {source.name}")
-
-        if not dry_run:
-            if action == "finish":
-                artists = state["artists"]
-                assert isinstance(artists, dict)
-                artists.pop(artist_id, None)
-                routes = state.get("composer_routes")
-                if isinstance(routes, dict):
-                    routes.pop(artist_id, None)
-            else:
-                if action == "next_release" and target_release is not None:
-                    progress["current_release_id"] = target_release.spotify_id
-                progress["prior_unliked_streak"] = _positive_int(
-                    plan.get("next_prior_unliked_streak")
-                )
-                progress["updated_at"] = datetime.now(UTC).isoformat()
-                routes = state.get("composer_routes")
-                if isinstance(routes, dict) and plan.get("composer_playlist_id"):
-                    route = routes.get(artist_id)
-                    if isinstance(route, dict) and target is not None:
-                        route["current_track_id"] = target.spotify_id
-                        route["updated_at"] = datetime.now(UTC).isoformat()
-            raw_entry["status"] = "completed"
-            state_access.save(state)
-
-        result = _plan_result(source, plan, dry_run, artist_name=artist_name)
         results.append(result)
         append_event(
             log_path,
@@ -1952,3 +1767,45 @@ def _checkpoint_review(
 ) -> None:
     if not dry_run:
         access.save(state)
+
+
+def _append_review_track(
+    sp: Spotify,
+    playlist_id: str,
+    track: CatalogTrack,
+    description: str,
+    retry_call: RetryCall,
+) -> None:
+    retry_call(partial(add_playlist_item, sp, playlist_id, track.uri), description)
+
+
+def _remove_review_track(
+    sp: Spotify,
+    playlist_id: str,
+    source: new_wine.PlaylistTrack,
+    label: str,
+    retry_call: RetryCall,
+) -> None:
+    retry_call(
+        partial(remove_playlist_items, sp, playlist_id, [source.uri]),
+        f"removing previous {label} track {source.name}",
+    )
+
+
+def _artist_followed(
+    sp: Spotify, artist_id: str, artist_name: str, retry_call: RetryCall
+) -> bool:
+    followed = retry_call(
+        partial(sp.current_user_following_artists, [artist_id]),
+        f"checking follow status for {artist_name}",
+    )
+    return bool(followed[0]) if isinstance(followed, list) and followed else False
+
+
+def _unfollow_artist(
+    sp: Spotify, artist_id: str, artist_name: str, retry_call: RetryCall
+) -> None:
+    retry_call(
+        partial(remove_library_artists, sp, [f"spotify:artist:{artist_id}"]),
+        f"unfollowing {artist_name}",
+    )
