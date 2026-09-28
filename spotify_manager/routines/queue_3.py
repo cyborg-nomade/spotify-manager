@@ -249,7 +249,18 @@ def find_yearly_great_discoveries(
     owned_playlists: tuple[OwnedPlaylist, ...],
     year: int,
 ) -> str:
-    """Find one exact previous-year Great Discoveries playlist owned by the user."""
+    """Find one exact previous-year Great Discoveries playlist owned by the user.
+
+    Args:
+        owned_playlists: Original owned-playlist observations.
+        year: Previous year used in the exact playlist title.
+
+    Returns:
+        The sole distinct matching playlist identifier.
+
+    Raises:
+        Queue3ConfigError: Matching playlists are missing or ambiguous.
+    """
     from spotify_manager.application.queue_3_import import resolve_yearly_playlist
 
     return resolve_yearly_playlist(owned_playlists, year)
@@ -334,66 +345,39 @@ def import_previous_year_discoveries(
     state_service: StateService | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
 ) -> AnnualImportSummary:
-    """Import last year's Great Discoveries without advancing Queue 3."""
-    retry = retry_call or (lambda operation, _description: operation())
-    year = active_year or datetime.now(UTC).year
-    source_year = year - 1
-    if progress_callback is not None:
-        progress_callback(0, 1, f"Loading Great Discoveries {source_year}")
+    """Import last year's Great Discoveries without advancing Queue 3.
 
-    owned_playlists = load_owned_playlists(sp, retry, playlist_id)
-    try:
-        live_tracks = list(new_wine.load_playlist_tracks(sp, playlist_id, retry))
-    except new_wine.NewWineError as exc:
-        raise Queue3Error(str(exc)) from exc
+    Args:
+        sp: Caller-owned Spotify client.
+        playlist_id: Configured Queue 3 destination.
+        active_year: Explicit checkpoint year, or the current UTC year.
+        dry_run: Whether to clone state and suppress writes.
+        echo: Existing output sink.
+        progress_callback: Optional progress sink.
+        retry_call: Optional retry and cancellation callback.
+        state_path: Existing legacy namespace path.
+        state_service: Optional shared state service.
+        log_path: Original audit destination.
 
-    state_access = _state_access(state_path, state_service)
-    persisted_state = state_access.load()
-    state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
-    annual_imports = cast(dict[str, object], state["annual_imports"])
-    year_state = annual_imports.get(str(year))
-    already_completed = isinstance(year_state, dict) and bool(
-        year_state.get("completed")
-    )
-    if already_completed:
-        echo(f"Great Discoveries {source_year} was already imported into Queue 3.")
-        if progress_callback is not None:
-            progress_callback(1, 1, f"Great Discoveries {source_year} already imported")
-        return AnnualImportSummary(
-            active_year=year,
-            source_year=source_year,
-            additions=0,
-            already_present=0,
-            already_completed=True,
-            dry_run=dry_run,
-            results=(),
-        )
+    Returns:
+        Original annual import summary with source-ordered artist decisions.
 
-    _tracks, results = _annual_import(
+    Raises:
+        Queue3Error: Configuration, playlist observation or state handling fails.
+    """
+    from spotify_manager.bootstrap.queue_3 import run_import
+
+    return run_import(
         sp,
         playlist_id,
-        live_tracks,
-        state,
-        owned_playlists=owned_playlists,
-        active_year=year,
+        active_year=active_year,
         dry_run=dry_run,
-        retry_call=retry,
-        state_access=state_access,
-        log_path=log_path,
         echo=echo,
-    )
-    additions = sum(result.action in {"added", "would add"} for result in results)
-    already_present = sum(result.action == "already present" for result in results)
-    if progress_callback is not None:
-        progress_callback(1, 1, f"Checked Great Discoveries {source_year}")
-    return AnnualImportSummary(
-        active_year=year,
-        source_year=source_year,
-        additions=additions,
-        already_present=already_present,
-        already_completed=False,
-        dry_run=dry_run,
-        results=results,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
     )
 
 
@@ -480,23 +464,9 @@ def _track_from_record(raw: object) -> new_wine.ReleaseTrack | None:
 def _as_ranked_release(
     release: slow_listening.DiscographyRelease,
 ) -> new_kids.RankedRelease:
-    """Adapt a chronological release to the shared library reconciler."""
-    return new_kids.RankedRelease(
-        spotify_id=release.spotify_id,
-        uri=release.uri,
-        name=release.name,
-        release_type=release.release_type,
-        release_date=release.release_date,
-        total_tracks=release.total_tracks,
-        primary_artist_id=release.primary_artist_id,
-        primary_artist_name=release.primary_artist_name,
-        popularity=None,
-        top_track_rank=None,
-        tier=0,
-        identity=release.identity,
-        saved=release.saved,
-        plain=release.plain,
-    )
+    from spotify_manager.domain.queue_3 import ranked_release
+
+    return ranked_release(release)
 
 
 def _live_evaluation(
@@ -531,23 +501,9 @@ def _stable_release_order(
 def _source_release(
     source: new_wine.PlaylistTrack,
 ) -> slow_listening.DiscographyRelease:
-    """Represent an ineligible source release for a boundary prompt."""
-    release = source.release
-    return slow_listening.DiscographyRelease(
-        spotify_id=release.spotify_id,
-        uri=release.uri,
-        name=release.name,
-        release_type=release.release_type,
-        release_date=release.release_date,
-        chronology_date=release.release_date,
-        total_tracks=release.total_tracks,
-        primary_artist_id=source.primary_artist_id,
-        primary_artist_name=source.primary_artist_name,
-        identity=slow_listening.release_identity(release.name),
-        saved=False,
-        plain=True,
-        edition_rank=0,
-    )
+    from spotify_manager.domain.queue_3 import source_release
+
+    return source_release(source)
 
 
 def _transition_plan(
@@ -562,32 +518,15 @@ def _transition_plan(
     evaluation: AlbumEvaluation | None = None,
     reason: str | None = None,
 ) -> dict[str, object] | None:
-    """Confirm and plan the first track of a chronological release."""
-    choice = transition_reader(source, current_release, next_release)
-    if choice == CHOICE_QUIT:
-        return None
-    if choice != CHOICE_ADVANCE:
-        raise Queue3Error("Release transition must be advance or quit.")
-    next_tracks = track_cache.get(next_release.spotify_id)
-    if next_tracks is None:
-        next_tracks = slow_listening.load_release_tracks(
-            sp,
-            next_release,
-            retry_call,
-        )
-        track_cache[next_release.spotify_id] = next_tracks
-    if not next_tracks:
-        raise Queue3Error(f"{next_release.name} has no playable tracks.")
-    return {
-        "action": "next_release",
-        "current_release": asdict(current_release),
-        "target_release": asdict(next_release),
-        "target": asdict(next_tracks[0]),
-        "evaluation": (
-            evaluation.model_dump(mode="json") if evaluation is not None else None
-        ),
-        "reason": reason,
-    }
+    from spotify_manager.bootstrap.queue_3 import _no_checkpoint
+    from spotify_manager.bootstrap.queue_3 import review_planner
+
+    planner = review_planner(
+        sp, retry_call, track_cache, {}, {}, _no_checkpoint, transition_reader
+    )
+    return planner.transition(
+        source, current_release, next_release, evaluation=evaluation, reason=reason
+    )
 
 
 def _build_plan(
@@ -601,104 +540,18 @@ def _build_plan(
     order_saved: Callable[[], None],
     transition_reader: ReleaseTransitionReader,
 ) -> dict[str, object] | None:
-    """Plan one automatic track advance or prompted release transition."""
-    source_identity = slow_listening.release_identity(source.release.name)
-    current_release = next(
-        (release for release in discography if release.identity == source_identity),
-        None,
-    )
-    if current_release is None:
-        if not discography:
-            return {
-                "action": "complete",
-                "current_release": asdict(_source_release(source)),
-                "target_release": None,
-                "target": None,
-                "evaluation": None,
-                "reason": "artist has no eligible studio album or EP",
-            }
-        return _transition_plan(
-            sp,
-            source,
-            _source_release(source),
-            discography[0],
-            retry_call,
-            track_cache,
-            transition_reader,
-            reason="moved from an ineligible marker to the first studio release",
-        )
+    from spotify_manager.bootstrap.queue_3 import review_planner
 
-    current_tracks = track_cache.get(current_release.spotify_id)
-    if current_tracks is None:
-        current_tracks = slow_listening.load_release_tracks(
-            sp,
-            current_release,
-            retry_call,
-        )
-        track_cache[current_release.spotify_id] = current_tracks
-    source_index = slow_listening._track_index(current_tracks, source)
-    if source_index is None:
-        if current_tracks:
-            return {
-                "action": "advance",
-                "current_release": asdict(current_release),
-                "target_release": asdict(current_release),
-                "target": asdict(current_tracks[0]),
-                "evaluation": None,
-                "reason": "restarted the preferred edition at its first track",
-            }
-        return {
-            "action": "complete",
-            "current_release": asdict(current_release),
-            "target_release": None,
-            "target": None,
-            "evaluation": None,
-            "reason": "current eligible release has no playable tracks",
-        }
-    if source_index + 1 < len(current_tracks):
-        return {
-            "action": "advance",
-            "current_release": asdict(current_release),
-            "target_release": asdict(current_release),
-            "target": asdict(current_tracks[source_index + 1]),
-            "evaluation": None,
-            "reason": None,
-        }
-
-    evaluation = _live_evaluation(
+    planner = review_planner(
         sp,
-        current_release,
-        current_tracks,
-        liked_cache,
-        retry_call,
-    )
-    next_release = slow_listening._next_release(
-        current_release,
-        discography,
-        _stable_release_order,
-        release_orders,
-        order_saved,
-    )
-    if next_release is None:
-        return {
-            "action": "complete",
-            "current_release": asdict(current_release),
-            "target_release": None,
-            "target": None,
-            "evaluation": evaluation.model_dump(mode="json"),
-            "reason": "last track of the final studio release",
-        }
-
-    return _transition_plan(
-        sp,
-        source,
-        current_release,
-        next_release,
         retry_call,
         track_cache,
+        liked_cache,
+        release_orders,
+        order_saved,
         transition_reader,
-        evaluation=evaluation,
     )
+    return planner.plan(source, discography)
 
 
 def _resolve_composer_playlist(

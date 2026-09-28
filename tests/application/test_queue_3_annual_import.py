@@ -9,6 +9,7 @@ import pytest
 
 from spotify_manager.application.queue_3_import import AnnualDiscoveryImport
 from spotify_manager.application.queue_3_import import resolve_yearly_playlist
+from spotify_manager.application.queue_3_import_review import AnnualImportReview
 from spotify_manager.application.queue_3_values import Queue3ConfigError
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
@@ -259,3 +260,63 @@ def test_memory_rejects_unexpected_namespace_reads() -> None:
     """The test store exposes an explicit failure for accidental duplicate loads."""
     with pytest.raises(AssertionError, match="Unexpected state read"):
         ImportMemory().load()
+
+
+@dataclass
+class ImportReviewMemory(ImportMemory):
+    """Observe standalone completion messages alongside accepted import effects."""
+
+    def already_imported(self, year: int) -> None:
+        """Observe the saved-completion message.
+
+        Args:
+            year: Previous-year source year.
+        """
+        self._record("already", year)
+
+    def checked(self, year: int, already_completed: bool) -> None:
+        """Observe final progress after import or saved completion.
+
+        Args:
+            year: Previous-year source year.
+            already_completed: Whether saved completion suppressed the import.
+        """
+        self._record("checked", (year, already_completed))
+
+
+@pytest.mark.parametrize("preview", [False, True])
+@pytest.mark.parametrize("completed", [False, True])
+def test_standalone_review_summarizes_existing_and_new_artists(
+    preview: bool, completed: bool
+) -> None:
+    """The standalone review retains its own saved-completion summary contract.
+
+    Args:
+        preview: Whether effects are previews.
+        completed: Whether import was previously completed.
+    """
+    memory = ImportReviewMemory([MARKER])
+    state: dict[str, object] = {"annual_imports": {"2026": {"completed": completed}}}
+    service = AnnualImportReview(_service(memory), memory)
+    result = service.run("queue", [MARKER], state, OWNED, 2026, preview)
+    assert result.active_year == 2026 and result.source_year == 2025
+    assert result.already_completed == completed and result.dry_run == preview
+    assert result.additions == 0 and result.already_present == (0 if completed else 1)
+    assert memory.events[-1] == ("checked", (2025, completed))
+    assert (memory.events[0][0] == "already") == completed
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_standalone_review_counts_proposed_and_accepted_additions(
+    preview: bool,
+) -> None:
+    """Preview additions and real additions count identically in the public summary.
+
+    Args:
+        preview: Whether effects are previews.
+    """
+    memory = ImportReviewMemory([MARKER])
+    service = AnnualImportReview(_service(memory), memory)
+    result = service.run("queue", [], {"annual_imports": {}}, OWNED, 2026, preview)
+    assert result.additions == 1 and result.already_present == 0
+    assert len(result.results) == 1

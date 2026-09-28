@@ -454,3 +454,29 @@ source resolution, including during previews. Empty sources still complete.
 
 Queue 3's standalone import entry, planning and flush coordination remain in
 progress. This is an internal Item 6 checkpoint, not a completed roadmap item.
+
+### Queue 3 standalone import and chronological planner checkpoint
+
+The standalone annual-import entry now delegates composition to bootstrap and
+summary decisions to the application layer. Four new tests passed against the
+original entry before extraction, preserving playlist observations before state
+loading, preview cloning, completed-year short circuits and progress ordering.
+
+Chronological planning now uses injected track reads and live evaluations, the
+existing independent release ordering policy, and the caller's original caches.
+Within-release advancement, unmapped marker recovery, ineligible sources, final
+completion, and prompted transitions preserve their durable plan fields. Empty
+track observations remain cached. Equal-date ordering checkpoints still precede
+the operator's transition prompt; quitting suppresses target-track observation.
+Eleven new planner contracts passed against the original implementation before
+extraction and continue to pass unchanged.
+
+- Full suite: **2,371 tests pass**, seed `20260946`; **92.60% statements**
+  (19,438 / 20,991), **80.96% branches** (4,278 / 5,284).
+- Independent gates: **255 domain tests**, **605 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen interface artifacts, package lint/format/mypy and strict
+  inner-layer checks pass. No frozen fixtures were changed.
+
+Composer routing and Queue 3 restart/flush coordination remain in progress, as do
+the later Item 6 waves. This checkpoint does not open the milestone PR.

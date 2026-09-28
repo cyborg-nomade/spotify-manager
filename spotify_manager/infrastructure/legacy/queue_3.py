@@ -7,9 +7,13 @@ from spotipy import Spotify
 
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.queue_3_values import Queue3Error
+from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
+from spotify_manager.domain.catalog import ReleaseTrack
+from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import queue_3 as legacy
+from spotify_manager.routines import slow_listening
 
 
 @dataclass(frozen=True)
@@ -65,3 +69,45 @@ class LegacyAnnualImport:
             details: Original structured event fields.
         """
         legacy.append_event(self.log_path, event, **details)
+
+
+@dataclass(frozen=True)
+class LegacyQueue3Catalog:
+    """Read chronological tracks and live memberships through existing adapters.
+
+    Args:
+        client: Caller-owned Spotify client.
+        retry: Existing request retry and cancellation boundary.
+        liked: Caller-owned live membership cache for the current run.
+    """
+
+    client: Spotify
+    retry: RetryCall
+    liked: dict[str, bool]
+
+    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+        """Read a selected edition through the original ordered-track loader.
+
+        Args:
+            release: Preferred studio edition.
+
+        Returns:
+            Original playable tracks in disc and track order.
+        """
+        return slow_listening.load_release_tracks(self.client, release, self.retry)
+
+    def evaluate(
+        self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
+    ) -> AlbumEvaluation:
+        """Observe live liked statuses before evaluating a completed edition.
+
+        Args:
+            release: Completed preferred edition.
+            tracks: Previously observed complete ordered track list.
+
+        Returns:
+            Original album evaluation with per-track live memberships.
+        """
+        return legacy._live_evaluation(
+            self.client, release, tracks, self.liked, self.retry
+        )
