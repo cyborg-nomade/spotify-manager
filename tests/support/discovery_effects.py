@@ -236,3 +236,27 @@ class MemoryQueue(MemoryLibrary):
             dry_run: Whether to use preview wording.
         """
         self._record("moved", (artist, dry_run))
+
+
+@dataclass
+class RunPlaylists(MemoryQueue):
+    """Return per-playlist observations in original request order.
+
+    Args:
+        reads: Ordered responses for each requested playlist.
+    """
+
+    reads: dict[str, list[tuple[PlaylistTrack, ...]]] = field(default_factory=dict)
+
+    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+        """Consume one scripted live response, defaulting to an empty playlist.
+
+        Args:
+            playlist_id: Review or queue playlist identifier.
+
+        Returns:
+            Next ordered live response for this playlist.
+        """
+        self._record("playlist", playlist_id)
+        responses = self.reads.get(playlist_id, [])
+        return responses.pop(0) if responses else ()

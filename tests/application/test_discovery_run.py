@@ -1,8 +1,6 @@
 """Review run lifecycle preserves snapshot, resume, refill and checkpoint ordering."""
 
 from dataclasses import asdict
-from dataclasses import dataclass
-from dataclasses import field
 from dataclasses import replace
 
 import pytest
@@ -10,38 +8,13 @@ import pytest
 from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
 from spotify_manager.application.discovery_run import DiscoveryRun
 from spotify_manager.application.new_kids_values import NewKidsStateError
-from spotify_manager.domain.catalog import PlaylistTrack
 from tests.support.discovery_effects import MemoryEffects
-from tests.support.discovery_effects import MemoryQueue
+from tests.support.discovery_effects import RunPlaylists
 from tests.support.listening_values import playlist_track
 from tests.support.listening_values import studio_release
 
 
 SOURCE = playlist_track("source", studio_release("album", "Album"))
-
-
-@dataclass
-class RunPlaylists(MemoryQueue):
-    """Return per-playlist observations in original request order.
-
-    Args:
-        reads: Ordered responses for each requested playlist.
-    """
-
-    reads: dict[str, list[tuple[PlaylistTrack, ...]]] = field(default_factory=dict)
-
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
-        """Consume one scripted live response, defaulting to an empty playlist.
-
-        Args:
-            playlist_id: Review or queue playlist identifier.
-
-        Returns:
-            Next ordered live response for this playlist.
-        """
-        self._record("playlist", playlist_id)
-        responses = self.reads.get(playlist_id, [])
-        return responses.pop(0) if responses else ()
 
 
 def _case(

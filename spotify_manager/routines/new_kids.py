@@ -30,6 +30,8 @@ from spotify_manager.application.new_kids_values import (
     NewKidsStateError as NewKidsStateError,
 )
 from spotify_manager.application.new_kids_values import Queue2Summary as Queue2Summary
+from spotify_manager.application.queue_2 import prepare_queue_review
+from spotify_manager.application.queue_2 import queue_review_result
 from spotify_manager.application.release_evaluation import evaluate_catalog_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
@@ -1388,57 +1390,19 @@ def flush_queue_2(
     state_access = _state_access(state_path, state_service)
     persisted_state = state_access.load()
     state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
-    queue_run = state.get("queue_2_active_run")
-    resumed = bool(
-        not dry_run
-        and isinstance(queue_run, dict)
-        and queue_run.get("status") in {"active", "refilling"}
-        and queue_run.get("playlist_id") == queue_2_playlist_id
+    from spotify_manager.bootstrap.new_kids import queue_transfer
+
+    transfer = queue_transfer(
+        sp,
+        retry,
+        new_kids_playlist_id,
+        queue_2_playlist_id,
+        PLAYLIST_CAP,
+        dry_run,
+        log_path,
+        echo,
     )
-
-    new_kids_tracks = list(
-        new_wine.load_playlist_tracks(sp, new_kids_playlist_id, retry)
-    )
-    new_kids_length_before = len(new_kids_tracks)
-    queue_tracks = list(new_wine.load_playlist_tracks(sp, queue_2_playlist_id, retry))
-    queue_length_before = len(queue_tracks)
-    prefill: tuple[FillResult, ...] = ()
-
-    if resumed:
-        remaining = queue_tracks
-    else:
-        active_new_kids_run = state.get("active_run")
-        if (
-            not dry_run
-            and isinstance(active_new_kids_run, dict)
-            and active_new_kids_run.get("status") in {"active", "refilling"}
-        ):
-            raise NewKidsStateError(
-                "The saved New Kids run must be resumed before Queue 2 can start."
-            )
-        new_kids_tracks, prefill, remaining = _move_queue_entries(
-            sp,
-            new_kids_playlist_id,
-            queue_2_playlist_id,
-            new_kids_tracks,
-            state,
-            dry_run=dry_run,
-            retry_call=retry,
-            log_path=log_path,
-            echo=echo,
-            queue=queue_tracks,
-        )
-
-    review_entries: list[new_wine.PlaylistTrack] = []
-    seen_artist_ids: set[str] = set()
-    for source in remaining:
-        artist_id, _artist_name = _logical_artist(state, source)
-        if artist_id in seen_artist_ids:
-            continue
-        seen_artist_ids.add(artist_id)
-        review_entries.append(source)
-        if len(review_entries) >= QUEUE_2_DAILY_LIMIT:
-            break
+    snapshot = prepare_queue_review(transfer, state, QUEUE_2_DAILY_LIMIT)
 
     review = _flush_review_playlist(
         sp,
@@ -1464,21 +1428,11 @@ def flush_queue_2(
         _active_run_key="queue_2_active_run",
         _blocking_active_run_key="active_run",
         _fill_from_queue=False,
-        _initial_tracks=review_entries,
-        _live_tracks=remaining,
+        _initial_tracks=snapshot.selected,
+        _live_tracks=snapshot.remaining,
     )
 
-    return Queue2Summary(
-        results=review.results,
-        prefill=prefill,
-        queue_length_before=queue_length_before,
-        queue_length_after=review.playlist_length_after,
-        new_kids_length_before=new_kids_length_before,
-        new_kids_length_after=len(new_kids_tracks),
-        paused=review.paused,
-        resumed=review.resumed,
-        dry_run=dry_run,
-    )
+    return queue_review_result(snapshot, review, dry_run)
 
 
 def _utc_now() -> datetime:

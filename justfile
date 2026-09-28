@@ -93,6 +93,7 @@ test-application:
         --cov=spotify_manager.application.discovery_queue \
         --cov=spotify_manager.application.discovery_review \
         --cov=spotify_manager.application.discovery_run \
+        --cov=spotify_manager.application.queue_2 \
         --cov=spotify_manager.application.new_kids_execution \
         --cov=spotify_manager.application.release_history \
         --cov=spotify_manager.application.credited_artists \

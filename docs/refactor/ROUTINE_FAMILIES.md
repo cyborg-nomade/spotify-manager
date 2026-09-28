@@ -374,3 +374,24 @@ than using the simulated review projection.
 - All 233 New Kids/characterization tests and eleven frozen interface artifacts
   pass; package lint, formatting, mypy and strict application checks pass.
 - Queue 2 invocation preparation and final composition cleanup remain in progress.
+
+### Queue 2 invocation preparation checkpoint
+
+Queue 2 preparation now has an application owner. Both playlist reads still precede
+the New Kids blocking check. Matching active/refilling Queue 2 runs skip prefill;
+other records use the original transfer rules. Previews ignore saved run blocking
+and exclude their projected New Kids transfers from the remaining daily review.
+
+Daily selection retains the first marker per logical artist up to the existing
+limit while passing the complete remaining live queue into shared review. Summary
+translation retains shared review's own pause/resume determination and final queue
+length, alongside the original before/after New Kids counts.
+
+- Full suite: **2,248 tests pass**, seed `20260943`; **92.34% statements**
+  (19,172 / 20,762) and **79.98% branches** (4,226 / 5,284).
+- All **563 independent application tests** pass with **100% statement and branch
+  coverage** for configured targets, including all Queue 2 preparation branches.
+- The 233 New Kids/characterization tests, all eleven frozen public artifacts,
+  package lint/format/mypy and strict application checks pass.
+- New Kids catalog parsing/ranking and final composition cleanup remain before
+  declaring this part of the release-progression wave complete.
