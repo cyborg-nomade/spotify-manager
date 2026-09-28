@@ -10,6 +10,7 @@ from spotipy import Spotify
 
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.queue_3_execution import Queue3Execution
 from spotify_manager.application.queue_3_import import AnnualDiscoveryImport
 from spotify_manager.application.queue_3_import_review import AnnualImportReview
 from spotify_manager.application.queue_3_planner import Queue3Planner
@@ -17,6 +18,7 @@ from spotify_manager.application.queue_3_planner import TransitionReader
 from spotify_manager.application.queue_3_planner import stable_release_order
 from spotify_manager.application.queue_3_values import AnnualImportSummary
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
+from spotify_manager.bootstrap.new_kids import library_reconciliation
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.infrastructure.legacy.queue_3 import LegacyAnnualImport
@@ -147,3 +149,35 @@ def _no_checkpoint() -> None:
 
 def _datetime() -> datetime:
     return legacy.datetime.now(UTC)
+
+
+def review_execution(
+    client: Spotify,
+    retry: RetryCall,
+    albums_path: Path,
+    removed_path: Path,
+    log_path: Path,
+    echo: Callable[[str], None],
+    dry_run: bool,
+) -> Queue3Execution:
+    """Bind saved-plan execution to original playlist and library boundaries.
+
+    Args:
+        client: Existing Spotify client.
+        retry: Existing retry and cancellation callback.
+        albums_path: Original local album mirror.
+        removed_path: Original removal recovery log.
+        log_path: Original Queue 3 audit destination, also used for library events.
+        echo: Existing output sink.
+        dry_run: Whether remote mutations are suppressed.
+
+    Returns:
+        Injected saved-plan executor retaining accepted-effect ordering.
+    """
+    access = LegacyAnnualImport(client, retry, log_path)
+    library = library_reconciliation(
+        client, retry, albums_path, removed_path, log_path, echo, dry_run
+    )
+    return Queue3Execution(
+        access.append, access.remove, library.reconcile, Queue3Presenter(echo), dry_run
+    )

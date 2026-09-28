@@ -65,3 +65,42 @@ class Queue3Presenter:
             else f"Checked Great Discoveries {year}"
         )
         self.progress(1, 1, message)
+
+    def added(self, name: str, dry_run: bool) -> None:
+        """Report an accepted or projected target addition.
+
+        Args:
+            name: Target marker title.
+            dry_run: Whether this is a preview.
+        """
+        self.echo(f"{'Would add' if dry_run else 'Added'}: {name}")
+
+    def removed(self, name: str, dry_run: bool) -> None:
+        """Report an accepted or projected previous-marker removal.
+
+        Args:
+            name: Original source title.
+            dry_run: Whether this is a preview.
+        """
+        self.echo(f"{'Would remove' if dry_run else 'Removed'} previous track: {name}")
+
+    def completed(self, artist: str, dry_run: bool) -> None:
+        """Report completion after any final marker cleanup.
+
+        Args:
+            artist: Logical artist name.
+            dry_run: Whether this is a preview.
+        """
+        self.echo(
+            f"{'Would complete' if dry_run else 'Completed'} "
+            f"{artist}; removed the final Queue 3 marker."
+        )
+
+    def skipped(self, artist: str, reason: object) -> None:
+        """Report an unmapped source using the original reason representation.
+
+        Args:
+            artist: Logical artist name.
+            reason: Original durable plan reason.
+        """
+        self.echo(f"Skipped {artist}: {reason}.")

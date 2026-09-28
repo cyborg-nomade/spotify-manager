@@ -506,3 +506,31 @@ new composer/snapshot contracts passed before extraction and remain unchanged.
 Queue 3 execution and restart coordination remain in progress. Six additional
 execution-boundary tests have passed against the current coordinator before its
 extraction; they are the next checkpoint's preparation, not a completed migration.
+
+### Queue 3 saved-plan execution checkpoint
+
+Saved-plan execution now decodes the original records, invokes the shared library
+reconciler, and applies playlist effects through injected boundaries. Library
+reconciliation still precedes marker-presence validation. Add/message/remove/
+message ordering, preview projections, composer-only source cleanup and the fixed
+original marker snapshot are unchanged. Audit and acknowledgment remain owned by
+the coordinator for its subsequent extraction.
+
+Seven new recovery contracts pass both against the coordinator from `554a2a9`
+and the extracted executor. These include an existing edge case: ordinary
+same-artist cleanup can remove an already-present replacement from the observed
+snapshot on resume. The refactor deliberately preserves that behavior. Likewise,
+fallback source-URI removal retains the original live-ID projection selection.
+These are documented compatibility behaviors, not fixes in this milestone.
+
+- Full suite: **2,457 tests pass**, seed `20260948`; **92.68% statements**
+  (19,587 / 21,134), **81.51% branches** (4,325 / 5,306).
+- Independent gates: **255 domain tests**, **673 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen interface artifacts, package lint/format/mypy and strict
+  application checks pass. No frozen fixtures were changed.
+- Five further coordinator preparation tests verify resumed container validation
+  and already-acknowledged entries before the remaining orchestration moves.
+
+Queue 3 restart and review coordination remain in progress. Item 6 is not yet
+complete and has no PR or deployment.

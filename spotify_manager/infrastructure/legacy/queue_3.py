@@ -70,6 +70,18 @@ class LegacyAnnualImport:
         """
         legacy.append_event(self.log_path, event, **details)
 
+    def remove(self, playlist_id: str, uris: list[str], description: str) -> None:
+        """Remove markers through original URI deduplication and ordered batches.
+
+        Args:
+            playlist_id: Queue 3 destination.
+            uris: Original marker URI selection.
+            description: Original retry message before batch suffixes.
+        """
+        legacy._remove_playlist_uris(
+            self.client, playlist_id, uris, self.retry, description
+        )
+
 
 @dataclass(frozen=True)
 class LegacyQueue3Catalog:

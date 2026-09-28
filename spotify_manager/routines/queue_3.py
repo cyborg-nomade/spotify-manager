@@ -524,6 +524,10 @@ def flush_queue_3(
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
 ) -> FlushSummary:
     """Import the previous year once, then advance the first ten Queue 3 artists."""
+    from spotify_manager.application.queue_3_execution import Queue3LiveQueue
+    from spotify_manager.application.queue_3_execution import Queue3Transition
+    from spotify_manager.bootstrap.queue_3 import review_execution
+
     retry = retry_call or (lambda operation, _description: operation())
     year = active_year or datetime.now(UTC).year
     owned_playlists = load_owned_playlists(sp, retry, playlist_id)
@@ -549,6 +553,10 @@ def flush_queue_3(
         echo=echo,
     )
     live_ids = {track.spotify_id for track in live_tracks}
+    live_queue = Queue3LiveQueue(playlist_id, live_tracks, live_ids)
+    execution = review_execution(
+        sp, retry, albums_path, removed_albums_log_path, log_path, echo, dry_run
+    )
 
     resumed = False
     active_run = state.get("active_run")
@@ -680,115 +688,8 @@ def flush_queue_3(
             if not dry_run:
                 state_access.save(state)
 
-        action = str(plan["action"])
-        current_release = _release_from_record(plan.get("current_release"))
-        target_release = _release_from_record(plan.get("target_release"))
-        target = _track_from_record(plan.get("target"))
-        evaluation = (
-            AlbumEvaluation.model_validate(plan["evaluation"])
-            if isinstance(plan.get("evaluation"), dict)
-            else None
-        )
-
-        if evaluation is not None and current_release is not None:
-            new_kids._reconcile_release_library(
-                sp,
-                _as_ranked_release(current_release),
-                evaluation,
-                dry_run=dry_run,
-                retry_call=retry,
-                albums_path=albums_path,
-                removed_albums_log_path=removed_albums_log_path,
-                log_path=log_path,
-                echo=echo,
-            )
-
-        is_composer_route = bool(plan.get("composer_playlist_id"))
-        artist_live_uris = (
-            ([source.uri] if source.spotify_id in live_ids else [])
-            if is_composer_route
-            else [
-                track.uri
-                for track in live_tracks
-                if track.primary_artist_id == artist_id and track.spotify_id in live_ids
-            ]
-        )
-        source_present = source.spotify_id in live_ids
-        target_present = target is not None and target.spotify_id in live_ids
-        if (
-            action in {"advance", "composer_advance", "next_release"}
-            and target is not None
-        ):
-            if not source_present and not target_present:
-                raise Queue3StateError(
-                    f"{source.name} and its planned replacement are both absent."
-                )
-            if not target_present:
-                release_for_target = target_release or current_release
-                if release_for_target is None:
-                    raise Queue3StateError(
-                        f"{target.name} has no saved target release."
-                    )
-                if not dry_run:
-                    _add_playlist_tracks(
-                        sp,
-                        playlist_id,
-                        [
-                            new_wine.PlaylistTrack(
-                                spotify_id=target.spotify_id,
-                                uri=target.uri,
-                                name=target.name,
-                                primary_artist_id=artist_id,
-                                primary_artist_name=artist_name,
-                                release=slow_listening._as_release_candidate(
-                                    release_for_target
-                                ),
-                            )
-                        ],
-                        retry,
-                        f"adding {target.name} to Queue 3",
-                    )
-                live_ids.add(target.spotify_id)
-                echo(f"{'Would add' if dry_run else 'Added'}: {target.name}")
-            if source_present or artist_live_uris:
-                if not dry_run:
-                    _remove_playlist_uris(
-                        sp,
-                        playlist_id,
-                        artist_live_uris or [source.uri],
-                        retry,
-                        f"removing the previous {artist_name} marker",
-                    )
-                live_ids.difference_update(
-                    track.spotify_id
-                    for track in live_tracks
-                    if track.uri in set(artist_live_uris)
-                )
-                echo(
-                    f"{'Would remove' if dry_run else 'Removed'} previous track: "
-                    f"{source.name}"
-                )
-        elif action == "complete":
-            if artist_live_uris:
-                if not dry_run:
-                    _remove_playlist_uris(
-                        sp,
-                        playlist_id,
-                        artist_live_uris,
-                        retry,
-                        f"completing {artist_name} in Queue 3",
-                    )
-                live_ids.difference_update(
-                    track.spotify_id
-                    for track in live_tracks
-                    if track.uri in set(artist_live_uris)
-                )
-            echo(
-                f"{'Would complete' if dry_run else 'Completed'} "
-                f"{artist_name}; removed the final Queue 3 marker."
-            )
-        elif action == "skip":
-            echo(f"Skipped {artist_name}: {plan.get('reason')}.")
+        transition = Queue3Transition(source, artist_id, artist_name, plan)
+        action, target = execution.run(transition, live_queue)
 
         result = _result_from_plan(
             source,
