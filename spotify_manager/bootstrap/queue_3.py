@@ -3,6 +3,7 @@
 import json
 from collections.abc import Callable
 from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 
 from spotipy import Spotify
@@ -142,3 +143,7 @@ def review_planner(
 
 def _no_checkpoint() -> None:
     return None
+
+
+def _datetime() -> datetime:
+    return legacy.datetime.now(UTC)

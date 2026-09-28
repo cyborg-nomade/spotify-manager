@@ -5,13 +5,10 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import asdict
-from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Literal
-from typing import cast
 
 from spotipy import Spotify
 
@@ -21,6 +18,9 @@ from spotify_manager.application.queue_3_values import (
 from spotify_manager.application.queue_3_values import (
     AnnualImportSummary as AnnualImportSummary,
 )
+from spotify_manager.application.queue_3_values import FlushAction as FlushAction
+from spotify_manager.application.queue_3_values import FlushResult as FlushResult
+from spotify_manager.application.queue_3_values import FlushSummary as FlushSummary
 from spotify_manager.application.queue_3_values import (
     Queue3CancelledError as Queue3CancelledError,
 )
@@ -67,52 +67,9 @@ ReleaseTransitionReader = Callable[
     str,
 ]
 ComposerPlaylistReader = Callable[[str, tuple["OwnedPlaylist", ...]], str]
-FlushAction = Literal[
-    "advance",
-    "composer playlist",
-    "next release",
-    "complete",
-    "skip",
-]
 
 
 OwnedPlaylist = composer_playlists.OwnedPlaylist
-
-
-@dataclass(frozen=True)
-class FlushResult:
-    """One snapshotted Queue 3 artist transition."""
-
-    artist: str
-    source_track: str
-    source_release: str
-    action: FlushAction
-    target_track: str | None = None
-    target_release: str | None = None
-    album_decision: str | None = None
-    album_liked_tracks: int | None = None
-    album_total_tracks: int | None = None
-    composer_playlist: str | None = None
-    reason: str | None = None
-    dry_run: bool = False
-
-
-@dataclass(frozen=True)
-class FlushSummary:
-    """Outcome of one restart-safe Queue 3 run."""
-
-    run_id: str
-    total: int
-    processed: int
-    advanced: int
-    changed_releases: int
-    completed_artists: int
-    skipped: int
-    annual_import: tuple[AnnualImportResult, ...]
-    paused: bool
-    dry_run: bool
-    resumed: bool
-    results: tuple[FlushResult, ...]
 
 
 def parse_playlist_id(reference: str | None) -> str:
@@ -386,79 +343,28 @@ def _new_run(
     tracks: list[new_wine.PlaylistTrack],
     state: dict[str, object],
 ) -> dict[str, object]:
-    """Snapshot the first ten unique logical artists."""
-    routes = cast(dict[str, object], state["composer_routes"])
-    route_by_track: dict[str, tuple[str, str]] = {}
-    for artist_id, raw_route in routes.items():
-        if not isinstance(raw_route, dict):
-            continue
-        current_track_id = str(raw_route.get("current_track_id") or "")
-        artist_name = str(raw_route.get("artist_name") or "")
-        if current_track_id and artist_name:
-            route_by_track[current_track_id] = (artist_id, artist_name)
+    from spotify_manager.application.queue_3_state import new_run
+    from spotify_manager.bootstrap.queue_3 import _datetime
 
-    selected: list[tuple[new_wine.PlaylistTrack, str, str]] = []
-    seen_artists: set[str] = set()
-    for track in tracks:
-        artist_id, artist_name = route_by_track.get(
-            track.spotify_id,
-            (track.primary_artist_id, track.primary_artist_name),
-        )
-        if artist_id in seen_artists:
-            continue
-        selected.append((track, artist_id, artist_name))
-        seen_artists.add(artist_id)
-        if len(selected) == DAILY_ARTIST_LIMIT:
-            break
-    return {
-        "run_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ"),
-        "playlist_id": playlist_id,
-        "status": "active",
-        "created_at": datetime.now(UTC).isoformat(),
-        "entries": [
-            {
-                "source": asdict(track),
-                "artist_id": artist_id,
-                "artist_name": artist_name,
-                "status": "pending",
-                "plan": None,
-            }
-            for track, artist_id, artist_name in selected
-        ],
-    }
+    return new_run(playlist_id, tracks, state, _datetime, DAILY_ARTIST_LIMIT)
 
 
 def _source_from_record(raw: object) -> new_wine.PlaylistTrack:
-    """Rebuild one snapshotted Queue 3 source."""
-    if not isinstance(raw, dict) or not isinstance(raw.get("release"), dict):
-        raise Queue3StateError("Queue 3 run has an invalid source track.")
-    release = new_wine.ReleaseCandidate(**raw["release"])
-    return new_wine.PlaylistTrack(
-        spotify_id=str(raw["spotify_id"]),
-        uri=str(raw["uri"]),
-        name=str(raw["name"]),
-        primary_artist_id=str(raw["primary_artist_id"]),
-        primary_artist_name=str(raw["primary_artist_name"]),
-        release=release,
-    )
+    from spotify_manager.application.queue_3_state import source_from_record
+
+    return source_from_record(raw)
 
 
 def _release_from_record(raw: object) -> slow_listening.DiscographyRelease | None:
-    """Rebuild one optional selected discography release."""
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        raise Queue3StateError("Queue 3 plan has an invalid release.")
-    return slow_listening.DiscographyRelease(**raw)
+    from spotify_manager.application.queue_3_state import release_from_record
+
+    return release_from_record(raw)
 
 
 def _track_from_record(raw: object) -> new_wine.ReleaseTrack | None:
-    """Rebuild one optional target track."""
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        raise Queue3StateError("Queue 3 plan has an invalid target track.")
-    return new_wine.ReleaseTrack(**raw)
+    from spotify_manager.application.queue_3_state import track_from_record
+
+    return track_from_record(raw)
 
 
 def _as_ranked_release(
@@ -563,62 +469,19 @@ def _resolve_composer_playlist(
     state: dict[str, object],
     composer_playlist_reader: ComposerPlaylistReader | None,
 ) -> tuple[OwnedPlaylist | None, bool]:
-    """Resolve and persist one owned composer works playlist."""
-    routes = cast(dict[str, object], state["composer_routes"])
-    candidates = composer_playlist_candidates(
+    from spotify_manager.application.queue_3_composers import resolve_composer_route
+    from spotify_manager.bootstrap.queue_3 import _now
+
+    return resolve_composer_route(
+        artist_id,
         artist_name,
+        source_track_id,
+        playlist_id,
         owned_playlists,
-        excluded_playlist_id=playlist_id,
+        state,
+        composer_playlist_reader,
+        _now,
     )
-    existing = routes.get(artist_id)
-    if isinstance(existing, dict):
-        existing_id = str(existing.get("playlist_id") or "")
-        selected = next(
-            (
-                candidate
-                for candidate in candidates
-                if candidate.spotify_id == existing_id
-            ),
-            None,
-        )
-        if selected is not None:
-            return selected, False
-        routes.pop(artist_id, None)
-
-    if not candidates:
-        return None, False
-    if len(candidates) == 1:
-        selected = candidates[0]
-    else:
-        if composer_playlist_reader is None:
-            names = ", ".join(candidate.name for candidate in candidates)
-            raise Queue3ConfigError(
-                f"Multiple owned playlists match {artist_name}: {names}."
-            )
-        selected_id = composer_playlist_reader(artist_name, candidates)
-        if selected_id == CHOICE_QUIT:
-            return None, True
-        selected = next(
-            (
-                candidate
-                for candidate in candidates
-                if candidate.spotify_id == selected_id
-            ),
-            None,
-        )
-        if selected is None:
-            raise Queue3ConfigError(
-                f"The selected playlist is not an owned match for {artist_name}."
-            )
-
-    routes[artist_id] = {
-        "artist_name": artist_name,
-        "playlist_id": selected.spotify_id,
-        "playlist_name": selected.name,
-        "current_track_id": source_track_id,
-        "updated_at": datetime.now(UTC).isoformat(),
-    }
-    return selected, False
 
 
 def _composer_plan(
@@ -626,72 +489,9 @@ def _composer_plan(
     composer_playlist: OwnedPlaylist,
     playlist_tracks: tuple[new_wine.PlaylistTrack, ...],
 ) -> dict[str, object]:
-    """Plan the next distinct track in an owned playlist's stored order."""
-    source_indexes = [
-        index
-        for index, track in enumerate(playlist_tracks)
-        if track.spotify_id == source.spotify_id
-    ]
-    if not source_indexes:
-        normalized_source = composer_playlists.name_tokens(source.name)
-        title_matches = [
-            index
-            for index, track in enumerate(playlist_tracks)
-            if composer_playlists.name_tokens(track.name) == normalized_source
-        ]
-        if len(title_matches) == 1:
-            source_indexes = title_matches
-    if not source_indexes:
-        return {
-            "action": "skip",
-            "current_release": asdict(_source_release(source)),
-            "target_release": None,
-            "target": None,
-            "evaluation": None,
-            "composer_playlist_id": composer_playlist.spotify_id,
-            "composer_playlist_name": composer_playlist.name,
-            "reason": "current marker was not found in the composer playlist",
-        }
+    from spotify_manager.application.queue_3_composers import composer_plan
 
-    source_index = source_indexes[0]
-    target = next(
-        (
-            track
-            for track in playlist_tracks[source_index + 1 :]
-            if track.spotify_id != source.spotify_id
-        ),
-        None,
-    )
-    if target is None:
-        return {
-            "action": "complete",
-            "current_release": asdict(_source_release(source)),
-            "target_release": None,
-            "target": None,
-            "evaluation": None,
-            "composer_playlist_id": composer_playlist.spotify_id,
-            "composer_playlist_name": composer_playlist.name,
-            "reason": "last track of the composer playlist",
-        }
-
-    return {
-        "action": "composer_advance",
-        "current_release": asdict(_source_release(source)),
-        "target_release": asdict(_source_release(target)),
-        "target": asdict(
-            new_wine.ReleaseTrack(
-                spotify_id=target.spotify_id,
-                uri=target.uri,
-                name=target.name,
-                disc_number=1,
-                track_number=1,
-            )
-        ),
-        "evaluation": None,
-        "composer_playlist_id": composer_playlist.spotify_id,
-        "composer_playlist_name": composer_playlist.name,
-        "reason": "advanced through the owned composer playlist in playlist order",
-    }
+    return composer_plan(source, composer_playlist, playlist_tracks)
 
 
 def _result_from_plan(
@@ -701,37 +501,9 @@ def _result_from_plan(
     artist_name: str,
     dry_run: bool,
 ) -> FlushResult:
-    """Convert one durable plan to its public result."""
-    action = str(plan["action"])
-    target = _track_from_record(plan.get("target"))
-    target_release = _release_from_record(plan.get("target_release"))
-    evaluation = (
-        AlbumEvaluation.model_validate(plan["evaluation"])
-        if isinstance(plan.get("evaluation"), dict)
-        else None
-    )
-    public_action = {
-        "composer_advance": "composer playlist",
-        "next_release": "next release",
-    }.get(action, action)
-    return FlushResult(
-        artist=artist_name,
-        source_track=source.name,
-        source_release=source.release.name,
-        action=cast(FlushAction, public_action),
-        target_track=target.name if target is not None else None,
-        target_release=target_release.name if target_release is not None else None,
-        album_decision=evaluation.decision if evaluation is not None else None,
-        album_liked_tracks=evaluation.liked_tracks if evaluation is not None else None,
-        album_total_tracks=evaluation.total_tracks if evaluation is not None else None,
-        composer_playlist=(
-            str(plan["composer_playlist_name"])
-            if plan.get("composer_playlist_name")
-            else None
-        ),
-        reason=str(plan["reason"]) if plan.get("reason") else None,
-        dry_run=dry_run,
-    )
+    from spotify_manager.application.queue_3_state import result_from_plan
+
+    return result_from_plan(source, plan, artist_name=artist_name, dry_run=dry_run)
 
 
 def flush_queue_3(

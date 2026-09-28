@@ -480,3 +480,29 @@ extraction and continue to pass unchanged.
 
 Composer routing and Queue 3 restart/flush coordination remain in progress, as do
 the later Item 6 waves. This checkpoint does not open the milestone PR.
+
+### Queue 3 composer routing and durable records checkpoint
+
+Composer route selection and works-playlist plans now have application owners.
+They preserve ID-first matching, unique token-normalized title fallback, repeated
+source-ID skipping, and the original skip/complete/advance plan fields. Valid
+saved routes remain untouched. Stale routes are removed before ambiguous choices,
+cancellation or errors; accepted routes alone read a new timestamp.
+
+Queue 3 snapshots and record reconstruction are independent of Spotify and storage.
+The snapshot deliberately retains its last-valid-route-wins rule, separate run-ID
+and creation clock reads, original first-ten-logical-artists selection, and source
+serialization order. Record decoding keeps original constructor failures, string
+coercions, optional evaluations, unknown actions and public result labels. Twelve
+new composer/snapshot contracts passed before extraction and remain unchanged.
+
+- Full suite: **2,419 tests pass**, seed `20260947`; **92.67% statements**
+  (19,513 / 21,056), **81.23% branches** (4,302 / 5,296).
+- Independent gates: **255 domain tests**, **641 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen interface artifacts, package lint/format/mypy and strict
+  application checks pass. No frozen fixtures were changed.
+
+Queue 3 execution and restart coordination remain in progress. Six additional
+execution-boundary tests have passed against the current coordinator before its
+extraction; they are the next checkpoint's preparation, not a completed migration.

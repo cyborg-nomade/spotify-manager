@@ -61,3 +61,74 @@ class AnnualImportSummary:
     already_completed: bool
     dry_run: bool
     results: tuple[AnnualImportResult, ...]
+
+
+type FlushAction = Literal[
+    "advance", "composer playlist", "next release", "complete", "skip"
+]
+
+
+@dataclass(frozen=True)
+class FlushResult:
+    """One snapshotted Queue 3 artist transition.
+
+    Args:
+        artist: Logical artist display name.
+        source_track: Original marker title.
+        source_release: Original source release title.
+        action: Public transition action.
+        target_track: Accepted replacement title, when available.
+        target_release: Accepted replacement release, when available.
+        album_decision: Live completed-release keep/remove decision.
+        album_liked_tracks: Live liked track count for an evaluated release.
+        album_total_tracks: Observed complete evaluated track count.
+        composer_playlist: Selected owned works playlist name, when available.
+        reason: Original explanation of the transition.
+        dry_run: Whether the transition is a preview.
+    """
+
+    artist: str
+    source_track: str
+    source_release: str
+    action: FlushAction
+    target_track: str | None = None
+    target_release: str | None = None
+    album_decision: str | None = None
+    album_liked_tracks: int | None = None
+    album_total_tracks: int | None = None
+    composer_playlist: str | None = None
+    reason: str | None = None
+    dry_run: bool = False
+
+
+@dataclass(frozen=True)
+class FlushSummary:
+    """Outcome of one restart-safe Queue 3 run.
+
+    Args:
+        run_id: Original durable run identifier.
+        total: Number of snapshotted artists.
+        processed: Transitions completed in this invocation.
+        advanced: Within-release and composer-playlist advances.
+        changed_releases: Accepted chronological release transitions.
+        completed_artists: Artists reaching the end of their catalog.
+        skipped: Artists whose marker cannot be advanced.
+        annual_import: Annual source decisions preceding this review.
+        paused: Whether an operator choice paused the review.
+        dry_run: Whether effects are previews.
+        resumed: Whether an existing active run was resumed.
+        results: Public transitions completed in this invocation.
+    """
+
+    run_id: str
+    total: int
+    processed: int
+    advanced: int
+    changed_releases: int
+    completed_artists: int
+    skipped: int
+    annual_import: tuple[AnnualImportResult, ...]
+    paused: bool
+    dry_run: bool
+    resumed: bool
+    results: tuple[FlushResult, ...]
