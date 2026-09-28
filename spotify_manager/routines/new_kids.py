@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
@@ -30,8 +29,6 @@ from spotify_manager.application.new_kids_values import (
     NewKidsStateError as NewKidsStateError,
 )
 from spotify_manager.application.new_kids_values import Queue2Summary as Queue2Summary
-from spotify_manager.application.queue_2 import prepare_queue_review
-from spotify_manager.application.queue_2 import queue_review_result
 from spotify_manager.application.release_evaluation import evaluate_catalog_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
@@ -47,6 +44,8 @@ from spotify_manager.domain.discovery import CatalogTrack as CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease as RankedRelease
 from spotify_manager.domain.discovery import ReleaseTier as ReleaseTier
 from spotify_manager.domain.discovery_assessment import qualification_reasons
+from spotify_manager.domain.discovery_catalog import canonical_releases
+from spotify_manager.domain.discovery_catalog import ordered_catalog_tracks
 from spotify_manager.domain.discovery_progression import (
     DECORATED_PATTERN as DECORATED_PATTERN,
 )
@@ -107,7 +106,18 @@ AnnualScrobbleIndex = history_policy.AnnualScrobbleIndex
 
 
 def parse_playlist_id(value: str | None, variable: str) -> str:
-    """Parse a required Spotify playlist setting."""
+    """Parse a required Spotify playlist setting.
+
+    Args:
+        value: Raw configured playlist ID, URI or URL.
+        variable: Setting name retained in configuration errors.
+
+    Returns:
+        Original normalized playlist identifier.
+
+    Raises:
+        NewKidsConfigError: The setting is absent or invalid.
+    """
     try:
         return new_wine.parse_playlist_id(value, variable)
     except new_wine.NewWineConfigError as exc:
@@ -162,7 +172,20 @@ def refresh_scrobbles_for_release_progress(
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
     echo: Echo = print,
 ) -> scrobble_history.ScrobbleHistorySummary:
-    """Refresh the shared history before deriving annual release progress."""
+    """Refresh shared history before deriving annual release progress.
+
+    Args:
+        lastfm: Caller-owned Last.fm history reader.
+        username: Expected account name for the existing refresh workflow.
+        scrobbles_path: Export path selecting canonical or explicit backup/log paths.
+        echo: Existing refresh progress and completion output sink.
+
+    Returns:
+        Original history refresh summary after its completion message.
+
+    Raises:
+        ScrobbleHistoryError: Existing history refresh or persistence fails.
+    """
     canonical_path = scrobbles_path.resolve() == DEFAULT_SCROBBLES_PATH.resolve()
     summary = scrobble_history.refresh_scrobble_history(
         lastfm,
@@ -361,12 +384,7 @@ def _batched_contains(
         )
         if not isinstance(response, list) or len(response) != len(batch):
             raise NewKidsError(f"Spotify returned invalid {resource} statuses.")
-        statuses.update(
-            {
-                spotify_id: bool(status)
-                for spotify_id, status in zip(batch, response, strict=True)
-            }
-        )
+        _record_statuses(statuses, batch, response)
     return statuses
 
 
@@ -375,7 +393,19 @@ def load_top_track_data(
     artist_id: str,
     retry_call: RetryCall,
 ) -> tuple[dict[str, int], tuple[CatalogTrack, ...]]:
-    """Load primary-artist Spotify top tracks and their release ranks."""
+    """Load primary-artist Spotify top tracks and their release ranks.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        artist_id: Artist required as primary track and album credit.
+        retry_call: Existing retry/cancellation callback.
+
+    Returns:
+        First eligible raw rank per album and original-order eligible tracks.
+
+    Raises:
+        NewKidsError: Spotify returns an invalid top-track collection.
+    """
     response = retry_call(
         partial(sp.artist_top_tracks, artist_id),
         f"loading top tracks for artist {artist_id}",
@@ -385,44 +415,60 @@ def load_top_track_data(
         raise NewKidsError("Spotify returned invalid artist top tracks.")
     album_ranks: dict[str, int] = {}
     tracks: list[CatalogTrack] = []
-    for rank, raw_track in enumerate(raw_tracks, start=1):
-        if not isinstance(raw_track, dict):
+    for rank, raw in enumerate(raw_tracks, start=1):
+        parsed = _top_catalog_track(raw, artist_id, rank)
+        if parsed is None:
             continue
-        artists = _artist_pairs(raw_track.get("artists"))
-        raw_album = raw_track.get("album")
-        if not isinstance(raw_album, dict):
-            continue
-        album_artists = _artist_pairs(raw_album.get("artists"))
-        if (
-            not artists
-            or artists[0][0] != artist_id
-            or not album_artists
-            or album_artists[0][0] != artist_id
-        ):
-            continue
-        track_id = str(raw_track.get("id") or "").strip()
-        uri = str(raw_track.get("uri") or "").strip()
-        album_id = str(raw_album.get("id") or "").strip()
-        if not track_id or not uri:
-            continue
+        album_id, track = parsed
         if album_id:
             album_ranks.setdefault(album_id, rank)
-        raw_popularity = raw_track.get("popularity")
-        tracks.append(
-            CatalogTrack(
-                spotify_id=track_id,
-                uri=uri,
-                name=str(raw_track.get("name") or track_id),
-                disc_number=_track_position(raw_track.get("disc_number"), 1),
-                track_number=_track_position(raw_track.get("track_number"), rank),
-                primary_artist_id=artists[0][0],
-                primary_artist_name=artists[0][1],
-                popularity=(
-                    raw_popularity if isinstance(raw_popularity, int) else None
-                ),
-            )
-        )
+        tracks.append(track)
     return album_ranks, tuple(tracks)
+
+
+def _top_catalog_track(
+    raw: object, artist_id: str, rank: int
+) -> tuple[str, CatalogTrack] | None:
+    if not isinstance(raw, dict):
+        return None
+    artists = _artist_pairs(raw.get("artists"))
+    album = raw.get("album")
+    if not isinstance(album, dict):
+        return None
+    album_artists = _artist_pairs(album.get("artists"))
+    if not artists or artists[0][0] != artist_id:
+        return None
+    if not album_artists or album_artists[0][0] != artist_id:
+        return None
+    track_id = str(raw.get("id") or "").strip()
+    uri = str(raw.get("uri") or "").strip()
+    album_id = str(album.get("id") or "").strip()
+    if not track_id or not uri:
+        return None
+    popularity = raw.get("popularity")
+    parsed_popularity = popularity if isinstance(popularity, int) else None
+    track = _catalog_track(raw, artists[0], track_id, uri, rank, parsed_popularity)
+    return album_id, track
+
+
+def _catalog_track(
+    raw: dict[str, object],
+    artist: tuple[str, str],
+    track_id: str,
+    uri: str,
+    position: int,
+    popularity: int | None = None,
+) -> CatalogTrack:
+    return CatalogTrack(
+        spotify_id=track_id,
+        uri=uri,
+        name=str(raw.get("name") or track_id),
+        disc_number=_track_position(raw.get("disc_number"), 1),
+        track_number=_track_position(raw.get("track_number"), position),
+        primary_artist_id=artist[0],
+        primary_artist_name=artist[1],
+        popularity=popularity,
+    )
 
 
 def load_ranked_catalog(
@@ -430,49 +476,89 @@ def load_ranked_catalog(
     artist_id: str,
     retry_call: RetryCall,
 ) -> tuple[RankedRelease, ...]:
-    """Load canonical releases using album popularity and top-track fallback."""
-    simplified: dict[str, dict[str, object]] = {}
-    offset = 0
-    while True:
-        response = retry_call(
-            partial(
-                sp.artist_albums,
-                artist_id,
-                include_groups="album,single,compilation",
-                limit=ARTIST_RELEASE_PAGE_SIZE,
-                offset=offset,
-            ),
-            f"loading releases for artist {artist_id} at offset {offset}",
-        )
-        if not isinstance(response, dict):
-            raise NewKidsError("Spotify returned invalid artist releases.")
-        raw_items = response.get("items")
-        if not isinstance(raw_items, list):
-            raise NewKidsError("Spotify returned invalid artist releases.")
-        for raw_release in raw_items:
-            if not isinstance(raw_release, dict):
-                continue
-            artists = _artist_pairs(raw_release.get("artists"))
-            release_id = str(raw_release.get("id") or "").strip()
-            if artists and artists[0][0] == artist_id and release_id:
-                simplified[release_id] = raw_release
-        offset += len(raw_items)
-        if not response.get("next"):
-            break
-        if not raw_items:
-            raise NewKidsError("Spotify returned an empty release page.")
+    """Load canonical releases using popularity and top-track fallback.
 
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        artist_id: Required primary artist credit.
+        retry_call: Existing retry/cancellation callback.
+
+    Returns:
+        Canonical editions in original discovery review order.
+
+    Raises:
+        NewKidsError: A catalog page, membership list or detail response is invalid.
+    """
+    simplified = _artist_release_records(sp, artist_id, retry_call)
     release_ids = list(simplified)
     if not release_ids:
         return ()
     saved = _batched_contains(
-        release_ids,
-        sp.current_user_saved_albums_contains,
-        "Saved Albums",
-        retry_call,
+        release_ids, sp.current_user_saved_albums_contains, "Saved Albums", retry_call
     )
     top_ranks, _top_tracks = load_top_track_data(sp, artist_id, retry_call)
+    full_by_id = _release_details(sp, release_ids, retry_call)
+    candidates = _catalog_candidates(
+        artist_id, simplified, full_by_id, saved, top_ranks
+    )
+    return canonical_releases(candidates)
 
+
+def _artist_release_records(
+    sp: Spotify, artist_id: str, retry_call: RetryCall
+) -> dict[str, dict[str, object]]:
+    simplified: dict[str, dict[str, object]] = {}
+    offset = 0
+    while True:
+        items, has_next = _artist_release_page(sp, artist_id, offset, retry_call)
+        _collect_artist_releases(items, artist_id, simplified)
+        offset += len(items)
+        if not has_next:
+            return simplified
+        if not items:
+            raise NewKidsError("Spotify returned an empty release page.")
+
+
+def _artist_release_page(
+    sp: Spotify, artist_id: str, offset: int, retry_call: RetryCall
+) -> tuple[list[object], bool]:
+    response = retry_call(
+        partial(
+            sp.artist_albums,
+            artist_id,
+            include_groups="album,single,compilation",
+            limit=ARTIST_RELEASE_PAGE_SIZE,
+            offset=offset,
+        ),
+        f"loading releases for artist {artist_id} at offset {offset}",
+    )
+    return _catalog_page(response, "Spotify returned invalid artist releases.")
+
+
+def _catalog_page(response: object, error: str) -> tuple[list[object], bool]:
+    if not isinstance(response, dict):
+        raise NewKidsError(error)
+    items = response.get("items")
+    if not isinstance(items, list):
+        raise NewKidsError(error)
+    return items, bool(response.get("next"))
+
+
+def _collect_artist_releases(
+    items: list[object], artist_id: str, releases: dict[str, dict[str, object]]
+) -> None:
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        artists = _artist_pairs(raw.get("artists"))
+        identifier = str(raw.get("id") or "").strip()
+        if artists and artists[0][0] == artist_id and identifier:
+            releases[identifier] = raw
+
+
+def _release_details(
+    sp: Spotify, release_ids: list[str], retry_call: RetryCall
+) -> dict[str, dict[str, object]]:
     full_by_id: dict[str, dict[str, object]] = {}
     for start in range(0, len(release_ids), ALBUM_BATCH_SIZE):
         batch = release_ids[start : start + ALBUM_BATCH_SIZE]
@@ -483,60 +569,39 @@ def load_ranked_catalog(
         raw_albums = response.get("albums") if isinstance(response, dict) else None
         if not isinstance(raw_albums, list):
             raise NewKidsError("Spotify returned invalid album details.")
-        for raw_album in raw_albums:
-            if not isinstance(raw_album, dict):
-                continue
-            album_id = str(raw_album.get("id") or "").strip()
-            if album_id:
-                full_by_id[album_id] = raw_album
+        _collect_release_details(raw_albums, full_by_id)
+    return full_by_id
 
-    candidates: list[RankedRelease] = []
-    for release_id in release_ids:
-        raw = full_by_id.get(release_id, simplified[release_id])
+
+def _collect_release_details(
+    items: list[object], releases: dict[str, dict[str, object]]
+) -> None:
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        identifier = str(raw.get("id") or "").strip()
+        if identifier:
+            releases[identifier] = raw
+
+
+def _catalog_candidates(
+    artist_id: str,
+    simplified: dict[str, dict[str, object]],
+    full: dict[str, dict[str, object]],
+    saved: dict[str, bool],
+    ranks: dict[str, int],
+) -> tuple[RankedRelease, ...]:
+    candidates = []
+    for release_id, fallback in simplified.items():
         candidate = _raw_release(
-            raw,
+            full.get(release_id, fallback),
             artist_id,
             saved.get(release_id, False),
-            top_ranks.get(release_id),
+            ranks.get(release_id),
         )
         if candidate is not None:
             candidates.append(candidate)
-
-    editions: dict[tuple[str, ReleaseTier], list[RankedRelease]] = defaultdict(list)
-    for candidate in candidates:
-        editions[(candidate.identity, candidate.tier)].append(candidate)
-
-    canonical: list[RankedRelease] = []
-    for group in editions.values():
-        canonical.append(
-            min(
-                group,
-                key=lambda release: (
-                    not release.saved,
-                    not release.plain,
-                    release.tier,
-                    -(release.popularity if release.popularity is not None else -1),
-                    release.top_track_rank or 9999,
-                    release.total_tracks,
-                    _release_date_key(release.release_date),
-                    release.name.casefold(),
-                ),
-            )
-        )
-    return tuple(
-        sorted(
-            canonical,
-            key=lambda release: (
-                release.tier,
-                release.popularity is None,
-                -(release.popularity or 0),
-                release.top_track_rank or 9999,
-                _release_date_key(release.release_date),
-                release.name.casefold(),
-                release.spotify_id,
-            ),
-        )
-    )
+    return tuple(candidates)
 
 
 def load_release_tracks(
@@ -544,54 +609,58 @@ def load_release_tracks(
     release: RankedRelease,
     retry_call: RetryCall,
 ) -> tuple[CatalogTrack, ...]:
-    """Load an ordered release track list with primary artist credits."""
+    """Load an ordered release track list with primary artist credits.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        release: Selected discovery release, including its retry display name.
+        retry_call: Existing retry/cancellation callback.
+
+    Returns:
+        Playable tracks sorted by disc/track, retaining guests and position ties.
+
+    Raises:
+        NewKidsError: A track page is invalid or empty while claiming continuation.
+    """
     tracks: list[CatalogTrack] = []
     offset = 0
     while True:
-        response = retry_call(
-            partial(
-                sp.album_tracks,
-                release.spotify_id,
-                limit=50,
-                offset=offset,
-            ),
-            f"loading {release.name} at offset {offset}",
-        )
-        if not isinstance(response, dict):
-            raise NewKidsError(f"Spotify returned invalid tracks for {release.name}.")
-        raw_items = response.get("items")
-        if not isinstance(raw_items, list):
-            raise NewKidsError(f"Spotify returned invalid tracks for {release.name}.")
-        for raw_track in raw_items:
-            if not isinstance(raw_track, dict):
-                continue
-            artists = _artist_pairs(raw_track.get("artists"))
-            track_id = str(raw_track.get("id") or "").strip()
-            uri = str(raw_track.get("uri") or "").strip()
-            if not artists or not track_id or not uri:
-                continue
-            tracks.append(
-                CatalogTrack(
-                    spotify_id=track_id,
-                    uri=uri,
-                    name=str(raw_track.get("name") or track_id),
-                    disc_number=_track_position(raw_track.get("disc_number"), 1),
-                    track_number=_track_position(
-                        raw_track.get("track_number"),
-                        len(tracks) + 1,
-                    ),
-                    primary_artist_id=artists[0][0],
-                    primary_artist_name=artists[0][1],
-                )
-            )
-        offset += len(raw_items)
-        if not response.get("next"):
-            break
-        if not raw_items:
+        items, has_next = _release_track_page(sp, release, offset, retry_call)
+        _collect_release_tracks(items, tracks)
+        offset += len(items)
+        if not has_next:
+            return ordered_catalog_tracks(tuple(tracks))
+        if not items:
             raise NewKidsError(f"Spotify returned an empty page for {release.name}.")
-    return tuple(
-        sorted(tracks, key=lambda track: (track.disc_number, track.track_number))
+
+
+def _release_track_page(
+    sp: Spotify, release: RankedRelease, offset: int, retry_call: RetryCall
+) -> tuple[list[object], bool]:
+    response = retry_call(
+        partial(
+            sp.album_tracks,
+            release.spotify_id,
+            limit=50,
+            offset=offset,
+        ),
+        f"loading {release.name} at offset {offset}",
     )
+    return _catalog_page(
+        response, f"Spotify returned invalid tracks for {release.name}."
+    )
+
+
+def _collect_release_tracks(items: list[object], tracks: list[CatalogTrack]) -> None:
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        artists = _artist_pairs(raw.get("artists"))
+        track_id = str(raw.get("id") or "").strip()
+        uri = str(raw.get("uri") or "").strip()
+        if not artists or not track_id or not uri:
+            continue
+        tracks.append(_catalog_track(raw, artists[0], track_id, uri, len(tracks) + 1))
 
 
 def release_was_played_this_year(
@@ -693,7 +762,17 @@ def _default_state() -> dict[str, Any]:
 
 
 def validate_state(raw: object) -> dict[str, Any]:
-    """Validate the New Kids namespace independently of its storage."""
+    """Validate the New Kids namespace independently of its storage.
+
+    Args:
+        raw: Decoded namespace with unknown legacy fields retained.
+
+    Returns:
+        Original mutable record, adding the legacy default composer-route container.
+
+    Raises:
+        NewKidsStateError: The version or required record containers are invalid.
+    """
     if isinstance(raw, dict) and raw.get("version") == STATE_VERSION:
         raw.setdefault("composer_routes", {})
     if (
@@ -708,7 +787,17 @@ def validate_state(raw: object) -> dict[str, Any]:
 
 
 def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
-    """Load durable artist and active-run progress."""
+    """Load durable artist and active-run progress.
+
+    Args:
+        path: Existing namespace export path.
+
+    Returns:
+        Validated original namespace, or fresh defaults when the file is absent.
+
+    Raises:
+        NewKidsStateError: Reading, decoding or namespace validation fails.
+    """
     if not path.exists():
         return _default_state()
     try:
@@ -722,7 +811,17 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
 
 
 def save_state(state: dict[str, Any], path: Path = DEFAULT_STATE_PATH) -> None:
-    """Atomically save durable artist and active-run progress."""
+    """Atomically save durable artist and active-run progress.
+
+    Args:
+        state: Original versioned JSON namespace, including unknown fields.
+        path: Destination for the existing atomic file replacement.
+
+    Raises:
+        NewKidsStateError: Writing or replacing the namespace fails.
+        OSError: Creating the parent directory fails.
+        TypeError: A namespace value cannot be encoded as JSON.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
@@ -753,7 +852,18 @@ def _state_access(
 
 
 def append_event(path: Path, event: str, **details: object) -> None:
-    """Append one mutation or decision to the audit log."""
+    """Append one mutation or decision to the audit log.
+
+    Args:
+        path: Existing JSON-lines audit destination.
+        event: Original event identifier.
+        details: Original ordered event fields, retaining existing override behavior.
+
+    Raises:
+        NewKidsStateError: Opening or writing the audit file fails.
+        OSError: Creating its parent directory fails.
+        TypeError: An event value cannot be encoded as JSON.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     record = {
         "recorded_at": datetime.now(UTC).isoformat(),
@@ -858,7 +968,19 @@ def _sync_local_album(
 
 
 def remove_local_artist(artist_id: str, path: Path = DEFAULT_ARTISTS_PATH) -> bool:
-    """Remove one unfollowed artist from the local mirror and update stats."""
+    """Remove an unfollowed artist from the mirror and update statistics.
+
+    Args:
+        artist_id: Identifier of the artist successfully unfollowed remotely.
+        path: Existing canonical or explicit artist mirror path.
+
+    Returns:
+        Whether a matching artist was removed from the mirror.
+
+    Raises:
+        NewKidsStateError: Reading or replacing the local mirror fails.
+        ValidationError: A stored artist record fails existing model validation.
+    """
     raw = _read_json_list(path)
     artists = [YourLibraryArtist.model_validate(item) for item in raw]
     updated = [artist for artist in artists if artist.spotify_id != artist_id]
@@ -1137,7 +1259,14 @@ def _new_run(
 def next_release_options(
     releases: tuple[RankedRelease, ...],
 ) -> tuple[RankedRelease, ...]:
-    """Return only the highest-priority release tier still available."""
+    """Return only the highest-priority release tier still available.
+
+    Args:
+        releases: Viable catalog entries in original order.
+
+    Returns:
+        Entries in the best remaining tier, retaining order and duplicates.
+    """
     return discovery_policy.next_release_options(releases)
 
 
@@ -1184,118 +1313,37 @@ def _flush_review_playlist(
     _live_tracks: list[new_wine.PlaylistTrack] | None = None,
 ) -> FlushSummary:
     """Advance one playlist snapshot using the shared four-release rules."""
-    retry = retry_call or (lambda operation, _description: operation())
-    active_year = year or datetime.now().year
-    if lastfm is not None:
-        if not lastfm_username:
-            raise NewKidsConfigError(
-                "LASTFM_USERNAME is required to refresh New Kids release progress."
-            )
-        if progress_callback:
-            progress_callback(0, 0, "Refreshing Last.fm release history")
-        refresh_scrobbles_for_release_progress(
-            lastfm,
-            lastfm_username,
-            scrobbles_path=scrobbles_path,
-            echo=echo,
-        )
-    if progress_callback:
-        progress_callback(0, 0, f"Loading {active_year} Last.fm release history")
-    annual_scrobbles = load_annual_scrobble_index(
-        scrobbles_path,
-        year=active_year,
-    )
-    state_access = _state_access(state_path, state_service)
-    persisted_state = state_access.load()
-    state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
-    try:
-        owned_playlists = composer_playlists.load_owned_playlists(
-            sp,
-            retry,
-            frozenset({new_kids_playlist_id, queue_2_playlist_id}),
-        )
-    except composer_playlists.ComposerPlaylistError as exc:
-        raise NewKidsError(str(exc)) from exc
-    from spotify_manager.bootstrap.new_kids import review_run
+    from spotify_manager.bootstrap.new_kids import run_review
 
-    lifecycle = review_run(
-        sp,
-        retry,
-        state_access,
-        state,
-        new_kids_playlist_id,
-        queue_2_playlist_id,
-        _active_run_key,
-        _blocking_active_run_key,
-        _fill_from_queue,
-        dry_run,
-        PLAYLIST_CAP,
-        log_path,
-        echo,
-        _utc_now,
-    )
-    snapshot = lifecycle.prepare(_initial_tracks, _live_tracks)
-    catalog_cache: dict[str, tuple[RankedRelease, ...]] = {}
-    track_cache: dict[str, tuple[CatalogTrack, ...]] = {}
-    composer_track_cache: dict[str, tuple[new_wine.PlaylistTrack, ...]] = {}
-    liked_cache: dict[str, bool] = {}
-
-    from spotify_manager.bootstrap.new_kids import review_planner
-
-    planner = review_planner(
-        sp,
-        retry,
-        choice_reader,
-        year=active_year,
+    return run_review(
+        sp=sp,
+        new_kids_playlist_id=new_kids_playlist_id,
+        queue_2_playlist_id=queue_2_playlist_id,
+        great_discoveries_2026_playlist_id=great_discoveries_2026_playlist_id,
+        unlucky_ones_playlist_id=unlucky_ones_playlist_id,
+        newfoundland_playlist_id=newfoundland_playlist_id,
+        choice_reader=choice_reader,
         dry_run=dry_run,
-        history=annual_scrobbles,
-        release_limit=RELEASES_PER_ARTIST,
-        studio_minimum=MIN_SCROBBLED_TRACKS_PER_RELEASE,
-        log_path=log_path,
+        year=year,
         echo=echo,
-        catalogs=catalog_cache,
-        tracks=track_cache,
-        liked=liked_cache,
-        works=composer_track_cache,
-    )
-
-    from spotify_manager.bootstrap.new_kids import review_execution
-
-    execution = review_execution(
-        sp,
-        retry,
-        state_access=state_access,
-        state=state,
-        live_ids=snapshot.live_ids,
-        playlist_id=new_kids_playlist_id,
-        label=_playlist_label,
-        newfoundland=newfoundland_playlist_id,
-        unlucky=unlucky_ones_playlist_id,
-        great_seed=great_discoveries_2026_playlist_id,
-        year=active_year,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
         albums_path=albums_path,
         artists_path=artists_path,
-        removed_path=removed_albums_log_path,
-        log_path=log_path,
-        echo=echo,
-        dry_run=dry_run,
-        clock=_utc_now,
+        removed_albums_log_path=removed_albums_log_path,
+        scrobbles_path=scrobbles_path,
+        lastfm=lastfm,
+        lastfm_username=lastfm_username,
+        _playlist_label=_playlist_label,
+        _active_run_key=_active_run_key,
+        _blocking_active_run_key=_blocking_active_run_key,
+        _fill_from_queue=_fill_from_queue,
+        _initial_tracks=_initial_tracks,
+        _live_tracks=_live_tracks,
     )
-
-    from spotify_manager.bootstrap.new_kids import entry_review
-
-    reviewer = entry_review(
-        planner,
-        execution,
-        owned_playlists,
-        frozenset({new_kids_playlist_id, queue_2_playlist_id}),
-        _utc_now,
-        COMPOSER_TRACKS_PER_ARTIST,
-        progress_callback,
-        echo,
-    )
-    reviewed, paused = reviewer.review(snapshot.entries, snapshot.run.get("run_id"))
-    return lifecycle.finish(snapshot, reviewed, paused)
 
 
 def flush_new_kids(
@@ -1322,7 +1370,39 @@ def flush_new_kids(
     lastfm: scrobble_history.LastFmReader | None = None,
     lastfm_username: str | None = None,
 ) -> FlushSummary:
-    """Advance every snapshotted artist once, then refill New Kids to ten."""
+    """Advance every snapshotted artist once, then refill New Kids to ten.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        new_kids_playlist_id: Configured New Kids review destination.
+        queue_2_playlist_id: Configured Queue 2 source or review playlist.
+        great_discoveries_2026_playlist_id: Existing 2026 promotion playlist seed.
+        unlucky_ones_playlist_id: Destination for liked but nonqualifying artists.
+        newfoundland_playlist_id: Additional destination for qualifying artists.
+        choice_reader: Composer/release choice callback, including skip and quit.
+        dry_run: Project changes without playlist/library writes or state checkpoints.
+        year: Review year; false or absent values retain the local current-year default.
+        echo: Existing CLI or background-job output sink.
+        progress_callback: Optional original progress callback.
+        retry_call: Retry/cancellation callback, or direct execution when absent.
+        state_path: Explicit legacy state path or the default shared namespace selector.
+        state_service: Optional caller-supplied shared state service.
+        log_path: Existing routine audit destination, including preview events.
+        albums_path: Canonical album mirror used at completed-release boundaries.
+        artists_path: Canonical artist mirror used after accepted unfollowing.
+        removed_albums_log_path: Original removed-album recovery log.
+        scrobbles_path: Existing Last.fm history export.
+        lastfm: Optional history reader; requested refresh also runs during previews.
+        lastfm_username: Required expected username when a history reader is supplied.
+
+    Returns:
+        Original public summary with accepted results, counts and pause/resume flags.
+
+    Raises:
+        NewKidsConfigError: A requested history refresh lacks its expected username.
+        NewKidsStateError: Saved progress is invalid or another run blocks execution.
+        NewKidsError: Catalog observations or operator selections are invalid.
+    """
     return _flush_review_playlist(
         sp,
         new_kids_playlist_id,
@@ -1372,51 +1452,54 @@ def flush_queue_2(
     lastfm: scrobble_history.LastFmReader | None = None,
     lastfm_username: str | None = None,
 ) -> Queue2Summary:
-    """Fill New Kids, then advance the first ten remaining Queue 2 artists."""
-    if lastfm is not None:
-        if not lastfm_username:
-            raise NewKidsConfigError(
-                "LASTFM_USERNAME is required to refresh Queue 2 release progress."
-            )
-        if progress_callback:
-            progress_callback(0, 0, "Refreshing Last.fm release history")
-        refresh_scrobbles_for_release_progress(
-            lastfm,
-            lastfm_username,
-            scrobbles_path=scrobbles_path,
-            echo=echo,
-        )
-    retry = retry_call or (lambda operation, _description: operation())
-    state_access = _state_access(state_path, state_service)
-    persisted_state = state_access.load()
-    state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
-    from spotify_manager.bootstrap.new_kids import queue_transfer
+    """Fill New Kids, then advance the first ten remaining Queue 2 artists.
 
-    transfer = queue_transfer(
-        sp,
-        retry,
-        new_kids_playlist_id,
-        queue_2_playlist_id,
-        PLAYLIST_CAP,
-        dry_run,
-        log_path,
-        echo,
-    )
-    snapshot = prepare_queue_review(transfer, state, QUEUE_2_DAILY_LIMIT)
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        new_kids_playlist_id: Configured New Kids review destination.
+        queue_2_playlist_id: Configured Queue 2 source or review playlist.
+        great_discoveries_2026_playlist_id: Existing 2026 promotion playlist seed.
+        unlucky_ones_playlist_id: Destination for liked but nonqualifying artists.
+        newfoundland_playlist_id: Additional destination for qualifying artists.
+        choice_reader: Composer/release choice callback, including skip and quit.
+        dry_run: Project changes without playlist/library writes or state checkpoints.
+        year: Review year; false or absent values retain the local current-year default.
+        echo: Existing CLI or background-job output sink.
+        progress_callback: Optional original progress callback.
+        retry_call: Retry/cancellation callback, or direct execution when absent.
+        state_path: Explicit legacy state path or the default shared namespace selector.
+        state_service: Optional caller-supplied shared state service.
+        log_path: Existing routine audit destination, including preview events.
+        albums_path: Canonical album mirror used at completed-release boundaries.
+        artists_path: Canonical artist mirror used after accepted unfollowing.
+        removed_albums_log_path: Original removed-album recovery log.
+        scrobbles_path: Existing Last.fm history export.
+        lastfm: Optional history reader; requested refresh also runs during previews.
+        lastfm_username: Required expected username when a history reader is supplied.
 
-    review = _flush_review_playlist(
-        sp,
-        queue_2_playlist_id,
-        queue_2_playlist_id,
-        great_discoveries_2026_playlist_id,
-        unlucky_ones_playlist_id,
-        newfoundland_playlist_id,
-        choice_reader,
+    Returns:
+        Original public summary with accepted results, counts and pause/resume flags.
+
+    Raises:
+        NewKidsConfigError: A requested history refresh lacks its expected username.
+        NewKidsStateError: Saved progress is invalid or another run blocks execution.
+        NewKidsError: Catalog observations or operator selections are invalid.
+    """
+    from spotify_manager.bootstrap.new_kids import run_queue_review
+
+    return run_queue_review(
+        sp=sp,
+        new_kids_playlist_id=new_kids_playlist_id,
+        queue_2_playlist_id=queue_2_playlist_id,
+        great_discoveries_2026_playlist_id=great_discoveries_2026_playlist_id,
+        unlucky_ones_playlist_id=unlucky_ones_playlist_id,
+        newfoundland_playlist_id=newfoundland_playlist_id,
+        choice_reader=choice_reader,
         dry_run=dry_run,
         year=year,
         echo=echo,
         progress_callback=progress_callback,
-        retry_call=retry,
+        retry_call=retry_call,
         state_path=state_path,
         state_service=state_service,
         log_path=log_path,
@@ -1424,15 +1507,9 @@ def flush_queue_2(
         artists_path=artists_path,
         removed_albums_log_path=removed_albums_log_path,
         scrobbles_path=scrobbles_path,
-        _playlist_label="Queue 2",
-        _active_run_key="queue_2_active_run",
-        _blocking_active_run_key="active_run",
-        _fill_from_queue=False,
-        _initial_tracks=snapshot.selected,
-        _live_tracks=snapshot.remaining,
+        lastfm=lastfm,
+        lastfm_username=lastfm_username,
     )
-
-    return queue_review_result(snapshot, review, dry_run)
 
 
 def _utc_now() -> datetime:
@@ -1485,4 +1562,36 @@ def _unfollow_artist(
     retry_call(
         partial(remove_library_artists, sp, [f"spotify:artist:{artist_id}"]),
         f"unfollowing {artist_name}",
+    )
+
+
+def _direct_call(operation: Callable[[], object], description: str) -> object:
+    return operation()
+
+
+def _record_statuses(
+    statuses: dict[str, bool], ids: list[str], response: list[object]
+) -> None:
+    for identifier, status in zip(ids, response, strict=True):
+        statuses[identifier] = bool(status)
+
+
+def _refresh_history(
+    lastfm: scrobble_history.LastFmReader | None,
+    username: str | None,
+    label: str,
+    path: Path,
+    echo: Echo,
+    progress: ProgressCallback | None,
+) -> None:
+    if lastfm is None:
+        return
+    if not username:
+        raise NewKidsConfigError(
+            f"LASTFM_USERNAME is required to refresh {label} release progress."
+        )
+    if progress:
+        progress(0, 0, "Refreshing Last.fm release history")
+    refresh_scrobbles_for_release_progress(
+        lastfm, username, scrobbles_path=path, echo=echo
     )

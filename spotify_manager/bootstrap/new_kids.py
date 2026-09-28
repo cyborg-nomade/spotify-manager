@@ -1,5 +1,6 @@
 """Compose ordinary discovery review decisions with caller-owned integrations."""
 
+import json
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -17,8 +18,13 @@ from spotify_manager.application.discovery_review import ProgressCallback
 from spotify_manager.application.discovery_run import DiscoveryRun
 from spotify_manager.application.new_kids_execution import NewKidsExecution
 from spotify_manager.application.new_kids_planner import NewKidsPlanner
+from spotify_manager.application.new_kids_values import FlushSummary
+from spotify_manager.application.new_kids_values import Queue2Summary
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.queue_2 import prepare_queue_review
+from spotify_manager.application.queue_2 import queue_review_result
+from spotify_manager.core.state import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.discovery import CatalogTrack
@@ -37,6 +43,8 @@ from spotify_manager.infrastructure.legacy.discovery_execution import (
     LegacyDiscoveryQueue,
 )
 from spotify_manager.interfaces.presenters.new_kids import NewKidsPresenter
+from spotify_manager.routines import new_kids as legacy
+from spotify_manager.routines import scrobble_history
 
 
 def review_planner(
@@ -341,3 +349,267 @@ def review_run(
         dry_run,
         clock,
     )
+
+
+def run_review(
+    sp: Spotify,
+    new_kids_playlist_id: str,
+    queue_2_playlist_id: str,
+    great_discoveries_2026_playlist_id: str,
+    unlucky_ones_playlist_id: str,
+    newfoundland_playlist_id: str,
+    choice_reader: ReleaseChoiceReader,
+    *,
+    dry_run: bool,
+    year: int | None,
+    echo: Callable[[str], None],
+    progress_callback: ProgressCallback | None,
+    retry_call: RetryCall | None,
+    state_path: Path,
+    state_service: StateService | None,
+    log_path: Path,
+    albums_path: Path,
+    artists_path: Path,
+    removed_albums_log_path: Path,
+    scrobbles_path: Path,
+    lastfm: scrobble_history.LastFmReader | None,
+    lastfm_username: str | None,
+    _playlist_label: str,
+    _active_run_key: str,
+    _blocking_active_run_key: str,
+    _fill_from_queue: bool,
+    _initial_tracks: list[PlaylistTrack] | None,
+    _live_tracks: list[PlaylistTrack] | None,
+) -> FlushSummary:
+    """Advance one playlist snapshot using the shared four-release rules.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        new_kids_playlist_id: Configured New Kids review destination.
+        queue_2_playlist_id: Configured Queue 2 source or review playlist.
+        great_discoveries_2026_playlist_id: Existing 2026 promotion playlist seed.
+        unlucky_ones_playlist_id: Destination for liked but nonqualifying artists.
+        newfoundland_playlist_id: Additional destination for qualifying artists.
+        choice_reader: Composer/release choice callback, including skip and quit.
+        dry_run: Project changes without playlist/library writes or state checkpoints.
+        year: Review year; false or absent values retain the local current-year default.
+        echo: Existing CLI or background-job output sink.
+        progress_callback: Optional original progress callback.
+        retry_call: Retry/cancellation callback, or direct execution when absent.
+        state_path: Explicit legacy state path or the default shared namespace selector.
+        state_service: Optional caller-supplied shared state service.
+        log_path: Existing routine audit destination, including preview events.
+        albums_path: Canonical album mirror used at completed-release boundaries.
+        artists_path: Canonical artist mirror used after accepted unfollowing.
+        removed_albums_log_path: Original removed-album recovery log.
+        scrobbles_path: Existing Last.fm history export.
+        lastfm: Optional history reader; requested refresh also runs during previews.
+        lastfm_username: Required expected username when a history reader is supplied.
+        _playlist_label: Original progress and retry display label.
+        _active_run_key: Namespace key for this review's active snapshot.
+        _blocking_active_run_key: Other review's active-run key checked before startup.
+        _fill_from_queue: Whether this invocation performs initial and final transfers.
+        _initial_tracks: Optional daily selection supplied for a fresh snapshot.
+        _live_tracks: Optional complete live sequence supplied for resume/execution.
+
+    Returns:
+        Original public summary with accepted results, counts and pause/resume flags.
+
+    Raises:
+        NewKidsConfigError: A requested history refresh lacks its expected username.
+        NewKidsStateError: Saved progress is invalid or another run blocks execution.
+        NewKidsError: Catalog observations or operator selections are invalid.
+    """
+    retry = retry_call or legacy._direct_call
+    active_year = year or legacy.datetime.now().year
+    legacy._refresh_history(
+        lastfm, lastfm_username, "New Kids", scrobbles_path, echo, progress_callback
+    )
+    if progress_callback:
+        progress_callback(0, 0, f"Loading {active_year} Last.fm release history")
+    annual_scrobbles = legacy.load_annual_scrobble_index(
+        scrobbles_path, year=active_year
+    )
+    state_access = legacy._state_access(state_path, state_service)
+    persisted_state = state_access.load()
+    state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
+    try:
+        owned_playlists = legacy.composer_playlists.load_owned_playlists(
+            sp, retry, frozenset({new_kids_playlist_id, queue_2_playlist_id})
+        )
+    except legacy.composer_playlists.ComposerPlaylistError as exc:
+        raise legacy.NewKidsError(str(exc)) from exc
+    lifecycle = review_run(
+        sp,
+        retry,
+        state_access,
+        state,
+        new_kids_playlist_id,
+        queue_2_playlist_id,
+        _active_run_key,
+        _blocking_active_run_key,
+        _fill_from_queue,
+        dry_run,
+        legacy.PLAYLIST_CAP,
+        log_path,
+        echo,
+        legacy._utc_now,
+    )
+    snapshot = lifecycle.prepare(_initial_tracks, _live_tracks)
+    catalog_cache: dict[str, tuple[RankedRelease, ...]] = {}
+    track_cache: dict[str, tuple[CatalogTrack, ...]] = {}
+    composer_track_cache: dict[str, tuple[PlaylistTrack, ...]] = {}
+    liked_cache: dict[str, bool] = {}
+    planner = review_planner(
+        sp,
+        retry,
+        choice_reader,
+        year=active_year,
+        dry_run=dry_run,
+        history=annual_scrobbles,
+        release_limit=legacy.RELEASES_PER_ARTIST,
+        studio_minimum=legacy.MIN_SCROBBLED_TRACKS_PER_RELEASE,
+        log_path=log_path,
+        echo=echo,
+        catalogs=catalog_cache,
+        tracks=track_cache,
+        liked=liked_cache,
+        works=composer_track_cache,
+    )
+    execution = review_execution(
+        sp,
+        retry,
+        state_access=state_access,
+        state=state,
+        live_ids=snapshot.live_ids,
+        playlist_id=new_kids_playlist_id,
+        label=_playlist_label,
+        newfoundland=newfoundland_playlist_id,
+        unlucky=unlucky_ones_playlist_id,
+        great_seed=great_discoveries_2026_playlist_id,
+        year=active_year,
+        albums_path=albums_path,
+        artists_path=artists_path,
+        removed_path=removed_albums_log_path,
+        log_path=log_path,
+        echo=echo,
+        dry_run=dry_run,
+        clock=legacy._utc_now,
+    )
+    reviewer = entry_review(
+        planner,
+        execution,
+        owned_playlists,
+        frozenset({new_kids_playlist_id, queue_2_playlist_id}),
+        legacy._utc_now,
+        legacy.COMPOSER_TRACKS_PER_ARTIST,
+        progress_callback,
+        echo,
+    )
+    reviewed, paused = reviewer.review(snapshot.entries, snapshot.run.get("run_id"))
+    return lifecycle.finish(snapshot, reviewed, paused)
+
+
+def run_queue_review(
+    sp: Spotify,
+    new_kids_playlist_id: str,
+    queue_2_playlist_id: str,
+    great_discoveries_2026_playlist_id: str,
+    unlucky_ones_playlist_id: str,
+    newfoundland_playlist_id: str,
+    choice_reader: ReleaseChoiceReader,
+    *,
+    dry_run: bool,
+    year: int | None,
+    echo: Callable[[str], None],
+    progress_callback: ProgressCallback | None,
+    retry_call: RetryCall | None,
+    state_path: Path,
+    state_service: StateService | None,
+    log_path: Path,
+    albums_path: Path,
+    artists_path: Path,
+    removed_albums_log_path: Path,
+    scrobbles_path: Path,
+    lastfm: scrobble_history.LastFmReader | None,
+    lastfm_username: str | None,
+) -> Queue2Summary:
+    """Fill New Kids, then advance the first ten remaining Queue 2 artists.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        new_kids_playlist_id: Configured New Kids review destination.
+        queue_2_playlist_id: Configured Queue 2 source or review playlist.
+        great_discoveries_2026_playlist_id: Existing 2026 promotion playlist seed.
+        unlucky_ones_playlist_id: Destination for liked but nonqualifying artists.
+        newfoundland_playlist_id: Additional destination for qualifying artists.
+        choice_reader: Composer/release choice callback, including skip and quit.
+        dry_run: Project changes without playlist/library writes or state checkpoints.
+        year: Review year; false or absent values retain the local current-year default.
+        echo: Existing CLI or background-job output sink.
+        progress_callback: Optional original progress callback.
+        retry_call: Retry/cancellation callback, or direct execution when absent.
+        state_path: Explicit legacy state path or the default shared namespace selector.
+        state_service: Optional caller-supplied shared state service.
+        log_path: Existing routine audit destination, including preview events.
+        albums_path: Canonical album mirror used at completed-release boundaries.
+        artists_path: Canonical artist mirror used after accepted unfollowing.
+        removed_albums_log_path: Original removed-album recovery log.
+        scrobbles_path: Existing Last.fm history export.
+        lastfm: Optional history reader; requested refresh also runs during previews.
+        lastfm_username: Required expected username when a history reader is supplied.
+
+    Returns:
+        Original public summary with accepted results, counts and pause/resume flags.
+
+    Raises:
+        NewKidsConfigError: A requested history refresh lacks its expected username.
+        NewKidsStateError: Saved progress is invalid or another run blocks execution.
+        NewKidsError: Catalog observations or operator selections are invalid.
+    """
+    legacy._refresh_history(
+        lastfm, lastfm_username, "Queue 2", scrobbles_path, echo, progress_callback
+    )
+    retry = retry_call or legacy._direct_call
+    state_access = legacy._state_access(state_path, state_service)
+    persisted_state = state_access.load()
+    state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
+    transfer = queue_transfer(
+        sp,
+        retry,
+        new_kids_playlist_id,
+        queue_2_playlist_id,
+        legacy.PLAYLIST_CAP,
+        dry_run,
+        log_path,
+        echo,
+    )
+    snapshot = prepare_queue_review(transfer, state, legacy.QUEUE_2_DAILY_LIMIT)
+    review = legacy._flush_review_playlist(
+        sp,
+        queue_2_playlist_id,
+        queue_2_playlist_id,
+        great_discoveries_2026_playlist_id,
+        unlucky_ones_playlist_id,
+        newfoundland_playlist_id,
+        choice_reader,
+        dry_run=dry_run,
+        year=year,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+        albums_path=albums_path,
+        artists_path=artists_path,
+        removed_albums_log_path=removed_albums_log_path,
+        scrobbles_path=scrobbles_path,
+        _playlist_label="Queue 2",
+        _active_run_key="queue_2_active_run",
+        _blocking_active_run_key="active_run",
+        _fill_from_queue=False,
+        _initial_tracks=snapshot.selected,
+        _live_tracks=snapshot.remaining,
+    )
+    return queue_review_result(snapshot, review, dry_run)

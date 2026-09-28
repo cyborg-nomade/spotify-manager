@@ -9,7 +9,7 @@ The full milestone remains one PR under the approved roadmap.
 | Wave | Status | Destinations |
 | --- | --- | --- |
 | Foundation | Implemented and verified | Album review/recovery and artist-follow use cases in `application`; date policy in `domain`; explicit wiring in `bootstrap`; presentation and legacy integration adapters. |
-| Release progression | In progress | Composer matching/observations and Slow Listening implemented; New Wine, New Kids/Queue 2, Queue 3 and shared Requeue integration remain. |
+| Release progression | In progress | Composer matching/observations, Slow Listening, New Wine and New Kids/Queue 2 implemented; Queue 3 and shared Requeue integration remain. |
 | History and discovery | Pending | History, radio, discovery, releases, The Queue and genre workflows. |
 | Deep listening and retrospectives | Pending | Something Old, Palace of Memory, Discography and New Year. |
 | Library and legacy workflows | Pending | Analysis, artist review, conversion, monthly workflows, counts and remaining loaders/processors. |
@@ -395,3 +395,34 @@ length, alongside the original before/after New Kids counts.
   package lint/format/mypy and strict application checks pass.
 - New Kids catalog parsing/ranking and final composition cleanup remain before
   declaring this part of the release-progression wave complete.
+
+### New Kids/Queue 2 catalog and composition checkpoint
+
+Canonical edition selection and catalog ordering now have a pure domain owner.
+The saved/plain/popularity/top-track/date/title preferences remain distinct from
+global review ordering, including first-observed edition ties and final identifier
+ties. Release tracks retain stable disc/track ordering without deduplication.
+
+Catalog loaders now use small, typed parsing and pagination helpers. They retain
+raw-row offsets, primary-credit filtering, last simplified record per ID, original
+request order, fallback details, raw top-track ranks and tolerant metadata. All
+nineteen new observation tests pass both against the pre-extraction loader code
+from `6ecbb96` and against the refactored implementation. No frozen fixtures changed.
+
+The routine's public entry signatures remain intact and delegate composition to
+bootstrap. Public boundary docstrings now describe their parameters, results and
+errors. New Kids contains no lambdas or nested function definitions; the original
+history refresh, error translation, clock and versioned JSON boundaries remain.
+
+- Full suite: **2,294 tests pass**, seed `20260944`; **92.51% statements**
+  (19,256 / 20,816) and **80.66% branches** (4,259 / 5,280).
+- Independent gates: **243 domain tests**, **563 application tests**, with
+  **100% statement and branch coverage** for configured targets.
+- Seven new actual CLI/HTTP tests exercise both discovery workflows, preview and
+  real execution, choice validation, and restart after an accepted replacement.
+  Their workers use simulated Spotify/Last.fm and isolated files/state.
+- All eleven frozen interface artifacts, existing characterization traces,
+  package lint/format/mypy and strict inner-layer checks pass.
+
+This completes the New Kids/Queue 2 migration within release progression. Queue 3
+and the remaining Item 6 waves are still pending; the milestone has no PR yet.
