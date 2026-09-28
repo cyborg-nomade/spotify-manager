@@ -426,3 +426,31 @@ history refresh, error translation, clock and versioned JSON boundaries remain.
 
 This completes the New Kids/Queue 2 migration within release progression. Queue 3
 and the remaining Item 6 waves are still pending; the milestone has no PR yet.
+
+### Queue 3 annual import checkpoint
+
+Annual source selection now lives in the domain: yearly titles match exactly
+apart from case, duplicate source IDs collapse in observation order, and the
+first marker for each primary artist wins without track-ID deduplication.
+The injected application workflow owns import decisions and accepted-effect
+ordering; Spotify batches, translated read errors, audit storage and messages
+remain at their original boundaries.
+
+The seven new failure/projection tests passed against the original implementation
+before extraction. They preserve the important recovery distinction: additions
+precede every audit, all audits precede working-list extension, and working state
+is marked complete before its checkpoint. Previews still audit and project markers
+without remote writes or completion records. Completed yearly records suppress
+source resolution, including during previews. Empty sources still complete.
+
+- Full suite: **2,329 tests pass**, seed `20260945`; **92.54% statements**
+  (19,339 / 20,897), **80.77% branches** (4,271 / 5,288).
+- An additional source-error translation test passes with the other seven import
+  boundary tests after the full run.
+- Independent gates: **252 domain tests**, **582 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen interface artifacts, package lint/format/mypy and strict
+  inner-layer checks pass. No frozen fixtures were changed.
+
+Queue 3's standalone import entry, planning and flush coordination remain in
+progress. This is an internal Item 6 checkpoint, not a completed roadmap item.

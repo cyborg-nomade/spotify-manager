@@ -15,6 +15,24 @@ from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.queue_3_values import (
+    AnnualImportResult as AnnualImportResult,
+)
+from spotify_manager.application.queue_3_values import (
+    AnnualImportSummary as AnnualImportSummary,
+)
+from spotify_manager.application.queue_3_values import (
+    Queue3CancelledError as Queue3CancelledError,
+)
+from spotify_manager.application.queue_3_values import (
+    Queue3ConfigError as Queue3ConfigError,
+)
+from spotify_manager.application.queue_3_values import Queue3Error as Queue3Error
+from spotify_manager.application.queue_3_values import (
+    Queue3StateError as Queue3StateError,
+)
+from spotify_manager.application.queue_3_values import SeedAction as SeedAction
+
 # UFI
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
@@ -56,46 +74,6 @@ FlushAction = Literal[
     "complete",
     "skip",
 ]
-SeedAction = Literal["added", "would add", "already present"]
-
-
-class Queue3Error(RuntimeError):
-    """Base error for Queue 3 operations."""
-
-
-class Queue3ConfigError(Queue3Error):
-    """Raised when Queue 3 or its yearly source cannot be resolved."""
-
-
-class Queue3StateError(Queue3Error):
-    """Raised when restart state cannot be read or written safely."""
-
-
-class Queue3CancelledError(Queue3Error):
-    """Raised when an interactive release decision is cancelled."""
-
-
-@dataclass(frozen=True)
-class AnnualImportResult:
-    """One previous-year Great Discoveries marker considered for Queue 3."""
-
-    artist: str
-    track: str
-    source_year: int
-    action: SeedAction
-
-
-@dataclass(frozen=True)
-class AnnualImportSummary:
-    """Outcome of an independently requested previous-year import."""
-
-    active_year: int
-    source_year: int
-    additions: int
-    already_present: int
-    already_completed: bool
-    dry_run: bool
-    results: tuple[AnnualImportResult, ...]
 
 
 OwnedPlaylist = composer_playlists.OwnedPlaylist
@@ -272,24 +250,9 @@ def find_yearly_great_discoveries(
     year: int,
 ) -> str:
     """Find one exact previous-year Great Discoveries playlist owned by the user."""
-    expected = f"Great Discoveries {year}"
-    unique_matches = tuple(
-        dict.fromkeys(
-            playlist.spotify_id
-            for playlist in owned_playlists
-            if playlist.name.casefold() == expected.casefold()
-        )
-    )
-    if not unique_matches:
-        raise Queue3ConfigError(
-            f'Could not find a playlist named exactly "{expected}".'
-        )
-    if len(unique_matches) > 1:
-        raise Queue3ConfigError(
-            f'Found multiple playlists named "{expected}"; rename the extras '
-            "before running Queue 3."
-        )
-    return unique_matches[0]
+    from spotify_manager.application.queue_3_import import resolve_yearly_playlist
+
+    return resolve_yearly_playlist(owned_playlists, year)
 
 
 def _add_playlist_tracks(
@@ -349,92 +312,13 @@ def _annual_import(
     state_path: Path = DEFAULT_STATE_PATH,
 ) -> tuple[list[new_wine.PlaylistTrack], tuple[AnnualImportResult, ...]]:
     """Copy unique artists from the previous year's Great Discoveries once."""
+    from spotify_manager.bootstrap.queue_3 import annual_import
+
     state_access = state_access or _state_access(state_path, None)
-    annual_imports = cast(dict[str, object], state["annual_imports"])
-    year_key = str(active_year)
-    if isinstance(annual_imports.get(year_key), dict) and bool(
-        cast(dict[str, object], annual_imports[year_key]).get("completed")
-    ):
-        return current_tracks, ()
-
-    source_year = active_year - 1
-    source_playlist_id = find_yearly_great_discoveries(
-        owned_playlists,
-        source_year,
+    service = annual_import(sp, retry_call, log_path, state_access, echo)
+    return service.run(
+        playlist_id, current_tracks, state, owned_playlists, active_year, dry_run
     )
-    try:
-        source_tracks = new_wine.load_playlist_tracks(
-            sp,
-            source_playlist_id,
-            retry_call,
-        )
-    except new_wine.NewWineError as exc:
-        raise Queue3Error(str(exc)) from exc
-
-    existing_artists = {track.primary_artist_id for track in current_tracks}
-    source_seen: set[str] = set()
-    additions: list[new_wine.PlaylistTrack] = []
-    considered: list[new_wine.PlaylistTrack] = []
-    results: list[AnnualImportResult] = []
-    for track in source_tracks:
-        artist_id = track.primary_artist_id
-        if artist_id in source_seen:
-            continue
-        source_seen.add(artist_id)
-        considered.append(track)
-        if artist_id in existing_artists:
-            action: SeedAction = "already present"
-        else:
-            action = "would add" if dry_run else "added"
-            additions.append(track)
-            existing_artists.add(artist_id)
-        result = AnnualImportResult(
-            artist=track.primary_artist_name,
-            track=track.name,
-            source_year=source_year,
-            action=action,
-        )
-        results.append(result)
-
-    if additions and not dry_run:
-        _add_playlist_tracks(
-            sp,
-            playlist_id,
-            additions,
-            retry_call,
-            f"importing {source_year} Great Discoveries into Queue 3",
-        )
-    for track, result in zip(considered, results, strict=True):
-        append_event(
-            log_path,
-            "annual_import_artist",
-            active_year=active_year,
-            source_year=source_year,
-            source_playlist_id=source_playlist_id,
-            artist=track.primary_artist_name,
-            artist_id=track.primary_artist_id,
-            track=track.name,
-            track_id=track.spotify_id,
-            action=result.action,
-            dry_run=dry_run,
-        )
-    current_tracks.extend(additions)
-    if not dry_run:
-        annual_imports[year_key] = {
-            "completed": True,
-            "source_year": source_year,
-            "source_playlist_id": source_playlist_id,
-            "completed_at": datetime.now(UTC).isoformat(),
-            "artists_seen": len(source_seen),
-            "artists_added": len(additions),
-        }
-        state_access.save(state)
-    echo(
-        f"{'Would import' if dry_run else 'Imported'} {len(additions)} artists "
-        f"from Great Discoveries {source_year}; "
-        f"{len(source_seen) - len(additions)} were already present."
-    )
-    return current_tracks, tuple(results)
 
 
 def import_previous_year_discoveries(
