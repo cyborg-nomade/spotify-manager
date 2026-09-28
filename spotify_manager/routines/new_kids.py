@@ -1214,68 +1214,25 @@ def _flush_review_playlist(
         )
     except composer_playlists.ComposerPlaylistError as exc:
         raise NewKidsError(str(exc)) from exc
-    blocking_run = state.get(_blocking_active_run_key)
-    if (
-        not dry_run
-        and isinstance(blocking_run, dict)
-        and blocking_run.get("status") in {"active", "refilling"}
-    ):
-        raise NewKidsStateError(
-            f"A saved {_blocking_active_run_key.replace('_', ' ')} must be "
-            "resumed before starting this run."
-        )
-    active_run = state.get(_active_run_key)
-    resumed = bool(
-        not dry_run
-        and isinstance(active_run, dict)
-        and active_run.get("status") in {"active", "refilling"}
-        and active_run.get("playlist_id") == new_kids_playlist_id
-    )
-    if resumed:
-        run = active_run
-        assert isinstance(run, dict)
-        initial = (
-            list(_live_tracks)
-            if _live_tracks is not None
-            else list(new_wine.load_playlist_tracks(sp, new_kids_playlist_id, retry))
-        )
-        length_before = len(initial)
-        prefill: tuple[FillResult, ...] = ()
-    else:
-        initial = (
-            list(_initial_tracks)
-            if _initial_tracks is not None
-            else list(new_wine.load_playlist_tracks(sp, new_kids_playlist_id, retry))
-        )
-        length_before = len(initial)
-        prefill = ()
-        if _fill_from_queue:
-            initial, prefill, _remaining = _move_queue_entries(
-                sp,
-                new_kids_playlist_id,
-                queue_2_playlist_id,
-                initial,
-                state,
-                dry_run=dry_run,
-                retry_call=retry,
-                log_path=log_path,
-                echo=echo,
-            )
-        run = _new_run(new_kids_playlist_id, initial, state)
-        if not dry_run:
-            state[_active_run_key] = run
-            state_access.save(state)
+    from spotify_manager.bootstrap.new_kids import review_run
 
-    raw_entries = run.get("entries")
-    if not isinstance(raw_entries, list):
-        raise NewKidsStateError("New Kids active run has invalid entries.")
-
-    live_tracks = (
-        list(_live_tracks)
-        if _live_tracks is not None
-        else list(new_wine.load_playlist_tracks(sp, new_kids_playlist_id, retry))
+    lifecycle = review_run(
+        sp,
+        retry,
+        state_access,
+        state,
+        new_kids_playlist_id,
+        queue_2_playlist_id,
+        _active_run_key,
+        _blocking_active_run_key,
+        _fill_from_queue,
+        dry_run,
+        PLAYLIST_CAP,
+        log_path,
+        echo,
+        _utc_now,
     )
-    live_ids = {track.spotify_id for track in live_tracks}
+    snapshot = lifecycle.prepare(_initial_tracks, _live_tracks)
     catalog_cache: dict[str, tuple[RankedRelease, ...]] = {}
     track_cache: dict[str, tuple[CatalogTrack, ...]] = {}
     composer_track_cache: dict[str, tuple[new_wine.PlaylistTrack, ...]] = {}
@@ -1307,7 +1264,7 @@ def _flush_review_playlist(
         retry,
         state_access=state_access,
         state=state,
-        live_ids=live_ids,
+        live_ids=snapshot.live_ids,
         playlist_id=new_kids_playlist_id,
         label=_playlist_label,
         newfoundland=newfoundland_playlist_id,
@@ -1335,49 +1292,8 @@ def _flush_review_playlist(
         progress_callback,
         echo,
     )
-    reviewed, paused = reviewer.review(raw_entries, run.get("run_id"))
-
-    postfill: tuple[FillResult, ...] = ()
-    if not paused and _fill_from_queue:
-        if not dry_run:
-            run["status"] = "refilling"
-            state_access.save(state)
-        current_after = list(
-            new_wine.load_playlist_tracks(sp, new_kids_playlist_id, retry)
-        )
-        current_after, postfill, _remaining = _move_queue_entries(
-            sp,
-            new_kids_playlist_id,
-            queue_2_playlist_id,
-            current_after,
-            state,
-            dry_run=dry_run,
-            retry_call=retry,
-            log_path=log_path,
-            echo=echo,
-        )
-        if not dry_run:
-            state[_active_run_key] = None
-            state_access.save(state)
-        length_after = len(current_after)
-    elif not paused:
-        if not dry_run:
-            state[_active_run_key] = None
-            state_access.save(state)
-        length_after = len(live_ids)
-    else:
-        length_after = len(live_ids)
-
-    return FlushSummary(
-        results=reviewed,
-        prefill=prefill,
-        postfill=postfill,
-        playlist_length_before=length_before,
-        playlist_length_after=length_after,
-        paused=paused,
-        resumed=resumed,
-        dry_run=dry_run,
-    )
+    reviewed, paused = reviewer.review(snapshot.entries, snapshot.run.get("run_id"))
+    return lifecycle.finish(snapshot, reviewed, paused)
 
 
 def flush_new_kids(

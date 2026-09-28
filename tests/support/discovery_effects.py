@@ -184,3 +184,55 @@ class MemoryEffects(MemoryLibrary):
             message: Original progress description.
         """
         self._record("progress", (done, total, message))
+
+
+@dataclass
+class MemoryQueue(MemoryLibrary):
+    """Observe queue transfer effects with failures before accepted mutations.
+
+    Args:
+        queued: Original live queue observations.
+    """
+
+    queued: tuple[PlaylistTrack, ...] = field(default_factory=tuple)
+
+    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+        """Observe source queue markers.
+
+        Args:
+            playlist_id: Queue source identifier.
+
+        Returns:
+            Configured original queue order.
+        """
+        self._record("playlist", playlist_id)
+        return self.queued
+
+    def append(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+        """Observe destination append before queue removal.
+
+        Args:
+            playlist_id: Destination identifier.
+            source: Original queue marker.
+            description: Original retry message.
+        """
+        self._record("append", (playlist_id, source, description))
+
+    def remove(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
+        """Observe queue removal before destination projection changes.
+
+        Args:
+            playlist_id: Queue source identifier.
+            source: Original queue marker.
+            description: Original retry message.
+        """
+        self._record("remove", (playlist_id, source, description))
+
+    def moved(self, artist: str, dry_run: bool) -> None:
+        """Observe transfer presentation after routine audit.
+
+        Args:
+            artist: Logical artist display name.
+            dry_run: Whether to use preview wording.
+        """
+        self._record("moved", (artist, dry_run))

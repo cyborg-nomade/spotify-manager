@@ -352,3 +352,25 @@ Completion is acknowledged before its audit and final progress notification.
 - All 233 New Kids/characterization tests and eleven frozen interface artifacts
   pass; package and strict inner-layer lint, formatting and mypy checks pass.
 - Run preparation/finalization and Queue 2 invocation preparation remain pending.
+
+### Review lifecycle checkpoint
+
+Run preparation and finalization now belong to an application service. Blocking
+runs are checked before playlist reads; resumes retain saved entries and skip
+prefill; fresh snapshots follow initial transfers and precede a separate live
+membership read. Supplied Queue 2 selection and live sequences remain distinct.
+Malformed saved entry sequences still fail between the original length and live
+membership observations.
+
+Completed runs checkpoint the refilling status before reloading live playlists,
+then clear their active record after transfers. Paused runs omit both operations.
+Previews retain the original fresh-live-read behavior during final refill rather
+than using the simulated review projection.
+
+- Full suite: **2,233 tests pass**, seed `20260942`; **92.35% statements**
+  (19,152 / 20,739) and **79.96% branches** (4,225 / 5,284).
+- Independent gates: **223 domain tests** and **548 application tests**, at
+  **100% statement and branch coverage** for configured targets.
+- All 233 New Kids/characterization tests and eleven frozen interface artifacts
+  pass; package lint, formatting, mypy and strict application checks pass.
+- Queue 2 invocation preparation and final composition cleanup remain in progress.

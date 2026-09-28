@@ -14,6 +14,7 @@ from spotify_manager.application.discovery_observations import DiscoveryObservat
 from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
 from spotify_manager.application.discovery_review import DiscoveryReview
 from spotify_manager.application.discovery_review import ProgressCallback
+from spotify_manager.application.discovery_run import DiscoveryRun
 from spotify_manager.application.new_kids_execution import NewKidsExecution
 from spotify_manager.application.new_kids_planner import NewKidsPlanner
 from spotify_manager.application.ports.listening import RetryCall
@@ -286,4 +287,57 @@ def entry_review(
         clock,
         composer_limit,
         progress_callback,
+    )
+
+
+def review_run(
+    client: Spotify,
+    retry: RetryCall,
+    state_access: RoutineState,
+    state: dict[str, object],
+    playlist_id: str,
+    queue_id: str,
+    active_key: str,
+    blocking_key: str,
+    fill_from_queue: bool,
+    dry_run: bool,
+    capacity: int,
+    log_path: Path,
+    echo: Callable[[str], None],
+    clock: Callable[[], datetime],
+) -> DiscoveryRun:
+    """Compose original run preparation and finalization over existing boundaries.
+
+    Args:
+        client: Caller-owned synchronous Spotify client.
+        retry: Existing retry/cancellation callback.
+        state_access: Original namespace checkpoint boundary.
+        state: Mutable complete namespace.
+        playlist_id: Review playlist identifier.
+        queue_id: Queue transfer source identifier.
+        active_key: Original active-run namespace key.
+        blocking_key: Other review's active-run key.
+        fill_from_queue: Whether to prefill and refill this review playlist.
+        dry_run: Whether to suppress remote and namespace writes.
+        capacity: Original New Kids playlist marker cap.
+        log_path: Existing routine audit destination.
+        echo: Existing CLI or job message sink.
+        clock: Original UTC clock for new runs.
+
+    Returns:
+        Run lifecycle service sharing original state and playlist integrations.
+    """
+    transfer = queue_transfer(
+        client, retry, playlist_id, queue_id, capacity, dry_run, log_path, echo
+    )
+    return DiscoveryRun(
+        state_access,
+        transfer,
+        state,
+        playlist_id,
+        active_key,
+        blocking_key,
+        fill_from_queue,
+        dry_run,
+        clock,
     )

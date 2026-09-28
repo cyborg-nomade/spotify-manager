@@ -1,14 +1,12 @@
 """Queue transfers preserve capacity, logical artists and accepted-effect ordering."""
 
-from dataclasses import dataclass
-from dataclasses import field
 from dataclasses import replace
 
 import pytest
 
 from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
 from spotify_manager.domain.catalog import PlaylistTrack
-from tests.support.discovery_effects import MemoryLibrary
+from tests.support.discovery_effects import MemoryQueue
 from tests.support.listening_values import playlist_track
 from tests.support.listening_values import studio_release
 
@@ -21,58 +19,6 @@ SECOND = replace(
     primary_artist_id="other",
     primary_artist_name="Other",
 )
-
-
-@dataclass
-class MemoryQueue(MemoryLibrary):
-    """Observe queue transfer effects with failures before accepted mutations.
-
-    Args:
-        queued: Original live queue observations.
-    """
-
-    queued: tuple[PlaylistTrack, ...] = field(default_factory=tuple)
-
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
-        """Observe source queue markers.
-
-        Args:
-            playlist_id: Queue source identifier.
-
-        Returns:
-            Configured original queue order.
-        """
-        self._record("playlist", playlist_id)
-        return self.queued
-
-    def append(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
-        """Observe destination append before queue removal.
-
-        Args:
-            playlist_id: Destination identifier.
-            source: Original queue marker.
-            description: Original retry message.
-        """
-        self._record("append", (playlist_id, source, description))
-
-    def remove(self, playlist_id: str, source: PlaylistTrack, description: str) -> None:
-        """Observe queue removal before destination projection changes.
-
-        Args:
-            playlist_id: Queue source identifier.
-            source: Original queue marker.
-            description: Original retry message.
-        """
-        self._record("remove", (playlist_id, source, description))
-
-    def moved(self, artist: str, dry_run: bool) -> None:
-        """Observe transfer presentation after routine audit.
-
-        Args:
-            artist: Logical artist display name.
-            dry_run: Whether to use preview wording.
-        """
-        self._record("moved", (artist, dry_run))
 
 
 def _service(
