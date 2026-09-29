@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import asdict
 from datetime import UTC
 from datetime import datetime
 from functools import partial
@@ -32,11 +31,13 @@ from spotify_manager.application.queue_3_values import (
     Queue3StateError as Queue3StateError,
 )
 from spotify_manager.application.queue_3_values import SeedAction as SeedAction
+from spotify_manager.application.release_evaluation import evaluate_release
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import composer_playlists
@@ -73,7 +74,17 @@ OwnedPlaylist = composer_playlists.OwnedPlaylist
 
 
 def parse_playlist_id(reference: str | None) -> str:
-    """Extract the configured Queue 3 playlist id."""
+    """Extract the configured Queue 3 playlist identifier.
+
+    Args:
+        reference: Original configured URI, URL or identifier.
+
+    Returns:
+        Parsed Queue 3 playlist identifier.
+
+    Raises:
+        Queue3ConfigError: The configured reference is missing or invalid.
+    """
     try:
         return new_wine.parse_playlist_id(reference, "THE_QUEUE_3_PLAYLIST")
     except new_wine.NewWineConfigError as exc:
@@ -92,7 +103,17 @@ def _default_state() -> dict[str, object]:
 
 
 def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
-    """Load Queue 3 state without hiding malformed files."""
+    """Load Queue 3 state without hiding malformed files.
+
+    Args:
+        path: Existing legacy JSON namespace path.
+
+    Returns:
+        Validated original namespace, or an empty namespace when the file is absent.
+
+    Raises:
+        Queue3StateError: Reading, decoding or validating the namespace fails.
+    """
     if not path.exists():
         return _default_state()
     try:
@@ -106,7 +127,17 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
 
 
 def validate_state(raw: object) -> dict[str, object]:
-    """Validate and upgrade the Queue 3 namespace independently of storage."""
+    """Validate and upgrade the Queue 3 namespace independently of storage.
+
+    Args:
+        raw: Original decoded JSON namespace, retaining unknown fields.
+
+    Returns:
+        The same namespace with missing composer routes initialized when applicable.
+
+    Raises:
+        Queue3StateError: Version or required container types are invalid.
+    """
     if isinstance(raw, dict) and raw.get("version") == STATE_VERSION:
         raw.setdefault("composer_routes", {})
     if (
@@ -125,7 +156,16 @@ def validate_state(raw: object) -> dict[str, object]:
 
 
 def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> None:
-    """Persist Queue 3 state through an atomic replacement."""
+    """Persist Queue 3 state through an atomic replacement.
+
+    Args:
+        state: Complete namespace retaining the existing serialized schema.
+        path: Existing legacy JSON destination.
+
+    Raises:
+        Queue3StateError: Creating, writing or replacing the state file fails.
+        OSError: Removing the temporary file fails.
+    """
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,7 +198,16 @@ def _state_access(
 
 
 def append_event(path: Path, event_type: str, **details: object) -> None:
-    """Append one auditable Queue 3 event."""
+    """Append one auditable Queue 3 event.
+
+    Args:
+        path: Original JSON-lines audit destination.
+        event_type: Original event identifier.
+        details: Original structured event fields.
+
+    Raises:
+        Queue3StateError: The audit destination cannot be created or written.
+    """
     record = {
         "recorded_at": datetime.now(UTC).isoformat(),
         "event": event_type,
@@ -177,7 +226,19 @@ def load_owned_playlists(
     retry_call: RetryCall,
     owner_playlist_id: str,
 ) -> tuple[OwnedPlaylist, ...]:
-    """Load playlists owned by the owner of the configured Queue 3 playlist."""
+    """Load playlists owned by the owner of the configured Queue 3 playlist.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        retry_call: Existing request retry and cancellation boundary.
+        owner_playlist_id: Configured Queue 3 playlist used to resolve ownership.
+
+    Returns:
+        Original owned-playlist observations.
+
+    Raises:
+        Queue3ConfigError: The shared owned-playlist observer fails.
+    """
     try:
         return composer_playlists.load_owned_playlists(
             sp,
@@ -194,7 +255,16 @@ def composer_playlist_candidates(
     *,
     excluded_playlist_id: str,
 ) -> tuple[OwnedPlaylist, ...]:
-    """Match owned playlists containing a composer's full name or surname."""
+    """Match owned playlists containing a composer's full name or surname.
+
+    Args:
+        artist_name: Logical artist display name.
+        owned_playlists: Original owned-playlist observations.
+        excluded_playlist_id: Queue 3 destination excluded from routing.
+
+    Returns:
+        Conservatively matched works playlists in the existing candidate order.
+    """
     return composer_playlists.composer_playlist_candidates(
         artist_name,
         owned_playlists,
@@ -389,8 +459,8 @@ def _live_evaluation(
         liked_cache,
         retry_call,
     )
-    return new_wine._live_evaluation(
-        slow_listening._as_release_candidate(release),
+    return evaluate_release(
+        release_candidate(release),
         tracks,
         liked_cache,
     )
@@ -523,223 +593,45 @@ def flush_queue_3(
     albums_path: Path = DEFAULT_ALBUMS_PATH,
     removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
 ) -> FlushSummary:
-    """Import the previous year once, then advance the first ten Queue 3 artists."""
-    from spotify_manager.application.queue_3_execution import Queue3LiveQueue
-    from spotify_manager.application.queue_3_execution import Queue3Transition
-    from spotify_manager.bootstrap.queue_3 import review_execution
+    """Import the previous year once, then advance the first ten Queue 3 artists.
 
-    retry = retry_call or (lambda operation, _description: operation())
-    year = active_year or datetime.now(UTC).year
-    owned_playlists = load_owned_playlists(sp, retry, playlist_id)
-    try:
-        live_tracks = list(new_wine.load_playlist_tracks(sp, playlist_id, retry))
-    except new_wine.NewWineError as exc:
-        raise Queue3Error(str(exc)) from exc
+    Args:
+        sp: Caller-owned Spotify client.
+        playlist_id: Configured Queue 3 destination.
+        transition_reader: Original release-boundary decision callback.
+        composer_playlist_reader: Optional owned works-playlist selection callback.
+        active_year: Explicit checkpoint year, or the current UTC year.
+        dry_run: Whether state is cloned and durable writes suppressed.
+        echo: Existing output sink.
+        progress_callback: Optional entry progress sink.
+        retry_call: Optional retry and cancellation callback.
+        state_path: Original legacy namespace path.
+        state_service: Optional shared state service.
+        log_path: Original Queue 3 audit destination.
+        albums_path: Original local album mirror.
+        removed_albums_log_path: Original removed-album recovery log.
 
-    state_access = _state_access(state_path, state_service)
-    persisted_state = state_access.load()
-    state = json.loads(json.dumps(persisted_state)) if dry_run else persisted_state
-    live_tracks, annual_import = _annual_import(
+    Returns:
+        Original public Queue 3 summary with per-artist decisions and resume status.
+
+    Raises:
+        Queue3Error: Configuration, state, planning or execution fails.
+    """
+    from spotify_manager.bootstrap.queue_3 import run_flush
+
+    return run_flush(
         sp,
         playlist_id,
-        live_tracks,
-        state,
-        owned_playlists=owned_playlists,
-        active_year=year,
+        transition_reader,
+        composer_playlist_reader=composer_playlist_reader,
+        active_year=active_year,
         dry_run=dry_run,
-        retry_call=retry,
-        state_access=state_access,
-        log_path=log_path,
         echo=echo,
-    )
-    live_ids = {track.spotify_id for track in live_tracks}
-    live_queue = Queue3LiveQueue(playlist_id, live_tracks, live_ids)
-    execution = review_execution(
-        sp, retry, albums_path, removed_albums_log_path, log_path, echo, dry_run
-    )
-
-    resumed = False
-    active_run = state.get("active_run")
-    if (
-        not dry_run
-        and isinstance(active_run, dict)
-        and active_run.get("status") == "active"
-        and active_run.get("playlist_id") == playlist_id
-    ):
-        run = active_run
-        resumed = True
-    else:
-        run = _new_run(playlist_id, live_tracks, state)
-        if not dry_run:
-            state["active_run"] = run
-            state_access.save(state)
-
-    raw_entries = run.get("entries")
-    if not isinstance(raw_entries, list):
-        raise Queue3StateError("Queue 3 active run has invalid entries.")
-    release_orders = state.get("release_orders")
-    if not isinstance(release_orders, dict):
-        raise Queue3StateError("Queue 3 release-order state is invalid.")
-    composer_routes = state.get("composer_routes")
-    if not isinstance(composer_routes, dict):
-        raise Queue3StateError("Queue 3 composer-route state is invalid.")
-
-    run_id = str(run["run_id"])
-    catalog_cache: dict[
-        str,
-        tuple[slow_listening.DiscographyRelease, ...],
-    ] = {}
-    track_cache: dict[str, tuple[new_wine.ReleaseTrack, ...]] = {}
-    composer_track_cache: dict[str, tuple[new_wine.PlaylistTrack, ...]] = {}
-    liked_cache: dict[str, bool] = {}
-    results: list[FlushResult] = []
-    paused = False
-    total = len(raw_entries)
-
-    def persist_order() -> None:
-        if not dry_run:
-            state_access.save(state)
-
-    for index, raw_entry in enumerate(raw_entries, start=1):
-        if not isinstance(raw_entry, dict):
-            raise Queue3StateError("Queue 3 run contains an invalid entry.")
-        if raw_entry.get("status") in {"completed", "skipped"}:
-            continue
-        source = _source_from_record(raw_entry.get("source"))
-        artist_id = str(raw_entry.get("artist_id") or source.primary_artist_id)
-        artist_name = str(raw_entry.get("artist_name") or source.primary_artist_name)
-        if progress_callback is not None:
-            progress_callback(
-                index - 1,
-                total,
-                f"{artist_name} - {source.name}",
-            )
-
-        raw_plan = raw_entry.get("plan")
-        plan = raw_plan if isinstance(raw_plan, dict) else None
-        if plan is not None and plan.get("composer_playlist_id"):
-            composer_playlist_id = str(plan["composer_playlist_id"])
-            if not composer_playlists.is_composer_playlist_candidate(
-                artist_name,
-                composer_playlist_id,
-                owned_playlists,
-                excluded_playlist_ids=frozenset({playlist_id}),
-            ):
-                plan = None
-                raw_entry["plan"] = None
-                composer_routes.pop(artist_id, None)
-                echo(f"Discarded a stale composer-playlist plan for {artist_name}.")
-                if not dry_run:
-                    state_access.save(state)
-        if plan is None:
-            composer_playlist, route_paused = _resolve_composer_playlist(
-                artist_id,
-                artist_name,
-                source.spotify_id,
-                playlist_id,
-                owned_playlists,
-                state,
-                composer_playlist_reader,
-            )
-            if route_paused:
-                paused = True
-                break
-            if composer_playlist is not None:
-                composer_tracks = composer_track_cache.get(composer_playlist.spotify_id)
-                if composer_tracks is None:
-                    try:
-                        composer_tracks = new_wine.load_playlist_tracks(
-                            sp,
-                            composer_playlist.spotify_id,
-                            retry,
-                        )
-                    except new_wine.NewWineError as exc:
-                        raise Queue3Error(str(exc)) from exc
-                    composer_track_cache[composer_playlist.spotify_id] = composer_tracks
-                plan = _composer_plan(
-                    source,
-                    composer_playlist,
-                    composer_tracks,
-                )
-            else:
-                discography = catalog_cache.get(artist_id)
-                if discography is None:
-                    discography = slow_listening.load_discography(
-                        sp,
-                        artist_id,
-                        retry,
-                    )
-                    catalog_cache[artist_id] = discography
-                plan = _build_plan(
-                    sp,
-                    source,
-                    discography,
-                    retry,
-                    track_cache,
-                    liked_cache,
-                    release_orders,
-                    persist_order,
-                    transition_reader,
-                )
-            if plan is None:
-                paused = True
-                break
-            raw_entry["plan"] = plan
-            if not dry_run:
-                state_access.save(state)
-
-        transition = Queue3Transition(source, artist_id, artist_name, plan)
-        action, target = execution.run(transition, live_queue)
-
-        result = _result_from_plan(
-            source,
-            plan,
-            artist_name=artist_name,
-            dry_run=dry_run,
-        )
-        results.append(result)
-        append_event(
-            log_path,
-            "artist_transition",
-            run_id=run_id,
-            **asdict(result),
-        )
-        if not dry_run:
-            if action == "composer_advance" and target is not None:
-                route = composer_routes.get(artist_id)
-                if isinstance(route, dict):
-                    route["current_track_id"] = target.spotify_id
-                    route["updated_at"] = datetime.now(UTC).isoformat()
-            raw_entry["status"] = "skipped" if action == "skip" else "completed"
-            state_access.save(state)
-        if progress_callback is not None:
-            progress_callback(index, total, f"Completed {artist_name}")
-
-    if (
-        not dry_run
-        and not paused
-        and all(
-            isinstance(entry, dict) and entry.get("status") in {"completed", "skipped"}
-            for entry in raw_entries
-        )
-    ):
-        run["status"] = "completed"
-        run["completed_at"] = datetime.now(UTC).isoformat()
-        state_access.save(state)
-
-    return FlushSummary(
-        run_id=run_id,
-        total=total,
-        processed=len(results),
-        advanced=sum(
-            result.action in {"advance", "composer playlist"} for result in results
-        ),
-        changed_releases=sum(result.action == "next release" for result in results),
-        completed_artists=sum(result.action == "complete" for result in results),
-        skipped=sum(result.action == "skip" for result in results),
-        annual_import=annual_import,
-        paused=paused,
-        dry_run=dry_run,
-        resumed=resumed,
-        results=tuple(results),
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+        albums_path=albums_path,
+        removed_albums_log_path=removed_albums_log_path,
     )

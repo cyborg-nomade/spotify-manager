@@ -9,8 +9,8 @@ from spotify_manager.application.queue_3_state import track_from_record
 from spotify_manager.application.queue_3_values import Queue3StateError
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
-from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
+from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.domain.queue_3 import ranked_release
 from spotify_manager.models.lookups import AlbumEvaluation
@@ -250,16 +250,7 @@ def _target_marker(
     target: ReleaseTrack,
     release: DiscographyRelease,
 ) -> PlaylistTrack:
-    candidate = ReleaseCandidate(
-        release.spotify_id,
-        release.uri,
-        release.name,
-        release.release_type,
-        release.release_date,
-        release.total_tracks,
-        release.primary_artist_id,
-        release.primary_artist_name,
-    )
+    candidate = release_candidate(release)
     return PlaylistTrack(
         target.spotify_id,
         target.uri,

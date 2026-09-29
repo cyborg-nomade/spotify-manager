@@ -9,8 +9,8 @@ The full milestone remains one PR under the approved roadmap.
 | Wave | Status | Destinations |
 | --- | --- | --- |
 | Foundation | Implemented and verified | Album review/recovery and artist-follow use cases in `application`; date policy in `domain`; explicit wiring in `bootstrap`; presentation and legacy integration adapters. |
-| Release progression | In progress | Composer matching/observations, Slow Listening, New Wine and New Kids/Queue 2 implemented; Queue 3 and shared Requeue integration remain. |
-| History and discovery | Pending | History, radio, discovery, releases, The Queue and genre workflows. |
+| Release progression | Implemented and verified | Composer matching/observations, Slow Listening, New Wine, New Kids/Queue 2, Queue 3 and shared Requeue catalog integration. |
+| History and discovery | In progress | History, radio, discovery, releases, The Queue and genre workflows. |
 | Deep listening and retrospectives | Pending | Something Old, Palace of Memory, Discography and New Year. |
 | Library and legacy workflows | Pending | Analysis, artist review, conversion, monthly workflows, counts and remaining loaders/processors. |
 | Operational integration | Pending | Uploads, authentication/settings, automation and startup. |
@@ -534,3 +534,29 @@ These are documented compatibility behaviors, not fixes in this milestone.
 
 Queue 3 restart and review coordination remain in progress. Item 6 is not yet
 complete and has no PR or deployment.
+
+
+### Queue 3 coordination and shared catalog checkpoint
+
+Queue 3 restart and review coordination now belong to independent application
+services. Saved plan validation, stale composer route replacement, audit before
+acknowledgment, pause/resume and completion checkpoints retain their original
+ordering. Thirty-six independent coordination tests cover these decisions; six
+real CLI/HTTP tests exercise annual imports and release choices in preview and
+write modes.
+
+Slow Listening, Queue 3 and Requeue share the studio catalog adapter through
+compatible public entry points. Candidate conversion belongs to the domain;
+observations and existing error translations remain at the infrastructure
+boundary. Three additional adapter tests preserve the distinct exception chains.
+
+- Full suite: **2,507 tests pass**, seed `20260951`; **92.86% statements**
+  (19,746 / 21,265), **82.06% branches** (4,359 / 5,312).
+- Independent gates: **256 domain tests**, **710 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen interface artifacts, package lint/format/mypy (201 source
+  files) and strict inner-layer checks pass. No frozen fixtures were changed.
+- The three additional infrastructure error-chain tests pass after the full run.
+
+The release-progression wave is implemented and verified. History and discovery
+is next; Item 6 remains in progress with no PR or deployment.

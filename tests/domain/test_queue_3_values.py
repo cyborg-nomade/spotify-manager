@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 
+from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.queue_3 import ranked_release
 from spotify_manager.domain.queue_3 import source_release
 from tests.support.listening_values import playlist_track
@@ -29,3 +30,10 @@ def test_library_adaptation_preserves_selected_edition_without_discovery_ranking
     assert adapted.saved is True and adapted.plain is False
     assert adapted.popularity is None and adapted.top_track_rank is None
     assert adapted.tier == 0
+
+
+def test_selected_edition_adapts_all_shared_track_loader_facts() -> None:
+    """Chronological loading and live evaluation share the original release facts."""
+    release = studio_release("id", "Album", "1999")
+    candidate = release_candidate(release)
+    assert candidate == playlist_track("track", release).release

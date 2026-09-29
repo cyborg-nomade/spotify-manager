@@ -97,6 +97,17 @@ class LegacyQueue3Catalog:
     retry: RetryCall
     liked: dict[str, bool]
 
+    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+        """Read chronological eligible editions through the original catalog loader.
+
+        Args:
+            artist_id: Original logical artist identifier.
+
+        Returns:
+            Selected studio releases in original chronological order.
+        """
+        return slow_listening.load_discography(self.client, artist_id, self.retry)
+
     def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read a selected edition through the original ordered-track loader.
 

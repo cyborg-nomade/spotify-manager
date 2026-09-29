@@ -168,7 +168,7 @@ class RequeuePlaylistAccess:
 
 @dataclass
 class SpotifyRequeueCatalog:
-    """Reuse catalog I/O while the shared legacy loaders migrate by routine family.
+    """Read shared studio catalog observations with Requeue error translation.
 
     Args:
         client: Caller-owned synchronous client.

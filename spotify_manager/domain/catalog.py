@@ -101,3 +101,24 @@ class PlaylistTrack:
     primary_artist_id: str
     primary_artist_name: str
     release: ReleaseCandidate
+
+
+def release_candidate(release: DiscographyRelease) -> ReleaseCandidate:
+    """Retain selected-edition facts for shared track loading and album evaluation.
+
+    Args:
+        release: Selected chronological studio edition.
+
+    Returns:
+        Original release facts without chronology or edition-selection metadata.
+    """
+    return ReleaseCandidate(
+        release.spotify_id,
+        release.uri,
+        release.name,
+        release.release_type,
+        release.release_date,
+        release.total_tracks,
+        release.primary_artist_id,
+        release.primary_artist_name,
+    )

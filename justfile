@@ -101,6 +101,8 @@ test-application:
         --cov=spotify_manager.application.queue_3_composers \
         --cov=spotify_manager.application.queue_3_state \
         --cov=spotify_manager.application.queue_3_execution \
+        --cov=spotify_manager.application.queue_3_run \
+        --cov=spotify_manager.application.queue_3_review \
         --cov=spotify_manager.application.new_kids_execution \
         --cov=spotify_manager.application.release_history \
         --cov=spotify_manager.application.credited_artists \

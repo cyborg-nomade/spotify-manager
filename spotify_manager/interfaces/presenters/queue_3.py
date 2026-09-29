@@ -104,3 +104,34 @@ class Queue3Presenter:
             reason: Original durable plan reason.
         """
         self.echo(f"Skipped {artist}: {reason}.")
+
+    def started(self, index: int, total: int, artist: str, track: str) -> None:
+        """Report entry progress before observing or reusing its plan.
+
+        Args:
+            index: One-based snapshot entry position.
+            total: Complete snapshot size.
+            artist: Logical artist name.
+            track: Original source title.
+        """
+        if self.progress is not None:
+            self.progress(index - 1, total, f"{artist} - {track}")
+
+    def finished(self, index: int, total: int, artist: str) -> None:
+        """Report progress after the entry's audit and acknowledgment.
+
+        Args:
+            index: One-based snapshot entry position.
+            total: Complete snapshot size.
+            artist: Logical artist name.
+        """
+        if self.progress is not None:
+            self.progress(index, total, f"Completed {artist}")
+
+    def stale(self, artist: str) -> None:
+        """Report discarded stale composer plans before their checkpoint.
+
+        Args:
+            artist: Logical artist name.
+        """
+        self.echo(f"Discarded a stale composer-playlist plan for {artist}.")

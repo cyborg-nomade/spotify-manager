@@ -1,8 +1,6 @@
 """Saved Queue 3 plans retain playlist projections and accepted-effect ordering."""
 
 from dataclasses import asdict
-from dataclasses import dataclass
-from dataclasses import field
 from dataclasses import replace
 
 import pytest
@@ -13,109 +11,15 @@ from spotify_manager.application.queue_3_execution import Queue3Transition
 from spotify_manager.application.queue_3_values import Queue3StateError
 from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.domain.catalog import PlaylistTrack
-from spotify_manager.domain.discovery import RankedRelease
-from spotify_manager.models.lookups import AlbumEvaluation
 from tests.support.listening_values import playlist_track
 from tests.support.listening_values import release_track
 from tests.support.listening_values import studio_release
+from tests.support.queue_3_memory import ExecutionMemory
 
 
 RELEASE = studio_release("album", "Album")
 SOURCE = playlist_track("source", RELEASE)
 TARGET = release_track("target")
-
-
-@dataclass
-class ExecutionMemory:
-    """Observe effects and fail before accepting a selected boundary.
-
-    Args:
-        failure: Optional failing boundary.
-        events: Ordered effect observations.
-        remote: Accepted remote marker IDs.
-    """
-
-    failure: str | None = None
-    events: list[tuple[str, object]] = field(default_factory=list)
-    remote: set[str] = field(default_factory=set)
-
-    def _record(self, name: str, value: object) -> None:
-        self.events.append((name, value))
-        if name == self.failure:
-            raise OSError(name)
-
-    def append(
-        self, playlist: str, tracks: list[PlaylistTrack], description: str
-    ) -> None:
-        """Accept marker additions after their failure boundary.
-
-        Args:
-            playlist: Queue destination.
-            tracks: Replacement markers.
-            description: Original retry label.
-        """
-        self._record("append", (playlist, tracks, description))
-        self.remote.update(track.spotify_id for track in tracks)
-
-    def remove(self, playlist: str, uris: list[str], description: str) -> None:
-        """Accept marker removals after their failure boundary.
-
-        Args:
-            playlist: Queue destination.
-            uris: Original removal selection.
-            description: Original retry label.
-        """
-        self._record("remove", (playlist, uris, description))
-        self.remote.difference_update(uri.rsplit(":", 1)[-1] for uri in uris)
-
-    def reconcile(self, release: RankedRelease, evaluation: AlbumEvaluation) -> str:
-        """Observe library reconciliation before playlist presence checks.
-
-        Args:
-            release: Original selected edition adapted for the library workflow.
-            evaluation: Accepted saved evaluation.
-
-        Returns:
-            Original library action, unused by the Queue 3 executor.
-        """
-        self._record("library", (release, evaluation))
-        return "kept"
-
-    def added(self, name: str, dry_run: bool) -> None:
-        """Observe the addition message.
-
-        Args:
-            name: Target title.
-            dry_run: Preview flag.
-        """
-        self._record("added", (name, dry_run))
-
-    def removed(self, name: str, dry_run: bool) -> None:
-        """Observe the previous-marker removal message.
-
-        Args:
-            name: Source title.
-            dry_run: Preview flag.
-        """
-        self._record("removed", (name, dry_run))
-
-    def completed(self, artist: str, dry_run: bool) -> None:
-        """Observe final catalog completion.
-
-        Args:
-            artist: Logical artist name.
-            dry_run: Preview flag.
-        """
-        self._record("completed", (artist, dry_run))
-
-    def skipped(self, artist: str, reason: object) -> None:
-        """Observe a skipped marker.
-
-        Args:
-            artist: Logical artist name.
-            reason: Original tolerant reason value.
-        """
-        self._record("skipped", (artist, reason))
 
 
 def _service(memory: ExecutionMemory, preview: bool = False) -> Queue3Execution:

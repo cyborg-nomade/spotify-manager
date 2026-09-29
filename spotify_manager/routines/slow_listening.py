@@ -3,7 +3,6 @@
 import json
 from collections.abc import Callable
 from dataclasses import asdict
-from dataclasses import replace
 from datetime import UTC
 from datetime import datetime
 from functools import partial
@@ -38,7 +37,7 @@ from spotify_manager.core.state.service import StateService
 # UFI
 from spotify_manager.domain import releases as release_policy
 from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRelease
-from spotify_manager.domain.discography import select_editions
+from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.slow_listening import track_index
 from spotify_manager.routines import new_wine
 
@@ -286,12 +285,9 @@ def load_discography(
     Raises:
         SlowListeningError: Catalog or membership responses are malformed.
     """
-    releases = _load_candidates(sp, artist_id, retry_call)
-    saved = _load_saved_statuses(sp, releases, retry_call)
-    observed = []
-    for release in releases:
-        observed.append(replace(release, saved=saved.get(release.spotify_id, False)))
-    return select_editions(observed)
+    from spotify_manager.infrastructure.legacy.studio_catalog import StudioCatalogAccess
+
+    return StudioCatalogAccess(sp, retry_call).discography(artist_id)
 
 
 def _ordered_date_group(
@@ -322,16 +318,7 @@ def _as_release_candidate(
     release: DiscographyRelease,
 ) -> new_wine.ReleaseCandidate:
     """Convert a selected release for the shared ordered-track loader."""
-    return new_wine.ReleaseCandidate(
-        spotify_id=release.spotify_id,
-        uri=release.uri,
-        name=release.name,
-        release_type=release.release_type,
-        release_date=release.release_date,
-        total_tracks=release.total_tracks,
-        primary_artist_id=release.primary_artist_id,
-        primary_artist_name=release.primary_artist_name,
-    )
+    return release_candidate(release)
 
 
 def load_release_tracks(
@@ -352,14 +339,9 @@ def load_release_tracks(
     Raises:
         SlowListeningError: Shared release-track parsing fails.
     """
-    try:
-        return new_wine.load_release_tracks(
-            sp,
-            _as_release_candidate(release),
-            retry_call,
-        )
-    except new_wine.NewWineError as exc:
-        raise SlowListeningError(str(exc)) from exc
+    from spotify_manager.infrastructure.legacy.studio_catalog import StudioCatalogAccess
+
+    return StudioCatalogAccess(sp, retry_call).tracks(release)
 
 
 def _default_state() -> dict[str, object]:
