@@ -560,3 +560,32 @@ boundary. Three additional adapter tests preserve the distinct exception chains.
 
 The release-progression wave is implemented and verified. History and discovery
 is next; Item 6 remains in progress with no PR or deployment.
+
+### Canonical history refresh orchestration checkpoint
+
+Canonical history refresh now has an independent application workflow with
+explicit storage, live-read, clock, cancellation and presentation boundaries.
+It retains occurrence-count overlap rather than set deduplication, stable ordering
+for equal timestamps, original metadata, rebuild deletion semantics, fallback
+backups, and the refusal to replace nonempty history with an empty API response.
+Live record conversion remains after the post-request cancellation check.
+
+Eight new failure-order contracts passed against the original workflow before
+extraction. Hydration still precedes cancellation; backup precedes replacement;
+check-time marking precedes managed publication and final audit. Successful
+unchanged checks still publish managed history. Preview still hydrates and reads,
+but suppresses persistence. Existing file parsers and serialization helpers remain
+behind the compatibility adapter for the subsequent infrastructure cleanup.
+
+- Full suite: **2,544 tests pass**, seed `20260952`; **92.88% statements**
+  (19,842 / 21,362), **82.07% branches** (4,358 / 5,310).
+- **24 independent refresh tests** cover all statements and branches in the new
+  application workflow and values. The complete application gate passes
+  **736 tests**, with **100% statements and branches** across configured targets.
+- Six additional real CLI/HTTP history tests pass after the full suite, covering
+  incremental/rebuild persistence and previews through actual command workers.
+- All eleven frozen interface artifacts, package Ruff formatting/lint, package
+  mypy (205 source files) and strict application checks pass.
+
+History/discovery migration continues; this checkpoint does not complete Item 6
+or open its milestone PR.
