@@ -933,3 +933,14 @@ duplicate observations and ID-fallback versus blank-name behavior.
 
 Complete release-check run/checkpoint coordination, catalog paging and durable
 state ownership are next. Remaining waves stay in scope for the Item 6 PR.
+
+### Retry configuration order follow-up
+
+An additional Sauvignon boundary test detected that outer composition evaluated
+a supplied falsey retry callable before request validation. The frozen original
+runner at `207c8e4` was executed offline to confirm validation must happen first.
+Retry fallback resolution now occurs once after application validation and before
+clock/history observation, preserving the original order without duplicate
+validation or an extra application lifecycle abstraction. Invalid-request and
+valid-run regressions, the prior failure-prefix suite and actual CLI checks pass
+(**54 focused tests**). Package mypy and strict new contract checks pass.

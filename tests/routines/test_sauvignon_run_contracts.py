@@ -54,9 +54,7 @@ def _immediate(operation: Callable[[], object], description: str) -> object:
 
 
 def _bind(monkeypatch: pytest.MonkeyPatch, observations: RunObservations) -> None:
-    monkeypatch.setattr(
-        found_art, "refresh_scrobble_history", observations.refresh
-    )
+    monkeypatch.setattr(found_art, "refresh_scrobble_history", observations.refresh)
     monkeypatch.setattr(found_art, "aggregate_track_history", track_history)
     monkeypatch.setattr(found_art, "select_seed_tracks", observations.seeds)
     monkeypatch.setattr(found_art, "gather_candidates", observations.tracks)
@@ -196,3 +194,85 @@ def test_original_controls(
     assert [result.action for result in summary.results] == [action]
     assert summary.paused is paused
     assert observations.events == SUCCESS[:8] + ["audit"]
+
+
+class FalseyRetry:
+    """Record configuration evaluation without allowing the ignored retry to run.
+
+    Args:
+        events: Original ordered boundary record.
+    """
+
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+
+    def __bool__(self) -> bool:
+        """Record the original falsey retry configuration evaluation.
+
+        Returns:
+            Original falsey callable value.
+        """
+        self.events.append("retry:boolean")
+        return False
+
+    def __call__(self, operation: Callable[[], object], description: str) -> object:
+        """Reject use of the retry suppressed by the original falsey fallback.
+
+        Args:
+            operation: Original operation.
+            description: Original retry description.
+
+        Raises:
+            AssertionError: The falsey retry must never execute.
+        """
+        raise AssertionError("falsey retry was invoked")
+
+
+def test_sauvignon_invalid_request_precedes_retry_configuration(tmp_path: Path) -> None:
+    """Preserve original validation before evaluating a supplied falsey retry callable.
+
+    Args:
+        tmp_path: Isolated unused audit location.
+    """
+    events: list[str] = []
+    with pytest.raises(legacy.SauvignonConfigError):
+        legacy.fill_sauvignon_from_lastfm(
+            cast(Spotify, object()),
+            cast(legacy.LastFmReader, object()),
+            "destination",
+            None,
+            count=0,
+            max_playlist_length=None,
+            retry_call=FalseyRetry(events),
+            log_path=tmp_path / "audit",
+            now=STAMP,
+        )
+    assert events == []
+
+
+def test_sauvignon_falsey_retry_is_resolved_before_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Retain original falsey retry fallback exactly once before history refresh.
+
+    Args:
+        monkeypatch: Original boundary substitutions.
+        tmp_path: Isolated unused audit location.
+    """
+    observed = RunObservations()
+    _bind(monkeypatch, observed)
+    legacy.fill_sauvignon_from_lastfm(
+        cast(Spotify, RunSpotify(observed)),
+        cast(legacy.LastFmReader, object()),
+        "destination",
+        None,
+        count=1,
+        max_playlist_length=None,
+        retry_call=FalseyRetry(observed.events),
+        dry_run=True,
+        now=STAMP,
+        log_path=tmp_path / "audit",
+        progress_callback=observed.progress,
+    )
+    assert observed.events == ["retry:boolean"] + SUCCESS[:7] + ["audit"]

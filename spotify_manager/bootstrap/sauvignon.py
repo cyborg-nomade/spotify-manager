@@ -14,7 +14,10 @@ from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
 from spotify_manager.routines import sauvignon as legacy
 
 
-def _clock(now: datetime | None) -> datetime:
+def _configure_retry_and_clock(
+    now: datetime | None, retry: legacy.RetryCall | None, effects: LegacySauvignon
+) -> datetime:
+    effects.retry = retry or _immediate
     return (now or legacy.datetime.now(UTC)).astimezone(UTC)
 
 
@@ -76,7 +79,7 @@ def run_sauvignon(
         lastfm,
         playlist_id,
         choice,
-        retry or _immediate,
+        _immediate,
         export_path,
         recent_path,
         cache_path,
@@ -85,7 +88,7 @@ def run_sauvignon(
     )
     workflow = SauvignonRun(
         effects,
-        partial(_clock, now),
+        partial(_configure_retry_and_clock, now, retry, effects),
         legacy.found_art.listening_week_start,
         partial(_progress, progress),
         echo,
