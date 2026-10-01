@@ -5,12 +5,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from huggingface_hub.errors import HfHubHTTPError
 from huggingface_hub.errors import EntryNotFoundError
+from huggingface_hub.errors import HfHubHTTPError
 from requests import Response
 
-from spotify_manager.core.state import StateConflictError
 from spotify_manager.core.state import StateConfigurationError
+from spotify_manager.core.state import StateConflictError
 from spotify_manager.core.state.models import new_document
 from spotify_manager.infrastructure.huggingface import state_store
 from spotify_manager.infrastructure.huggingface.state_store import HubStateStore

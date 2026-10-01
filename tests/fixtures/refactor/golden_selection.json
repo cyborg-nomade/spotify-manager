@@ -1,0 +1,3526 @@
+[
+  {
+    "kind": "artist",
+    "payload": null,
+    "choice": "absent",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned invalid artist search data for Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {},
+    "choice": "absent",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned invalid artist search data for Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {}
+    },
+    "choice": "absent",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned invalid artist search data for Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": []
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned invalid artist search data for Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "No exact Spotify artist match was found for Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "quit",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "No exact Spotify artist match was found for Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "0",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "No exact Spotify artist match was found for Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "missing",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "No exact Spotify artist match was found for Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "result": {
+        "spotify_id": "0",
+        "name": "Artist",
+        "uri": "artist:0",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 4
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "quit",
+    "outcome": {
+      "result": {
+        "spotify_id": "0",
+        "name": "Artist",
+        "uri": "artist:0",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 4
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "0",
+    "outcome": {
+      "result": {
+        "spotify_id": "0",
+        "name": "Artist",
+        "uri": "artist:0",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 4
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "missing",
+    "outcome": {
+      "result": {
+        "spotify_id": "0",
+        "name": "Artist",
+        "uri": "artist:0",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 4
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "1",
+            "name": " ARTIST ",
+            "uri": "artist:1",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned 2 exact artists named Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "1",
+            "name": " ARTIST ",
+            "uri": "artist:1",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "quit",
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "1",
+            "name": " ARTIST ",
+            "uri": "artist:1",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "0",
+    "outcome": {
+      "result": {
+        "spotify_id": "0",
+        "name": "Artist",
+        "uri": "artist:0",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 4
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "1",
+            "name": " ARTIST ",
+            "uri": "artist:1",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "missing",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "The selected Spotify artist is invalid."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "1",
+            "name": " ARTIST ",
+            "uri": "artist:1",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "2",
+            "name": "Artist",
+            "uri": "artist:2",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "3",
+            "name": " ARTIST ",
+            "uri": "artist:3",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "4",
+            "name": "Artist",
+            "uri": "artist:4",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "5",
+            "name": " ARTIST ",
+            "uri": "artist:5",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "6",
+            "name": "Artist",
+            "uri": "artist:6",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "7",
+            "name": " ARTIST ",
+            "uri": "artist:7",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "8",
+            "name": "Artist",
+            "uri": "artist:8",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "9",
+            "name": " ARTIST ",
+            "uri": "artist:9",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "10",
+            "name": "Artist",
+            "uri": "artist:10",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "11",
+            "name": " ARTIST ",
+            "uri": "artist:11",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned 12 exact artists named Artist."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "1",
+            "name": " ARTIST ",
+            "uri": "artist:1",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "2",
+            "name": "Artist",
+            "uri": "artist:2",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "3",
+            "name": " ARTIST ",
+            "uri": "artist:3",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "4",
+            "name": "Artist",
+            "uri": "artist:4",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "5",
+            "name": " ARTIST ",
+            "uri": "artist:5",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "6",
+            "name": "Artist",
+            "uri": "artist:6",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "7",
+            "name": " ARTIST ",
+            "uri": "artist:7",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "8",
+            "name": "Artist",
+            "uri": "artist:8",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "9",
+            "name": " ARTIST ",
+            "uri": "artist:9",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "10",
+            "name": "Artist",
+            "uri": "artist:10",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "11",
+            "name": " ARTIST ",
+            "uri": "artist:11",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "quit",
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "1",
+            "name": " ARTIST ",
+            "uri": "artist:1",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "2",
+            "name": "Artist",
+            "uri": "artist:2",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "3",
+            "name": " ARTIST ",
+            "uri": "artist:3",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "4",
+            "name": "Artist",
+            "uri": "artist:4",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "5",
+            "name": " ARTIST ",
+            "uri": "artist:5",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "6",
+            "name": "Artist",
+            "uri": "artist:6",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "7",
+            "name": " ARTIST ",
+            "uri": "artist:7",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "8",
+            "name": "Artist",
+            "uri": "artist:8",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "9",
+            "name": " ARTIST ",
+            "uri": "artist:9",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "10",
+            "name": "Artist",
+            "uri": "artist:10",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "11",
+            "name": " ARTIST ",
+            "uri": "artist:11",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "0",
+    "outcome": {
+      "result": {
+        "spotify_id": "0",
+        "name": "Artist",
+        "uri": "artist:0",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 4
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "wrong",
+            "name": "Different",
+            "uri": "artist:wrong",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "0",
+            "name": "Artist",
+            "uri": "artist:0",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "1",
+            "name": " ARTIST ",
+            "uri": "artist:1",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "2",
+            "name": "Artist",
+            "uri": "artist:2",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "3",
+            "name": " ARTIST ",
+            "uri": "artist:3",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "4",
+            "name": "Artist",
+            "uri": "artist:4",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "5",
+            "name": " ARTIST ",
+            "uri": "artist:5",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "6",
+            "name": "Artist",
+            "uri": "artist:6",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "7",
+            "name": " ARTIST ",
+            "uri": "artist:7",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "8",
+            "name": "Artist",
+            "uri": "artist:8",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "9",
+            "name": " ARTIST ",
+            "uri": "artist:9",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "10",
+            "name": "Artist",
+            "uri": "artist:10",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          },
+          {
+            "id": "11",
+            "name": " ARTIST ",
+            "uri": "artist:11",
+            "popularity": true,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "missing",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "The selected Spotify artist is invalid."
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          {
+            "id": "one",
+            "name": "Artist",
+            "uri": "artist:one",
+            "popularity": false,
+            "followers": {
+              "total": false
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "name": "Artist",
+        "uri": "artist:one",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 1
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          {
+            "id": "one",
+            "name": "Artist",
+            "uri": "artist:one",
+            "popularity": -1,
+            "followers": {
+              "total": -1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "name": "Artist",
+        "uri": "artist:one",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 1
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          {
+            "id": "one",
+            "name": "Artist",
+            "uri": "artist:one",
+            "popularity": 0,
+            "followers": {
+              "total": 0
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "name": "Artist",
+        "uri": "artist:one",
+        "popularity": 0,
+        "followers": 0,
+        "search_rank": 1
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          {
+            "id": "one",
+            "name": "Artist",
+            "uri": "artist:one",
+            "popularity": 1,
+            "followers": {
+              "total": 1
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "name": "Artist",
+        "uri": "artist:one",
+        "popularity": 1,
+        "followers": 1,
+        "search_rank": 1
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          {
+            "id": "one",
+            "name": "Artist",
+            "uri": "artist:one",
+            "popularity": "5",
+            "followers": {
+              "total": "5"
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "name": "Artist",
+        "uri": "artist:one",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 1
+      }
+    }
+  },
+  {
+    "kind": "artist",
+    "payload": {
+      "artists": {
+        "items": [
+          {
+            "id": "one",
+            "name": "Artist",
+            "uri": "artist:one",
+            "popularity": null,
+            "followers": {
+              "total": null
+            }
+          }
+        ]
+      }
+    },
+    "choice": "absent",
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "name": "Artist",
+        "uri": "artist:one",
+        "popularity": null,
+        "followers": null,
+        "search_rank": 1
+      }
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": null,
+    "choice": "",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned invalid top tracks for Artist."
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {},
+    "choice": "",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned invalid top tracks for Artist."
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": []
+    },
+    "choice": "",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned invalid top tracks for Artist."
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": []
+    },
+    "choice": "",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned no usable top tracks for Artist."
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": null
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned no usable top tracks for Artist."
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": []
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned no usable top tracks for Artist."
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            null,
+            {}
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned no usable top tracks for Artist."
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "other",
+              "name": "Other"
+            }
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "error": "SomethingOldSpotifyError",
+      "message": "Spotify returned no usable top tracks for Artist."
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": " Artist "
+            }
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "one",
+          "uri": "track:one",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            " Artist "
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        }
+      ]
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "other",
+              "name": "Other"
+            },
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "one",
+          "uri": "track:one",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Other",
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        }
+      ]
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        null,
+        {},
+        {
+          "id": "wrong",
+          "uri": "track:wrong",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": []
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "0",
+          "uri": "track:0",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        }
+      ]
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        null,
+        {},
+        {
+          "id": "wrong",
+          "uri": "track:wrong",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": []
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "uri": "track:1",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "uri": "track:1",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "uri": "track:2",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "uri": "track:2",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "uri": "track:3",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "uri": "track:3",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "uri": "track:4",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "uri": "track:4",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "uri": "track:5",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "uri": "track:5",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "uri": "track:6",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "uri": "track:6",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "uri": "track:7",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "uri": "track:7",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "uri": "track:8",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "uri": "track:8",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "0",
+          "uri": "track:0",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "1",
+          "uri": "track:1",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "2",
+          "uri": "track:2",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "3",
+          "uri": "track:3",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "4",
+          "uri": "track:4",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "5",
+          "uri": "track:5",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "6",
+          "uri": "track:6",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "7",
+          "uri": "track:7",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "8",
+          "uri": "track:8",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        }
+      ]
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        null,
+        {},
+        {
+          "id": "wrong",
+          "uri": "track:wrong",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": []
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "uri": "track:1",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "uri": "track:1",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "uri": "track:2",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "uri": "track:2",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "uri": "track:3",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "uri": "track:3",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "uri": "track:4",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "uri": "track:4",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "uri": "track:5",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "uri": "track:5",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "uri": "track:6",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "uri": "track:6",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "uri": "track:7",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "uri": "track:7",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "uri": "track:8",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "uri": "track:8",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "uri": "track:9",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "uri": "track:9",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "0",
+          "uri": "track:0",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "1",
+          "uri": "track:1",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "2",
+          "uri": "track:2",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "3",
+          "uri": "track:3",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "4",
+          "uri": "track:4",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "5",
+          "uri": "track:5",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "6",
+          "uri": "track:6",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "7",
+          "uri": "track:7",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "8",
+          "uri": "track:8",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "9",
+          "uri": "track:9",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        }
+      ]
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        null,
+        {},
+        {
+          "id": "wrong",
+          "uri": "track:wrong",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": []
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "uri": "track:1",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "uri": "track:1",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "uri": "track:2",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "uri": "track:2",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "uri": "track:3",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "uri": "track:3",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "uri": "track:4",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "uri": "track:4",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "uri": "track:5",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "uri": "track:5",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "uri": "track:6",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "uri": "track:6",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "uri": "track:7",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "uri": "track:7",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "uri": "track:8",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "uri": "track:8",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "uri": "track:9",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "uri": "track:9",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "10",
+          "uri": "track:10",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "10",
+          "uri": "track:10",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "0",
+          "uri": "track:0",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "1",
+          "uri": "track:1",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "2",
+          "uri": "track:2",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "3",
+          "uri": "track:3",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "4",
+          "uri": "track:4",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "5",
+          "uri": "track:5",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "6",
+          "uri": "track:6",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "7",
+          "uri": "track:7",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "8",
+          "uri": "track:8",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "9",
+          "uri": "track:9",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        }
+      ]
+    }
+  },
+  {
+    "kind": "tracks",
+    "payload": {
+      "tracks": [
+        null,
+        {},
+        {
+          "id": "wrong",
+          "uri": "track:wrong",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": []
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "0",
+          "uri": "track:0",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "uri": "track:1",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "1",
+          "uri": "track:1",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "uri": "track:2",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "2",
+          "uri": "track:2",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "uri": "track:3",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "3",
+          "uri": "track:3",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "uri": "track:4",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "4",
+          "uri": "track:4",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "uri": "track:5",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "5",
+          "uri": "track:5",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "uri": "track:6",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "6",
+          "uri": "track:6",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "uri": "track:7",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "7",
+          "uri": "track:7",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "uri": "track:8",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "8",
+          "uri": "track:8",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "uri": "track:9",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "9",
+          "uri": "track:9",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "10",
+          "uri": "track:10",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "10",
+          "uri": "track:10",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "11",
+          "uri": "track:11",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "11",
+          "uri": "track:11",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "12",
+          "uri": "track:12",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "12",
+          "uri": "track:12",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "13",
+          "uri": "track:13",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "13",
+          "uri": "track:13",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "14",
+          "uri": "track:14",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "14",
+          "uri": "track:14",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "15",
+          "uri": "track:15",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "15",
+          "uri": "track:15",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "16",
+          "uri": "track:16",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "16",
+          "uri": "track:16",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "17",
+          "uri": "track:17",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "17",
+          "uri": "track:17",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "18",
+          "uri": "track:18",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "18",
+          "uri": "track:18",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "19",
+          "uri": "track:19",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "19",
+          "uri": "track:19",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "20",
+          "uri": "track:20",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "20",
+          "uri": "track:20",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "21",
+          "uri": "track:21",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "21",
+          "uri": "track:21",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "22",
+          "uri": "track:22",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "22",
+          "uri": "track:22",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "23",
+          "uri": "track:23",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "23",
+          "uri": "track:23",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "24",
+          "uri": "track:24",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        },
+        {
+          "id": "24",
+          "uri": "track:24",
+          "name": " Track ",
+          "album": {
+            "name": " Album "
+          },
+          "artists": [
+            {
+              "id": "artist",
+              "name": "Artist"
+            }
+          ]
+        }
+      ]
+    },
+    "choice": "",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "0",
+          "uri": "track:0",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "1",
+          "uri": "track:1",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "2",
+          "uri": "track:2",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "3",
+          "uri": "track:3",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "4",
+          "uri": "track:4",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "5",
+          "uri": "track:5",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "6",
+          "uri": "track:6",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "7",
+          "uri": "track:7",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "8",
+          "uri": "track:8",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        },
+        {
+          "spotify_id": "9",
+          "uri": "track:9",
+          "track": "Track",
+          "album": "Album",
+          "artists": [
+            "Artist"
+          ],
+          "source": "Spotify popular tracks",
+          "lastfm_scrobbles": null
+        }
+      ]
+    }
+  }
+]

@@ -23,7 +23,7 @@ def test_liked_response_requires_exact_original_list(raw: object) -> None:
 
 
 def test_liked_response_retains_original_truthiness_and_duplicate_overwrite() -> None:
-    """Retain last observed truthiness for repeated identities and empty-list tolerance."""
+    """Retain last truthiness for repeated identities and empty-list tolerance."""
     assert liked_statuses(["yes", None], (TRACK, TRACK)) == {"track": False}
     assert liked_statuses([], ()) == {}
 
@@ -39,9 +39,7 @@ def test_popularity_response_requires_original_details_list(raw: object) -> None
         popularity_details(raw, {"track": TRACK})
 
 
-def test_popularity_response_preserves_order_duplicates_and_bool_integer_tolerance() -> (
-    None
-):
+def test_popularity_preserves_order_duplicates_and_bool_integer_tolerance() -> None:
     """Retain unknown rows, coerced identity and original integer-only popularity."""
     raw = {
         "tracks": [

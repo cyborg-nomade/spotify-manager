@@ -104,6 +104,9 @@ test-application:
         --cov=spotify_manager.application.queue_flush_execution \
         --cov=spotify_manager.application.queue_flush_values \
         --cov=spotify_manager.application.queue_flush_planning \
+        --cov=spotify_manager.application.something_old_run \
+        --cov=spotify_manager.application.something_old_values \
+        --cov=spotify_manager.application.golden_selection \
         --cov=spotify_manager.application.queue_values \
         --cov=spotify_manager.application.genre_progress \
         --cov=spotify_manager.application.genre_values \

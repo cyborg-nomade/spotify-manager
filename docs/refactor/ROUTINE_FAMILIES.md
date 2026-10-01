@@ -1161,3 +1161,35 @@ comprehensions in new planning code. All 11 frozen public artifacts match.
 The next approved wave covers Something Old, Palace of Memory, Discography and
 New Year, followed by library/legacy and operational integration. Item 6 is not
 complete until those waves and the final ownership audit pass.
+
+The full randomized Queue planning checkpoint passes 4,690 tests with seed
+20261023 (94.21% statements, 85.90% branches).
+
+### Something Old checkpoint
+
+Golden Oldies now has pure owners for exact-label history aggregation, oldest
+average ranking, exact normalized Spotify artist qualification and the three
+marker recipes. The application coordinates initial empty-playlist authority,
+history refresh, interaction, cancellation, the final live empty check, append
+and completion audit. Catalog parsing and JSON Lines audit bytes have outer
+owners. Original public model and error identities remain compatibility aliases;
+original SDK expressions remain at their frozen source paths.
+
+Eleven immutable original history profiles, 53 complete original runner
+observations and 41 original raw artist/popular-track boundary observations were
+captured before their extraction. Independent injected execution matches every
+complete summary and failure prefix. Exact trimmed history spelling remains
+distinct; artist and title ties, integer average dates and the inclusive 50-play
+threshold are unchanged. Every Last.fm title is searched before the single liked
+read. Popular tracks accept any matching artist credit and stop parsing at ten
+distinct identities. Album choices retain complete uncapped tracklists. Writes
+still follow the original live recheck without introducing new mutation retries.
+
+The isolated gates pass 761 domain and 1,489 application tests with 100% statement
+and branch coverage. The new selection policies, coordinator and tolerant catalog
+codecs also reach 100% individually. Ruff, formatting, package typing and strict
+inner-layer typing pass. All 11 frozen public artifacts match. The full randomized
+suite passes 4,887 tests with seed 20261024 (94.31% statements, 86.24% branches).
+
+Palace of Memory, Discography, New Year, library/legacy and operational integration
+remain to finish before the complete Item 6 pull request is opened.
