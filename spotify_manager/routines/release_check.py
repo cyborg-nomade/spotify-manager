@@ -1,11 +1,7 @@
 """Discover new Spotify releases from the user's most-scrobbled artists."""
 
-import calendar
 import hashlib
 import json
-import re
-from collections import Counter
-from collections import defaultdict
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict
@@ -16,19 +12,59 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
-from typing import Literal
 from typing import Protocol
 
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.release_check_values import (
+    ReleaseCheckConfigError as ReleaseCheckConfigError,
+)
+from spotify_manager.application.release_check_values import (
+    ReleaseCheckError as ReleaseCheckError,
+)
+from spotify_manager.application.release_check_values import (
+    ReleaseCheckSpotifyError as ReleaseCheckSpotifyError,
+)
+from spotify_manager.application.release_check_values import (
+    ReleaseCheckStateError as ReleaseCheckStateError,
+)
+from spotify_manager.application.release_check_values import (
+    ReleaseCheckSummary as ReleaseCheckSummary,
+)
+
 # UFI
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+from spotify_manager.domain import release_check as release_policy
 from spotify_manager.domain.artist_mapping import (
     SpotifyArtistCandidate as SpotifyArtistCandidate,
 )
+from spotify_manager.domain.release_check import (
+    ALWAYS_EXCLUDED_RELEASE as ALWAYS_EXCLUDED_RELEASE,
+)
+from spotify_manager.domain.release_check import DELUXE_RELEASE as DELUXE_RELEASE
+from spotify_manager.domain.release_check import EDITION_RELEASE as EDITION_RELEASE
+from spotify_manager.domain.release_check import EP_MARKER as EP_MARKER
+from spotify_manager.domain.release_check import LIVE_RELEASE as LIVE_RELEASE
+from spotify_manager.domain.release_check_values import PendingSingle as PendingSingle
+from spotify_manager.domain.release_check_values import PlaylistAction as PlaylistAction
+from spotify_manager.domain.release_check_values import PlaylistEntry as PlaylistEntry
+from spotify_manager.domain.release_check_values import (
+    PlaylistMembership as PlaylistMembership,
+)
+from spotify_manager.domain.release_check_values import (
+    PlaylistSnapshot as PlaylistSnapshot,
+)
+from spotify_manager.domain.release_check_values import RankedArtist as RankedArtist
+from spotify_manager.domain.release_check_values import (
+    ReleaseCandidate as ReleaseCandidate,
+)
+from spotify_manager.domain.release_check_values import (
+    ReleaseCheckResult as ReleaseCheckResult,
+)
+from spotify_manager.domain.release_check_values import ReleaseTrack as ReleaseTrack
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import scrobble_history
@@ -55,53 +91,8 @@ CHOICE_SKIP_ARTIST = "skip-artist"
 CHOICE_QUIT = "quit"
 CHOICE_SEARCH_PREFIX = "search:"
 
-EP_MARKER = re.compile(r"(?:^|[\s\-[(])e\.?p\.?(?:$|[\s\-)\]])", re.IGNORECASE)
-ALWAYS_EXCLUDED_RELEASE = re.compile(
-    r"\b(?:anthology|best of|collection|compilation|greatest hits|rarities|"
-    r"cast recording|motion picture|original score|soundtrack|bootleg|demos?|"
-    r"karaoke|remix(?:es)?)\b",
-    re.IGNORECASE,
-)
-LIVE_RELEASE = re.compile(
-    r"(?:^live(?:!|$|\s+(?:at|from|in|on)\b)|"
-    r"[\[(][^)\]]*\blive\b[^)\]]*[)\]]|"
-    r"\s[-\N{EN DASH}\N{EM DASH}]\s.*\blive\b.*$|"
-    r"\b(?:ao vivo|en vivo|in concert|unplugged)\b)",
-    re.IGNORECASE,
-)
-EDITION_RELEASE = re.compile(
-    r"\b(?:anniversary|bonus|collector(?:'s)?|deluxe|edition|expanded|legacy|"
-    r"mono|remaster(?:ed)?|reissue|special|stereo|super deluxe)\b",
-    re.IGNORECASE,
-)
-DELUXE_RELEASE = re.compile(r"\b(?:deluxe|super deluxe)\b", re.IGNORECASE)
-
 ProgressCallback = Callable[[int, int, str], None]
 RetryCall = Callable[[Callable[[], object], str], object]
-PlaylistAction = Literal[
-    "added",
-    "would add",
-    "already present",
-    "artist already present",
-    "duplicate selection",
-    "not applicable",
-]
-
-
-class ReleaseCheckError(RuntimeError):
-    """Base error for a release-check run."""
-
-
-class ReleaseCheckConfigError(ReleaseCheckError):
-    """Raised when either destination playlist is not configured."""
-
-
-class ReleaseCheckStateError(ReleaseCheckError):
-    """Raised when restart state or the audit log cannot be maintained."""
-
-
-class ReleaseCheckSpotifyError(ReleaseCheckError):
-    """Raised when Spotify returns incomplete release data."""
 
 
 class LastFmReader(scrobble_history.LastFmReader, Protocol):
@@ -137,117 +128,6 @@ class ReleaseCheckPlaylists:
             raise ReleaseCheckConfigError(str(exc)) from exc
 
 
-@dataclass(frozen=True)
-class RankedArtist:
-    """One Last.fm artist ranked by all-time scrobble count."""
-
-    key: str
-    name: str
-    scrobbles: int
-    rank: int
-
-    @property
-    def is_new_vintage(self) -> bool:
-        """Return whether New Vintage rules apply to this artist."""
-        return self.rank <= NEW_VINTAGE_ARTIST_LIMIT
-
-    @property
-    def accepts_all_singles(self) -> bool:
-        """Return whether standalone singles are eligible."""
-        return self.rank <= ALL_SINGLES_ARTIST_LIMIT
-
-
-@dataclass(frozen=True)
-class ReleaseCandidate:
-    """One primary-artist release returned by Spotify."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    release_type: str
-    release_date: str
-    release_date_precision: str
-    total_tracks: int
-    primary_artist_id: str
-    primary_artist_name: str
-
-
-@dataclass(frozen=True)
-class ReleaseTrack:
-    """One Spotify track with its credit and release positions."""
-
-    spotify_id: str
-    uri: str
-    name: str
-    primary_artist_id: str
-    primary_artist_name: str
-    disc_number: int
-    track_number: int
-
-
-@dataclass(frozen=True)
-class PendingSingle:
-    """A single retained until an announced future record can confirm it."""
-
-    artist_key: str
-    release: ReleaseCandidate
-    first_track: ReleaseTrack
-
-
-@dataclass(frozen=True)
-class ReleaseCheckResult:
-    """One release decision and any resulting playlist actions."""
-
-    artist: str
-    artist_rank: int
-    artist_scrobbles: int
-    spotify_artist_id: str
-    release_id: str
-    release: str
-    release_type: str
-    release_date: str
-    first_track_id: str | None
-    first_track: str | None
-    linked_future_release: str | None
-    wine_cellar_action: PlaylistAction
-    new_vintage_action: PlaylistAction
-    reason: str | None
-    dry_run: bool
-
-
-@dataclass(frozen=True)
-class ReleaseCheckSummary:
-    """Outcome of one complete or paused release check."""
-
-    run_id: str
-    checked_from: date
-    checked_through: date
-    artists_total: int
-    artists_processed: int
-    dry_run: bool
-    resumed: bool
-    paused: bool
-    wine_cellar_duplicates_removed: int
-    history_refresh: scrobble_history.ScrobbleHistorySummary | None
-    results: tuple[ReleaseCheckResult, ...]
-
-    @property
-    def wine_cellar_added(self) -> int:
-        """Count planned or completed Wine Cellar additions."""
-        return sum(
-            result.wine_cellar_action in {"added", "would add"}
-            for result in self.results
-        )
-
-    @property
-    def new_vintage_added(self) -> int:
-        """Count planned or completed New Vintage additions."""
-        return sum(
-            result.new_vintage_action in {"added", "would add"}
-            for result in self.results
-        )
-
-
 ArtistChoiceReader = Callable[
     [RankedArtist, tuple[SpotifyArtistCandidate, ...]],
     str,
@@ -258,34 +138,6 @@ ReleaseChoiceReader = Callable[
 ]
 
 
-@dataclass
-class PlaylistMembership:
-    """Mutable playlist identities used to avoid duplicate additions."""
-
-    track_ids: set[str]
-    track_keys: set[tuple[str, str]]
-    primary_artist_ids: set[str]
-
-
-@dataclass(frozen=True)
-class PlaylistEntry:
-    """One ordered playlist item retained during Wine Cellar cleanup."""
-
-    uri: str
-    spotify_id: str
-    name: str
-    primary_artist_id: str | None
-    primary_artist_name: str | None
-
-
-@dataclass(frozen=True)
-class PlaylistSnapshot:
-    """Ordered playlist entries and their lookup indexes."""
-
-    entries: tuple[PlaylistEntry, ...]
-    membership: PlaylistMembership
-
-
 def _direct_retry(operation: Callable[[], object], _description: str) -> object:
     """Call Spotify directly when no outer retry policy is supplied."""
     return operation()
@@ -294,36 +146,15 @@ def _direct_retry(operation: Callable[[], object], _description: str) -> object:
 def rank_lastfm_artists(
     history: tuple[blast_from_past.Scrobble, ...],
 ) -> tuple[RankedArtist, ...]:
-    """Rank normalized Last.fm artists and retain those with 100 scrobbles."""
-    counts: Counter[str] = Counter()
-    names: dict[str, Counter[str]] = defaultdict(Counter)
-    for scrobble in history:
-        name = scrobble.artist.strip()
-        key = blast_from_past.normalize_name(name)
-        if not key:
-            continue
-        counts[key] += 1
-        names[key][name] += 1
+    """Rank original normalized artists before applying the configured minimum.
 
-    ordered = sorted(counts, key=lambda key: (-counts[key], key))
-    ranking: list[RankedArtist] = []
-    for rank, key in enumerate(ordered, start=1):
-        scrobbles = counts[key]
-        if scrobbles < MIN_ARTIST_SCROBBLES:
-            continue
-        display_name = min(
-            names[key],
-            key=lambda name: (-names[key][name], name.casefold(), name),
-        )
-        ranking.append(
-            RankedArtist(
-                key=key,
-                name=display_name,
-                scrobbles=scrobbles,
-                rank=rank,
-            )
-        )
-    return tuple(ranking)
+    Args:
+        history: Original ordered canonical plays.
+
+    Returns:
+        Original ranked eligible artists and majority display spellings.
+    """
+    return release_policy.rank_artists(history, MIN_ARTIST_SCROBBLES)
 
 
 def _positive_int(raw: object) -> int | None:
@@ -425,59 +256,28 @@ def resolve_spotify_artist(
     choice_reader: ArtistChoiceReader | None,
     retry_call: RetryCall,
 ) -> SpotifyArtistCandidate | str | None:
-    """Resolve one artist, allowing repeated user-supplied Spotify searches."""
-    search_text: str | None = None
-    while True:
-        candidates = search_spotify_artists(
-            sp,
-            artist,
-            retry_call,
-            search_text,
-        )
-        exact = tuple(candidate for candidate in candidates if candidate.exact_name)
-        if search_text is None and len(exact) == 1:
-            return exact[0]
-        choices = candidates if search_text is not None else (exact or candidates)
-        if choice_reader is None:
-            if not choices:
-                return None
-            raise ReleaseCheckSpotifyError(
-                f"Spotify artist mapping is ambiguous for {artist.name}."
-            )
-        choice = choice_reader(artist, choices)
-        if choice in {CHOICE_SKIP, CHOICE_SKIP_ARTIST, CHOICE_QUIT}:
-            return choice
-        if choice.startswith(CHOICE_SEARCH_PREFIX):
-            requested_search = choice.removeprefix(CHOICE_SEARCH_PREFIX).strip()
-            if not requested_search:
-                raise ReleaseCheckSpotifyError(
-                    "The custom Spotify artist search cannot be empty."
-                )
-            search_text = requested_search
-            continue
-        selected = next(
-            (candidate for candidate in choices if candidate.spotify_id == choice),
-            None,
-        )
-        if selected is None:
-            raise ReleaseCheckSpotifyError("The selected Spotify artist is invalid.")
-        return selected
+    """Resolve original artist mappings with repeated explicit custom searches.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Original ranked Last.fm evidence.
+        choice_reader: Original interaction, absent for noninteractive runs.
+        retry_call: Original catalog retry policy.
+
+    Returns:
+        Original selected mapping, control response or absent noninteractive result.
+
+    Raises:
+        ReleaseCheckSpotifyError: Original mapping or choice is invalid.
+    """
+    from spotify_manager.bootstrap.artist_mapping import resolve_artist
+
+    return resolve_artist(sp, artist, choice_reader, retry_call)
 
 
 def _release_type(raw_type: object, total_tracks: int, name: str) -> str:
     """Distinguish albums, EPs, and singles from Spotify metadata."""
-    normalized = str(raw_type or "").casefold()
-    if normalized == "album":
-        return "Album"
-    if normalized == "single" and (total_tracks >= 4 or EP_MARKER.search(name)):
-        return "EP"
-    if normalized == "single":
-        return "Single"
-    if normalized == "ep":
-        return "EP"
-    if normalized == "compilation":
-        return "Compilation"
-    return normalized.title() or "Unknown"
+    return release_policy.release_type(raw_type, total_tracks, name)
 
 
 def _release_candidate(
@@ -511,43 +311,30 @@ def _release_candidate(
 
 
 def release_date_interval(release: ReleaseCandidate) -> tuple[date, date] | None:
-    """Return the possible date interval represented by Spotify precision."""
-    try:
-        parts = [int(part) for part in release.release_date.split("-")]
-        year = parts[0]
-        precision = release.release_date_precision.casefold()
-        if precision == "year" or len(parts) == 1:
-            return date(year, 1, 1), date(year, 12, 31)
-        month = parts[1]
-        if precision == "month" or len(parts) == 2:
-            return (
-                date(year, month, 1),
-                date(year, month, calendar.monthrange(year, month)[1]),
-            )
-        day = parts[2]
-        parsed = date(year, month, day)
-        return parsed, parsed
-    except IndexError, ValueError:
-        return None
+    """Resolve the original possible interval for Spotify date precision.
+
+    Args:
+        release: Original precision-preserving metadata.
+
+    Returns:
+        Inclusive original date interval, or no valid date.
+    """
+    return release_policy.release_date_interval(release)
 
 
 def release_scope_reason(release: ReleaseCandidate, artist_rank: int) -> str | None:
-    """Return why an album/EP is excluded, or None when it is eligible."""
-    if release.release_type not in {"Album", "EP"}:
-        return f"{release.release_type.casefold()} is not an album or EP"
-    if ALWAYS_EXCLUDED_RELEASE.search(release.name):
-        return "compilation or other non-release-project title"
-    if artist_rank <= NEW_VINTAGE_ARTIST_LIMIT:
-        if EDITION_RELEASE.search(release.name) and not DELUXE_RELEASE.search(
-            release.name
-        ):
-            return "non-deluxe reissue or remaster"
-        return None
-    if LIVE_RELEASE.search(release.name):
-        return "live release outside the top 50"
-    if EDITION_RELEASE.search(release.name):
-        return "deluxe edition, reissue, or remaster outside the top 50"
-    return None
+    """Apply original title exclusions and configured artist-rank boundary.
+
+    Args:
+        release: Original observed release.
+        artist_rank: Original global Last.fm rank.
+
+    Returns:
+        Original exclusion reason, or eligibility.
+    """
+    return release_policy.release_scope_reason(
+        release, artist_rank, NEW_VINTAGE_ARTIST_LIMIT
+    )
 
 
 def load_recent_catalog(
@@ -972,23 +759,7 @@ def _playlist_entry(raw_entry: object) -> PlaylistEntry | None:
 
 def _membership(entries: tuple[PlaylistEntry, ...]) -> PlaylistMembership:
     """Build mutable playlist indexes from ordered entries."""
-    track_ids = {entry.spotify_id for entry in entries if entry.spotify_id}
-    track_keys: set[tuple[str, str]] = set()
-    primary_artist_ids: set[str] = set()
-    for entry in entries:
-        if entry.primary_artist_id:
-            primary_artist_ids.add(entry.primary_artist_id)
-        artist_key = blast_from_past.normalize_name(entry.primary_artist_name or "")
-        track_key = blast_from_past.normalize_name(
-            blast_from_past.without_sliding_qualifiers(entry.name)
-        )
-        if artist_key and track_key:
-            track_keys.add((artist_key, track_key))
-    return PlaylistMembership(
-        track_ids=track_ids,
-        track_keys=track_keys,
-        primary_artist_ids=primary_artist_ids,
-    )
+    return release_policy.membership(entries)
 
 
 def _playlist_snapshot(
@@ -1051,16 +822,7 @@ def _deduplicated_entries(
     entries: tuple[PlaylistEntry, ...],
 ) -> tuple[PlaylistEntry, ...]:
     """Keep the first Wine Cellar item for each primary Spotify artist."""
-    seen_artist_ids: set[str] = set()
-    kept: list[PlaylistEntry] = []
-    for entry in entries:
-        artist_id = entry.primary_artist_id
-        if artist_id and artist_id in seen_artist_ids:
-            continue
-        kept.append(entry)
-        if artist_id:
-            seen_artist_ids.add(artist_id)
-    return tuple(kept)
+    return release_policy.deduplicated_entries(entries)
 
 
 def _replace_playlist_entries(
@@ -1108,12 +870,7 @@ def _deduplicate_wine_cellar(
 
 def _track_key(track: ReleaseTrack) -> tuple[str, str]:
     """Return the same artist/title identity used by playlist scans."""
-    return (
-        blast_from_past.normalize_name(track.primary_artist_name),
-        blast_from_past.normalize_name(
-            blast_from_past.without_sliding_qualifiers(track.name)
-        ),
-    )
+    return release_policy.track_key(track)
 
 
 def _track_is_present(
@@ -1121,10 +878,7 @@ def _track_is_present(
     track: ReleaseTrack,
 ) -> bool:
     """Return whether a playlist already contains this track identity."""
-    return (
-        track.spotify_id in membership.track_ids
-        or _track_key(track) in membership.track_keys
-    )
+    return release_policy.track_is_present(membership, track)
 
 
 def _artist_is_present(
@@ -1132,7 +886,7 @@ def _artist_is_present(
     spotify_artist: SpotifyArtistCandidate,
 ) -> bool:
     """Return whether an artist already occupies a playlist slot."""
-    return spotify_artist.spotify_id in membership.primary_artist_ids
+    return release_policy.artist_is_present(membership, spotify_artist)
 
 
 def _add_to_playlist(
@@ -1168,21 +922,19 @@ def _add_to_playlist(
 
 def _release_identity(release: ReleaseCandidate) -> tuple[str, str, str]:
     """Collapse market duplicates without merging deluxe and plain releases."""
-    return (
-        blast_from_past.normalize_name(release.name),
-        release.release_date,
-        release.release_type,
-    )
+    return release_policy.release_identity(release)
 
 
 def release_tags(release: ReleaseCandidate) -> tuple[str, ...]:
-    """Return prominent review labels for special eligible releases."""
-    tags: list[str] = []
-    if LIVE_RELEASE.search(release.name):
-        tags.append("LIVE")
-    if DELUXE_RELEASE.search(release.name):
-        tags.append("DELUXE")
-    return tuple(tags)
+    """Retain original live-before-deluxe review labels.
+
+    Args:
+        release: Original observed display title.
+
+    Returns:
+        Original ordered special-release labels.
+    """
+    return release_policy.release_tags(release)
 
 
 def _released_during(
@@ -1191,10 +943,7 @@ def _released_during(
     checked_through: date,
 ) -> bool:
     """Return whether a release's precision interval overlaps the check window."""
-    interval = release_date_interval(release)
-    return bool(
-        interval and interval[0] <= checked_through and interval[1] >= checked_from
-    )
+    return release_policy.released_during(release, checked_from, checked_through)
 
 
 def _future_record(
@@ -1203,12 +952,7 @@ def _future_record(
     artist_rank: int,
 ) -> bool:
     """Return whether a qualifying album/EP is definitely still unreleased."""
-    interval = release_date_interval(release)
-    return bool(
-        interval
-        and interval[0] > checked_through
-        and release_scope_reason(release, artist_rank) is None
-    )
+    return release_policy.future_record(release, checked_through, artist_rank)
 
 
 def _result(

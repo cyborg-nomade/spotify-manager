@@ -867,3 +867,36 @@ boolean integer popularity tolerance. Original SDK expressions remain frozen.
 
 Release checking, The Queue and genre reveal remain in the current wave. Later
 waves retain their full approved scope. Item 6 continues toward its single PR.
+
+### Release policy and artist-mapping checkpoint
+
+Release-check models, global artist ranking, majority display spelling,
+release-kind inference, partial-date windows, title/rank exclusions, review tags
+and destination identity/deduplication rules now have domain owners. The original
+artist interaction belongs to the application: only an initial unique exact match
+is automatic; custom queries remain trimmed, repeatable and explicitly prompted.
+Original controls, exact-only initial prompt lists, first matching identity and
+narrowed validation errors are retained. Public routine models/errors remain
+aliases. Run coordination, catalog paging and durable state still remain next.
+
+An immutable policy snapshot records 105 cases against source `2fdcd9e` before
+extraction. Eleven additional original interaction contracts also passed before
+moving the chooser. Independent tests replay the same policy/interaction oracles
+and protect ranking, destination membership and original preview summary counts.
+The domain import gate explicitly allows Python's pure `calendar` utility for
+original partial-month precision; runtime/client/UI prohibitions remain intact.
+
+- Full suite: **3,332 tests pass**, seed `20261013`;
+  **93.52% statements** (20,997 / 22,451),
+  **83.76% branches** (4,503 / 5,376).
+- Independent gates: **480 domain tests**, **969 application tests**, both with
+  **100% statement and branch coverage** for configured targets.
+- Focused policy gate: **112 tests**, **100%** (156 statements, 50 branches).
+  Focused interaction/summary gate: **12 tests**, **100%** (61 statements,
+  18 branches).
+- All eleven frozen public artifacts, package Ruff/format, package mypy
+  (248 source files), strict new source/test and short-function checks pass.
+
+Item 6 continues with release catalog ownership and complete restartable run
+coordination, followed by the remaining approved families. No milestone PR is
+opened until the full Item 6 exit criteria are met.
