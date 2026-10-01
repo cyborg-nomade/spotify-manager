@@ -26,6 +26,9 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
+from spotify_manager.domain.artist_mapping import (
+    SpotifyArtistCandidate as SpotifyArtistCandidate,
+)
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import scrobble_history
@@ -152,19 +155,6 @@ class RankedArtist:
     def accepts_all_singles(self) -> bool:
         """Return whether standalone singles are eligible."""
         return self.rank <= ALL_SINGLES_ARTIST_LIMIT
-
-
-@dataclass(frozen=True)
-class SpotifyArtistCandidate:
-    """One Spotify artist search result available for mapping."""
-
-    spotify_id: str
-    name: str
-    uri: str
-    popularity: int | None
-    followers: int | None
-    search_rank: int
-    exact_name: bool
 
 
 @dataclass(frozen=True)

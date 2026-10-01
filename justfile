@@ -87,6 +87,9 @@ test-application:
         --cov=spotify_manager.application.sauvignon_values \
         --cov=spotify_manager.application.sauvignon_selection \
         --cov=spotify_manager.application.sauvignon_run \
+        --cov=spotify_manager.application.dormant_values \
+        --cov=spotify_manager.application.dormant_tracks \
+        --cov=spotify_manager.application.dormant_recovery \
         --cov=spotify_manager.application.historical_playlists \
         --cov=spotify_manager.application.historical_resolution \
         --cov=spotify_manager.application.historical_selection \

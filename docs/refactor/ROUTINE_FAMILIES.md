@@ -834,3 +834,36 @@ catalog resolution, accepted-addition exclusions and preview audit semantics.
 
 The remaining history/discovery workflows and later waves are still part of
 Item 6. Work continues on this branch toward its single complete milestone PR.
+
+### Dormant-artist recovery checkpoint
+
+Dormant recovery now owns its rolling intersection and preferred liked-track
+policies in the domain. The application observes top tracks and live membership
+first, then reads the primary-credit catalog and popularity only when needed.
+The complete recovery coordinator preserves original alphabetical selection,
+full-list mapping ranks, represented-artists suppression, cancellation before
+represented checks, skip output, duplicate-marker suppression and one ordered
+batch append before completion progress. Preview results intentionally retain
+original `added` labels while playlist size reflects no remote write.
+
+Ten new routine contracts passed against source `496f3d5` before extraction,
+covering every original failure prefix and accepted-write/preview behavior.
+Independent workflow and policy tests cover all new inner-layer statements and
+branches. The shared observed artist-mapping value has a domain owner with a
+public compatibility alias in release checking. Infrastructure codecs retain
+original truthiness, response cardinality, duplicate detail order, coercion and
+boolean integer popularity tolerance. Original SDK expressions remain frozen.
+
+- Full suite: **3,088 tests pass**, seed `20261012`;
+  **93.42% statements** (20,879 / 22,349),
+  **83.41% branches** (4,481 / 5,372).
+- Independent gates: **366 domain tests**, **955 application tests**, both with
+  **100% statement and branch coverage** for configured targets.
+- Focused new policy/workflow gate: **25 tests**, **100%** statement and branch
+  coverage (157 statements, 42 branches). Infrastructure codec gate: **11 tests**,
+  **100%** (28 statements, 14 branches).
+- All eleven frozen public artifacts, package Ruff/format, package mypy
+  (243 source files), strict new source/test checks and short-function checks pass.
+
+Release checking, The Queue and genre reveal remain in the current wave. Later
+waves retain their full approved scope. Item 6 continues toward its single PR.
