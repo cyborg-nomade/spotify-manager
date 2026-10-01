@@ -744,3 +744,32 @@ the distinction between actual prior additions and preview proposals.
 Found Art policy, application coordination and storage extraction is implemented
 and verified. Sauvignon and the remaining history/discovery routines are next.
 Item 6 remains ongoing without its milestone PR or deployment.
+
+### Sauvignon album evidence checkpoint
+
+Sauvignon's album identities, heard-album filtering, edition preference, visible
+metadata ambiguity and track-evidence accumulation now belong to the domain.
+The application preserves sequential candidate progress and searches before
+combining each observation. Spotify parsing and retry calls retain their existing
+outer compatibility boundaries.
+
+Nine new contracts passed against the original gatherer before extraction.
+Five immutable scenarios record source `4e21c84`, original inputs, exact ranked
+recommendations and progress/search traces. They cover grouped editions,
+duplicate support labels, preferred edition replacement, exclusions, empty pools
+and original negative-slice tolerance. Independent policy tests additionally
+preserve invalid normalized observation keys, nullable accumulator behavior,
+assertions after score updates and all visible ambiguity components.
+
+- Full suite: **2,911 tests pass**, seed `20261008`;
+  **93.21% statements** (20,502 / 21,996),
+  **82.90% branches** (4,425 / 5,338).
+- Independent gates: **346 domain tests**, **892 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen public artifacts, package Ruff lint/format, package mypy
+  (227 source files), strict inner-layer checks and strict fixture/contract checks
+  pass. New functions remain short and flat with simple comprehensions.
+
+Sauvignon's catalog parser, first-track observation, choice interaction, complete
+run and audit ownership remain pending. Item 6 continues without a milestone PR,
+local review environment, deployment or merge.

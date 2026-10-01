@@ -17,12 +17,23 @@ from typing import Protocol
 
 from spotipy import Spotify
 
+from spotify_manager.domain import album_recommendations as album_policy
+from spotify_manager.domain.album_recommendations import (
+    AlbumRecommendation as AlbumRecommendation,
+)
+from spotify_manager.domain.album_recommendations import (
+    SpotifyAlbumOption as SpotifyAlbumOption,
+)
+from spotify_manager.domain.album_recommendations import (
+    _AlbumAccumulator as _AlbumAccumulator,
+)
+
 # UFI
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
-from spotify_manager.routines.slow_listening import release_identity
+from spotify_manager.routines.slow_listening import release_identity as release_identity
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -64,40 +75,6 @@ class SauvignonSpotifyError(SauvignonError):
 
 class LastFmReader(found_art.LastFmReader, Protocol):
     """Last.fm methods required through the shared Found Art machinery."""
-
-
-@dataclass(frozen=True)
-class SpotifyAlbumOption:
-    """One eligible Spotify album edition reached through a similar track."""
-
-    spotify_id: str
-    uri: str
-    artist_id: str
-    artist: str
-    album: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    source_track: str
-    source_track_id: str
-    search_rank: int
-    track_similarity: float
-    track_popularity: int | None
-
-
-@dataclass(frozen=True)
-class AlbumRecommendation:
-    """One album-level score aggregated from recommended tracks."""
-
-    artist: str
-    album: str
-    key: AlbumKey
-    score: float
-    best_match: float
-    supporting_tracks: tuple[str, ...]
-    options: tuple[SpotifyAlbumOption, ...]
-    base_rank: int = 0
-    weekly_rank: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -155,25 +132,6 @@ class SauvignonSummary:
         return sum(result.action in {"added", "would add"} for result in self.results)
 
 
-@dataclass
-class _AlbumAccumulator:
-    """Mutable album score while recommended tracks are grouped."""
-
-    artist: str
-    album: str
-    key: AlbumKey
-    score: float = 0.0
-    best_match: float = 0.0
-    supporting_tracks: set[str] | None = None
-    options: dict[str, SpotifyAlbumOption] | None = None
-
-    def __post_init__(self) -> None:
-        if self.supporting_tracks is None:
-            self.supporting_tracks = set()
-        if self.options is None:
-            self.options = {}
-
-
 def parse_playlist_id(reference: str | None) -> str:
     """Parse the configured Sauvignon destination playlist."""
     try:
@@ -186,23 +144,30 @@ def parse_playlist_id(reference: str | None) -> str:
 
 
 def canonical_album_key(artist: str, album: str) -> AlbumKey:
-    """Return an edition-tolerant artist and album identity."""
-    return (
-        blast_from_past.normalize_name(artist),
-        release_identity(album),
-    )
+    """Return the original edition-tolerant artist and album identity.
+
+    Args:
+        artist: Original credited artist spelling.
+        album: Original album display title.
+
+    Returns:
+        Normalized artist and edition-neutral release title.
+    """
+    return album_policy.canonical_album_key(artist, album)
 
 
 def heard_album_keys(
     scrobbles: list[blast_from_past.Scrobble],
 ) -> set[AlbumKey]:
-    """Return every non-empty album identity present in Last.fm history."""
-    return {
-        key
-        for scrobble in scrobbles
-        if scrobble.album
-        and all(key := canonical_album_key(scrobble.artist, scrobble.album))
-    }
+    """Return every original valid album identity present in canonical history.
+
+    Args:
+        scrobbles: Original ordered canonical plays.
+
+    Returns:
+        Distinct valid album identities, excluding absent album names.
+    """
+    return album_policy.heard_album_keys(scrobbles)
 
 
 def previously_added_album_keys(path: Path = DEFAULT_LOG_PATH) -> set[AlbumKey]:
@@ -363,16 +328,11 @@ def search_candidate_albums(
 
 
 def _option_rank(option: SpotifyAlbumOption) -> tuple[float, int, int]:
-    return (
-        option.track_similarity,
-        option.track_popularity if option.track_popularity is not None else -1,
-        -option.search_rank,
-    )
+    return album_policy.option_rank(option)
 
 
 def _option_sort_key(option: SpotifyAlbumOption) -> tuple[float, int, int, str]:
-    rank = _option_rank(option)
-    return (-rank[0], -rank[1], -rank[2], option.spotify_id)
+    return album_policy.option_sort_key(option)
 
 
 def gather_album_recommendations(
@@ -386,101 +346,41 @@ def gather_album_recommendations(
     retry_call: RetryCall,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[AlbumRecommendation, ...]:
-    """Resolve recommended tracks and aggregate their eligible Spotify albums."""
-    accumulators: dict[AlbumKey, _AlbumAccumulator] = {}
-    considered = candidates[:maximum_candidates]
-    for index, candidate in enumerate(considered, start=1):
-        if progress_callback is not None:
-            progress_callback(
-                f"Resolving album evidence {index}/{len(considered)}: "
-                f"{candidate.artist} - {candidate.track}"
-            )
-        options = search_candidate_albums(spotify, candidate, retry_call)
-        grouped: dict[AlbumKey, list[SpotifyAlbumOption]] = {}
-        for option in options:
-            key = canonical_album_key(option.artist, option.album)
-            if key in excluded_keys or option.spotify_id in existing_album_ids:
-                continue
-            grouped.setdefault(key, []).append(option)
-        for key, group in grouped.items():
-            best = max(group, key=_option_rank)
-            accumulator = accumulators.setdefault(
-                key,
-                _AlbumAccumulator(
-                    artist=best.artist,
-                    album=best.album,
-                    key=key,
-                ),
-            )
-            accumulator.score += candidate.score * best.track_similarity
-            accumulator.best_match = max(
-                accumulator.best_match,
-                candidate.best_match,
-            )
-            assert accumulator.supporting_tracks is not None
-            assert accumulator.options is not None
-            accumulator.supporting_tracks.add(f"{candidate.artist} - {candidate.track}")
-            for option in group:
-                previous = accumulator.options.get(option.spotify_id)
-                if previous is None or _option_rank(option) > _option_rank(previous):
-                    accumulator.options[option.spotify_id] = option
+    """Resolve original track evidence and rank eligible observed albums.
 
-    base_ranked = sorted(
-        (
-            AlbumRecommendation(
-                artist=value.artist,
-                album=value.album,
-                key=value.key,
-                score=value.score
-                * (1 + 0.15 * (len(value.supporting_tracks or ()) - 1)),
-                best_match=value.best_match,
-                supporting_tracks=tuple(sorted(value.supporting_tracks or ())),
-                options=tuple(
-                    sorted((value.options or {}).values(), key=_option_sort_key)
-                ),
-            )
-            for value in accumulators.values()
-        ),
-        key=lambda item: (
-            -item.score,
-            -len(item.supporting_tracks),
-            -item.best_match,
-            item.key,
-        ),
-    )
-    rotated = tuple(
-        replace(
-            recommendation,
-            base_rank=rank,
-            weekly_rank=found_art.weekly_weighted_rank(
-                week_start,
-                "sauvignon-album",
-                recommendation.key,
-                recommendation.score**2,
-            ),
-        )
-        for rank, recommendation in enumerate(base_ranked, start=1)
-    )
-    return tuple(
-        sorted(
-            rotated,
-            key=lambda item: (-item.weekly_rank, item.base_rank, item.key),
-        )
+    Args:
+        spotify: Caller-owned Spotify client.
+        candidates: Original ordered ranked track pool.
+        excluded_keys: Original heard and previously added album keys.
+        existing_album_ids: Original represented destination album identities.
+        maximum_candidates: Original Python-slice limit on considered tracks.
+        week_start: Original effective listening week.
+        retry_call: Existing caller-owned retry behavior.
+        progress_callback: Optional original candidate presenter.
+
+    Returns:
+        Original ranked album recommendations after all observations succeed.
+
+    Raises:
+        SauvignonSpotifyError: Existing catalog observations are unusable.
+    """
+    from spotify_manager.bootstrap.album_recommendations import gather_albums
+
+    return gather_albums(
+        spotify,
+        candidates,
+        excluded_keys,
+        existing_album_ids,
+        maximum_candidates,
+        week_start,
+        retry_call,
+        progress_callback,
     )
 
 
 def _genuinely_ambiguous(options: tuple[SpotifyAlbumOption, ...]) -> bool:
     """Return whether editions differ in visible release metadata."""
-    signatures = {
-        (
-            blast_from_past.normalize_name(option.album),
-            option.release_date,
-            option.total_tracks,
-            option.release_type,
-        )
-        for option in options
-    }
-    return len(signatures) > 1
+    return album_policy.genuinely_ambiguous(options)
 
 
 def choose_album_option(

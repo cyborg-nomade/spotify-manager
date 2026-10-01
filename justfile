@@ -83,6 +83,7 @@ test-application:
         --cov=spotify_manager.application.recommendation_candidates \
         --cov=spotify_manager.application.recommendation_resolution \
         --cov=spotify_manager.application.recommendation_run \
+        --cov=spotify_manager.application.album_recommendations \
         --cov=spotify_manager.application.historical_playlists \
         --cov=spotify_manager.application.historical_resolution \
         --cov=spotify_manager.application.historical_selection \
