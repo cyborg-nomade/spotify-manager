@@ -993,3 +993,28 @@ and mypy pass (264 source files); short-function checks pass for new code, and a
 tests with seed 20261016. Release paging/storage boundary ownership remains to
 finish before moving on to The Queue, genre reveal and the later approved waves.
 Item 6 remains in progress; this checkpoint does not open its milestone PR.
+
+### Release-check paging and restart decoding checkpoint
+
+Catalog, marker and destination pagination now have explicit infrastructure owners,
+with distinct original stopping and failure rules. SDK expressions and their retry
+configuration remain in the original outer module. Catalog reads continue past
+old pages; later duplicate identities replace metadata. First-only marker reads
+stop after one page, and a 404 on any marker page discards earlier markers.
+Destination reads follow continuation or integer totals and reject any item that
+cannot be safely retained. These behaviors are preserved, including their quirks.
+
+Restart decoding now owns additive legacy defaults, unknown-field preservation,
+frozen artist restoration, mappings and retained singles at a documented JSON
+boundary. Constructor field values retain the original tolerance; the codecs do
+not silently impose stronger value validation. Result construction delegates to
+the shared application owner.
+
+Twenty-six paging and 32 restart cases pass both against the original source
+(`91a502a`, replayed offline without changing the checkout) and the new owners.
+The owners reach 100% statement/branch coverage (127 statements, 40 branches).
+All 11 frozen public artifacts match, including identical SDK expressions,
+reference counts and source paths. Ruff, formatting, package mypy and strict new
+boundary/test typing pass. The complete randomized suite passes 3,715 tests
+(seed 20261017). The next history/discovery migrations are The Queue and genre
+reveal; the approved later waves remain part of the same Item 6 milestone.

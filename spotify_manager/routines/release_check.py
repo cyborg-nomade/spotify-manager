@@ -3,7 +3,6 @@
 import hashlib
 import json
 from collections.abc import Callable
-from copy import deepcopy
 from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import UTC
@@ -296,55 +295,33 @@ def load_recent_catalog(
     retry_call: RetryCall,
 ) -> tuple[ReleaseCandidate, ...]:
     """Load recent and future releases from every Spotify catalog page."""
-    releases: dict[str, ReleaseCandidate] = {}
-    offset = 0
-    while True:
-        response = retry_call(
-            partial(
-                sp.artist_albums,
-                spotify_artist.spotify_id,
-                include_groups="album,single",
-                limit=ARTIST_RELEASE_PAGE_LIMIT,
-                offset=offset,
-            ),
-            f"loading releases for {artist.name} at offset {offset}",
-        )
-        if not isinstance(response, dict) or not isinstance(
-            response.get("items"), list
-        ):
-            raise ReleaseCheckSpotifyError(
-                f"Spotify returned invalid release data for {artist.name}."
-            )
-        raw_items = response["items"]
-        for raw_release in raw_items:
-            candidate = _release_candidate(
-                raw_release,
-                spotify_artist.spotify_id,
-            )
-            if candidate is None:
-                continue
-            interval = release_date_interval(candidate)
-            if interval is None:
-                continue
-            if interval[1] >= checked_from:
-                releases[candidate.spotify_id] = candidate
-        offset += len(raw_items)
-        if not response.get("next"):
-            break
-        if not raw_items:
-            raise ReleaseCheckSpotifyError(
-                f"Spotify returned an empty release page for {artist.name}."
-            )
-    return tuple(
-        sorted(
-            releases.values(),
-            key=lambda release: (
-                release_date_interval(release) or (date.max, date.max),
-                release.release_type,
-                release.name.casefold(),
-                release.spotify_id,
-            ),
-        )
+    from spotify_manager.infrastructure.release_pages import load_catalog_pages
+
+    return load_catalog_pages(
+        partial(_read_catalog_page, sp, artist, spotify_artist, retry_call),
+        _release_candidate,
+        artist.name,
+        spotify_artist.spotify_id,
+        checked_from,
+    )
+
+
+def _read_catalog_page(
+    sp: Spotify,
+    artist: RankedArtist,
+    spotify_artist: SpotifyArtistCandidate,
+    retry_call: RetryCall,
+    offset: int,
+) -> object:
+    return retry_call(
+        partial(
+            sp.artist_albums,
+            spotify_artist.spotify_id,
+            include_groups="album,single",
+            limit=ARTIST_RELEASE_PAGE_LIMIT,
+            offset=offset,
+        ),
+        f"loading releases for {artist.name} at offset {offset}",
     )
 
 
@@ -363,48 +340,40 @@ def load_release_tracks(
     first_only: bool = False,
 ) -> tuple[ReleaseTrack, ...]:
     """Load tracks in Spotify disc and track order."""
-    tracks: list[ReleaseTrack] = []
-    offset = 0
-    limit = 1 if first_only else RELEASE_TRACK_PAGE_LIMIT
-    while True:
-        try:
-            response = retry_call(
-                partial(
-                    sp.album_tracks,
-                    release.spotify_id,
-                    limit=limit,
-                    offset=offset,
-                ),
-                f"loading tracks from {release.name} at offset {offset}",
-            )
-        except SpotifyException as exc:
-            if exc.http_status != 404:
-                raise
-            return ()
-        if not isinstance(response, dict) or not isinstance(
-            response.get("items"), list
-        ):
-            raise ReleaseCheckSpotifyError(
-                f"Spotify returned invalid track data for {release.name}."
-            )
-        raw_items = response["items"]
-        for raw_track in raw_items:
-            track = _track_candidate(raw_track, len(tracks) + 1)
-            if track is not None:
-                tracks.append(track)
-        if first_only or not response.get("next"):
-            break
-        offset += len(raw_items)
-        if not raw_items:
-            raise ReleaseCheckSpotifyError(
-                f"Spotify returned an empty track page for {release.name}."
-            )
-    return tuple(
-        sorted(
-            tracks,
-            key=lambda track: (track.disc_number, track.track_number),
-        )
+    from spotify_manager.infrastructure.release_pages import load_track_pages
+
+    return load_track_pages(
+        partial(_read_track_page, sp, release, retry_call),
+        _track_candidate,
+        release.name,
+        first_only,
+        RELEASE_TRACK_PAGE_LIMIT,
     )
+
+
+def _read_track_page(
+    sp: Spotify,
+    release: ReleaseCandidate,
+    retry_call: RetryCall,
+    offset: int,
+    limit: int,
+) -> object:
+    from spotify_manager.infrastructure.release_pages import MissingReleaseTracksError
+
+    try:
+        return retry_call(
+            partial(
+                sp.album_tracks,
+                release.spotify_id,
+                limit=limit,
+                offset=offset,
+            ),
+            f"loading tracks from {release.name} at offset {offset}",
+        )
+    except SpotifyException as exc:
+        if exc.http_status != 404:
+            raise
+        raise MissingReleaseTracksError from exc
 
 
 def matching_future_release(
@@ -438,40 +407,16 @@ def matching_future_release(
 
 def _default_state() -> dict[str, Any]:
     """Return an empty versioned release-check state."""
-    return {
-        "version": STATE_VERSION,
-        "updated_at": None,
-        "last_successful_check_at": None,
-        "last_checked_through": None,
-        "artist_mappings": {},
-        "skipped_artists": {},
-        "processed_releases": {},
-        "pending_singles": {},
-        "active_run": None,
-    }
+    from spotify_manager.infrastructure.release_state_codec import default_state
+
+    return default_state(STATE_VERSION)
 
 
 def validate_state(raw: object) -> dict[str, Any]:
     """Validate and normalize one release-check state payload."""
-    if isinstance(raw, dict):
-        raw = deepcopy(raw)
-        # Earlier version 1 payloads predate these additive durability fields.
-        raw.setdefault("updated_at", None)
-        raw.setdefault("skipped_artists", {})
-    if (
-        not isinstance(raw, dict)
-        or raw.get("version") != STATE_VERSION
-        or not isinstance(raw.get("artist_mappings"), dict)
-        or not isinstance(raw.get("skipped_artists"), dict)
-        or not isinstance(raw.get("processed_releases"), dict)
-        or not isinstance(raw.get("pending_singles"), dict)
-        or (
-            raw.get("active_run") is not None
-            and not isinstance(raw["active_run"], dict)
-        )
-    ):
-        raise ReleaseCheckStateError("Release-check state is invalid.")
-    return raw
+    from spotify_manager.infrastructure.release_state_codec import validate_state
+
+    return validate_state(raw, STATE_VERSION)
 
 
 def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, Any]:
@@ -633,39 +578,23 @@ def append_event(
 
 def _active_artists(active: dict[str, Any]) -> tuple[RankedArtist, ...]:
     """Parse the frozen artist ranking from an active run."""
-    raw_artists = active.get("artists")
-    if not isinstance(raw_artists, list):
-        raise ReleaseCheckStateError("The active release-check ranking is invalid.")
-    try:
-        return tuple(RankedArtist(**raw) for raw in raw_artists)
-    except (TypeError, ValueError) as exc:
-        raise ReleaseCheckStateError(
-            "The active release-check ranking is invalid."
-        ) from exc
+    from spotify_manager.infrastructure.release_state_codec import active_artists
+
+    return active_artists(active)
 
 
 def _mapped_artist(raw: object) -> SpotifyArtistCandidate | None:
     """Parse one persisted Last.fm-to-Spotify mapping."""
-    if not isinstance(raw, dict):
-        return None
-    try:
-        return SpotifyArtistCandidate(**raw)
-    except TypeError, ValueError:
-        return None
+    from spotify_manager.infrastructure.release_state_codec import mapped_artist
+
+    return mapped_artist(raw)
 
 
 def _pending_single(raw: object) -> PendingSingle | None:
     """Parse one pending single from restart state."""
-    if not isinstance(raw, dict):
-        return None
-    try:
-        return PendingSingle(
-            artist_key=str(raw["artist_key"]),
-            release=ReleaseCandidate(**raw["release"]),
-            first_track=ReleaseTrack(**raw["first_track"]),
-        )
-    except KeyError, TypeError, ValueError:
-        return None
+    from spotify_manager.infrastructure.release_state_codec import pending_single
+
+    return pending_single(raw)
 
 
 def _run_id(now: datetime) -> str:
@@ -704,45 +633,14 @@ def _playlist_snapshot(
     retry_call: RetryCall,
 ) -> PlaylistSnapshot:
     """Load one destination playlist in order with artist indexes."""
-    entries: list[PlaylistEntry] = []
-    offset = 0
-    while True:
-        response = retry_call(
-            partial(
-                sp._get,
-                f"playlists/{playlist_id}/items",
-                limit=PLAYLIST_PAGE_LIMIT,
-                offset=offset,
-            ),
-            f"loading playlist {playlist_id} at offset {offset}",
-        )
-        if not isinstance(response, dict) or not isinstance(
-            response.get("items"), list
-        ):
-            raise ReleaseCheckSpotifyError(
-                f"Spotify returned invalid playlist data for {playlist_id}."
-            )
-        raw_items = response["items"]
-        for raw_entry in raw_items:
-            entry = _playlist_entry(raw_entry)
-            if entry is None:
-                raise ReleaseCheckSpotifyError(
-                    f"Playlist {playlist_id} contains an item that cannot be "
-                    "preserved safely."
-                )
-            entries.append(entry)
-        offset += len(raw_items)
-        total = response.get("total")
-        has_more = bool(response.get("next"))
-        if isinstance(total, int):
-            has_more = has_more or offset < total
-        if not has_more:
-            parsed = tuple(entries)
-            return PlaylistSnapshot(parsed, _membership(parsed))
-        if not raw_items:
-            raise ReleaseCheckSpotifyError(
-                f"Spotify returned an empty playlist page for {playlist_id}."
-            )
+    from spotify_manager.infrastructure.release_pages import load_playlist_pages
+
+    parsed = load_playlist_pages(
+        partial(_read_playlist_page, sp, playlist_id, retry_call),
+        _playlist_entry,
+        playlist_id,
+    )
+    return PlaylistSnapshot(parsed, _membership(parsed))
 
 
 def _playlist_membership(
@@ -904,20 +802,14 @@ def _result(
     dry_run: bool,
 ) -> ReleaseCheckResult:
     """Build one consistent release result."""
-    return ReleaseCheckResult(
-        artist=artist.name,
-        artist_rank=artist.rank,
-        artist_scrobbles=artist.scrobbles,
-        spotify_artist_id=spotify_artist.spotify_id,
-        release_id=release.spotify_id,
-        release=release.name,
-        release_type=release.release_type,
-        release_date=release.release_date,
-        first_track_id=track.spotify_id if track else None,
-        first_track=track.name if track else None,
-        linked_future_release=(
-            linked_future_release.name if linked_future_release else None
-        ),
+    from spotify_manager.application.release_results import release_result
+
+    return release_result(
+        artist,
+        spotify_artist,
+        release,
+        track=track,
+        linked_future_release=linked_future_release,
         wine_cellar_action=wine_cellar_action,
         new_vintage_action=new_vintage_action,
         reason=reason,
@@ -1063,6 +955,23 @@ def run_release_check(
         progress_callback,
         retry_call,
         dry_run,
+    )
+
+
+def _read_playlist_page(
+    sp: Spotify,
+    playlist_id: str,
+    retry_call: RetryCall,
+    offset: int,
+) -> object:
+    return retry_call(
+        partial(
+            sp._get,
+            f"playlists/{playlist_id}/items",
+            limit=PLAYLIST_PAGE_LIMIT,
+            offset=offset,
+        ),
+        f"loading playlist {playlist_id} at offset {offset}",
     )
 
 
