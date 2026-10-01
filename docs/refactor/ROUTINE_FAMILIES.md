@@ -1064,3 +1064,20 @@ mypy and all 11 frozen public artifacts pass. The full randomized suite passes
 
 Recommendation aggregation, fill and restartable flush remain in progress, as do
 the later approved waves. This checkpoint does not complete Item 6.
+
+### Queue artist recommendations and cache checkpoint
+
+Artist-neighborhood aggregation and weekly rotation now have a domain owner;
+the application owns ordered progress, current-week cache lookup, Last.fm reads
+and immediate cache acceptance before aggregation. Boundary codecs retain naive
+UTC timestamps, skipped nonrecord rows, permissive field conversion and actual
+addition filtering. Valid empty neighborhoods remain cache hits. Zero and
+negative candidate limits retain original slice behavior and still gather seeds.
+
+Fourteen ranking/cache observations were frozen and passed before extraction.
+Twenty-nine independent domain/application cases cover original results and
+accepted-effect failure prefixes. Sixteen boundary cases protect cache and log
+decoding. These owners have 100% statement/branch coverage (120 statements,
+28 branches). Isolated gates pass 571 domain and 1,107 application tests at 100%.
+Package Ruff, formatting and mypy pass; all 11 frozen public artifacts match.
+The Queue fill and restartable flush and the later approved waves remain pending.

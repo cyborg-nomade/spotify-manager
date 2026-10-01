@@ -1,0 +1,2612 @@
+{
+  "2026-08-07:-3": {
+    "limit": -3,
+    "week": "2026-08-07",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9759350393551097
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6605919680154184
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-07:-1": {
+    "limit": -1,
+    "week": "2026-08-07",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9759350393551097
+        },
+        {
+          "artist": "Tie B",
+          "key": "tieb",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 3,
+          "weekly_rank": 0.8499832011491388
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6605919680154184
+        },
+        {
+          "artist": "Zero",
+          "key": "zero",
+          "score": 0.0,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 4,
+          "weekly_rank": 0.0
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-07:0": {
+    "limit": 0,
+    "week": "2026-08-07",
+    "outcome": {
+      "result": [],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-07:1": {
+    "limit": 1,
+    "week": "2026-08-07",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9759350393551097
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-07:2": {
+    "limit": 2,
+    "week": "2026-08-07",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9759350393551097
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6605919680154184
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-07:5": {
+    "limit": 5,
+    "week": "2026-08-07",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9759350393551097
+        },
+        {
+          "artist": "Tie B",
+          "key": "tieb",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 3,
+          "weekly_rank": 0.8499832011491388
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6605919680154184
+        },
+        {
+          "artist": "Negative",
+          "key": "negative",
+          "score": -1.81125,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 5,
+          "weekly_rank": 0.6301179195710951
+        },
+        {
+          "artist": "Zero",
+          "key": "zero",
+          "score": 0.0,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 4,
+          "weekly_rank": 0.0
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-07:20": {
+    "limit": 20,
+    "week": "2026-08-07",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9759350393551097
+        },
+        {
+          "artist": "Tie B",
+          "key": "tieb",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 3,
+          "weekly_rank": 0.8499832011491388
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6605919680154184
+        },
+        {
+          "artist": "Negative",
+          "key": "negative",
+          "score": -1.81125,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 5,
+          "weekly_rank": 0.6301179195710951
+        },
+        {
+          "artist": "Zero",
+          "key": "zero",
+          "score": 0.0,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 4,
+          "weekly_rank": 0.0
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-14:-3": {
+    "limit": -3,
+    "week": "2026-08-14",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9815605912485584
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6991960913348938
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-14:-1": {
+    "limit": -1,
+    "week": "2026-08-14",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9815605912485584
+        },
+        {
+          "artist": "Tie B",
+          "key": "tieb",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 3,
+          "weekly_rank": 0.9320680617298649
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6991960913348938
+        },
+        {
+          "artist": "Zero",
+          "key": "zero",
+          "score": 0.0,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 4,
+          "weekly_rank": 0.0
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-14:0": {
+    "limit": 0,
+    "week": "2026-08-14",
+    "outcome": {
+      "result": [],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-14:1": {
+    "limit": 1,
+    "week": "2026-08-14",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9815605912485584
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-14:2": {
+    "limit": 2,
+    "week": "2026-08-14",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9815605912485584
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6991960913348938
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-14:5": {
+    "limit": 5,
+    "week": "2026-08-14",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9815605912485584
+        },
+        {
+          "artist": "Tie B",
+          "key": "tieb",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 3,
+          "weekly_rank": 0.9320680617298649
+        },
+        {
+          "artist": "Negative",
+          "key": "negative",
+          "score": -1.81125,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 5,
+          "weekly_rank": 0.8803439420754202
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6991960913348938
+        },
+        {
+          "artist": "Zero",
+          "key": "zero",
+          "score": 0.0,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 4,
+          "weekly_rank": 0.0
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "2026-08-14:20": {
+    "limit": 20,
+    "week": "2026-08-14",
+    "outcome": {
+      "result": [
+        {
+          "artist": "Beyoncé",
+          "key": "beyonce",
+          "score": 5.0714999999999995,
+          "best_match": 0.9,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 1,
+          "weekly_rank": 0.9815605912485584
+        },
+        {
+          "artist": "Tie B",
+          "key": "tieb",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 3,
+          "weekly_rank": 0.9320680617298649
+        },
+        {
+          "artist": "Negative",
+          "key": "negative",
+          "score": -1.81125,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 5,
+          "weekly_rank": 0.8803439420754202
+        },
+        {
+          "artist": "Tie A",
+          "key": "tiea",
+          "score": 2.5357499999999997,
+          "best_match": 0.7,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 2,
+          "weekly_rank": 0.6991960913348938
+        },
+        {
+          "artist": "Zero",
+          "key": "zero",
+          "score": 0.0,
+          "best_match": 0.0,
+          "supporting_seeds": [
+            "Seed A",
+            "Seed B"
+          ],
+          "base_rank": 4,
+          "weekly_rank": 0.0
+        }
+      ],
+      "requests": [
+        [
+          "Seed A",
+          50
+        ],
+        [
+          "Seed B",
+          50
+        ],
+        [
+          "Seed A",
+          50
+        ]
+      ],
+      "saves": 3,
+      "cache": {
+        "version": 1,
+        "entries": {
+          "seed-a": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          },
+          "seed-b": {
+            "artist": "Seed B",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              }
+            ]
+          },
+          "duplicate": {
+            "artist": "Seed A",
+            "fetched_at": "2026-08-08T00:00:00+00:00",
+            "artists": [
+              {
+                "artist": "Beyoncé",
+                "match": 0.9
+              },
+              {
+                "artist": "BEYONCE",
+                "match": 0.5
+              },
+              {
+                "artist": "",
+                "match": 1.0
+              },
+              {
+                "artist": "Heard",
+                "match": 1.0
+              },
+              {
+                "artist": "Previous",
+                "match": 1.0
+              },
+              {
+                "artist": "Zero",
+                "match": 0.0
+              },
+              {
+                "artist": "Negative",
+                "match": -0.5
+              },
+              {
+                "artist": "Tie B",
+                "match": 0.7
+              },
+              {
+                "artist": "Tie A",
+                "match": 0.7
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

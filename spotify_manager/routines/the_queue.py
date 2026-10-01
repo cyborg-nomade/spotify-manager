@@ -7,7 +7,6 @@ from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import asdict
 from dataclasses import dataclass
-from dataclasses import replace
 from datetime import UTC
 from datetime import date
 from datetime import datetime
@@ -127,21 +126,6 @@ class QueuePlaylists:
         except new_wine.NewWineConfigError as exc:
             raise QueueConfigError(str(exc)) from exc
         return cls(*parsed)
-
-
-@dataclass
-class _ArtistAccumulator:
-    """Mutable candidate score while seed neighborhoods are combined."""
-
-    artist: str
-    key: str
-    score: float = 0.0
-    best_match: float = 0.0
-    supporting_seeds: set[str] | None = None
-
-    def __post_init__(self) -> None:
-        if self.supporting_seeds is None:
-            self.supporting_seeds = set()
 
 
 FillAction = Literal[
@@ -391,47 +375,32 @@ def _cached_similar_artists(
     raw: object,
     week_start: date,
 ) -> tuple[LastFmSimilarArtist, ...] | None:
-    if not isinstance(raw, dict):
-        return None
-    try:
-        fetched_at = datetime.fromisoformat(str(raw["fetched_at"]))
-        if fetched_at.tzinfo is None:
-            fetched_at = fetched_at.replace(tzinfo=UTC)
-        if found_art.listening_week_start(fetched_at) != week_start:
-            return None
-        values = raw["artists"]
-        if not isinstance(values, list):
-            return None
-        return tuple(
-            LastFmSimilarArtist(
-                artist=str(value["artist"]),
-                match=float(value["match"]),
-            )
-            for value in values
-            if isinstance(value, dict)
-        )
-    except KeyError, TypeError, ValueError:
-        return None
+    from spotify_manager.infrastructure.queue_neighborhoods import cached_artists
+
+    return cached_artists(raw, week_start, found_art.listening_week_start)
 
 
 def previously_added_artist_keys(path: Path = DEFAULT_LOG_PATH) -> set[str]:
-    """Return Last.fm artist keys actually added by earlier fill runs."""
+    """Return Last.fm artist keys actually added by earlier fill runs.
+
+    Args:
+        path: Original append-only Queue audit location.
+
+    Returns:
+        Original stripped nonblank identities from actual additions.
+
+    Raises:
+        QueueStateError: The original log cannot be read or decoded.
+    """
     if not path.exists():
         return set()
-    keys: set[str] = set()
+    from spotify_manager.infrastructure.queue_neighborhoods import added_artist_keys
+
     try:
         with path.open(encoding="utf-8") as source:
-            for line in source:
-                if not line.strip():
-                    continue
-                raw = json.loads(line)
-                if isinstance(raw, dict) and raw.get("event") == "artist_added":
-                    key = str(raw.get("lastfm_artist_key") or "").strip()
-                    if key:
-                        keys.add(key)
+            return added_artist_keys(source)
     except (OSError, json.JSONDecodeError) as exc:
         raise QueueStateError(f"Queue log is invalid: {path}") from exc
-    return keys
 
 
 def gather_artist_recommendations(
@@ -446,81 +415,39 @@ def gather_artist_recommendations(
     now: datetime | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[ArtistRecommendation, ...]:
-    """Aggregate Last.fm artist neighborhoods into a weekly ordering."""
-    active_now = (now or datetime.now(UTC)).astimezone(UTC)
-    active_week = week_start or found_art.listening_week_start(active_now)
-    cache = _load_cache(cache_path)
-    entries = cache["entries"]
-    assert isinstance(entries, dict)
-    excluded = heard_keys | previously_added_artist_keys(log_path)
-    candidates: dict[str, _ArtistAccumulator] = {}
-    for index, seed in enumerate(seeds, start=1):
-        if progress_callback is not None:
-            progress_callback(
-                index - 1, len(seeds), f"Last.fm neighbors: {seed.artist}"
-            )
-        similar = _cached_similar_artists(entries.get(seed.key), active_week)
-        if similar is None:
-            similar = lastfm.similar_artists(seed.artist, limit=SIMILAR_ARTIST_LIMIT)
-            entries[seed.key] = {
-                "artist": seed.artist,
-                "fetched_at": active_now.isoformat(),
-                "artists": [asdict(candidate) for candidate in similar],
-            }
-            _save_cache(cache, cache_path)
-        for neighbor in similar:
-            key = canonical_artist_key(neighbor.artist)
-            if not key or key in excluded:
-                continue
-            candidate = candidates.setdefault(
-                key,
-                _ArtistAccumulator(artist=neighbor.artist, key=key),
-            )
-            candidate.score += seed.weight * neighbor.match
-            candidate.best_match = max(candidate.best_match, neighbor.match)
-            assert candidate.supporting_seeds is not None
-            candidate.supporting_seeds.add(seed.artist)
-    base_ranked = sorted(
-        (
-            ArtistRecommendation(
-                artist=candidate.artist,
-                key=candidate.key,
-                score=candidate.score
-                * (1 + 0.15 * (len(candidate.supporting_seeds or ()) - 1)),
-                best_match=candidate.best_match,
-                supporting_seeds=tuple(sorted(candidate.supporting_seeds or ())),
-            )
-            for candidate in candidates.values()
-        ),
-        key=lambda candidate: (
-            -candidate.score,
-            -len(candidate.supporting_seeds),
-            -candidate.best_match,
-            candidate.key,
-        ),
-    )[:candidate_pool_size]
-    rotated = tuple(
-        replace(
-            candidate,
-            base_rank=rank,
-            weekly_rank=found_art.weekly_weighted_rank(
-                active_week,
-                "queue-candidate",
-                (candidate.key, ""),
-                candidate.score**2,
-            ),
-        )
-        for rank, candidate in enumerate(base_ranked, start=1)
+    """Aggregate Last.fm artist neighborhoods into a weekly ordering.
+
+    Args:
+        lastfm: Caller-owned original Last.fm client.
+        seeds: Original ordered weighted seed artists.
+        heard_keys: Original heard artist identities.
+        cache_path: Original neighborhood cache location.
+        log_path: Original prior-addition audit location.
+        week_start: Optional original effective listening week.
+        candidate_pool_size: Original pool slice limit.
+        now: Optional original timestamp.
+        progress_callback: Optional original progress presenter.
+
+    Returns:
+        Original weekly ordering after accepted neighborhood checkpoints.
+
+    Raises:
+        QueueStateError: Original cache or audit data is unusable.
+    """
+    from spotify_manager.bootstrap.queue_recommendations import (
+        gather_queue_recommendations,
     )
-    return tuple(
-        sorted(
-            rotated,
-            key=lambda candidate: (
-                -candidate.weekly_rank,
-                candidate.base_rank,
-                candidate.key,
-            ),
-        )
+
+    return gather_queue_recommendations(
+        lastfm,
+        seeds,
+        heard_keys,
+        cache_path,
+        log_path,
+        week_start,
+        candidate_pool_size,
+        now,
+        progress_callback,
     )
 
 
