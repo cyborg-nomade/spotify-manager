@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from collections.abc import Iterable
-from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
@@ -99,12 +98,28 @@ class LastFmReader(found_art.LastFmReader, Protocol):
         *,
         limit: int = 50,
     ) -> tuple[LastFmSimilarArtist, ...]:
-        """Return artists similar to a seed artist."""
+        """Return artists similar to a seed artist.
+
+        Args:
+            artist: Original seed display spelling.
+            limit: Original requested maximum neighbors.
+
+        Returns:
+            Original ordered Last.fm neighborhood.
+        """
 
 
 @dataclass(frozen=True)
 class QueuePlaylists:
-    """Playlist ids involved in filling or promoting Queue artists."""
+    """Playlist identities involved in filling or promoting Queue artists.
+
+    Args:
+        queue: Original discovery Queue identity.
+        queue_2: Original promotion destination identity.
+        new_kids: Original active-listening destination identity.
+        queue_3: Original completed-artist destination identity.
+        unlucky_ones: Original rejection destination identity.
+    """
 
     queue: str
     queue_2: str
@@ -121,7 +136,21 @@ class QueuePlaylists:
         queue_3: str | None,
         unlucky_ones: str | None,
     ) -> QueuePlaylists:
-        """Parse all Queue-stage playlist references."""
+        """Parse all Queue-stage playlist references.
+
+        Args:
+            queue: Original discovery Queue reference.
+            queue_2: Original promotion destination reference.
+            new_kids: Original active-listening destination reference.
+            queue_3: Original completed-artist destination reference.
+            unlucky_ones: Original rejection destination reference.
+
+        Returns:
+            Original parsed Queue-stage identities.
+
+        Raises:
+            QueueConfigError: An original reference is missing or invalid.
+        """
         values = (
             (queue, "THE_QUEUE_PLAYLIST"),
             (queue_2, "THE_QUEUE_2_PLAYLIST"),
@@ -147,7 +176,17 @@ def _default_state() -> dict[str, object]:
 
 
 def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
-    """Load versioned Queue state without masking corruption."""
+    """Load versioned Queue state without masking corruption.
+
+    Args:
+        path: Original local Queue state location.
+
+    Returns:
+        Original validated state or the original missing-file default.
+
+    Raises:
+        QueueStateError: The original file cannot be read, decoded or validated.
+    """
     if not path.exists():
         return _default_state()
     try:
@@ -161,7 +200,17 @@ def load_state(path: Path = DEFAULT_STATE_PATH) -> dict[str, object]:
 
 
 def validate_state(raw: object) -> dict[str, object]:
-    """Validate The Queue namespace independently of storage."""
+    """Validate The Queue namespace independently of storage.
+
+    Args:
+        raw: Original unchecked state document.
+
+    Returns:
+        Original caller-owned document without filtering unknown fields.
+
+    Raises:
+        QueueStateError: Original version or required section shapes are invalid.
+    """
     if (
         not isinstance(raw, dict)
         or raw.get("version") != STATE_VERSION
@@ -176,7 +225,16 @@ def validate_state(raw: object) -> dict[str, object]:
 
 
 def save_state(state: dict[str, object], path: Path = DEFAULT_STATE_PATH) -> None:
-    """Atomically persist Queue state."""
+    """Atomically persist Queue state.
+
+    Args:
+        state: Original complete mutable document.
+        path: Original local Queue state location.
+
+    Raises:
+        QueueStateError: Original state write or replacement fails.
+        OSError: Original temporary-file cleanup fails.
+    """
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -209,7 +267,16 @@ def _state_access(
 
 
 def append_event(path: Path, event: str, **details: object) -> None:
-    """Append one timestamped Queue audit event."""
+    """Append one timestamped Queue audit event.
+
+    Args:
+        path: Original append-only audit location.
+        event: Original event name.
+        details: Original ordered fields, retaining original override semantics.
+
+    Raises:
+        QueueStateError: The original audit file cannot be written.
+    """
     record = {
         "recorded_at": datetime.now(UTC).isoformat(),
         "event": event,
@@ -224,7 +291,14 @@ def append_event(path: Path, event: str, **details: object) -> None:
 
 
 def canonical_artist_key(name: str) -> str:
-    """Return the accent- and punctuation-tolerant Last.fm artist key."""
+    """Return the accent- and punctuation-tolerant Last.fm artist key.
+
+    Args:
+        name: Original artist spelling.
+
+    Returns:
+        Original normalized identity.
+    """
     return blast_from_past.normalize_name(name)
 
 
@@ -590,20 +664,12 @@ def _promotion_track(
     retry_call: RetryCall,
     track_cache: dict[str, tuple[new_kids.CatalogTrack, ...]],
 ) -> tuple[new_kids.CatalogTrack | None, str | None]:
-    for release in catalog:
-        if release.tier != 0:
-            continue
-        tracks = track_cache.get(release.spotify_id)
-        if tracks is None:
-            tracks = new_kids.load_release_tracks(sp, release, retry_call)
-            track_cache[release.spotify_id] = tracks
-        target = next(
-            (track for track in tracks if track.primary_artist_id == artist_id),
-            None,
-        )
-        if target is not None:
-            return target, release.name
-    return None, None
+    from spotify_manager.application.queue_flush_planning import promotion_marker
+    from spotify_manager.infrastructure.legacy.queue_planning import LegacyQueuePlanning
+
+    return promotion_marker(
+        LegacyQueuePlanning(sp, retry_call), artist_id, catalog, track_cache
+    )
 
 
 def _plan_flush_entry(
@@ -612,81 +678,9 @@ def _plan_flush_entry(
     source_uris: list[str],
     retry_call: RetryCall,
 ) -> dict[str, object]:
-    _album_ranks, top_tracks = new_kids.load_top_track_data(
-        sp, source.primary_artist_id, retry_call
-    )
-    top_tracks = top_tracks[:TOP_TRACK_LIMIT]
-    top_liked = _liked_statuses(sp, top_tracks, retry_call)
-    catalog = new_kids.load_ranked_catalog(sp, source.primary_artist_id, retry_call)
-    track_cache: dict[str, tuple[new_kids.CatalogTrack, ...]] = {}
-    assessment = new_kids.assess_artist(
-        sp,
-        source.primary_artist_id,
-        catalog,
-        retry_call,
-        track_cache,
-    )
-    source_index = next(
-        (
-            index
-            for index, track in enumerate(top_tracks)
-            if track.spotify_id == source.spotify_id
-        ),
-        -1,
-    )
-    next_unliked = next(
-        (
-            track
-            for track in top_tracks[source_index + 1 :]
-            if not top_liked.get(track.spotify_id, False)
-        ),
-        None,
-    )
-    liked_top_count = sum(top_liked.values())
-    promote_reason: str | None = None
-    if assessment.liked_tracks >= 6:
-        promote_reason = "six liked tracks in the primary-artist catalog"
-    elif next_unliked is None and liked_top_count >= 5:
-        promote_reason = "five liked tracks in the Spotify top ten"
-    if promote_reason is not None:
-        target, release_name = _promotion_track(
-            sp,
-            source.primary_artist_id,
-            catalog,
-            retry_call,
-            track_cache,
-        )
-        action: FlushAction = "promote" if target is not None else "blocked"
-        reason = (
-            promote_reason
-            if target is not None
-            else f"{promote_reason}, but no eligible top album marker was found"
-        )
-    elif next_unliked is not None:
-        target = next_unliked
-        release_name = None
-        action = "advance"
-        reason = "next unliked primary-artist track in the Spotify top ten"
-    elif assessment.top_liked_track is not None:
-        target = assessment.top_liked_track
-        release_name = None
-        action = "unlucky"
-        reason = "top-ten window ended below the promotion threshold"
-    else:
-        target = None
-        release_name = None
-        action = "unfollow"
-        reason = "top-ten window ended without any liked tracks"
-    return {
-        "action": action,
-        "source_uris": source_uris,
-        "target": asdict(target) if target is not None else None,
-        "target_release": release_name,
-        "top_tracks": len(top_tracks),
-        "top_liked_tracks": liked_top_count,
-        "total_liked_tracks": assessment.liked_tracks,
-        "reason": reason,
-    }
+    from spotify_manager.bootstrap.queue_planning import plan_queue_entry
+
+    return plan_queue_entry(sp, source, source_uris, retry_call)
 
 
 def _flush_result(

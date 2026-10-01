@@ -1139,3 +1139,25 @@ public artifacts match. The full randomized suite passes 4,255 tests with seed
 Live flush planning and its promotion-marker reads remain to finish, followed by
 the later approved deep-listening, library and operational waves. Item 6 remains
 in progress until every approved wave is accounted for.
+
+### Queue live planning checkpoint
+
+Pure Queue decisions now own advancement cursors, the six-catalog/five-top
+promotion thresholds, rejection reasons and missing-promotion blocking. The
+application gathers top tracks, liked status, ranked catalog and the shared
+artist assessment in original order, then resolves the first preferred primary
+marker using the original run-scoped cache. Original configured limits and
+compatibility seams remain at the edge. Queue's business stages are now separated;
+the compatibility module has only short helpers and delegates its workflows.
+
+One hundred forty-four original threshold/cursor/cache combinations passed before
+extraction. Both independent domain and application scenarios match every plan
+and ordered read trace. These owners reach 100% statement/branch coverage
+(78 statements, 28 branches). Isolated gates pass 734 domain and 1,383 application
+tests at 100%. Ruff, formatting, package mypy and strict new test typing pass.
+Structure checks find no long functions, nested definitions or multiline list
+comprehensions in new planning code. All 11 frozen public artifacts match.
+
+The next approved wave covers Something Old, Palace of Memory, Discography and
+New Year, followed by library/legacy and operational integration. Item 6 is not
+complete until those waves and the final ownership audit pass.

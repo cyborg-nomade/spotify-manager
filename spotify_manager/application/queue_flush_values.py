@@ -1,12 +1,9 @@
 """Original Queue flush result contracts and gathered restart facts."""
 
 from dataclasses import dataclass
-from typing import Literal
 
 from spotify_manager.domain.catalog import PlaylistTrack
-
-
-type FlushAction = Literal["advance", "promote", "unlucky", "unfollow", "blocked"]
+from spotify_manager.domain.queue_flush_decision import FlushAction as FlushAction
 
 
 @dataclass(frozen=True)
