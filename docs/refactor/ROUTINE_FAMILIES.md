@@ -965,3 +965,31 @@ ordering correction verified against the original runner.
 
 The release-check review, mutation and checkpoint stages and the remaining Item 6
 families still need migration before the milestone PR is ready.
+
+### Release-check complete coordinator checkpoint
+
+The release workflow now has independent stages for destination cleanup, artist
+mapping/exclusion, catalog edition selection, release review, ordered playlist
+writes and durable progress. The compatibility entry point composes those stages
+with the original synchronous SDK and persistence seams. No SDK operation or
+public interface changed. The main runner no longer embeds a 600-line review loop.
+
+Before extraction, 43 complete-run and accepted-effect failure scenarios were
+captured from source `979330d` in `tests/fixtures/refactor/release_run.json`.
+Those immutable observations cover mapping/skip/quit behavior, preview learning,
+composer and membership exclusions, market editions, processed/pending releases,
+single containment, invalid choices and accepted-write failure prefixes. Both the
+compatibility runner and the independent application workflow match every trace,
+checkpoint and result. Additional tests protect numeric checkpoint boundaries,
+malformed progress, retrieving all sections before type assertions, pending
+ownership, missing catalog records, unavailable single markers, cleanup audits,
+and defaults without a review callback.
+
+The extracted stages and catalog policies reach 100% statement and branch
+coverage (417 statements, 128 branches). Isolated domain and application gates
+pass 488 and 1,070 tests at 100% statement/branch coverage. Package Ruff, formatting
+and mypy pass (264 source files); short-function checks pass for new code, and all
+11 frozen public artifacts match. The complete randomized suite passes 3,657
+tests with seed 20261016. Release paging/storage boundary ownership remains to
+finish before moving on to The Queue, genre reveal and the later approved waves.
+Item 6 remains in progress; this checkpoint does not open its milestone PR.
