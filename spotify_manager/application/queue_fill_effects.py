@@ -6,33 +6,13 @@ from datetime import datetime
 from typing import Protocol
 
 from spotify_manager.application.queue_fill_values import FillResult
+from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.queue_values import ArtistHistory
 from spotify_manager.domain.queue_values import ArtistRecommendation
 from spotify_manager.domain.queue_values import ArtistSeed
-
-
-class QueueFillState(Protocol):
-    """Original caller-owned Queue state and accepted checkpoint boundaries."""
-
-    def load(self) -> dict[str, object]:
-        """Read original mutable Queue state.
-
-        Returns:
-            Original complete state document.
-        """
-
-    def save(self, state: dict[str, object], /) -> object:
-        """Accept the original complete checkpoint.
-
-        Args:
-            state: Original complete mutable state.
-
-        Returns:
-            Original storage acknowledgment, ignored by the workflow.
-        """
 
 
 class QueueFillEffects(Protocol):
@@ -121,7 +101,7 @@ class QueueFillEffects(Protocol):
             Original represented Spotify artist identities.
         """
 
-    def state(self) -> QueueFillState:
+    def state(self) -> QueueStateAccess:
         """Resolve the original state access boundary.
 
         Returns:

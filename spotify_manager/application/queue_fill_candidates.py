@@ -6,8 +6,8 @@ from dataclasses import field
 from typing import Literal
 
 from spotify_manager.application.queue_fill_effects import QueueFillEffects
-from spotify_manager.application.queue_fill_effects import QueueFillState
 from spotify_manager.application.queue_fill_values import FillResult
+from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.queue_fill import first_unliked
@@ -33,7 +33,7 @@ class QueueFillCandidates:
     """
 
     effects: QueueFillEffects
-    access: QueueFillState
+    access: QueueStateAccess
     state: dict[str, object]
     mappings: dict[str, object]
     represented: set[str]

@@ -1106,3 +1106,36 @@ pass. New functions are short and contain no nested definitions or multiline
 list comprehensions. All 11 frozen public artifacts match.
 
 Restartable Queue flush and the later approved waves remain pending.
+
+The full randomized fill checkpoint passes 4,069 tests with seed 20261021
+(94.08% statements, 85.42% branches).
+
+### Queue restartable flush checkpoint
+
+The application now owns opening/resuming daily snapshots, durable plan
+acceptance, ordered destination effects, source removal, completion audits and
+entry/final checkpoints. Pure policies own distinct-artist daily selection and
+the original live membership rules. Tolerant stored-record constructors have an
+infrastructure owner. The shared Queue state port is independent of either fill
+or flush. Original SDK expressions and callable compatibility seams remain at
+the outer boundary.
+
+Fifty-eight complete observations passed against the original runner before
+extraction. Eight additional indexed checkpoint/progress failures and 14 resumed
+executions were captured by replaying trusted pre-extraction source `4489fa3`
+offline, without changing the checkout. Independent application runs match every
+trace, result, checkpoint and live membership. Stored plans retain authority;
+unknown actions retain original tolerance. Preview runs still audit completions.
+First-initial-URI identity removal and zero daily-limit behavior are preserved.
+
+The coordinator, effects and membership policies have 100% statement/branch
+coverage (191 statements, 76 branches). Twenty-six boundary cases cover stored
+records at 100% coverage (45 statements, 12 branches). Isolated gates pass 588
+domain and 1,238 application tests at 100%. Ruff, formatting, package mypy and
+strict new test typing pass; short/flat structure checks pass. All 11 frozen
+public artifacts match. The full randomized suite passes 4,255 tests with seed
+20261022 (94.17% statements, 85.78% branches).
+
+Live flush planning and its promotion-marker reads remain to finish, followed by
+the later approved deep-listening, library and operational waves. Item 6 remains
+in progress until every approved wave is accounted for.

@@ -12,8 +12,8 @@ from pathlib import Path
 
 from spotipy import Spotify
 
-from spotify_manager.application.queue_fill_effects import QueueFillState
 from spotify_manager.application.queue_fill_values import FillResult
+from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.application.queue_values import QueueStateError
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
@@ -198,7 +198,7 @@ class LegacyQueueFill:
             self.retry,
         )
 
-    def state(self) -> QueueFillState:
+    def state(self) -> QueueStateAccess:
         """Resolve original state authority after representation reads.
 
         Returns:

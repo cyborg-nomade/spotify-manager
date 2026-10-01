@@ -7,9 +7,9 @@ from datetime import date
 from datetime import datetime
 
 from spotify_manager.application.queue_fill import QueueFill
-from spotify_manager.application.queue_fill_effects import QueueFillState
 from spotify_manager.application.queue_fill_values import FillResult
 from spotify_manager.application.queue_fill_values import QueueFillRequest
+from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.application.queue_values import QueueSpotifyError
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
@@ -137,7 +137,7 @@ class MemoryQueueFill:
         )
         return {"artist"} if self.observations.scenario == "represented" else set()
 
-    def state(self) -> QueueFillState:
+    def state(self) -> QueueStateAccess:
         """Return caller-owned in-memory state without startup dependencies.
 
         Returns:

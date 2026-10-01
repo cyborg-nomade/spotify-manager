@@ -12,15 +12,16 @@ from datetime import date
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Literal
 from typing import Protocol
-from typing import cast
 
 from spotipy import Spotify
 
 from spotify_manager.application.queue_fill_values import FillAction as FillAction
 from spotify_manager.application.queue_fill_values import FillResult as FillResult
 from spotify_manager.application.queue_fill_values import FillSummary as FillSummary
+from spotify_manager.application.queue_flush_values import FlushAction as FlushAction
+from spotify_manager.application.queue_flush_values import FlushResult as FlushResult
+from spotify_manager.application.queue_flush_values import FlushSummary as FlushSummary
 from spotify_manager.application.queue_values import (
     QueueConfigError as QueueConfigError,
 )
@@ -47,9 +48,15 @@ from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import release_check
 from spotify_manager.routines.review_album_limits import record_followed_artist
-from spotify_manager.routines.review_artists import add_playlist_item
-from spotify_manager.routines.review_artists import remove_library_artists
-from spotify_manager.routines.review_artists import remove_playlist_items
+from spotify_manager.routines.review_artists import (
+    add_playlist_item as add_playlist_item,
+)
+from spotify_manager.routines.review_artists import (
+    remove_library_artists as remove_library_artists,
+)
+from spotify_manager.routines.review_artists import (
+    remove_playlist_items as remove_playlist_items,
+)
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -129,39 +136,6 @@ class QueuePlaylists:
         except new_wine.NewWineConfigError as exc:
             raise QueueConfigError(str(exc)) from exc
         return cls(*parsed)
-
-
-FlushAction = Literal["advance", "promote", "unlucky", "unfollow", "blocked"]
-
-
-@dataclass(frozen=True)
-class FlushResult:
-    """One Queue artist's snapshotted live decision."""
-
-    artist: str
-    source_track: str
-    action: FlushAction
-    top_tracks: int
-    top_liked_tracks: int
-    total_liked_tracks: int
-    target_track: str | None = None
-    target_release: str | None = None
-    reason: str | None = None
-    dry_run: bool = False
-
-
-@dataclass(frozen=True)
-class FlushSummary:
-    """Outcome of one restart-safe Queue flush."""
-
-    run_id: str
-    playlist_length_before: int
-    playlist_length_after: int
-    total: int
-    processed: int
-    resumed: bool
-    dry_run: bool
-    results: tuple[FlushResult, ...]
 
 
 def _default_state() -> dict[str, object]:
@@ -411,12 +385,9 @@ def gather_artist_recommendations(
 
 
 def _mapped_artist(raw: object) -> release_check.SpotifyArtistCandidate | None:
-    if not isinstance(raw, dict):
-        return None
-    try:
-        return release_check.SpotifyArtistCandidate(**raw)
-    except TypeError:
-        return None
+    from spotify_manager.infrastructure.queue_records import mapped_artist
+
+    return mapped_artist(raw)
 
 
 def _mapping_choice_reader(
@@ -588,54 +559,28 @@ def fill_queue_from_lastfm(
 
 
 def _playlist_track_from_record(raw: object) -> new_wine.PlaylistTrack:
-    if not isinstance(raw, dict) or not isinstance(raw.get("release"), dict):
-        raise QueueStateError("Queue run contains an invalid playlist track.")
-    try:
-        return new_wine.PlaylistTrack(
-            spotify_id=str(raw["spotify_id"]),
-            uri=str(raw["uri"]),
-            name=str(raw["name"]),
-            primary_artist_id=str(raw["primary_artist_id"]),
-            primary_artist_name=str(raw["primary_artist_name"]),
-            release=new_wine.ReleaseCandidate(**raw["release"]),
-        )
-    except (KeyError, TypeError) as exc:
-        raise QueueStateError("Queue run contains an invalid playlist track.") from exc
+    from spotify_manager.infrastructure.queue_records import playlist_track
+
+    return playlist_track(raw)
 
 
 def _catalog_track_from_record(raw: object) -> new_kids.CatalogTrack | None:
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        raise QueueStateError("Queue plan contains an invalid target track.")
-    try:
-        return new_kids.CatalogTrack(**raw)
-    except TypeError as exc:
-        raise QueueStateError("Queue plan contains an invalid target track.") from exc
+    from spotify_manager.infrastructure.queue_records import catalog_track
+
+    return catalog_track(raw)
 
 
 def _new_flush_run(
     playlist_id: str,
     tracks: tuple[new_wine.PlaylistTrack, ...],
 ) -> dict[str, object]:
-    selected: list[new_wine.PlaylistTrack] = []
-    seen: set[str] = set()
-    for track in tracks:
-        if track.primary_artist_id in seen:
-            continue
-        seen.add(track.primary_artist_id)
-        selected.append(track)
-        if len(selected) == DAILY_ARTIST_LIMIT:
-            break
-    return {
-        "run_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ"),
-        "playlist_id": playlist_id,
-        "started_at": datetime.now(UTC).isoformat(),
-        "entries": [
-            {"source": asdict(track), "status": "pending", "plan": None}
-            for track in selected
-        ],
-    }
+    from spotify_manager.application.queue_flush import new_flush_run
+
+    return new_flush_run(playlist_id, tracks, DAILY_ARTIST_LIMIT, _flush_clock)
+
+
+def _flush_clock() -> datetime:
+    return datetime.now(UTC)
 
 
 def _promotion_track(
@@ -749,27 +694,23 @@ def _flush_result(
     plan: dict[str, object],
     dry_run: bool,
 ) -> FlushResult:
-    target = _catalog_track_from_record(plan.get("target"))
-    integer_fields: dict[str, int] = {}
-    for key in ("top_tracks", "top_liked_tracks", "total_liked_tracks"):
-        value = plan.get(key)
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise QueueStateError(f"Queue plan has invalid {key}.")
-        integer_fields[key] = value
-    return FlushResult(
-        artist=source.primary_artist_name,
-        source_track=source.name,
-        action=cast(FlushAction, str(plan["action"])),
-        top_tracks=integer_fields["top_tracks"],
-        top_liked_tracks=integer_fields["top_liked_tracks"],
-        total_liked_tracks=integer_fields["total_liked_tracks"],
-        target_track=target.name if target is not None else None,
-        target_release=(
-            str(plan["target_release"]) if plan.get("target_release") else None
-        ),
-        reason=str(plan.get("reason") or "") or None,
-        dry_run=dry_run,
+    from spotify_manager.infrastructure.queue_records import flush_result
+
+    return flush_result(source, plan, dry_run)
+
+
+def _flush_following(
+    sp: Spotify,
+    source: new_wine.PlaylistTrack,
+    retry: RetryCall,
+) -> bool:
+    followed = retry(
+        partial(sp.current_user_following_artists, [source.primary_artist_id]),
+        f"checking follow status for {source.primary_artist_name}",
     )
+    if not isinstance(followed, list) or not followed:
+        raise QueueSpotifyError("Spotify returned invalid artist follow status.")
+    return bool(followed[0])
 
 
 def flush_queue(
@@ -785,179 +726,38 @@ def flush_queue(
     log_path: Path = DEFAULT_LOG_PATH,
     artists_path: Path = DEFAULT_ARTISTS_PATH,
 ) -> FlushSummary:
-    """Advance the first ten Queue artists through their unliked top tracks."""
-    retry = retry_call or (lambda operation, _description: operation())
-    state_access = _state_access(state_path, state_service)
-    state = _default_state() if dry_run else state_access.load()
-    active = state.get("active_flush")
-    resumed = bool(
-        not dry_run
-        and isinstance(active, dict)
-        and active.get("playlist_id") == playlists.queue
-    )
-    live_tracks = list(new_wine.load_playlist_tracks(sp, playlists.queue, retry))
-    length_before = len(live_tracks)
-    if resumed:
-        run = active
-        assert isinstance(run, dict)
-    else:
-        run = _new_flush_run(playlists.queue, tuple(live_tracks))
-        if not dry_run:
-            state["active_flush"] = run
-            state_access.save(state)
-    raw_entries = run.get("entries")
-    if not isinstance(raw_entries, list):
-        raise QueueStateError("Queue active flush has invalid entries.")
-    live_ids = {track.spotify_id for track in live_tracks}
-    live_uris = {track.uri for track in live_tracks}
-    queue_2_artists = {
-        track.primary_artist_id
-        for track in new_wine.load_playlist_tracks(sp, playlists.queue_2, retry)
-    }
-    unlucky_artists = {
-        track.primary_artist_id
-        for track in new_wine.load_playlist_tracks(sp, playlists.unlucky_ones, retry)
-    }
-    results: list[FlushResult] = []
-    total = len(raw_entries)
-    for index, raw_entry in enumerate(raw_entries, start=1):
-        if not isinstance(raw_entry, dict):
-            raise QueueStateError("Queue active flush has an invalid entry.")
-        if raw_entry.get("status") == "completed":
-            continue
-        source = _playlist_track_from_record(raw_entry.get("source"))
-        if progress_callback is not None:
-            progress_callback(
-                index - 1, total, f"Planning {source.primary_artist_name}"
-            )
-        raw_plan = raw_entry.get("plan")
-        plan = raw_plan if isinstance(raw_plan, dict) else None
-        if plan is None:
-            source_uris = [
-                track.uri
-                for track in live_tracks
-                if track.primary_artist_id == source.primary_artist_id
-            ] or [source.uri]
-            plan = _plan_flush_entry(sp, source, source_uris, retry)
-            raw_entry["plan"] = plan
-            if not dry_run:
-                state_access.save(state)
-        action = str(plan.get("action") or "")
-        target = _catalog_track_from_record(plan.get("target"))
-        raw_source_uris = plan.get("source_uris")
-        if not isinstance(raw_source_uris, list):
-            raise QueueStateError("Queue plan has invalid source URIs.")
-        source_uris = [str(uri) for uri in raw_source_uris]
-        if action == "advance" and target is not None:
-            if target.spotify_id not in live_ids and not dry_run:
-                retry(
-                    partial(add_playlist_item, sp, playlists.queue, target.uri),
-                    f"adding the next Queue track for {source.primary_artist_name}",
-                )
-            live_ids.add(target.spotify_id)
-            live_uris.add(target.uri)
-            echo(
-                f"{'Would advance' if dry_run else 'Advanced'} "
-                f"{source.primary_artist_name} to {target.name}."
-            )
-        elif action == "promote" and target is not None:
-            if source.primary_artist_id not in queue_2_artists:
-                if not dry_run:
-                    retry(
-                        partial(add_playlist_item, sp, playlists.queue_2, target.uri),
-                        f"promoting {source.primary_artist_name} to Queue 2",
-                    )
-                queue_2_artists.add(source.primary_artist_id)
-            echo(
-                f"{'Would promote' if dry_run else 'Promoted'} "
-                f"{source.primary_artist_name} to Queue 2 with {target.name}."
-            )
-        elif action == "unlucky" and target is not None:
-            if source.primary_artist_id not in unlucky_artists:
-                if not dry_run:
-                    retry(
-                        partial(
-                            add_playlist_item, sp, playlists.unlucky_ones, target.uri
-                        ),
-                        f"adding {source.primary_artist_name} to Unlucky Ones",
-                    )
-                unlucky_artists.add(source.primary_artist_id)
-            echo(
-                f"{'Would add' if dry_run else 'Added'} "
-                f"{source.primary_artist_name} to Unlucky Ones with {target.name}."
-            )
-        if action in {"unlucky", "unfollow"}:
-            followed = retry(
-                partial(
-                    sp.current_user_following_artists,
-                    [source.primary_artist_id],
-                ),
-                f"checking follow status for {source.primary_artist_name}",
-            )
-            if not isinstance(followed, list) or not followed:
-                raise QueueSpotifyError(
-                    "Spotify returned invalid artist follow status."
-                )
-            if bool(followed[0]):
-                if not dry_run:
-                    retry(
-                        partial(
-                            remove_library_artists,
-                            sp,
-                            [f"spotify:artist:{source.primary_artist_id}"],
-                        ),
-                        f"unfollowing {source.primary_artist_name}",
-                    )
-                    new_kids.remove_local_artist(source.primary_artist_id, artists_path)
-                echo(
-                    f"{'Would unfollow' if dry_run else 'Unfollowed'} "
-                    f"{source.primary_artist_name}."
-                )
-        if action != "blocked":
-            removable = [
-                uri
-                for uri in source_uris
-                if uri in live_uris
-                and not (action == "advance" and target and uri == target.uri)
-            ]
-            if removable and not dry_run:
-                retry(
-                    partial(remove_playlist_items, sp, playlists.queue, removable),
-                    "removing the previous Queue marker for "
-                    f"{source.primary_artist_name}",
-                )
-            for uri in removable:
-                live_uris.discard(uri)
-                matching = next(
-                    (track.spotify_id for track in live_tracks if track.uri == uri),
-                    None,
-                )
-                if matching is not None:
-                    live_ids.discard(matching)
-        result = _flush_result(source, plan, dry_run)
-        results.append(result)
-        append_event(
-            log_path,
-            "flush_artist_completed",
-            run_id=run.get("run_id"),
-            artist_id=source.primary_artist_id,
-            result=asdict(result),
-        )
-        if not dry_run:
-            raw_entry["status"] = "completed"
-            state_access.save(state)
-        if progress_callback is not None:
-            progress_callback(index, total, f"Completed {source.primary_artist_name}")
-    if not dry_run:
-        state["active_flush"] = None
-        state_access.save(state)
-    return FlushSummary(
-        run_id=str(run.get("run_id") or "dry-run"),
-        playlist_length_before=length_before,
-        playlist_length_after=len(live_uris),
-        total=total,
-        processed=len(results),
-        resumed=resumed,
-        dry_run=dry_run,
-        results=tuple(results),
+    """Advance the first ten Queue artists through their unliked top tracks.
+
+    Args:
+        sp: Original caller-owned Spotify client.
+        playlists: Original configured destination identities.
+        dry_run: Original preview behavior.
+        echo: Original text presenter.
+        progress_callback: Original optional stage presenter.
+        retry_call: Original optional retry boundary.
+        state_path: Original state location.
+        state_service: Original optional shared state authority.
+        log_path: Original audit location.
+        artists_path: Original artist mirror location.
+
+    Returns:
+        Original ordered outcomes after accepted effects and checkpoints.
+
+    Raises:
+        QueueStateError: Original stored sources, plans or counts are invalid.
+        QueueSpotifyError: Original follow-status response is invalid.
+    """
+    from spotify_manager.bootstrap.queue_flush import flush_queue as run_flush
+
+    return run_flush(
+        sp,
+        playlists,
+        dry_run,
+        echo,
+        progress_callback,
+        retry_call,
+        state_path,
+        state_service,
+        log_path,
+        artists_path,
     )
