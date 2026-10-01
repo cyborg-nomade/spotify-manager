@@ -1018,3 +1018,31 @@ reference counts and source paths. Ruff, formatting, package mypy and strict new
 boundary/test typing pass. The complete randomized suite passes 3,715 tests
 (seed 20261017). The next history/discovery migrations are The Queue and genre
 reveal; the approved later waves remain part of the same Item 6 milestone.
+
+### Genre reveal workflow and route checkpoint
+
+Genre reveal now separates pure route/slug/display/membership policies, public
+source and route codecs, Pydantic boundary contracts, the ordered save/copy/audit
+workflow and idempotent progress replacement. The synchronous public-page reader
+and original SDK expressions remain at the outer compatibility boundary.
+Callbacks and result presentation retain their original seams. Google-style
+engineering docs are independent of explicitly frozen Pydantic schema descriptions,
+so every published HTTP schema remains identical.
+
+Nine effect-order/failure contracts passed against original source `98531c0`
+before migration and still pass. Independent workflow cases reproduce those
+prefixes without SDK, filesystem or startup dependencies. Four actual CLI/HTTP
+cases exercise public-page decoding, membership, accepted writes, audit and state
+completion using offline transport boundaries. Failed accepted appends retain
+Spotify effects while leaving progress incomplete and producing no completion
+audit. Identical progress updates preserve existing metadata and perform no save;
+changed fields preserve route order and clock/read/save ordering.
+
+Domain/application policies and workflows have 100% statement/branch coverage;
+source/model codecs also have 100% coverage (96 statements, 18 branches). Domain
+and application gates pass 508 and 1,086 tests independently, both at 100%.
+Package Ruff, formatting and mypy pass (276 source files), strict new test typing
+passes, new functions satisfy the short/flat rules and contain no multiline list
+comprehensions. All 11 frozen public artifacts match. The randomized full suite
+passes 3,783 tests (seed 20261018). The Queue and the approved deep-listening,
+library and operational waves still remain before the complete Item 6 PR.
