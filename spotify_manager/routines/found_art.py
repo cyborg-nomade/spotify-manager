@@ -2,13 +2,10 @@
 
 import json
 from collections.abc import Iterable
-from dataclasses import dataclass
-from dataclasses import replace
 from datetime import UTC
 from datetime import date
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 from typing import Protocol
 
 from spotipy import Spotify
@@ -20,6 +17,9 @@ from spotify_manager.application.found_art_values import FoundArtError as FoundA
 from spotify_manager.application.found_art_values import (
     FoundArtStateError as FoundArtStateError,
 )
+from spotify_manager.application.found_art_values import (
+    FoundArtSummary as FoundArtSummary,
+)
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
 from spotify_manager.domain import recommendation_history as history_policy
@@ -30,6 +30,15 @@ from spotify_manager.domain.recommendation_candidates import (
     _CandidateAccumulator as _CandidateAccumulator,
 )
 from spotify_manager.domain.recommendation_history import TrackHistory as TrackHistory
+from spotify_manager.domain.recommendation_matching import (
+    FoundArtAction as FoundArtAction,
+)
+from spotify_manager.domain.recommendation_matching import (
+    FoundArtResult as FoundArtResult,
+)
+from spotify_manager.domain.recommendation_matching import (
+    preferred_recommendation_match,
+)
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed as FoundArtSeed
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history as shared_scrobble_history
@@ -51,15 +60,6 @@ MIN_WEEKLY_CANDIDATE_POOL = 100
 MAX_SEEDS_PER_ARTIST = 2
 TrackKey = tuple[str, str]
 ProgressCallback = blast_from_past.ProgressCallback
-FoundArtAction = Literal[
-    "added",
-    "would add",
-    "already present",
-    "artist already selected",
-    "duplicate",
-    "liked",
-    "no Spotify match",
-]
 
 
 class LastFmReader(Protocol):
@@ -82,45 +82,6 @@ class LastFmReader(Protocol):
         limit: int = 200,
     ) -> tuple[LastFmRecentTrack, ...]:
         """Return dated scrobbles in a UTC range."""
-
-
-@dataclass(frozen=True)
-class FoundArtResult:
-    """Spotify resolution outcome for one ranked Last.fm candidate."""
-
-    candidate: FoundArtCandidate
-    match: blast_from_past.SpotifyTrackMatch | None
-    action: FoundArtAction
-
-
-@dataclass(frozen=True)
-class FoundArtSummary:
-    """Completed Found Art recommendation and Spotify update."""
-
-    generated_at: datetime
-    week_start: date
-    playlist_id: str
-    requested_count: int
-    seed_count: int
-    history_tracks: int
-    history_scrobbles: int
-    live_scrobbles_added: int
-    candidate_count: int
-    playlist_length_before: int
-    playlist_length_after: int
-    dry_run: bool
-    seeds: tuple[FoundArtSeed, ...]
-    results: tuple[FoundArtResult, ...]
-
-    @property
-    def added(self) -> int:
-        """Return actual Spotify additions made by this run."""
-        return sum(result.action == "added" for result in self.results)
-
-    @property
-    def selected(self) -> int:
-        """Return additions or proposed additions selected by the run."""
-        return sum(result.action in {"added", "would add"} for result in self.results)
 
 
 def canonical_track_key(artist: str, track: str) -> TrackKey:
@@ -433,21 +394,7 @@ def _preferred_unliked_match(
     liked_ids: set[str],
 ) -> blast_from_past.SpotifyTrackMatch | None:
     """Choose the strongest Spotify match after excluding liked tracks."""
-    eligible = tuple(
-        replace(match, liked=False)
-        for match in matches
-        if match.spotify_id not in liked_ids
-    )
-    if not eligible:
-        return None
-    return max(
-        eligible,
-        key=lambda match: (
-            match.track_similarity,
-            match.popularity if match.popularity is not None else -1,
-            -match.search_rank,
-        ),
-    )
+    return preferred_recommendation_match(matches, liked_ids, liked=False)
 
 
 def resolve_spotify_candidates(
@@ -459,90 +406,28 @@ def resolve_spotify_candidates(
     dry_run: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[tuple[FoundArtResult, ...], tuple[blast_from_past.SpotifyTrackMatch, ...]]:
-    """Search ranked candidates until enough unliked Spotify tracks resolve."""
-    results: list[FoundArtResult] = []
-    pending: list[blast_from_past.SpotifyTrackMatch] = []
-    pending_ids: set[str] = set()
-    selected_artist_keys: set[str] = set()
-    maximum_candidates = min(
-        len(candidates),
-        max(count, count * SPOTIFY_CANDIDATE_MULTIPLIER),
+    """Search complete batches and retain original ordered selection decisions.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        candidates: Original ranked recommendation pool.
+        playlist: Observed destination membership.
+        count: Requested additions; helper-level nonpositive counts are tolerated.
+        dry_run: Present proposed additions when true.
+        progress_callback: Optional per-search and liked-check presenter.
+
+    Returns:
+        Ordered candidate outcomes and unique pending matches.
+
+    Raises:
+        SpotifyTrackResolutionError: Catalog or liked-status data is unusable.
+        ValueError: The configured batch size is zero.
+    """
+    from spotify_manager.bootstrap.recommendations import resolve_candidates
+
+    return resolve_candidates(
+        sp, candidates, playlist, count, dry_run, progress_callback
     )
-
-    for start in range(0, maximum_candidates, SPOTIFY_RESOLUTION_BATCH_SIZE):
-        if len(pending) >= count:
-            break
-        candidate_batch = candidates[start : start + SPOTIFY_RESOLUTION_BATCH_SIZE]
-        match_groups: list[tuple[blast_from_past.SpotifyTrackMatch, ...]] = []
-        for offset, candidate in enumerate(candidate_batch, start=start + 1):
-            if (
-                candidate.key in playlist.track_keys
-                or candidate.key[0] in selected_artist_keys
-            ):
-                match_groups.append(())
-                continue
-            if progress_callback is not None:
-                progress_callback(
-                    f"Searching Spotify candidate {offset}/{maximum_candidates}"
-                )
-            scrobble = blast_from_past.Scrobble(
-                artist=candidate.artist,
-                track=candidate.track,
-                album="",
-                timestamp_ms=0,
-            )
-            match_groups.append(blast_from_past.search_spotify_matches(sp, scrobble))
-
-        if progress_callback is not None:
-            progress_callback("Checking candidates against Spotify Liked Songs")
-        liked_ids = blast_from_past.liked_spotify_track_ids(sp, match_groups)
-        for candidate, matches in zip(candidate_batch, match_groups, strict=True):
-            artist_key = candidate.key[0]
-            if artist_key in selected_artist_keys:
-                match = None
-                action: FoundArtAction = "artist already selected"
-            elif candidate.key in playlist.track_keys:
-                match = None
-                action = "already present"
-            else:
-                liked_matches = tuple(
-                    replace(item, liked=True)
-                    for item in matches
-                    if item.spotify_id in liked_ids
-                )
-                if liked_matches:
-                    match = max(
-                        liked_matches,
-                        key=lambda item: (
-                            item.track_similarity,
-                            item.popularity if item.popularity is not None else -1,
-                            -item.search_rank,
-                        ),
-                    )
-                    action = "liked"
-                else:
-                    match = _preferred_unliked_match(matches, liked_ids)
-                    if match is None:
-                        action = "no Spotify match"
-                    elif match.spotify_id in playlist.track_ids:
-                        action = "already present"
-                    elif match.spotify_id in pending_ids:
-                        action = "duplicate"
-                    elif len(pending) >= count:
-                        break
-                    else:
-                        action = "would add" if dry_run else "added"
-                        pending.append(match)
-                        pending_ids.add(match.spotify_id)
-                        selected_artist_keys.add(artist_key)
-            results.append(
-                FoundArtResult(
-                    candidate=candidate,
-                    match=match,
-                    action=action,
-                )
-            )
-    return tuple(results), tuple(pending)
 
 
 def _result_record(result: FoundArtResult) -> dict[str, object]:
@@ -630,93 +515,45 @@ def run_found_art(
     now: datetime | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> FoundArtSummary:
-    """Generate unheard recommendations and append their Spotify matches."""
-    if count is not None and max_playlist_length is not None:
-        raise FoundArtConfigError(
-            "Use either count or maximum playlist length, not both."
-        )
-    if count is not None and count < 1:
-        raise FoundArtConfigError("Count must be at least 1.")
-    if max_playlist_length is not None and max_playlist_length < 1:
-        raise FoundArtConfigError("Maximum playlist length must be at least 1.")
-    if seed_count < 1:
-        raise FoundArtConfigError("Seed count must be at least 1.")
+    """Refresh history, resolve recommendations, append matches and audit the run.
 
-    generated_at = (now or datetime.now(UTC)).astimezone(UTC)
-    active_week = listening_week_start(generated_at)
-    history_scrobbles, live_added = refresh_scrobble_history(
+    Args:
+        sp: Caller-owned Spotify client.
+        lastfm: Caller-owned history and neighborhood reader.
+        playlist_id: Original destination identifier.
+        count: Optional positive explicit addition count.
+        max_playlist_length: Optional positive capacity, exclusive with count.
+        seed_count: Positive requested neighborhood seed count.
+        dry_run: Suppress remote appends while retaining preview history and audit.
+        export_path: Original canonical export path.
+        recent_path: Original legacy history delta path.
+        cache_path: Original neighborhood cache destination.
+        log_path: Original audit destination.
+        now: Optional effective UTC timestamp.
+        progress_callback: Optional original progress observer.
+
+    Returns:
+        Original completed summary after its audit is accepted.
+
+    Raises:
+        FoundArtConfigError: Request settings are invalid.
+        FoundArtStateError: History, cache, seed selection or audit is unusable.
+        SpotifyTrackResolutionError: Catalog or destination data is unusable.
+    """
+    from spotify_manager.bootstrap.recommendations import run_recommendations
+
+    return run_recommendations(
+        sp,
         lastfm,
-        export_path=export_path,
-        recent_path=recent_path,
-        dry_run=dry_run,
-        now=generated_at,
-        progress_callback=progress_callback,
+        playlist_id,
+        count,
+        max_playlist_length,
+        seed_count,
+        dry_run,
+        export_path,
+        recent_path,
+        cache_path,
+        log_path,
+        now,
+        progress_callback,
     )
-    history = aggregate_track_history(history_scrobbles)
-
-    if progress_callback is not None:
-        progress_callback("Loading the Found Art Spotify playlist")
-    playlist = blast_from_past.load_playlist_state(sp, playlist_id)
-    requested_count = count if count is not None else DEFAULT_COUNT
-    if max_playlist_length is not None:
-        requested_count = max(0, max_playlist_length - playlist.total_items)
-
-    if requested_count:
-        seeds = select_seed_tracks(
-            history,
-            seed_count=seed_count,
-            week_start=active_week,
-        )
-        heard_keys = {track.key for track in history}
-        candidate_pool_size = max(
-            MIN_WEEKLY_CANDIDATE_POOL,
-            requested_count * WEEKLY_CANDIDATE_POOL_MULTIPLIER,
-        )
-        candidates = gather_candidates(
-            lastfm,
-            seeds,
-            heard_keys,
-            cache_path=cache_path,
-            log_path=log_path,
-            week_start=active_week,
-            candidate_pool_size=candidate_pool_size,
-            now=generated_at,
-            progress_callback=progress_callback,
-        )
-        results, pending = resolve_spotify_candidates(
-            sp,
-            candidates,
-            playlist,
-            count=requested_count,
-            dry_run=dry_run,
-            progress_callback=progress_callback,
-        )
-    else:
-        seeds = ()
-        candidates = ()
-        results, pending = (), ()
-
-    if pending and not dry_run:
-        if progress_callback is not None:
-            progress_callback(f"Adding {len(pending)} tracks to Found Art")
-        blast_from_past.add_spotify_matches(sp, playlist_id, list(pending))
-
-    actual_additions = 0 if dry_run else len(pending)
-    summary = FoundArtSummary(
-        generated_at=generated_at,
-        week_start=active_week,
-        playlist_id=playlist_id,
-        requested_count=requested_count,
-        seed_count=len(seeds),
-        history_tracks=len(history),
-        history_scrobbles=len(history_scrobbles),
-        live_scrobbles_added=live_added,
-        candidate_count=len(candidates),
-        playlist_length_before=playlist.total_items,
-        playlist_length_after=playlist.total_items + actual_additions,
-        dry_run=dry_run,
-        seeds=seeds,
-        results=results,
-    )
-    append_found_art_log(summary, log_path)
-    return summary

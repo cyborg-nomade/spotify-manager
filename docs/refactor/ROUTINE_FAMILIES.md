@@ -680,3 +680,36 @@ decoding and serialization remain behind the legacy adapter for a later slice.
 
 Found Art Spotify resolution, full-run orchestration and storage ownership
 remain pending. Item 6 continues as one milestone without a PR or deployment.
+
+### Recommendation resolution and full-run checkpoint
+
+Found Art's liked/unliked preference and ordered artist, membership, duplicate
+and capacity decisions now belong to the domain. The application observes whole
+search batches before reading liked status and projecting results. Its distinct
+ranking still ignores album similarity, and any liked match suppresses additions.
+Known artist/key exclusions skip searches while retaining empty liked groups.
+
+The injected full-run coordinator refreshes canonical history before observing
+destination capacity, then selects seeds, gathers cached neighborhoods, resolves
+matches, appends pending tracks and audits the completed summary. Full playlists
+still refresh history and audit; previews retain history, cache and audit effects.
+The existing models and routine functions remain available as compatibility aliases
+and facades.
+
+Nine matching and twelve full-run boundary tests passed against the original code
+before their respective extractions. Four actual CLI/HTTP tests execute the full
+migrated path with deterministic clocks, simulated clients and isolated files.
+They verify live liked exclusions, accepted appends, preview cache/audit writes
+and empty neighborhood checkpoints.
+
+- Full suite: **2,837 tests pass**, seed `20261006`;
+  **93.18% statements** (20,389 / 21,882),
+  **82.79% branches** (4,406 / 5,322).
+- Independent gates: **328 domain tests**, **880 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen public artifacts, package Ruff lint/format, package mypy
+  (223 source files) and strict inner-layer checks pass.
+
+Found Art cache/audit codecs and storage ownership still remain at legacy seams.
+The remaining history/discovery routines and later waves remain pending; this
+checkpoint does not complete Item 6 or open its milestone PR.
