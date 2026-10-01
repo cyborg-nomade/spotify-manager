@@ -1,9 +1,6 @@
 """Rebuild Last.fm-style track recommendations for the Found Art playlist."""
 
-import hashlib
 import json
-import math
-from collections import Counter
 from collections.abc import Iterable
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -11,16 +8,25 @@ from dataclasses import replace
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from datetime import timedelta
 from pathlib import Path
 from typing import Literal
 from typing import Protocol
 
 from spotipy import Spotify
 
-# UFI
+from spotify_manager.application.found_art_values import (
+    FoundArtConfigError as FoundArtConfigError,
+)
+
+from spotify_manager.application.found_art_values import FoundArtError as FoundArtError
+from spotify_manager.application.found_art_values import (
+    FoundArtStateError as FoundArtStateError,
+)
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
+from spotify_manager.domain import recommendation_history as history_policy
+from spotify_manager.domain.recommendation_history import TrackHistory as TrackHistory
+from spotify_manager.domain.recommendation_seeds import FoundArtSeed as FoundArtSeed
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history as shared_scrobble_history
 
@@ -52,18 +58,6 @@ FoundArtAction = Literal[
 ]
 
 
-class FoundArtError(RuntimeError):
-    """Base error for the Found Art recommendation routine."""
-
-
-class FoundArtConfigError(FoundArtError):
-    """Raised when required Last.fm or Spotify settings are missing."""
-
-
-class FoundArtStateError(FoundArtError):
-    """Raised when a cache, delta, or audit file cannot be used safely."""
-
-
 class LastFmReader(Protocol):
     """Read-only Last.fm methods used by this routine."""
 
@@ -84,33 +78,6 @@ class LastFmReader(Protocol):
         limit: int = 200,
     ) -> tuple[LastFmRecentTrack, ...]:
         """Return dated scrobbles in a UTC range."""
-
-
-@dataclass(frozen=True)
-class TrackHistory:
-    """Aggregated listening statistics for one normalized track."""
-
-    artist: str
-    track: str
-    key: TrackKey
-    play_count: int
-    recent_play_count: int
-    annual_play_count: int
-    last_played_ms: int
-
-
-@dataclass(frozen=True)
-class FoundArtSeed:
-    """One known track used to ask Last.fm for neighbors."""
-
-    artist: str
-    track: str
-    key: TrackKey
-    source: Literal["recent", "annual", "overall"]
-    play_count: int
-    source_play_count: int
-    weight: float
-    weekly_rank: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -183,17 +150,27 @@ class _CandidateAccumulator:
 
 
 def canonical_track_key(artist: str, track: str) -> TrackKey:
-    """Return the edition-tolerant identity used for heard-track filtering."""
-    return (
-        blast_from_past.normalize_name(artist),
-        blast_from_past.normalize_name(
-            blast_from_past.without_sliding_qualifiers(track)
-        ),
-    )
+    """Return the edition-tolerant identity used for heard-track filtering.
+
+    Args:
+        artist: Original display artist.
+        track: Original display title.
+
+    Returns:
+        Normalized artist and qualifier-free track identities.
+    """
+    return history_policy.canonical_track_key(artist, track)
 
 
 def listening_week_start(value: datetime | date | None = None) -> date:
-    """Return the Friday that starts the applicable Berlin listening week."""
+    """Return the Friday that starts the applicable Berlin listening week.
+
+    Args:
+        value: Optional date or timestamp; naive timestamps are interpreted as UTC.
+
+    Returns:
+        The preceding or same-day Friday after Berlin timezone conversion.
+    """
     if value is None:
         local_date = datetime.now(blast_from_past.SCROBBLE_TIMEZONE).date()
     elif isinstance(value, datetime):
@@ -202,8 +179,7 @@ def listening_week_start(value: datetime | date | None = None) -> date:
         local_date = value.astimezone(blast_from_past.SCROBBLE_TIMEZONE).date()
     else:
         local_date = value
-    days_since_friday = (local_date.weekday() - 4) % 7
-    return local_date - timedelta(days=days_since_friday)
+    return history_policy.listening_week_start(local_date)
 
 
 def _weekly_unit_interval(
@@ -212,10 +188,7 @@ def _weekly_unit_interval(
     key: TrackKey,
 ) -> float:
     """Return a stable nonzero 0-1 value for one track and listening week."""
-    payload = "\0".join((week_start.isoformat(), namespace, *key)).encode()
-    digest = hashlib.blake2b(payload, digest_size=8).digest()
-    integer = int.from_bytes(digest, byteorder="big")
-    return (integer + 1) / ((2**64) + 1)
+    return history_policy.weekly_unit_interval(week_start, namespace, key)
 
 
 def weekly_weighted_rank(
@@ -224,10 +197,18 @@ def weekly_weighted_rank(
     key: TrackKey,
     weight: float,
 ) -> float:
-    """Return a deterministic weighted-sampling key; larger values rank first."""
-    return _weekly_unit_interval(week_start, namespace, key) ** (
-        1 / max(weight, 0.000001)
-    )
+    """Return a deterministic weighted-sampling key; larger values rank first.
+
+    Args:
+        week_start: Effective listening week's Friday.
+        namespace: Existing ranking context.
+        key: Original normalized track identity.
+        weight: Existing sampling weight, floored at one millionth.
+
+    Returns:
+        The original weighted hash fraction.
+    """
+    return history_policy.weekly_weighted_rank(week_start, namespace, key, weight)
 
 
 def parse_found_art_playlist_id(reference: str | None) -> str:
@@ -283,49 +264,15 @@ def refresh_scrobble_history(
 def aggregate_track_history(
     scrobbles: Iterable[blast_from_past.Scrobble],
 ) -> tuple[TrackHistory, ...]:
-    """Aggregate all-time, annual, and 90-day seed statistics."""
-    materialized = list(scrobbles)
-    if not materialized:
-        return ()
-    latest_timestamp_ms = max(scrobble.timestamp_ms for scrobble in materialized)
-    recent_cutoff = latest_timestamp_ms - int(timedelta(days=90).total_seconds() * 1000)
-    annual_cutoff = latest_timestamp_ms - int(
-        timedelta(days=365).total_seconds() * 1000
-    )
-    total_counts: Counter[TrackKey] = Counter()
-    recent_counts: Counter[TrackKey] = Counter()
-    annual_counts: Counter[TrackKey] = Counter()
-    display: dict[TrackKey, tuple[int, str, str]] = {}
+    """Aggregate all-time, annual, and 90-day seed statistics.
 
-    for scrobble in materialized:
-        key = canonical_track_key(scrobble.artist, scrobble.track)
-        if not all(key):
-            continue
-        total_counts[key] += 1
-        if scrobble.timestamp_ms >= recent_cutoff:
-            recent_counts[key] += 1
-        if scrobble.timestamp_ms >= annual_cutoff:
-            annual_counts[key] += 1
-        current = display.get(key)
-        if current is None or scrobble.timestamp_ms > current[0]:
-            display[key] = (
-                scrobble.timestamp_ms,
-                scrobble.artist,
-                scrobble.track,
-            )
+    Args:
+        scrobbles: Ordered original plays, including invalid normalized identities.
 
-    return tuple(
-        TrackHistory(
-            artist=display[key][1],
-            track=display[key][2],
-            key=key,
-            play_count=play_count,
-            recent_play_count=recent_counts[key],
-            annual_play_count=annual_counts[key],
-            last_played_ms=display[key][0],
-        )
-        for key, play_count in total_counts.items()
-    )
+    Returns:
+        Valid identities in first-seen order with inclusive window counts.
+    """
+    return history_policy.aggregate_track_history(scrobbles)
 
 
 def select_seed_tracks(
@@ -334,150 +281,23 @@ def select_seed_tracks(
     seed_count: int = DEFAULT_SEED_COUNT,
     week_start: date | None = None,
 ) -> tuple[FoundArtSeed, ...]:
-    """Choose a weekly weighted mix of recent and established favorites."""
-    if seed_count < 1:
-        raise FoundArtConfigError("Seed count must be at least 1.")
-    tracks = tuple(history)
-    if not tracks:
-        raise FoundArtStateError("No tracks are available for recommendation seeds.")
-    active_week = week_start or listening_week_start()
+    """Choose a weekly weighted mix of recent and established favorites.
 
-    group_specs: tuple[
-        tuple[
-            Literal["recent", "annual", "overall"],
-            str,
-            float,
-        ],
-        ...,
-    ] = (
-        ("recent", "recent_play_count", 1.25),
-        ("annual", "annual_play_count", 1.10),
-        ("overall", "play_count", 1.00),
-    )
-    base_quota, remainder = divmod(seed_count, len(group_specs))
-    quotas = [
-        base_quota + (1 if index < remainder else 0)
-        for index in range(len(group_specs))
-    ]
-    selected: list[FoundArtSeed] = []
-    used_keys: set[TrackKey] = set()
-    artist_counts: Counter[str] = Counter()
+    Args:
+        history: Original ordered listening statistics.
+        seed_count: Requested seed count, subject to the original artist cap.
+        week_start: Optional listening week's Friday.
 
-    for quota, (source, metric_name, base_weight) in zip(
-        quotas,
-        group_specs,
-        strict=True,
-    ):
-        if quota == 0:
-            continue
-        popularity_pool = sorted(
-            (
-                track
-                for track in tracks
-                if getattr(track, metric_name) > 0 and track.key not in used_keys
-            ),
-            key=lambda track: (
-                -int(getattr(track, metric_name)),
-                -track.play_count,
-                -track.last_played_ms,
-                track.key,
-            ),
-        )[: quota * WEEKLY_SEED_POOL_MULTIPLIER]
-        weekly_pool = sorted(
-            (
-                (
-                    weekly_weighted_rank(
-                        active_week,
-                        f"seed:{source}",
-                        track.key,
-                        math.log1p(int(getattr(track, metric_name))),
-                    ),
-                    track,
-                )
-                for track in popularity_pool
-            ),
-            key=lambda item: (
-                -item[0],
-                -int(getattr(item[1], metric_name)),
-                item[1].key,
-            ),
-        )
-        group_added = 0
-        for weekly_rank, track in weekly_pool:
-            artist_key = track.key[0]
-            if artist_counts[artist_key] >= MAX_SEEDS_PER_ARTIST:
-                continue
-            source_count = int(getattr(track, metric_name))
-            weight = base_weight * (1 + min(math.log1p(source_count), 6.0) / 10)
-            selected.append(
-                FoundArtSeed(
-                    artist=track.artist,
-                    track=track.track,
-                    key=track.key,
-                    source=source,
-                    play_count=track.play_count,
-                    source_play_count=source_count,
-                    weight=weight,
-                    weekly_rank=weekly_rank,
-                )
-            )
-            used_keys.add(track.key)
-            artist_counts[artist_key] += 1
-            group_added += 1
-            if group_added >= quota or len(selected) >= seed_count:
-                break
+    Returns:
+        Exactly the requested number of seeds in quota and fallback order.
 
-    if len(selected) < seed_count:
-        remaining = seed_count - len(selected)
-        filler_pool = sorted(
-            (track for track in tracks if track.key not in used_keys),
-            key=lambda track: (
-                -track.play_count,
-                -track.last_played_ms,
-                track.key,
-            ),
-        )[: max(1000, remaining * 100)]
-        fillers = sorted(
-            (
-                (
-                    weekly_weighted_rank(
-                        active_week,
-                        "seed:overall:fallback",
-                        track.key,
-                        math.log1p(track.play_count),
-                    ),
-                    track,
-                )
-                for track in filler_pool
-            ),
-            key=lambda item: (-item[0], -item[1].play_count, item[1].key),
-        )
-        for weekly_rank, track in fillers:
-            artist_key = track.key[0]
-            if artist_counts[artist_key] >= MAX_SEEDS_PER_ARTIST:
-                continue
-            selected.append(
-                FoundArtSeed(
-                    artist=track.artist,
-                    track=track.track,
-                    key=track.key,
-                    source="overall",
-                    play_count=track.play_count,
-                    source_play_count=track.play_count,
-                    weight=1 + min(math.log1p(track.play_count), 6.0) / 10,
-                    weekly_rank=weekly_rank,
-                )
-            )
-            used_keys.add(track.key)
-            artist_counts[artist_key] += 1
-            if len(selected) >= seed_count:
-                break
-    if len(selected) < seed_count:
-        raise FoundArtStateError(
-            f"Only {len(selected)} sufficiently diverse seed tracks are "
-            f"available; {seed_count} were requested."
-        )
-    return tuple(selected)
+    Raises:
+        FoundArtConfigError: Count is less than one.
+        FoundArtStateError: History is empty or lacks enough diverse seeds.
+    """
+    from spotify_manager.bootstrap.recommendations import select_seeds
+
+    return select_seeds(history, seed_count, week_start)
 
 
 def _cache_key(seed: FoundArtSeed) -> str:

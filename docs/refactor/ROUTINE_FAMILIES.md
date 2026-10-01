@@ -620,3 +620,39 @@ and Random.org helpers remain behind the compatibility adapters for later cleanu
 
 Found Art and the remaining history/discovery routines are still pending.
 Item 6 remains one ongoing milestone with no PR or deployment.
+
+
+### Recommendation history and seed selection checkpoint
+
+Found Art's normalized track identities, occurrence statistics, Friday date policy
+and deterministic weekly ranking now belong to the domain. Local clock and Berlin
+timezone resolution remain at the outer boundary. The original newest-input
+recency anchor, inclusive 90/365-day windows, first-identity order and strictly
+newer display replacement are preserved, including invalid newest identities.
+
+Recent, annual and overall seed quotas now use short named popularity, weekly
+ranking, acceptance and fallback stages. Artist caps, original pool limits,
+source-specific weights and manually duplicated input tolerance are unchanged.
+The independent application service validates counts before consuming history,
+resolves a default week only after materialization, and retains original state
+errors when there are too few diverse seeds.
+
+Four history/rank contracts and seven exact seed snapshots passed against the
+original code before extraction. The seed fixtures record source `f1704d0` and
+include remainders, fallback, duplicates and diversity failures. Existing Found
+Art, Sauvignon and The Queue tests continue to pass unchanged.
+
+- Full suite: **2,722 tests pass**, seed `20261004`;
+  **93.08% statements**
+  (20,164 / 21,662),
+  **82.59% branches**
+  (4,392 / 5,318).
+- Independent gates: **312 domain tests**, **813 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen interface artifacts, package Ruff formatting/lint, package
+  mypy (217 source files) and strict inner-layer checks pass.
+- Pure standard-library `hashlib` and `functools` are now permitted by the domain
+  dependency check for the existing hashing and named sort-key binding.
+
+Found Art candidate/cache handling and the remaining discovery workflows remain
+in progress. This checkpoint does not complete Item 6 or open its milestone PR.

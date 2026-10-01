@@ -16,6 +16,8 @@ ALLOWED_IMPORTS = {
     "datetime",
     "difflib",
     "enum",
+    "functools",
+    "hashlib",
     "math",
     "re",
     "typing",
