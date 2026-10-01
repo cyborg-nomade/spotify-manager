@@ -944,3 +944,24 @@ clock/history observation, preserving the original order without duplicate
 validation or an extra application lifecycle abstraction. Invalid-request and
 valid-run regressions, the prior failure-prefix suite and actual CLI checks pass
 (**54 focused tests**). Package mypy and strict new contract checks pass.
+
+### Release-check opening checkpoint
+
+The application now owns opening a new run or resuming its frozen ranking and
+window. The outer adapter retains the clock, history configuration, original
+state handle and audit seams. Preview runs still refresh history for real;
+resumed runs do not refresh it. New runs checkpoint before the started event.
+Unknown state fields and the original previous-date/year-start rule are retained.
+
+Nine contracts ran against the original opening before extraction. Twenty-two
+independent application cases protect window boundaries, resume authority,
+observation order and accepted-write failure prefixes. The new coordinator has
+100% statement and branch coverage (68 statements, 8 branches). Domain and
+application gates pass independently: 481 and 999 tests respectively, both at
+100% statement/branch coverage. Package Ruff, formatting and mypy pass; all 11
+frozen public artifacts match. The randomized complete suite passes 3,536 tests
+(seed 20261015). This checkpoint also includes the Sauvignon validation/retry
+ordering correction verified against the original runner.
+
+The release-check review, mutation and checkpoint stages and the remaining Item 6
+families still need migration before the milestone PR is ready.

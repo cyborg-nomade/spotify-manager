@@ -1035,82 +1035,28 @@ def run_release_check(
     retry_call: RetryCall = _direct_retry,
 ) -> ReleaseCheckSummary:
     """Refresh Last.fm, discover releases, and update both playlists safely."""
-    generated_at = (now or datetime.now(UTC)).astimezone(UTC)
-    today = generated_at.astimezone(blast_from_past.SCROBBLE_TIMEZONE).date()
-    state_access = _state_access(state_path, state_service)
-    persisted_state = state_access.load()
-    state = deepcopy(persisted_state)
-    raw_active = state.get("active_run")
-    resumed = isinstance(raw_active, dict)
-    history_refresh: scrobble_history.ScrobbleHistorySummary | None = None
+    from spotify_manager.bootstrap.release_opening import open_release_run
 
-    if resumed:
-        assert isinstance(raw_active, dict)
-        active = raw_active
-        artists = _active_artists(active)
-        try:
-            checked_from = date.fromisoformat(str(active["checked_from"]))
-            checked_through = date.fromisoformat(str(active["checked_through"]))
-            run_id = str(active["run_id"])
-        except (KeyError, ValueError) as exc:
-            raise ReleaseCheckStateError(
-                "The active release-check window is invalid."
-            ) from exc
-    else:
-        history_refresh = scrobble_history.refresh_scrobble_history(
-            lastfm,
-            expected_username=expected_username,
-            export_path=export_path,
-            legacy_delta_path=legacy_delta_path,
-            backup_dir=backup_dir,
-            log_path=history_log_path,
-            dry_run=False,
-            now=generated_at,
-            progress_callback=(
-                (lambda message: progress_callback(0, 0, message))
-                if progress_callback is not None
-                else None
-            ),
-        )
-        artists = rank_lastfm_artists(history_refresh.history)
-        if not artists:
-            raise ReleaseCheckError(
-                f"No Last.fm artists have at least {MIN_ARTIST_SCROBBLES} scrobbles."
-            )
-        start_of_year = date(today.year, 1, 1)
-        raw_last_date = state.get("last_checked_through")
-        if isinstance(raw_last_date, str):
-            try:
-                previous_check = date.fromisoformat(raw_last_date)
-            except ValueError as exc:
-                raise ReleaseCheckStateError(
-                    "The previous release-check date is invalid."
-                ) from exc
-            checked_from = min(previous_check, start_of_year)
-        else:
-            checked_from = start_of_year
-        checked_through = today
-        run_id = _run_id(generated_at)
-        active = {
-            "run_id": run_id,
-            "started_at": generated_at.isoformat(),
-            "checked_from": checked_from.isoformat(),
-            "checked_through": checked_through.isoformat(),
-            "artists": [asdict(artist) for artist in artists],
-            "completed_artist_keys": [],
-            "pending_release_id": None,
-        }
-        state["active_run"] = active
-        if not dry_run:
-            _persist_state(state_access, state)
-            append_event(
-                log_path,
-                run_id,
-                "run_started",
-                checked_from=checked_from.isoformat(),
-                checked_through=checked_through.isoformat(),
-                artists=len(artists),
-            )
+    opening, state_access = open_release_run(
+        lastfm,
+        expected_username,
+        dry_run,
+        state_path,
+        state_service,
+        log_path,
+        export_path,
+        legacy_delta_path,
+        backup_dir,
+        history_log_path,
+        now,
+        progress_callback,
+    )
+    generated_at = opening.generated_at
+    persisted_state, state = opening.persisted_state, opening.state
+    active, artists = opening.active, opening.artists
+    checked_from, checked_through = opening.checked_from, opening.checked_through
+    run_id, resumed = opening.run_id, opening.resumed
+    history_refresh = opening.history_refresh
 
     raw_completed = active.get("completed_artist_keys", [])
     if not isinstance(raw_completed, list):

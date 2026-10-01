@@ -93,6 +93,7 @@ test-application:
         --cov=spotify_manager.application.artist_mapping \
         --cov=spotify_manager.application.future_release \
         --cov=spotify_manager.application.release_check_values \
+        --cov=spotify_manager.application.release_opening \
         --cov=spotify_manager.application.historical_playlists \
         --cov=spotify_manager.application.historical_resolution \
         --cov=spotify_manager.application.historical_selection \
