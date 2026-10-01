@@ -1081,3 +1081,28 @@ decoding. These owners have 100% statement/branch coverage (120 statements,
 28 branches). Isolated gates pass 571 domain and 1,107 application tests at 100%.
 Package Ruff, formatting and mypy pass; all 11 frozen public artifacts match.
 The Queue fill and restartable flush and the later approved waves remain pending.
+
+The full randomized recommendation checkpoint passes 3,983 tests with seed
+20261020 (94.03% statements, 85.34% branches).
+
+### Queue fill workflow checkpoint
+
+Queue fill now separates request validation, history/capacity facts, seed and
+candidate gathering, mapping interaction, marker selection and ordered execution.
+Accepted mapping checkpoints still occur during preview runs. Follow, artist
+mirror persistence, playlist append, audit and presentation retain their original
+order and failure boundaries. Original configured limits remain composed at the
+edge. No-capacity runs still refresh history and read Queue membership before
+returning without seeds, cache, representations or state.
+
+Thirty-two complete-run/failure observations passed against the original source
+before extraction. The independent application reproduces every result, trace,
+state and checkpoint. Additional cases protect guards before retry configuration,
+capacity exits, saved mappings, duplicate representations and stopping before the
+next progress callback. Domain/application owners reach 100% statement/branch
+coverage (150 statements, 42 branches). Isolated gates pass 581 domain and 1,151
+application tests at 100%. Ruff, formatting, package and strict new test typing
+pass. New functions are short and contain no nested definitions or multiline
+list comprehensions. All 11 frozen public artifacts match.
+
+Restartable Queue flush and the later approved waves remain pending.

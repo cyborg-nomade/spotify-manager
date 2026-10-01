@@ -1,0 +1,3930 @@
+{
+  "success:False": {
+    "scenario": "success",
+    "preview": false,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 1,
+        "paused": false,
+        "dry_run": false,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            },
+            "track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Track",
+              "disc_number": 1,
+              "track_number": 1,
+              "primary_artist_id": "artist",
+              "primary_artist_name": "Artist",
+              "popularity": null
+            },
+            "action": "added",
+            "followed": true
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "follow",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "persist-follow",
+          "artist"
+        ],
+        [
+          "append",
+          "queue",
+          "spotify:track:track"
+        ],
+        [
+          "audit",
+          "artist_added",
+          {
+            "lastfm_artist_key": "artist",
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": {
+                "spotify_id": "track",
+                "uri": "spotify:track:track",
+                "name": "Track",
+                "disc_number": 1,
+                "track_number": 1,
+                "primary_artist_id": "artist",
+                "primary_artist_name": "Artist",
+                "popularity": null
+              },
+              "action": "added",
+              "followed": true
+            },
+            "dry_run": false
+          }
+        ],
+        [
+          "echo",
+          "Added Artist - Track to The Queue."
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "success:True": {
+    "scenario": "success",
+    "preview": true,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": true,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            },
+            "track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Track",
+              "disc_number": 1,
+              "track_number": 1,
+              "primary_artist_id": "artist",
+              "primary_artist_name": "Artist",
+              "popularity": null
+            },
+            "action": "would add",
+            "followed": true
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          true,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "lastfm_artist_key": "artist",
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": {
+                "spotify_id": "track",
+                "uri": "spotify:track:track",
+                "name": "Track",
+                "disc_number": 1,
+                "track_number": 1,
+                "primary_artist_id": "artist",
+                "primary_artist_name": "Artist",
+                "popularity": null
+              },
+              "action": "would add",
+              "followed": true
+            },
+            "dry_run": true
+          }
+        ],
+        [
+          "echo",
+          "Would add Artist - Track to The Queue."
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "followed:False": {
+    "scenario": "followed",
+    "preview": false,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 1,
+        "paused": false,
+        "dry_run": false,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            },
+            "track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Track",
+              "disc_number": 1,
+              "track_number": 1,
+              "primary_artist_id": "artist",
+              "primary_artist_name": "Artist",
+              "popularity": null
+            },
+            "action": "added",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "append",
+          "queue",
+          "spotify:track:track"
+        ],
+        [
+          "audit",
+          "artist_added",
+          {
+            "lastfm_artist_key": "artist",
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": {
+                "spotify_id": "track",
+                "uri": "spotify:track:track",
+                "name": "Track",
+                "disc_number": 1,
+                "track_number": 1,
+                "primary_artist_id": "artist",
+                "primary_artist_name": "Artist",
+                "popularity": null
+              },
+              "action": "added",
+              "followed": false
+            },
+            "dry_run": false
+          }
+        ],
+        [
+          "echo",
+          "Added Artist - Track to The Queue."
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "followed:True": {
+    "scenario": "followed",
+    "preview": true,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": true,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            },
+            "track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Track",
+              "disc_number": 1,
+              "track_number": 1,
+              "primary_artist_id": "artist",
+              "primary_artist_name": "Artist",
+              "popularity": null
+            },
+            "action": "would add",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          true,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "lastfm_artist_key": "artist",
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": {
+                "spotify_id": "track",
+                "uri": "spotify:track:track",
+                "name": "Track",
+                "disc_number": 1,
+                "track_number": 1,
+                "primary_artist_id": "artist",
+                "primary_artist_name": "Artist",
+                "popularity": null
+              },
+              "action": "would add",
+              "followed": false
+            },
+            "dry_run": true
+          }
+        ],
+        [
+          "echo",
+          "Would add Artist - Track to The Queue."
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "represented:False": {
+    "scenario": "represented",
+    "preview": false,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": false,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            },
+            "track": null,
+            "action": "already represented",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": null,
+              "action": "already represented",
+              "followed": false
+            },
+            "dry_run": false
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "represented:True": {
+    "scenario": "represented",
+    "preview": true,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": true,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            },
+            "track": null,
+            "action": "already represented",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          true,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": null,
+              "action": "already represented",
+              "followed": false
+            },
+            "dry_run": true
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "all-liked:False": {
+    "scenario": "all-liked",
+    "preview": false,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": false,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            },
+            "track": null,
+            "action": "no unliked top track",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": null,
+              "action": "no unliked top track",
+              "followed": false
+            },
+            "dry_run": false
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "all-liked:True": {
+    "scenario": "all-liked",
+    "preview": true,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": true,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            },
+            "track": null,
+            "action": "no unliked top track",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          true,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": null,
+              "action": "no unliked top track",
+              "followed": false
+            },
+            "dry_run": true
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "skip:False": {
+    "scenario": "skip",
+    "preview": false,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": false,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": null,
+            "track": null,
+            "action": "skipped",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": null,
+              "track": null,
+              "action": "skipped",
+              "followed": false
+            },
+            "dry_run": false
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "skip:True": {
+    "scenario": "skip",
+    "preview": true,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": true,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": null,
+            "track": null,
+            "action": "skipped",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          true,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": null,
+              "track": null,
+              "action": "skipped",
+              "followed": false
+            },
+            "dry_run": true
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "quit:False": {
+    "scenario": "quit",
+    "preview": false,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": true,
+        "dry_run": false,
+        "results": []
+      },
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "quit:True": {
+    "scenario": "quit",
+    "preview": true,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": true,
+        "dry_run": true,
+        "results": []
+      },
+      "trace": [
+        [
+          "history",
+          true,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "no-match:False": {
+    "scenario": "no-match",
+    "preview": false,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": false,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": null,
+            "track": null,
+            "action": "no Spotify match",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": null,
+              "track": null,
+              "action": "no Spotify match",
+              "followed": false
+            },
+            "dry_run": false
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "no-match:True": {
+    "scenario": "no-match",
+    "preview": true,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "week_start": "2026-08-07",
+        "requested_count": 1,
+        "history_artists": 1,
+        "history_scrobbles": 1,
+        "live_scrobbles_added": 2,
+        "seed_count": 1,
+        "candidate_count": 1,
+        "playlist_length_before": 0,
+        "playlist_length_after": 0,
+        "paused": false,
+        "dry_run": true,
+        "results": [
+          {
+            "recommendation": {
+              "artist": "Artist",
+              "key": "artist",
+              "score": 1.0,
+              "best_match": 1.0,
+              "supporting_seeds": [
+                "Seed"
+              ],
+              "base_rank": 1,
+              "weekly_rank": 1.0
+            },
+            "spotify_artist": null,
+            "track": null,
+            "action": "no Spotify match",
+            "followed": false
+          }
+        ]
+      },
+      "trace": [
+        [
+          "history",
+          true,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "audit",
+          "fill_candidate",
+          {
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": null,
+              "track": null,
+              "action": "no Spotify match",
+              "followed": false
+            },
+            "dry_run": true
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "bad-follow:False": {
+    "scenario": "bad-follow",
+    "preview": false,
+    "failure": null,
+    "outcome": {
+      "error": "QueueSpotifyError",
+      "message": "Spotify returned invalid artist follow status.",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "bad-follow:True": {
+    "scenario": "bad-follow",
+    "preview": true,
+    "failure": null,
+    "outcome": {
+      "error": "QueueSpotifyError",
+      "message": "Spotify returned invalid artist follow status.",
+      "trace": [
+        [
+          "history",
+          true,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:history": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "history",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "history",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "failure:playlist": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "playlist",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "playlist",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "failure:seeds": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "seeds",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "seeds",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "failure:candidates": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "candidates",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "candidates",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "failure:represented": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "represented",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "represented",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "failure:load": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "load",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "load",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "failure:resolve": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "resolve",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "resolve",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {},
+        "active_flush": null
+      },
+      "checkpoints": []
+    }
+  },
+  "failure:save": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "save",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "save",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:top": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "top",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "top",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:liked": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "liked",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "liked",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:following": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "following",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "following",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:follow": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "follow",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "follow",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "follow",
+          [
+            "artist"
+          ]
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:persist-follow": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "persist-follow",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "persist-follow",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "follow",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "persist-follow",
+          "artist"
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:append": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "append",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "append",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "follow",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "persist-follow",
+          "artist"
+        ],
+        [
+          "append",
+          "queue",
+          "spotify:track:track"
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:audit": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "audit",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "audit",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "follow",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "persist-follow",
+          "artist"
+        ],
+        [
+          "append",
+          "queue",
+          "spotify:track:track"
+        ],
+        [
+          "audit",
+          "artist_added",
+          {
+            "lastfm_artist_key": "artist",
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": {
+                "spotify_id": "track",
+                "uri": "spotify:track:track",
+                "name": "Track",
+                "disc_number": 1,
+                "track_number": 1,
+                "primary_artist_id": "artist",
+                "primary_artist_name": "Artist",
+                "popularity": null
+              },
+              "action": "added",
+              "followed": true
+            },
+            "dry_run": false
+          }
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  },
+  "failure:echo": {
+    "scenario": "success",
+    "preview": false,
+    "failure": "echo",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "echo",
+      "trace": [
+        [
+          "history",
+          false,
+          "2026-08-08T00:00:00+00:00"
+        ],
+        [
+          "progress",
+          0,
+          0,
+          "history status"
+        ],
+        [
+          "playlist",
+          "queue"
+        ],
+        [
+          "seeds",
+          30,
+          "2026-08-07"
+        ],
+        [
+          "candidates",
+          [
+            "heard"
+          ],
+          100
+        ],
+        [
+          "represented",
+          [
+            "queue",
+            "queue2",
+            "new-kids",
+            "queue3"
+          ]
+        ],
+        [
+          "load"
+        ],
+        [
+          "progress",
+          0,
+          1,
+          "Resolving Artist"
+        ],
+        [
+          "resolve",
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 0,
+            "rank": 1
+          }
+        ],
+        [
+          "save"
+        ],
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "track"
+          ]
+        ],
+        [
+          "following",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "follow",
+          [
+            "artist"
+          ]
+        ],
+        [
+          "persist-follow",
+          "artist"
+        ],
+        [
+          "append",
+          "queue",
+          "spotify:track:track"
+        ],
+        [
+          "audit",
+          "artist_added",
+          {
+            "lastfm_artist_key": "artist",
+            "result": {
+              "recommendation": {
+                "artist": "Artist",
+                "key": "artist",
+                "score": 1.0,
+                "best_match": 1.0,
+                "supporting_seeds": [
+                  "Seed"
+                ],
+                "base_rank": 1,
+                "weekly_rank": 1.0
+              },
+              "spotify_artist": {
+                "spotify_id": "artist",
+                "name": "Artist",
+                "uri": "spotify:artist:artist",
+                "popularity": 10,
+                "followers": 20,
+                "search_rank": 1,
+                "exact_name": true
+              },
+              "track": {
+                "spotify_id": "track",
+                "uri": "spotify:track:track",
+                "name": "Track",
+                "disc_number": 1,
+                "track_number": 1,
+                "primary_artist_id": "artist",
+                "primary_artist_name": "Artist",
+                "popularity": null
+              },
+              "action": "added",
+              "followed": true
+            },
+            "dry_run": false
+          }
+        ],
+        [
+          "echo",
+          "Added Artist - Track to The Queue."
+        ]
+      ],
+      "state": {
+        "version": 1,
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist",
+            "uri": "spotify:artist:artist",
+            "popularity": 10,
+            "followers": 20,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "active_flush": null
+      },
+      "checkpoints": [
+        {
+          "version": 1,
+          "artist_mappings": {
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist",
+              "uri": "spotify:artist:artist",
+              "popularity": 10,
+              "followers": 20,
+              "search_rank": 1,
+              "exact_name": true
+            }
+          },
+          "active_flush": null
+        }
+      ]
+    }
+  }
+}

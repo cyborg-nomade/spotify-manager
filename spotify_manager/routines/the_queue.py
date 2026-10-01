@@ -18,6 +18,9 @@ from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.queue_fill_values import FillAction as FillAction
+from spotify_manager.application.queue_fill_values import FillResult as FillResult
+from spotify_manager.application.queue_fill_values import FillSummary as FillSummary
 from spotify_manager.application.queue_values import (
     QueueConfigError as QueueConfigError,
 )
@@ -126,50 +129,6 @@ class QueuePlaylists:
         except new_wine.NewWineConfigError as exc:
             raise QueueConfigError(str(exc)) from exc
         return cls(*parsed)
-
-
-FillAction = Literal[
-    "added",
-    "would add",
-    "already represented",
-    "no Spotify match",
-    "no unliked top track",
-    "skipped",
-]
-
-
-@dataclass(frozen=True)
-class FillResult:
-    """Spotify resolution outcome for one Last.fm artist candidate."""
-
-    recommendation: ArtistRecommendation
-    spotify_artist: release_check.SpotifyArtistCandidate | None
-    track: new_kids.CatalogTrack | None
-    action: FillAction
-    followed: bool = False
-
-
-@dataclass(frozen=True)
-class FillSummary:
-    """Outcome of one Last.fm-driven Queue fill."""
-
-    week_start: date
-    requested_count: int
-    history_artists: int
-    history_scrobbles: int
-    live_scrobbles_added: int
-    seed_count: int
-    candidate_count: int
-    playlist_length_before: int
-    playlist_length_after: int
-    paused: bool
-    dry_run: bool
-    results: tuple[FillResult, ...]
-
-    @property
-    def selected(self) -> int:
-        """Return actual or proposed Queue additions."""
-        return sum(result.action in {"added", "would add"} for result in self.results)
 
 
 FlushAction = Literal["advance", "promote", "unlucky", "unfollow", "blocked"]
@@ -468,13 +427,16 @@ def _mapping_choice_reader(
     if reader is None:
         return None
 
-    def read_choice(
-        _artist: release_check.RankedArtist,
-        choices: tuple[release_check.SpotifyArtistCandidate, ...],
-    ) -> str:
-        return reader(recommendation, choices)
+    return partial(_read_mapping_choice, reader, recommendation)
 
-    return read_choice
+
+def _read_mapping_choice(
+    reader: ArtistChoiceReader,
+    recommendation: ArtistRecommendation,
+    _artist: release_check.RankedArtist,
+    choices: tuple[release_check.SpotifyArtistCandidate, ...],
+) -> str:
+    return reader(recommendation, choices)
 
 
 def _playlist_artist_ids(
@@ -527,6 +489,31 @@ def _persist_followed_artist(
         echo("Updated stats_history.json.")
 
 
+def _fill_following(
+    sp: Spotify,
+    spotify_artist: release_check.SpotifyArtistCandidate,
+    retry: RetryCall,
+) -> bool:
+    followed_response = retry(
+        partial(sp.current_user_following_artists, [spotify_artist.spotify_id]),
+        f"checking follow status for {spotify_artist.name}",
+    )
+    if not isinstance(followed_response, list) or not followed_response:
+        raise QueueSpotifyError("Spotify returned invalid artist follow status.")
+    return bool(followed_response[0])
+
+
+def _fill_follow(
+    sp: Spotify,
+    spotify_artist: release_check.SpotifyArtistCandidate,
+    retry: RetryCall,
+) -> None:
+    retry(
+        partial(sp.user_follow_artists, [spotify_artist.spotify_id]),
+        f"following {spotify_artist.name}",
+    )
+
+
 def fill_queue_from_lastfm(
     sp: Spotify,
     lastfm: LastFmReader,
@@ -548,210 +535,55 @@ def fill_queue_from_lastfm(
     log_path: Path = DEFAULT_LOG_PATH,
     now: datetime | None = None,
 ) -> FillSummary:
-    """Add unheard Last.fm artist recommendations to The Queue."""
-    if count is not None and max_playlist_length is not None:
-        raise QueueConfigError("Use either count or maximum playlist length, not both.")
-    if count is not None and count < 1:
-        raise QueueConfigError("Count must be at least 1.")
-    if max_playlist_length is not None and max_playlist_length < 1:
-        raise QueueConfigError("Maximum playlist length must be at least 1.")
-    retry = retry_call or (lambda operation, _description: operation())
-    generated_at = (now or datetime.now(UTC)).astimezone(UTC)
-    week_start = found_art.listening_week_start(generated_at)
-    try:
-        scrobbles, live_added = found_art.refresh_scrobble_history(
-            lastfm,
-            export_path=export_path,
-            recent_path=recent_path,
-            dry_run=dry_run,
-            now=generated_at,
-            progress_callback=(
-                (lambda status: progress_callback(0, 0, status))
-                if progress_callback is not None
-                else None
-            ),
-        )
-    except found_art.FoundArtError as exc:
-        raise QueueStateError(str(exc)) from exc
-    history = aggregate_artist_history(scrobbles)
-    queue_tracks = new_wine.load_playlist_tracks(sp, playlists.queue, retry)
-    before = len(queue_tracks)
-    requested = count if count is not None else DEFAULT_COUNT
-    if max_playlist_length is not None:
-        requested = max(0, max_playlist_length - before)
-    if not requested:
-        return FillSummary(
-            week_start=week_start,
-            requested_count=0,
-            history_artists=len(history),
-            history_scrobbles=len(scrobbles),
-            live_scrobbles_added=live_added,
-            seed_count=0,
-            candidate_count=0,
-            playlist_length_before=before,
-            playlist_length_after=before,
-            paused=False,
-            dry_run=dry_run,
-            results=(),
-        )
-    seeds = select_seed_artists(history, seed_count=seed_count, week_start=week_start)
-    candidates = gather_artist_recommendations(
-        lastfm,
-        seeds,
-        {artist.key for artist in history},
-        cache_path=cache_path,
-        log_path=log_path,
-        week_start=week_start,
-        candidate_pool_size=max(
-            MIN_CANDIDATE_POOL, requested * CANDIDATE_POOL_MULTIPLIER
-        ),
-        now=generated_at,
-        progress_callback=progress_callback,
-    )
-    represented = _playlist_artist_ids(
+    """Add unheard Last.fm artist recommendations to The Queue.
+
+    Args:
+        sp: Caller-owned original Spotify client.
+        lastfm: Caller-owned original Last.fm reader.
+        playlists: Original parsed destination identities.
+        choice_reader: Original optional mapping interaction.
+        count: Original optional requested additions.
+        max_playlist_length: Original optional maximum Queue length.
+        seed_count: Original requested weekly seeds.
+        dry_run: Original preview behavior.
+        echo: Original text presenter.
+        progress_callback: Original optional progress presenter.
+        retry_call: Original optional retry boundary.
+        export_path: Original history export location.
+        recent_path: Original recent-history location.
+        state_path: Original state location.
+        state_service: Original optional shared state authority.
+        cache_path: Original neighborhood cache location.
+        log_path: Original audit location.
+        now: Original optional timestamp.
+
+    Returns:
+        Original complete ordered fill outcome.
+
+    Raises:
+        QueueConfigError: Original limits conflict or are invalid.
+        QueueStateError: Original history, cache or state is unusable.
+        QueueSpotifyError: Original follow or liked response is invalid.
+    """
+    from spotify_manager.application.queue_fill_values import QueueFillRequest
+    from spotify_manager.bootstrap.queue_fill import fill_queue
+
+    return fill_queue(
         sp,
-        (playlists.queue, playlists.queue_2, playlists.new_kids, playlists.queue_3),
-        retry,
-    )
-    state_access = _state_access(state_path, state_service)
-    state = state_access.load()
-    mappings = state["artist_mappings"]
-    assert isinstance(mappings, dict)
-    results: list[FillResult] = []
-    selected = 0
-    paused = False
-    maximum = min(
-        len(candidates), max(requested, requested * CANDIDATE_POOL_MULTIPLIER)
-    )
-    for index, recommendation in enumerate(candidates[:maximum], start=1):
-        if selected >= requested:
-            break
-        if progress_callback is not None:
-            progress_callback(index - 1, maximum, f"Resolving {recommendation.artist}")
-        spotify_artist = _mapped_artist(mappings.get(recommendation.key))
-        if spotify_artist is None:
-            ranked = release_check.RankedArtist(
-                key=recommendation.key,
-                name=recommendation.artist,
-                scrobbles=0,
-                rank=recommendation.base_rank,
-            )
-            resolved = release_check.resolve_spotify_artist(
-                sp,
-                ranked,
-                _mapping_choice_reader(choice_reader, recommendation),
-                retry,
-            )
-            if resolved == CHOICE_QUIT:
-                paused = True
-                break
-            if resolved == CHOICE_SKIP:
-                result = FillResult(recommendation, None, None, "skipped")
-                results.append(result)
-                append_event(
-                    log_path, "fill_candidate", result=asdict(result), dry_run=dry_run
-                )
-                continue
-            if not isinstance(resolved, release_check.SpotifyArtistCandidate):
-                result = FillResult(recommendation, None, None, "no Spotify match")
-                results.append(result)
-                append_event(
-                    log_path, "fill_candidate", result=asdict(result), dry_run=dry_run
-                )
-                continue
-            spotify_artist = resolved
-            mappings[recommendation.key] = asdict(spotify_artist)
-            state_access.save(state)
-        if spotify_artist.spotify_id in represented:
-            result = FillResult(
-                recommendation,
-                spotify_artist,
-                None,
-                "already represented",
-            )
-            results.append(result)
-            append_event(
-                log_path, "fill_candidate", result=asdict(result), dry_run=dry_run
-            )
-            continue
-        _album_ranks, top_tracks = new_kids.load_top_track_data(
-            sp, spotify_artist.spotify_id, retry
-        )
-        liked = _liked_statuses(sp, top_tracks[:TOP_TRACK_LIMIT], retry)
-        target = next(
-            (
-                track
-                for track in top_tracks[:TOP_TRACK_LIMIT]
-                if not liked.get(track.spotify_id, False)
-            ),
-            None,
-        )
-        if target is None:
-            result = FillResult(
-                recommendation,
-                spotify_artist,
-                None,
-                "no unliked top track",
-            )
-            results.append(result)
-            append_event(
-                log_path, "fill_candidate", result=asdict(result), dry_run=dry_run
-            )
-            continue
-        followed_response = retry(
-            partial(sp.current_user_following_artists, [spotify_artist.spotify_id]),
-            f"checking follow status for {spotify_artist.name}",
-        )
-        if not isinstance(followed_response, list) or not followed_response:
-            raise QueueSpotifyError("Spotify returned invalid artist follow status.")
-        followed_now = not bool(followed_response[0])
-        if not dry_run:
-            if followed_now:
-                retry(
-                    partial(sp.user_follow_artists, [spotify_artist.spotify_id]),
-                    f"following {spotify_artist.name}",
-                )
-                _persist_followed_artist(spotify_artist, echo)
-            retry(
-                partial(add_playlist_item, sp, playlists.queue, target.uri),
-                f"adding {spotify_artist.name} to The Queue",
-            )
-        action: FillAction = "would add" if dry_run else "added"
-        result = FillResult(
-            recommendation,
-            spotify_artist,
-            target,
-            action,
-            followed=followed_now,
-        )
-        results.append(result)
-        represented.add(spotify_artist.spotify_id)
-        selected += 1
-        append_event(
-            log_path,
-            "artist_added" if not dry_run else "fill_candidate",
-            lastfm_artist_key=recommendation.key,
-            result=asdict(result),
-            dry_run=dry_run,
-        )
-        echo(
-            f"{'Would add' if dry_run else 'Added'} {spotify_artist.name} - "
-            f"{target.name} to The Queue."
-        )
-    after = before if dry_run else before + selected
-    return FillSummary(
-        week_start=week_start,
-        requested_count=requested,
-        history_artists=len(history),
-        history_scrobbles=len(scrobbles),
-        live_scrobbles_added=live_added,
-        seed_count=len(seeds),
-        candidate_count=len(candidates),
-        playlist_length_before=before,
-        playlist_length_after=after,
-        paused=paused,
-        dry_run=dry_run,
-        results=tuple(results),
+        lastfm,
+        playlists,
+        choice_reader,
+        QueueFillRequest(count, max_playlist_length, seed_count, dry_run),
+        echo,
+        progress_callback,
+        retry_call,
+        export_path,
+        recent_path,
+        state_path,
+        state_service,
+        cache_path,
+        log_path,
+        now,
     )
 
 
