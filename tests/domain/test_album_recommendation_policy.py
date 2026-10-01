@@ -9,6 +9,7 @@ from spotify_manager.domain.album_recommendations import AlbumEvidence
 from spotify_manager.domain.album_recommendations import SpotifyAlbumOption
 from spotify_manager.domain.album_recommendations import _AlbumAccumulator
 from spotify_manager.domain.album_recommendations import canonical_album_key
+from spotify_manager.domain.album_recommendations import eligible_release_type
 from spotify_manager.domain.album_recommendations import genuinely_ambiguous
 from spotify_manager.domain.album_recommendations import heard_album_keys
 from spotify_manager.domain.album_recommendations import option_sort_key
@@ -170,3 +171,33 @@ def test_empty_normalized_observation_keys_remain_accepted() -> None:
     evidence.observe(replace(_candidate(), best_match=-1), (option,))
     result = evidence.ranked(WEEK)[0]
     assert result.key == ("", "") and result.best_match == 0
+
+
+@pytest.mark.parametrize(
+    "kind,total,name,expected",
+    [
+        ("album", 0, "Album", "Album"),
+        ("ep", 0, "Album", "EP"),
+        ("single", 3, "Album", None),
+        ("single", 4, "Album", "EP"),
+        ("compilation", 10, "Album", None),
+        (None, 10, "Album", None),
+        ("album", 10, "Album (Live)", None),
+        ("album", 10, "Album (Deluxe)", None),
+    ],
+)
+def test_original_plain_album_and_ep_release_eligibility(
+    kind: object,
+    total: int,
+    name: str,
+    expected: str | None,
+) -> None:
+    """Keep original release-tier and decoration precedence without new validation.
+
+    Args:
+        kind: Original raw release classification.
+        total: Original coerced track count.
+        name: Original stripped title.
+        expected: Original eligible release type or exclusion.
+    """
+    assert eligible_release_type(kind, total, name) == expected

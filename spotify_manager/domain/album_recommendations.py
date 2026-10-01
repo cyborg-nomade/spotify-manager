@@ -5,6 +5,8 @@ from dataclasses import field
 from dataclasses import replace
 from datetime import date
 
+from spotify_manager.domain.discovery_progression import DECORATED_PATTERN
+from spotify_manager.domain.discovery_progression import release_kind
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import normalize_name
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
@@ -48,6 +50,21 @@ class SpotifyAlbumOption:
     search_rank: int
     track_similarity: float
     track_popularity: int | None
+
+
+@dataclass(frozen=True)
+class FirstTrack:
+    """First observed playable track in a chosen album's original stored order.
+
+    Args:
+        spotify_id: Original playable track identity.
+        uri: Original playable track reference.
+        name: Original stripped display title.
+    """
+
+    spotify_id: str
+    uri: str
+    name: str
 
 
 @dataclass(frozen=True)
@@ -307,3 +324,20 @@ class AlbumEvidence:
                 )
             )
         return tuple(sorted(rotated, key=_weekly_rank))
+
+
+def eligible_release_type(raw_type: object, total_tracks: int, name: str) -> str | None:
+    """Retain original plain studio albums and EPs after release classification.
+
+    Args:
+        raw_type: Original raw catalog release classification.
+        total_tracks: Original coerced track count.
+        name: Original stripped display title.
+
+    Returns:
+        Original eligible classification or none for other/decorated releases.
+    """
+    kind, tier = release_kind(raw_type, total_tracks, name)
+    if tier != 0 or DECORATED_PATTERN.search(name):
+        return None
+    return kind

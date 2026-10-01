@@ -7,6 +7,8 @@ from datetime import date
 import pytest
 
 from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.sauvignon_values import SauvignonError
+from spotify_manager.application.sauvignon_values import SauvignonSpotifyError
 from spotify_manager.domain.album_recommendations import AlbumRecommendation
 from spotify_manager.domain.album_recommendations import SpotifyAlbumOption
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
@@ -139,3 +141,20 @@ def test_empty_pool_has_no_progress_or_search_observations() -> None:
     workflow = AlbumGathering(memory.search, memory.progress)
     assert workflow.run((), set(), set(), 10, WEEK) == ()
     assert memory.events == []
+
+
+def _invalid_catalog(candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+    raise SauvignonSpotifyError("invalid catalog")
+
+
+def test_catalog_error_propagates_after_original_candidate_progress() -> None:
+    """Retain the public catalog-error hierarchy, message and observation boundary."""
+    case = read_case("grouped")
+    messages: list[str] = []
+    workflow = AlbumGathering(_invalid_catalog, messages.append)
+    with pytest.raises(SauvignonSpotifyError, match="invalid catalog") as raised:
+        workflow.run(case.candidates, set(), set(), 2, WEEK)
+    assert isinstance(raised.value, SauvignonError)
+    assert isinstance(raised.value, RuntimeError)
+    assert raised.value.__cause__ is None
+    assert messages == [case.events[0]]

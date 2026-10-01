@@ -773,3 +773,34 @@ assertions after score updates and all visible ambiguity components.
 Sauvignon's catalog parser, first-track observation, choice interaction, complete
 run and audit ownership remain pending. Item 6 continues without a milestone PR,
 local review environment, deployment or merge.
+
+### Sauvignon catalog and edition choice checkpoint
+
+Sauvignon's edition interaction now belongs to the application. Equivalent
+visible editions choose the first observation automatically; ambiguous editions
+retain the original single prompt, skip/quit markers, first matching identity
+and invalid-response fallback. Eight contracts passed against the original
+chooser before extraction, with independent interaction and error tests after it.
+
+Album/first-track response parsing now has an infrastructure owner. Mandatory
+artist/title matching remains first, exact primary track and album credits are
+still required, and the shared domain release classifier applies the original
+plain studio album/EP eligibility. Metadata coercion, preferred edition
+deduplication, deterministic order and first playable track selection are
+unchanged. The public models and errors retain compatibility aliases; synchronous
+SDK expressions and retry descriptions remain at their existing routine seams.
+Thirty new parsing contracts passed before moving those codecs.
+
+- Full suite: **2,968 tests pass**, seed `20261009`;
+  **93.24% statements** (20,560 / 22,050),
+  **83.08% branches** (4,443 / 5,348).
+- Independent gates: **354 domain tests**, **902 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- The focused codec gate passes **48 tests** with **100% statement and branch
+  coverage** for the new infrastructure module.
+- All eleven frozen public artifacts, package Ruff lint/format, package mypy
+  (229 source files), strict inner-layer and new boundary test checks pass.
+  Ten migrated source/test files also pass the short, flat function check.
+
+Sauvignon's complete run, live recheck/append and audit ownership remain pending.
+Item 6 remains ongoing without a milestone PR, deployment or merge.

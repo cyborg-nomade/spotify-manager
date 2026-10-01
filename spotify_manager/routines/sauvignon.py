@@ -17,10 +17,23 @@ from typing import Protocol
 
 from spotipy import Spotify
 
+from spotify_manager.application.sauvignon_values import (
+    SauvignonConfigError as SauvignonConfigError,
+)
+from spotify_manager.application.sauvignon_values import (
+    SauvignonError as SauvignonError,
+)
+from spotify_manager.application.sauvignon_values import (
+    SauvignonSpotifyError as SauvignonSpotifyError,
+)
+from spotify_manager.application.sauvignon_values import (
+    SauvignonStateError as SauvignonStateError,
+)
 from spotify_manager.domain import album_recommendations as album_policy
 from spotify_manager.domain.album_recommendations import (
     AlbumRecommendation as AlbumRecommendation,
 )
+from spotify_manager.domain.album_recommendations import FirstTrack as FirstTrack
 from spotify_manager.domain.album_recommendations import (
     SpotifyAlbumOption as SpotifyAlbumOption,
 )
@@ -31,7 +44,6 @@ from spotify_manager.domain.album_recommendations import (
 # UFI
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
-from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines.slow_listening import release_identity as release_identity
 
@@ -57,33 +69,8 @@ AlbumChoiceReader = Callable[
 ]
 
 
-class SauvignonError(RuntimeError):
-    """Base error for the Sauvignon recommendation routine."""
-
-
-class SauvignonConfigError(SauvignonError):
-    """Raised when a required setting or numeric option is invalid."""
-
-
-class SauvignonStateError(SauvignonError):
-    """Raised when durable audit data cannot be read or written safely."""
-
-
-class SauvignonSpotifyError(SauvignonError):
-    """Raised when Spotify returns incomplete recommendation data."""
-
-
 class LastFmReader(found_art.LastFmReader, Protocol):
     """Last.fm methods required through the shared Found Art machinery."""
-
-
-@dataclass(frozen=True)
-class FirstTrack:
-    """The first playable track in Spotify's stored album order."""
-
-    spotify_id: str
-    uri: str
-    name: str
 
 
 SauvignonAction = Literal[
@@ -209,21 +196,15 @@ def previously_added_album_keys(path: Path = DEFAULT_LOG_PATH) -> set[AlbumKey]:
 
 
 def _artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
-    if not isinstance(raw, list):
-        return ()
-    pairs: list[tuple[str, str]] = []
-    for value in raw:
-        if not isinstance(value, dict):
-            continue
-        spotify_id = str(value.get("id") or "").strip()
-        name = str(value.get("name") or spotify_id).strip()
-        if spotify_id and name:
-            pairs.append((spotify_id, name))
-    return tuple(pairs)
+    from spotify_manager.infrastructure.album_recommendations import artist_pairs
+
+    return artist_pairs(raw)
 
 
 def _positive_int(raw: object) -> int:
-    return raw if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0 else 0
+    from spotify_manager.infrastructure.album_recommendations import positive_int
+
+    return positive_int(raw)
 
 
 def _album_option(
@@ -231,59 +212,10 @@ def _album_option(
     candidate: found_art.FoundArtCandidate,
     search_rank: int,
 ) -> SpotifyAlbumOption | None:
-    """Parse one exact-primary-artist studio album or EP search result."""
-    match = blast_from_past.matching_spotify_track(
-        blast_from_past.Scrobble(
-            artist=candidate.artist,
-            track=candidate.track,
-            album="",
-            timestamp_ms=0,
-        ),
-        raw_track,
-        search_rank,
-    )
-    if match is None or not isinstance(raw_track, dict):
-        return None
-    expected_artist = blast_from_past.normalize_name(candidate.artist)
-    track_artists = _artist_pairs(raw_track.get("artists"))
-    raw_album = raw_track.get("album")
-    if not track_artists or not isinstance(raw_album, dict):
-        return None
-    album_artists = _artist_pairs(raw_album.get("artists"))
-    if (
-        blast_from_past.normalize_name(track_artists[0][1]) != expected_artist
-        or not album_artists
-        or blast_from_past.normalize_name(album_artists[0][1]) != expected_artist
-    ):
-        return None
+    from spotify_manager.infrastructure.album_recommendations import parse_album_option
 
-    spotify_id = str(raw_album.get("id") or "").strip()
-    uri = str(raw_album.get("uri") or "").strip()
-    album_name = str(raw_album.get("name") or "").strip()
-    total_tracks = _positive_int(raw_album.get("total_tracks"))
-    if not spotify_id or not uri or not album_name:
-        return None
-    release_type, tier = new_kids._release_type(
-        raw_album.get("album_type"),
-        total_tracks,
-        album_name,
-    )
-    if tier != 0 or new_kids.DECORATED_PATTERN.search(album_name):
-        return None
-    return SpotifyAlbumOption(
-        spotify_id=spotify_id,
-        uri=uri,
-        artist_id=album_artists[0][0],
-        artist=album_artists[0][1],
-        album=album_name,
-        release_type=release_type,
-        release_date=str(raw_album.get("release_date") or "Unknown"),
-        total_tracks=total_tracks,
-        source_track=match.track,
-        source_track_id=match.spotify_id,
-        search_rank=search_rank,
-        track_similarity=match.track_similarity,
-        track_popularity=match.popularity,
+    return parse_album_option(
+        raw_track, candidate, search_rank, blast_from_past.matching_spotify_track
     )
 
 
@@ -292,7 +224,19 @@ def search_candidate_albums(
     candidate: found_art.FoundArtCandidate,
     retry_call: RetryCall,
 ) -> tuple[SpotifyAlbumOption, ...]:
-    """Resolve one Last.fm track candidate to eligible Spotify releases."""
+    """Read and decode original eligible album editions for one recommended track.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        candidate: Original ranked Last.fm candidate.
+        retry_call: Existing caller-owned retry boundary.
+
+    Returns:
+        Preferred eligible editions in original deterministic preference order.
+
+    Raises:
+        SauvignonSpotifyError: Search response lacks the original items list.
+    """
     scrobble = blast_from_past.Scrobble(
         artist=candidate.artist,
         track=candidate.track,
@@ -309,22 +253,9 @@ def search_candidate_albums(
         ),
         f"searching Spotify for {candidate.artist} - {candidate.track}",
     )
-    page = response.get("tracks") if isinstance(response, dict) else None
-    raw_items = page.get("items") if isinstance(page, dict) else None
-    if not isinstance(raw_items, list):
-        raise SauvignonSpotifyError(
-            f"Spotify returned invalid search data for {candidate.artist} - "
-            f"{candidate.track}."
-        )
-    options: dict[str, SpotifyAlbumOption] = {}
-    for rank, raw_track in enumerate(raw_items, start=1):
-        option = _album_option(raw_track, candidate, rank)
-        if option is None:
-            continue
-        previous = options.get(option.spotify_id)
-        if previous is None or _option_rank(option) > _option_rank(previous):
-            options[option.spotify_id] = option
-    return tuple(sorted(options.values(), key=_option_sort_key))
+    from spotify_manager.infrastructure.album_recommendations import parse_album_search
+
+    return parse_album_search(response, candidate, _album_option)
 
 
 def _option_rank(option: SpotifyAlbumOption) -> tuple[float, int, int]:
@@ -387,22 +318,18 @@ def choose_album_option(
     recommendation: AlbumRecommendation,
     choice_reader: AlbumChoiceReader | None,
 ) -> SpotifyAlbumOption | Literal["skip", "quit"]:
-    """Choose automatically unless multiple materially different editions exist."""
-    if not recommendation.options:
-        return "skip"
-    if not _genuinely_ambiguous(recommendation.options):
-        return recommendation.options[0]
-    if choice_reader is None:
-        return "skip"
-    choice = choice_reader(recommendation, recommendation.options)
-    if choice == CHOICE_SKIP:
-        return "skip"
-    if choice == CHOICE_QUIT:
-        return "quit"
-    return next(
-        (option for option in recommendation.options if option.spotify_id == choice),
-        "skip",
-    )
+    """Preserve automatic selection and original ambiguous-edition interaction.
+
+    Args:
+        recommendation: Original ranked evidence and ordered preferred editions.
+        choice_reader: Original interaction, absent for noninteractive runs.
+
+    Returns:
+        First equivalent edition, selected first matching identity, skip or quit.
+    """
+    from spotify_manager.application.album_recommendations import choose_album
+
+    return choose_album(recommendation, choice_reader, CHOICE_SKIP, CHOICE_QUIT)
 
 
 def load_first_track(
@@ -410,27 +337,26 @@ def load_first_track(
     album: SpotifyAlbumOption,
     retry_call: RetryCall,
 ) -> FirstTrack:
-    """Load the first playable track without reordering Spotify's response."""
+    """Read the first originally playable track without reordering the response.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        album: Original chosen edition.
+        retry_call: Existing caller-owned retry boundary.
+
+    Returns:
+        First original valid track identity, URI and display name.
+
+    Raises:
+        SauvignonSpotifyError: Response is invalid or has no playable track.
+    """
     response = retry_call(
         partial(spotify.album_tracks, album.spotify_id, limit=50, offset=0),
         f"loading the first track of {album.artist} - {album.album}",
     )
-    raw_items = response.get("items") if isinstance(response, dict) else None
-    if not isinstance(raw_items, list):
-        raise SauvignonSpotifyError(
-            f"Spotify returned invalid tracks for {album.artist} - {album.album}."
-        )
-    for raw_track in raw_items:
-        if not isinstance(raw_track, dict):
-            continue
-        spotify_id = str(raw_track.get("id") or "").strip()
-        uri = str(raw_track.get("uri") or "").strip()
-        name = str(raw_track.get("name") or "").strip()
-        if spotify_id and uri and name:
-            return FirstTrack(spotify_id=spotify_id, uri=uri, name=name)
-    raise SauvignonSpotifyError(
-        f"No playable first track found for {album.artist} - {album.album}."
-    )
+    from spotify_manager.infrastructure.album_recommendations import parse_first_track
+
+    return parse_first_track(response, album)
 
 
 def _result_record(result: SauvignonResult) -> dict[str, object]:
