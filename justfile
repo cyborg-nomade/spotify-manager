@@ -91,6 +91,7 @@ test-application:
         --cov=spotify_manager.application.dormant_tracks \
         --cov=spotify_manager.application.dormant_recovery \
         --cov=spotify_manager.application.artist_mapping \
+        --cov=spotify_manager.application.future_release \
         --cov=spotify_manager.application.release_check_values \
         --cov=spotify_manager.application.historical_playlists \
         --cov=spotify_manager.application.historical_resolution \

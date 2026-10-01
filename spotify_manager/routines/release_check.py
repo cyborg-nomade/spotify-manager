@@ -159,24 +159,16 @@ def rank_lastfm_artists(
 
 def _positive_int(raw: object) -> int | None:
     """Return a non-negative Spotify integer when present."""
-    if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
-        return raw
-    return None
+    from spotify_manager.infrastructure.release_check_catalog import positive_int
+
+    return positive_int(raw)
 
 
 def _artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
     """Return Spotify artist ids and names in credit order."""
-    if not isinstance(raw, list):
-        return ()
-    artists: list[tuple[str, str]] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        spotify_id = str(item.get("id") or "").strip()
-        name = str(item.get("name") or spotify_id).strip()
-        if spotify_id:
-            artists.append((spotify_id, name))
-    return tuple(artists)
+    from spotify_manager.infrastructure.release_check_catalog import artist_pairs
+
+    return artist_pairs(raw)
 
 
 def _spotify_artist(
@@ -185,31 +177,9 @@ def _spotify_artist(
     expected_name: str,
 ) -> SpotifyArtistCandidate | None:
     """Parse one complete artist search result."""
-    if not isinstance(raw, dict):
-        return None
-    spotify_id = str(raw.get("id") or "").strip()
-    name = str(raw.get("name") or "").strip()
-    uri = str(raw.get("uri") or "").strip()
-    if not spotify_id or not name or not uri:
-        return None
-    raw_followers = raw.get("followers")
-    followers = (
-        _positive_int(raw_followers.get("total"))
-        if isinstance(raw_followers, dict)
-        else None
-    )
-    return SpotifyArtistCandidate(
-        spotify_id=spotify_id,
-        name=name,
-        uri=uri,
-        popularity=_positive_int(raw.get("popularity")),
-        followers=followers,
-        search_rank=rank,
-        exact_name=(
-            blast_from_past.normalize_name(name)
-            == blast_from_past.normalize_name(expected_name)
-        ),
-    )
+    from spotify_manager.infrastructure.release_check_catalog import parse_artist
+
+    return parse_artist(raw, rank, expected_name)
 
 
 def search_spotify_artists(
@@ -218,7 +188,20 @@ def search_spotify_artists(
     retry_call: RetryCall,
     search_text: str | None = None,
 ) -> tuple[SpotifyArtistCandidate, ...]:
-    """Search Spotify and parse the candidates for one Last.fm artist."""
+    """Read original Spotify artist candidates with unchanged query and retry semantics.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Original ranked Last.fm evidence.
+        retry_call: Original retry policy.
+        search_text: Optional explicit original custom query.
+
+    Returns:
+        Original complete observations with original unfiltered search ranks.
+
+    Raises:
+        ReleaseCheckSpotifyError: Original response lacks its search items list.
+    """
     query = (
         search_text
         if search_text is not None
@@ -234,20 +217,9 @@ def search_spotify_artists(
         ),
         f"searching Spotify artists with {query}",
     )
-    if not isinstance(response, dict):
-        raise ReleaseCheckSpotifyError(
-            f"Spotify returned invalid artist search data for {artist.name}."
-        )
-    page = response.get("artists")
-    if not isinstance(page, dict) or not isinstance(page.get("items"), list):
-        raise ReleaseCheckSpotifyError(
-            f"Spotify returned invalid artist search data for {artist.name}."
-        )
-    return tuple(
-        candidate
-        for rank, raw in enumerate(page["items"], start=1)
-        if (candidate := _spotify_artist(raw, rank, artist.name)) is not None
-    )
+    from spotify_manager.infrastructure.release_check_catalog import parse_artist_search
+
+    return parse_artist_search(response, artist.name, _spotify_artist)
 
 
 def resolve_spotify_artist(
@@ -285,29 +257,9 @@ def _release_candidate(
     artist_id: str,
 ) -> ReleaseCandidate | None:
     """Parse one release whose first credited artist is the target."""
-    if not isinstance(raw, dict):
-        return None
-    artists = _artist_pairs(raw.get("artists"))
-    if not artists or artists[0][0] != artist_id:
-        return None
-    spotify_id = str(raw.get("id") or "").strip()
-    uri = str(raw.get("uri") or "").strip()
-    name = str(raw.get("name") or "").strip()
-    release_date = str(raw.get("release_date") or "").strip()
-    if not spotify_id or not uri or not name or not release_date:
-        return None
-    total_tracks = _positive_int(raw.get("total_tracks")) or 0
-    return ReleaseCandidate(
-        spotify_id=spotify_id,
-        uri=uri,
-        name=name,
-        release_type=_release_type(raw.get("album_type"), total_tracks, name),
-        release_date=release_date,
-        release_date_precision=str(raw.get("release_date_precision") or "day"),
-        total_tracks=total_tracks,
-        primary_artist_id=artists[0][0],
-        primary_artist_name=artists[0][1],
-    )
+    from spotify_manager.infrastructure.release_check_catalog import parse_release
+
+    return parse_release(raw, artist_id)
 
 
 def release_date_interval(release: ReleaseCandidate) -> tuple[date, date] | None:
@@ -399,25 +351,9 @@ def load_recent_catalog(
 
 def _track_candidate(raw: object, fallback_position: int) -> ReleaseTrack | None:
     """Parse one playable release track."""
-    if not isinstance(raw, dict):
-        return None
-    spotify_id = str(raw.get("id") or "").strip()
-    uri = str(raw.get("uri") or "").strip()
-    name = str(raw.get("name") or "").strip()
-    artists = _artist_pairs(raw.get("artists"))
-    if not spotify_id or not uri or not name or not artists:
-        return None
-    disc_number = _positive_int(raw.get("disc_number")) or 1
-    track_number = _positive_int(raw.get("track_number")) or fallback_position
-    return ReleaseTrack(
-        spotify_id=spotify_id,
-        uri=uri,
-        name=name,
-        primary_artist_id=artists[0][0],
-        primary_artist_name=artists[0][1],
-        disc_number=disc_number,
-        track_number=track_number,
-    )
+    from spotify_manager.infrastructure.release_check_catalog import parse_track
+
+    return parse_track(raw, fallback_position)
 
 
 def load_release_tracks(
@@ -479,25 +415,26 @@ def matching_future_release(
     retry_call: RetryCall,
     track_cache: dict[str, tuple[ReleaseTrack, ...]] | None = None,
 ) -> ReleaseCandidate | None:
-    """Find an announced record containing the selected single track."""
-    cached_tracks = track_cache if track_cache is not None else {}
-    expected_name = blast_from_past.normalize_name(
-        blast_from_past.without_sliding_qualifiers(single_track.name)
+    """Resolve the first original announced record containing the selected single.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        single_track: Original selected single marker.
+        future_releases: Original ordered announced records.
+        retry_call: Original track observation retry policy.
+        track_cache: Optional original caller-owned track cache.
+
+    Returns:
+        Original first matching record or no match.
+
+    Raises:
+        ReleaseCheckSpotifyError: Original track observation is unusable.
+    """
+    from spotify_manager.bootstrap.release_catalog import matching_future_record
+
+    return matching_future_record(
+        sp, single_track, future_releases, retry_call, track_cache
     )
-    for release in future_releases:
-        tracks = cached_tracks.get(release.spotify_id)
-        if tracks is None:
-            tracks = load_release_tracks(sp, release, retry_call)
-            cached_tracks[release.spotify_id] = tracks
-        for track in tracks:
-            actual_name = blast_from_past.normalize_name(
-                blast_from_past.without_sliding_qualifiers(track.name)
-            )
-            if track.spotify_id == single_track.spotify_id or (
-                expected_name and actual_name == expected_name
-            ):
-                return release
-    return None
 
 
 def _default_state() -> dict[str, Any]:

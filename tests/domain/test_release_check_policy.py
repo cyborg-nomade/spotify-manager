@@ -117,3 +117,14 @@ def test_release_playlist_track_and_artist_identity_checks() -> None:
         membership,
         SpotifyArtistCandidate("other", "Artist", "uri", None, None, 1, True),
     )
+
+
+def test_future_single_title_and_id_matches() -> None:
+    """Retain qualifier-tolerant titles and exact IDs, regardless of credited artist."""
+    track = ReleaseTrack("track", "uri", "Song (Live)", "other", "Other", 1, 1)
+    assert policy.normalized_track_title("Song (Remastered)") == "song"
+    assert policy.contains_single("different", "song", (track,))
+    assert policy.contains_single("track", "different", (track,))
+    assert not policy.contains_single("different", "unrelated", (track,))
+    assert not policy.contains_single("different", "", (track,))
+    assert not policy.contains_single("different", "song", ())

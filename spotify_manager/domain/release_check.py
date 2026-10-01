@@ -339,3 +339,37 @@ def _artist_rank(counts: Counter[str], key: str) -> tuple[int, str]:
 
 def _display_rank(names: Counter[str], name: str) -> tuple[int, str, str]:
     return -names[name], name.casefold(), name
+
+
+def normalized_track_title(name: str) -> str:
+    """Retain original conservative qualifier-tolerant title matching.
+
+    Args:
+        name: Original observed display title.
+
+    Returns:
+        Original normalized title after removing recognized trailing qualifiers.
+    """
+    return normalize_name(without_sliding_qualifiers(name))
+
+
+def contains_single(
+    single_id: str, expected_name: str, tracks: tuple[ReleaseTrack, ...]
+) -> bool:
+    """Find the original exact-ID or nonempty normalized-title match in a future record.
+
+    Args:
+        single_id: Original single marker identity.
+        expected_name: Original already normalized single title.
+        tracks: Original ordered announced-record tracks, regardless of credit.
+
+    Returns:
+        Whether the original ID or nonempty title identity matches any track.
+    """
+    for track in tracks:
+        actual_name = normalized_track_title(track.name)
+        if track.spotify_id == single_id or (
+            expected_name and actual_name == expected_name
+        ):
+            return True
+    return False

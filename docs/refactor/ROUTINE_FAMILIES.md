@@ -900,3 +900,36 @@ original partial-month precision; runtime/client/UI prohibitions remain intact.
 Item 6 continues with release catalog ownership and complete restartable run
 coordination, followed by the remaining approved families. No milestone PR is
 opened until the full Item 6 exit criteria are met.
+
+### Release catalog decoding and future-record checkpoint
+
+Release-check artist, release and track metadata now have an infrastructure
+codec owner. Original required fields, first-credit checks, metadata coercion,
+blank display-name tolerance, precision spelling, zero/invalid position fallback
+and undeduplicated raw search ranks are unchanged. Public helpers remain typed
+compatibility facades around the original synchronous SDK/retry expressions.
+
+Future-record matching belongs to the application and independent title/ID
+policies. Records are observed in original order, caller-owned empty cache hits
+are retained, accepted reads are cached before matching, and failure on a later
+read preserves earlier cache entries. Exact ID and nonempty qualifier-tolerant
+title matches retain original first-record preference and credit tolerance.
+
+Seventy-four codec scenarios were frozen against the original decoders before
+moving them; the immutable snapshot records source `2fdcd9e`. Six original
+future-record contracts passed before extraction and are replayed independently.
+Additional codec checks protect malformed search envelopes, skipped raw ranks,
+duplicate observations and ID-fallback versus blank-name behavior.
+
+- Full suite: **3,502 tests pass**, seed `20261014`;
+  **93.58% statements** (21,060 / 22,504),
+  **84.03% branches** (4,521 / 5,380).
+- Independent gates: **481 domain tests**, **976 application tests**, both with
+  **100% statement and branch coverage** for configured targets.
+- Focused policy, future-record and codec gate: **201 tests**, **100%** statement
+  and branch coverage (224 statements, 90 branches).
+- All eleven frozen public artifacts, package Ruff/format, package mypy
+  (251 source files), strict new source/test and short-function checks pass.
+
+Complete release-check run/checkpoint coordination, catalog paging and durable
+state ownership are next. Remaining waves stay in scope for the Item 6 PR.
