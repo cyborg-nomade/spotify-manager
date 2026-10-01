@@ -107,6 +107,12 @@ test-application:
         --cov=spotify_manager.application.something_old_run \
         --cov=spotify_manager.application.something_old_values \
         --cov=spotify_manager.application.golden_selection \
+        --cov=spotify_manager.application.palace_values \
+        --cov=spotify_manager.application.palace_run \
+        --cov=spotify_manager.application.palace_planning \
+        --cov=spotify_manager.application.palace_history \
+        --cov=spotify_manager.application.palace_mirror \
+        --cov=spotify_manager.application.palace_cursor \
         --cov=spotify_manager.application.queue_values \
         --cov=spotify_manager.application.genre_progress \
         --cov=spotify_manager.application.genre_values \

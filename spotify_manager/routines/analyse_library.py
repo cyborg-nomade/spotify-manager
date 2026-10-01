@@ -268,12 +268,11 @@ def load_models_jsonl[T: BaseModel](path: Path, model: type[T]) -> list[T]:
 
 def deduplicate_models[T: LibraryModel](models: Sequence[T]) -> list[T]:
     """Deduplicate models by Spotify id while preserving the newest value."""
-    by_id: dict[str, T] = {}
-    for model in models:
-        spotify_id = getattr(model, "spotify_id", "")
-        if spotify_id:
-            by_id[spotify_id] = model
-    return list(by_id.values())
+    from spotify_manager.infrastructure.library_models import (
+        deduplicate_models as deduplicate,
+    )
+
+    return deduplicate(models)
 
 
 def load_your_library(paths: LibraryAnalysisPaths) -> YourLibraryFile:
@@ -291,21 +290,11 @@ def load_your_library(paths: LibraryAnalysisPaths) -> YourLibraryFile:
 
 def album_from_saved_item(item: object) -> YourLibraryAlbum | None:
     """Convert one Spotify saved-album item into the local model."""
-    if not isinstance(item, dict) or not isinstance(item.get("album"), dict):
-        return None
-    album = item["album"]
-    artists = album.get("artists")
-    primary = artists[0] if isinstance(artists, list) and artists else {}
-    spotify_id = album.get("id")
-    name = album.get("name")
-    artist_name = primary.get("name") if isinstance(primary, dict) else None
-    if not spotify_id or not name or not artist_name:
-        return None
-    return YourLibraryAlbum(
-        artist=str(artist_name),
-        album=str(name),
-        uri=str(album.get("uri") or f"spotify:album:{spotify_id}"),
+    from spotify_manager.infrastructure.library_models import (
+        album_from_saved_item as parse_album,
     )
+
+    return parse_album(item)
 
 
 def track_from_saved_item(item: object) -> YourLibraryTrack | None:

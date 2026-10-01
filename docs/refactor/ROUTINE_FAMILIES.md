@@ -1193,3 +1193,29 @@ suite passes 4,887 tests with seed 20261024 (94.31% statements, 86.24% branches)
 
 Palace of Memory, Discography, New Year, library/legacy and operational integration
 remain to finish before the complete Item 6 pull request is opened.
+
+### Palace of Memory checkpoint
+
+Palace now separates alphabetical and historical selection, saved-edition matching,
+first-marker qualification and membership classification from its ordered runner.
+Named application owners coordinate live mirror refresh, historical date selection,
+manual cursor updates and completion. Catalog records, cursor files, mirror
+publication and audit bytes have infrastructure owners. The original facade keeps
+caller seams, public model/error identities and frozen SDK expressions.
+
+Before extraction, immutable observations captured 33 complete runs, five accepted
+effect/restart scenarios, 120 historical selections, 12 mirror refreshes, ten cursor
+updates and 45 raw catalog boundaries. Injected execution matches these traces,
+including mirror publication during preview, the final live membership recheck,
+first-track cache reuse, repeated unsaved search reads, independent cursor clocks
+and audit ordering. Mirror failures retain the original replacement/backup effects;
+failed cursor writes retain their temporary files.
+
+Isolated gates pass 785 domain and 1,676 application tests at 100% statement and
+branch coverage. The final coordinator completion stage also reaches 100% in its
+38 focused scenarios. Ruff, formatting, package mypy and strict new boundary
+typing pass. All 11 frozen public artifacts match. The complete randomized suite
+passes 5,226 tests with seed 20261026 (94.66% statements, 87.14% branches).
+
+Discography, New Year, library/legacy and operational integration remain before
+the final Item 6 ownership audit and complete pull request.

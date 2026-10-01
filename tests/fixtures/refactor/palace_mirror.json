@@ -1,0 +1,605 @@
+[
+  {
+    "profile": "missing",
+    "outcome": {
+      "result": {
+        "albums": [
+          {
+            "artist": "Artist 0",
+            "album": "Album 00",
+            "uri": "spotify:album:album-0"
+          },
+          {
+            "artist": "Artist 1",
+            "album": "Album 01",
+            "uri": "spotify:album:album-1"
+          },
+          {
+            "artist": "Artist 2",
+            "album": "Album 02",
+            "uri": "spotify:album:album-2"
+          },
+          {
+            "artist": "Artist 3",
+            "album": "Album 03",
+            "uri": "spotify:album:album-3"
+          },
+          {
+            "artist": "Artist 4",
+            "album": "Album 04",
+            "uri": "spotify:album:album-4"
+          },
+          {
+            "artist": "Artist 5",
+            "album": "Album 05",
+            "uri": "spotify:album:album-5"
+          }
+        ],
+        "refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 0,
+          "current": 6,
+          "added": 6,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": true,
+          "backup_path": null
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ],
+        [
+          "publish",
+          "albums.json",
+          "Spotify live library refresh"
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  },\n  {\n    \"artist\": \"Artist 5\",\n    \"album\": \"Album 05\",\n    \"uri\": \"spotify:album:album-5\"\n  }\n]\n",
+        "audit.jsonl": "{\"checked_at\": \"2026-08-08T00:00:00+00:00\", \"previous\": 0, \"current\": 6, \"added\": 6, \"removed\": 0, \"skipped\": 0, \"persisted\": true, \"backup_path\": null}\n"
+      }
+    }
+  },
+  {
+    "profile": "unchanged",
+    "outcome": {
+      "result": {
+        "albums": [
+          {
+            "artist": "Artist 0",
+            "album": "Album 00",
+            "uri": "spotify:album:album-0"
+          },
+          {
+            "artist": "Artist 1",
+            "album": "Album 01",
+            "uri": "spotify:album:album-1"
+          },
+          {
+            "artist": "Artist 2",
+            "album": "Album 02",
+            "uri": "spotify:album:album-2"
+          },
+          {
+            "artist": "Artist 3",
+            "album": "Album 03",
+            "uri": "spotify:album:album-3"
+          },
+          {
+            "artist": "Artist 4",
+            "album": "Album 04",
+            "uri": "spotify:album:album-4"
+          },
+          {
+            "artist": "Artist 5",
+            "album": "Album 05",
+            "uri": "spotify:album:album-5"
+          }
+        ],
+        "refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 6,
+          "current": 6,
+          "added": 0,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": false,
+          "backup_path": null
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  },\n  {\n    \"artist\": \"Artist 5\",\n    \"album\": \"Album 05\",\n    \"uri\": \"spotify:album:album-5\"\n  }\n]\n",
+        "audit.jsonl": "{\"checked_at\": \"2026-08-08T00:00:00+00:00\", \"previous\": 6, \"current\": 6, \"added\": 0, \"removed\": 0, \"skipped\": 0, \"persisted\": false, \"backup_path\": null}\n"
+      }
+    }
+  },
+  {
+    "profile": "changed",
+    "outcome": {
+      "result": {
+        "albums": [
+          {
+            "artist": "Artist 0",
+            "album": "Album 00",
+            "uri": "spotify:album:album-0"
+          },
+          {
+            "artist": "Artist 1",
+            "album": "Album 01",
+            "uri": "spotify:album:album-1"
+          },
+          {
+            "artist": "Artist 2",
+            "album": "Album 02",
+            "uri": "spotify:album:album-2"
+          },
+          {
+            "artist": "Artist 3",
+            "album": "Album 03",
+            "uri": "spotify:album:album-3"
+          },
+          {
+            "artist": "Artist 4",
+            "album": "Album 04",
+            "uri": "spotify:album:album-4"
+          },
+          {
+            "artist": "Artist 5",
+            "album": "Album 05",
+            "uri": "spotify:album:album-5"
+          }
+        ],
+        "refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 5,
+          "current": 6,
+          "added": 1,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": true,
+          "backup_path": "ROOT/backups/20260808T000000000000Z-albums_total_new.json"
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ],
+        [
+          "publish",
+          "albums.json",
+          "Spotify live library refresh"
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  },\n  {\n    \"artist\": \"Artist 5\",\n    \"album\": \"Album 05\",\n    \"uri\": \"spotify:album:album-5\"\n  }\n]\n",
+        "audit.jsonl": "{\"checked_at\": \"2026-08-08T00:00:00+00:00\", \"previous\": 5, \"current\": 6, \"added\": 1, \"removed\": 0, \"skipped\": 0, \"persisted\": true, \"backup_path\": \"ROOT/backups/20260808T000000000000Z-albums_total_new.json\"}\n",
+        "backups/20260808T000000000000Z-albums_total_new.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  },
+  {
+    "profile": "invalid-old",
+    "outcome": {
+      "result": {
+        "albums": [
+          {
+            "artist": "Artist 0",
+            "album": "Album 00",
+            "uri": "spotify:album:album-0"
+          },
+          {
+            "artist": "Artist 1",
+            "album": "Album 01",
+            "uri": "spotify:album:album-1"
+          },
+          {
+            "artist": "Artist 2",
+            "album": "Album 02",
+            "uri": "spotify:album:album-2"
+          },
+          {
+            "artist": "Artist 3",
+            "album": "Album 03",
+            "uri": "spotify:album:album-3"
+          },
+          {
+            "artist": "Artist 4",
+            "album": "Album 04",
+            "uri": "spotify:album:album-4"
+          },
+          {
+            "artist": "Artist 5",
+            "album": "Album 05",
+            "uri": "spotify:album:album-5"
+          }
+        ],
+        "refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 0,
+          "current": 6,
+          "added": 6,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": true,
+          "backup_path": "ROOT/backups/20260808T000000000000Z-albums_total_new.json"
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ],
+        [
+          "publish",
+          "albums.json",
+          "Spotify live library refresh"
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  },\n  {\n    \"artist\": \"Artist 5\",\n    \"album\": \"Album 05\",\n    \"uri\": \"spotify:album:album-5\"\n  }\n]\n",
+        "audit.jsonl": "{\"checked_at\": \"2026-08-08T00:00:00+00:00\", \"previous\": 0, \"current\": 6, \"added\": 6, \"removed\": 0, \"skipped\": 0, \"persisted\": true, \"backup_path\": \"ROOT/backups/20260808T000000000000Z-albums_total_new.json\"}\n",
+        "backups/20260808T000000000000Z-albums_total_new.json": "{invalid"
+      }
+    }
+  },
+  {
+    "profile": "too-small",
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned fewer than 5 saved albums.",
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  },
+  {
+    "profile": "invalid-page",
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned an invalid saved-album page at offset 0.",
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  },
+  {
+    "profile": "empty-next",
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned an empty saved-album page with a next link.",
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  },
+  {
+    "profile": "paged",
+    "outcome": {
+      "result": {
+        "albums": [
+          {
+            "artist": "Artist 0",
+            "album": "Album 00",
+            "uri": "spotify:album:album-0"
+          },
+          {
+            "artist": "Artist 1",
+            "album": "Album 01",
+            "uri": "spotify:album:album-1"
+          },
+          {
+            "artist": "Artist 2",
+            "album": "Album 02",
+            "uri": "spotify:album:album-2"
+          },
+          {
+            "artist": "Artist 3",
+            "album": "Album 03",
+            "uri": "spotify:album:album-3"
+          },
+          {
+            "artist": "Artist 4",
+            "album": "Album 04",
+            "uri": "spotify:album:album-4"
+          },
+          {
+            "artist": "Artist 5",
+            "album": "Album 05",
+            "uri": "spotify:album:album-5"
+          }
+        ],
+        "refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 5,
+          "current": 6,
+          "added": 1,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": true,
+          "backup_path": "ROOT/backups/20260808T000000000000Z-albums_total_new.json"
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ],
+        [
+          "progress",
+          "Refreshing saved albums at offset 3"
+        ],
+        [
+          "read",
+          50,
+          3
+        ],
+        [
+          "publish",
+          "albums.json",
+          "Spotify live library refresh"
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  },\n  {\n    \"artist\": \"Artist 5\",\n    \"album\": \"Album 05\",\n    \"uri\": \"spotify:album:album-5\"\n  }\n]\n",
+        "audit.jsonl": "{\"checked_at\": \"2026-08-08T00:00:00+00:00\", \"previous\": 5, \"current\": 6, \"added\": 1, \"removed\": 0, \"skipped\": 0, \"persisted\": true, \"backup_path\": \"ROOT/backups/20260808T000000000000Z-albums_total_new.json\"}\n",
+        "backups/20260808T000000000000Z-albums_total_new.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  },
+  {
+    "profile": "duplicate",
+    "outcome": {
+      "result": {
+        "albums": [
+          {
+            "artist": "Artist 1",
+            "album": "Album 01",
+            "uri": "spotify:album:album-1"
+          },
+          {
+            "artist": "Artist 2",
+            "album": "Album 02",
+            "uri": "spotify:album:album-2"
+          },
+          {
+            "artist": "Artist 3",
+            "album": "Album 03",
+            "uri": "spotify:album:album-3"
+          },
+          {
+            "artist": "Artist 4",
+            "album": "Album 04",
+            "uri": "spotify:album:album-4"
+          },
+          {
+            "artist": "Artist 5",
+            "album": "Album 05",
+            "uri": "spotify:album:album-5"
+          },
+          {
+            "artist": "Artist 0",
+            "album": "Newest Album",
+            "uri": "spotify:album:album-0"
+          }
+        ],
+        "refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 5,
+          "current": 6,
+          "added": 1,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": true,
+          "backup_path": "ROOT/backups/20260808T000000000000Z-albums_total_new.json"
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ],
+        [
+          "publish",
+          "albums.json",
+          "Spotify live library refresh"
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  },\n  {\n    \"artist\": \"Artist 5\",\n    \"album\": \"Album 05\",\n    \"uri\": \"spotify:album:album-5\"\n  },\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Newest Album\",\n    \"uri\": \"spotify:album:album-0\"\n  }\n]\n",
+        "audit.jsonl": "{\"checked_at\": \"2026-08-08T00:00:00+00:00\", \"previous\": 5, \"current\": 6, \"added\": 1, \"removed\": 0, \"skipped\": 0, \"persisted\": true, \"backup_path\": \"ROOT/backups/20260808T000000000000Z-albums_total_new.json\"}\n",
+        "backups/20260808T000000000000Z-albums_total_new.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  },
+  {
+    "profile": "unusable",
+    "outcome": {
+      "result": {
+        "albums": [
+          {
+            "artist": "Artist 0",
+            "album": "Album 00",
+            "uri": "spotify:album:album-0"
+          },
+          {
+            "artist": "Artist 1",
+            "album": "Album 01",
+            "uri": "spotify:album:album-1"
+          },
+          {
+            "artist": "Artist 2",
+            "album": "Album 02",
+            "uri": "spotify:album:album-2"
+          },
+          {
+            "artist": "Artist 3",
+            "album": "Album 03",
+            "uri": "spotify:album:album-3"
+          },
+          {
+            "artist": "Artist 4",
+            "album": "Album 04",
+            "uri": "spotify:album:album-4"
+          },
+          {
+            "artist": "Artist 5",
+            "album": "Album 05",
+            "uri": "spotify:album:album-5"
+          }
+        ],
+        "refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 5,
+          "current": 6,
+          "added": 1,
+          "removed": 0,
+          "skipped": 4,
+          "persisted": true,
+          "backup_path": "ROOT/backups/20260808T000000000000Z-albums_total_new.json"
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ],
+        [
+          "publish",
+          "albums.json",
+          "Spotify live library refresh"
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  },\n  {\n    \"artist\": \"Artist 5\",\n    \"album\": \"Album 05\",\n    \"uri\": \"spotify:album:album-5\"\n  }\n]\n",
+        "audit.jsonl": "{\"checked_at\": \"2026-08-08T00:00:00+00:00\", \"previous\": 5, \"current\": 6, \"added\": 1, \"removed\": 0, \"skipped\": 4, \"persisted\": true, \"backup_path\": \"ROOT/backups/20260808T000000000000Z-albums_total_new.json\"}\n",
+        "backups/20260808T000000000000Z-albums_total_new.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  },
+  {
+    "profile": "publish-error",
+    "outcome": {
+      "error": "PalaceOfMemoryStateError",
+      "message": "Could not publish refreshed saved albums: ROOT/albums.json",
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ],
+        [
+          "publish",
+          "albums.json",
+          "Spotify live library refresh"
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  },\n  {\n    \"artist\": \"Artist 5\",\n    \"album\": \"Album 05\",\n    \"uri\": \"spotify:album:album-5\"\n  }\n]\n",
+        "backups/20260808T000000000000Z-albums_total_new.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  },
+  {
+    "profile": "read-error",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "read failed",
+      "trace": [
+        [
+          "progress",
+          "Refreshing saved albums at offset 0"
+        ],
+        [
+          "read",
+          50,
+          0
+        ]
+      ],
+      "artifacts": {
+        "albums.json": "[\n  {\n    \"artist\": \"Artist 0\",\n    \"album\": \"Album 00\",\n    \"uri\": \"spotify:album:album-0\"\n  },\n  {\n    \"artist\": \"Artist 1\",\n    \"album\": \"Album 01\",\n    \"uri\": \"spotify:album:album-1\"\n  },\n  {\n    \"artist\": \"Artist 2\",\n    \"album\": \"Album 02\",\n    \"uri\": \"spotify:album:album-2\"\n  },\n  {\n    \"artist\": \"Artist 3\",\n    \"album\": \"Album 03\",\n    \"uri\": \"spotify:album:album-3\"\n  },\n  {\n    \"artist\": \"Artist 4\",\n    \"album\": \"Album 04\",\n    \"uri\": \"spotify:album:album-4\"\n  }\n]\n"
+      }
+    }
+  }
+]

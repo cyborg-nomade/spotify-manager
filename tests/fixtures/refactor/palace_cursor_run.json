@@ -1,0 +1,315 @@
+[
+  {
+    "position": -1,
+    "failure": null,
+    "outcome": {
+      "error": "PalaceOfMemoryConfigError",
+      "message": "Alphabetical cursor must be between 1 and 7.",
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "position": 0,
+    "failure": null,
+    "outcome": {
+      "error": "PalaceOfMemoryConfigError",
+      "message": "Alphabetical cursor must be between 1 and 7.",
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "position": 1,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "next_index": 0,
+        "next_album": {
+          "artist": "Artist 0",
+          "album": "Album 00",
+          "uri": "spotify:album:album-0"
+        },
+        "album_refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 6,
+          "current": 7,
+          "added": 1,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": true,
+          "backup_path": "backup"
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ],
+        [
+          "state-access",
+          "cursor",
+          true
+        ],
+        [
+          "state-load"
+        ],
+        [
+          "state-save",
+          {
+            "updated_at": "2026-08-08T00:00:00+00:00",
+            "next_alphabetical_index": 0,
+            "last_alphabetical_album_id": "album-6",
+            "last_alphabetical_artist": "Artist 6",
+            "last_alphabetical_album": "Album 06"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "position": 7,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "next_index": 6,
+        "next_album": {
+          "artist": "Artist 6",
+          "album": "Album 06",
+          "uri": "spotify:album:album-6"
+        },
+        "album_refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 6,
+          "current": 7,
+          "added": 1,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": true,
+          "backup_path": "backup"
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ],
+        [
+          "state-access",
+          "cursor",
+          true
+        ],
+        [
+          "state-load"
+        ],
+        [
+          "state-save",
+          {
+            "updated_at": "2026-08-08T00:00:00+00:00",
+            "next_alphabetical_index": 6,
+            "last_alphabetical_album_id": "album-5",
+            "last_alphabetical_artist": "Artist 5",
+            "last_alphabetical_album": "Album 05"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "position": 8,
+    "failure": null,
+    "outcome": {
+      "error": "PalaceOfMemoryConfigError",
+      "message": "Alphabetical cursor must be between 1 and 7.",
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "position": true,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "next_index": 0,
+        "next_album": {
+          "artist": "Artist 0",
+          "album": "Album 00",
+          "uri": "spotify:album:album-0"
+        },
+        "album_refresh": {
+          "checked_at": "2026-08-08 00:00:00+00:00",
+          "previous": 6,
+          "current": 7,
+          "added": 1,
+          "removed": 0,
+          "skipped": 0,
+          "persisted": true,
+          "backup_path": "backup"
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ],
+        [
+          "state-access",
+          "cursor",
+          true
+        ],
+        [
+          "state-load"
+        ],
+        [
+          "state-save",
+          {
+            "updated_at": "2026-08-08T00:00:00+00:00",
+            "next_alphabetical_index": 0,
+            "last_alphabetical_album_id": "album-6",
+            "last_alphabetical_artist": "Artist 6",
+            "last_alphabetical_album": "Album 06"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "position": 3,
+    "failure": "refresh",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "refresh",
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "position": 3,
+    "failure": "state-load",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "state-load",
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ],
+        [
+          "state-access",
+          "cursor",
+          true
+        ],
+        [
+          "state-load"
+        ]
+      ]
+    }
+  },
+  {
+    "position": 3,
+    "failure": "state-save",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "state-save",
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ],
+        [
+          "refresh",
+          "albums",
+          true
+        ],
+        [
+          "state-access",
+          "cursor",
+          true
+        ],
+        [
+          "state-load"
+        ],
+        [
+          "state-save",
+          {
+            "updated_at": "2026-08-08T00:00:00+00:00",
+            "next_alphabetical_index": 2,
+            "last_alphabetical_album_id": "album-1",
+            "last_alphabetical_artist": "Artist 1",
+            "last_alphabetical_album": "Album 01"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "position": 3,
+    "failure": "progress",
+    "outcome": {
+      "error": "RuntimeError",
+      "message": "progress",
+      "trace": [
+        [
+          "progress",
+          "Refreshing the saved-album mirror"
+        ]
+      ]
+    }
+  }
+]
