@@ -2,7 +2,6 @@
 
 import json
 from collections.abc import Iterable
-from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import replace
 from datetime import UTC
@@ -17,7 +16,6 @@ from spotipy import Spotify
 from spotify_manager.application.found_art_values import (
     FoundArtConfigError as FoundArtConfigError,
 )
-
 from spotify_manager.application.found_art_values import FoundArtError as FoundArtError
 from spotify_manager.application.found_art_values import (
     FoundArtStateError as FoundArtStateError,
@@ -25,6 +23,12 @@ from spotify_manager.application.found_art_values import (
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
 from spotify_manager.domain import recommendation_history as history_policy
+from spotify_manager.domain.recommendation_candidates import (
+    FoundArtCandidate as FoundArtCandidate,
+)
+from spotify_manager.domain.recommendation_candidates import (
+    _CandidateAccumulator as _CandidateAccumulator,
+)
 from spotify_manager.domain.recommendation_history import TrackHistory as TrackHistory
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed as FoundArtSeed
 from spotify_manager.routines import blast_from_past
@@ -81,20 +85,6 @@ class LastFmReader(Protocol):
 
 
 @dataclass(frozen=True)
-class FoundArtCandidate:
-    """One unheard candidate aggregated across seed recommendations."""
-
-    artist: str
-    track: str
-    key: TrackKey
-    score: float
-    best_match: float
-    supporting_seeds: tuple[str, ...]
-    base_rank: int = 0
-    weekly_rank: float = 1.0
-
-
-@dataclass(frozen=True)
 class FoundArtResult:
     """Spotify resolution outcome for one ranked Last.fm candidate."""
 
@@ -131,22 +121,6 @@ class FoundArtSummary:
     def selected(self) -> int:
         """Return additions or proposed additions selected by the run."""
         return sum(result.action in {"added", "would add"} for result in self.results)
-
-
-@dataclass
-class _CandidateAccumulator:
-    """Mutable aggregation state while seed neighborhoods are combined."""
-
-    artist: str
-    track: str
-    key: TrackKey
-    score: float = 0.0
-    best_match: float = 0.0
-    supporting_seeds: set[str] | None = None
-
-    def __post_init__(self) -> None:
-        if self.supporting_seeds is None:
-            self.supporting_seeds = set()
 
 
 def canonical_track_key(artist: str, track: str) -> TrackKey:
@@ -418,107 +392,39 @@ def gather_candidates(
     now: datetime | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[FoundArtCandidate, ...]:
-    """Combine seed neighborhoods and apply the weekly weighted ordering."""
-    if candidate_pool_size < 1:
-        raise FoundArtConfigError("Candidate pool size must be at least 1.")
-    generated_at = (now or datetime.now(UTC)).astimezone(UTC)
-    active_week = week_start or listening_week_start(generated_at)
-    cache = _load_similar_cache(cache_path)
-    entries = cache["entries"]
-    if not isinstance(entries, dict):
-        raise AssertionError("validated cache entries changed type")
-    logged_keys = (
-        previously_added_track_keys(log_path) if log_path is not None else set()
-    )
-    excluded_keys = heard_keys | logged_keys
-    candidates: dict[TrackKey, _CandidateAccumulator] = {}
+    """Combine seed neighborhoods and apply the weekly weighted ordering.
 
-    for index, seed in enumerate(seeds, start=1):
-        if progress_callback is not None:
-            progress_callback(
-                f"Getting Last.fm neighbors for seed {index}/{len(seeds)}"
-            )
-        key = _cache_key(seed)
-        similar = _cached_similar_tracks(
-            entries.get(key),
-            week_start=active_week,
-        )
-        if similar is None:
-            similar = lastfm.similar_tracks(
-                seed.artist,
-                seed.track,
-                limit=DEFAULT_SIMILAR_TRACK_LIMIT,
-            )
-            entries[key] = {
-                "artist": seed.artist,
-                "track": seed.track,
-                "fetched_at": generated_at.isoformat(),
-                "tracks": [asdict(track) for track in similar],
-            }
-            _save_similar_cache(cache, cache_path)
+    Args:
+        lastfm: Caller-owned neighborhood reader.
+        seeds: Ordered weighted recommendation seeds.
+        heard_keys: Normalized identities excluded by listening history.
+        cache_path: Mutable neighborhood cache destination.
+        log_path: Prior-addition log, or disabled exclusions when absent.
+        week_start: Optional effective listening week.
+        candidate_pool_size: Positive maximum pool before weekly rotation.
+        now: Optional timestamp used for cache freshness and the default week.
+        progress_callback: Optional observer of per-seed progress.
 
-        seed_label = f"{seed.artist} - {seed.track}"
-        for neighbor in similar:
-            candidate_key = canonical_track_key(neighbor.artist, neighbor.track)
-            if not all(candidate_key) or candidate_key in excluded_keys:
-                continue
-            accumulator = candidates.setdefault(
-                candidate_key,
-                _CandidateAccumulator(
-                    artist=neighbor.artist,
-                    track=neighbor.track,
-                    key=candidate_key,
-                ),
-            )
-            accumulator.score += seed.weight * neighbor.match
-            accumulator.best_match = max(accumulator.best_match, neighbor.match)
-            if accumulator.supporting_seeds is None:
-                raise AssertionError("candidate support set was not initialized")
-            accumulator.supporting_seeds.add(seed_label)
+    Returns:
+        Ranked unheard candidates after all cache checkpoints succeed.
 
-    base_ranked = sorted(
-        (
-            FoundArtCandidate(
-                artist=candidate.artist,
-                track=candidate.track,
-                key=candidate.key,
-                score=candidate.score
-                * (1 + 0.15 * (len(candidate.supporting_seeds or ()) - 1)),
-                best_match=candidate.best_match,
-                supporting_seeds=tuple(sorted(candidate.supporting_seeds or ())),
-            )
-            for candidate in candidates.values()
-        ),
-        key=lambda candidate: (
-            -candidate.score,
-            -len(candidate.supporting_seeds),
-            -candidate.best_match,
-            candidate.key,
-        ),
-    )
-    weekly_pool = tuple(base_ranked[:candidate_pool_size])
-    rotated = tuple(
-        replace(
-            candidate,
-            base_rank=base_rank,
-            weekly_rank=weekly_weighted_rank(
-                active_week,
-                "candidate",
-                candidate.key,
-                candidate.score**2,
-            ),
-        )
-        for base_rank, candidate in enumerate(weekly_pool, start=1)
-    )
-    return tuple(
-        sorted(
-            rotated,
-            key=lambda candidate: (
-                -candidate.weekly_rank,
-                candidate.base_rank,
-                candidate.key,
-            ),
-        )
+    Raises:
+        FoundArtConfigError: The pool size is less than one.
+        FoundArtStateError: Cache or enabled prior-addition data is unusable.
+        AssertionError: Validated cache entries or candidate support are corrupted.
+    """
+    from spotify_manager.bootstrap.recommendations import gather_candidates as gather
+
+    return gather(
+        lastfm,
+        seeds,
+        heard_keys,
+        cache_path,
+        log_path,
+        week_start,
+        candidate_pool_size,
+        now,
+        progress_callback,
     )
 
 

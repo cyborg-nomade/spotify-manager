@@ -656,3 +656,27 @@ Art, Sauvignon and The Queue tests continue to pass unchanged.
 
 Found Art candidate/cache handling and the remaining discovery workflows remain
 in progress. This checkpoint does not complete Item 6 or open its milestone PR.
+
+### Recommendation candidate gathering checkpoint
+
+Found Art neighborhood observation and cache checkpoints now use an injected
+application workflow. Candidate accumulation, distinct-seed support bonuses,
+base pool limits and deterministic weekly rotation belong to the domain. The
+Last.fm neighborhood value is shared through the existing client import alias.
+
+Seven boundary tests passed against the original gatherer before extraction.
+They preserve each failure boundary, cumulative checkpoints, empty current-week
+cache hits and disabled audit exclusions. Fetches are still checkpointed before
+aggregation or the next seed, including during preview runs. Existing cache
+decoding and serialization remain behind the legacy adapter for a later slice.
+
+- Full suite: **2,758 tests pass**, seed `20261005`;
+  **93.12% statements** (20,253 / 21,749),
+  **82.66% branches** (4,399 / 5,322).
+- Independent gates: **318 domain tests**, **836 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- All eleven frozen public interface artifacts, package Ruff lint/format,
+  package mypy (220 source files) and strict inner-layer checks pass.
+
+Found Art Spotify resolution, full-run orchestration and storage ownership
+remain pending. Item 6 continues as one milestone without a PR or deployment.
