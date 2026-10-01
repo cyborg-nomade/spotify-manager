@@ -2,12 +2,7 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
-from dataclasses import asdict
-from dataclasses import dataclass
-from dataclasses import replace
-from datetime import UTC
 from datetime import date
 from datetime import datetime
 from functools import partial
@@ -29,6 +24,9 @@ from spotify_manager.application.sauvignon_values import (
 from spotify_manager.application.sauvignon_values import (
     SauvignonStateError as SauvignonStateError,
 )
+from spotify_manager.application.sauvignon_values import (
+    SauvignonSummary as SauvignonSummary,
+)
 from spotify_manager.domain import album_recommendations as album_policy
 from spotify_manager.domain.album_recommendations import (
     AlbumRecommendation as AlbumRecommendation,
@@ -40,6 +38,8 @@ from spotify_manager.domain.album_recommendations import (
 from spotify_manager.domain.album_recommendations import (
     _AlbumAccumulator as _AlbumAccumulator,
 )
+from spotify_manager.domain.album_selection import SauvignonAction as SauvignonAction
+from spotify_manager.domain.album_selection import SauvignonResult as SauvignonResult
 
 # UFI
 from spotify_manager.routines import blast_from_past
@@ -71,52 +71,6 @@ AlbumChoiceReader = Callable[
 
 class LastFmReader(found_art.LastFmReader, Protocol):
     """Last.fm methods required through the shared Found Art machinery."""
-
-
-SauvignonAction = Literal[
-    "added",
-    "would add",
-    "already represented",
-    "artist already selected",
-    "skipped",
-    "quit",
-]
-
-
-@dataclass(frozen=True)
-class SauvignonResult:
-    """One ranked recommendation and its final playlist action."""
-
-    recommendation: AlbumRecommendation
-    album: SpotifyAlbumOption | None
-    first_track: FirstTrack | None
-    action: SauvignonAction
-
-
-@dataclass(frozen=True)
-class SauvignonSummary:
-    """Outcome of one Last.fm-driven Sauvignon fill."""
-
-    generated_at: datetime
-    week_start: date
-    playlist_id: str
-    requested_count: int
-    history_albums: int
-    history_scrobbles: int
-    live_scrobbles_added: int
-    seed_count: int
-    track_candidate_count: int
-    album_candidate_count: int
-    playlist_length_before: int
-    playlist_length_after: int
-    paused: bool
-    dry_run: bool
-    results: tuple[SauvignonResult, ...]
-
-    @property
-    def selected(self) -> int:
-        """Return proposed or completed additions."""
-        return sum(result.action in {"added", "would add"} for result in self.results)
 
 
 def parse_playlist_id(reference: str | None) -> str:
@@ -158,41 +112,22 @@ def heard_album_keys(
 
 
 def previously_added_album_keys(path: Path = DEFAULT_LOG_PATH) -> set[AlbumKey]:
-    """Return albums actually added by earlier Sauvignon recommendation runs."""
-    if not path.exists():
-        return set()
-    keys: set[AlbumKey] = set()
-    current_line = 0
-    try:
-        with path.open(encoding="utf-8") as source:
-            for line_number, line in enumerate(source, start=1):
-                current_line = line_number
-                if not line.strip():
-                    continue
-                record = json.loads(line)
-                raw_results = (
-                    record.get("results") if isinstance(record, dict) else None
-                )
-                if not isinstance(raw_results, list):
-                    raise ValueError("results must be a list")
-                for result in raw_results:
-                    if not isinstance(result, dict) or result.get("action") != "added":
-                        continue
-                    raw_album = result.get("album")
-                    if not isinstance(raw_album, dict):
-                        raise ValueError("album must be an object")
-                    keys.add(
-                        canonical_album_key(
-                            str(raw_album["artist"]),
-                            str(raw_album["album"]),
-                        )
-                    )
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        detail = f" at line {current_line}" if current_line else ""
-        raise SauvignonStateError(
-            f"Sauvignon audit log is invalid{detail}: {path}"
-        ) from exc
-    return keys
+    """Read original actual additions from the configured audit.
+
+    Args:
+        path: Original audit location.
+
+    Returns:
+        Distinct normalized accepted album identities.
+
+    Raises:
+        SauvignonStateError: The original audit cannot be read or decoded.
+    """
+    from spotify_manager.infrastructure.sauvignon_data import (
+        previously_added_album_keys as read,
+    )
+
+    return read(path)
 
 
 def _artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
@@ -360,50 +295,24 @@ def load_first_track(
 
 
 def _result_record(result: SauvignonResult) -> dict[str, object]:
-    recommendation = result.recommendation
-    return {
-        "recommendation": {
-            "artist": recommendation.artist,
-            "album": recommendation.album,
-            "score": recommendation.score,
-            "best_match": recommendation.best_match,
-            "supporting_tracks": list(recommendation.supporting_tracks),
-            "base_rank": recommendation.base_rank,
-            "weekly_rank": recommendation.weekly_rank,
-        },
-        "album": asdict(result.album) if result.album is not None else None,
-        "first_track": (
-            asdict(result.first_track) if result.first_track is not None else None
-        ),
-        "action": result.action,
-    }
+    from spotify_manager.infrastructure.sauvignon_data import _result_record as record
+
+    return record(result)
 
 
 def append_log(summary: SauvignonSummary, path: Path = DEFAULT_LOG_PATH) -> None:
-    """Append one complete recommendation run to the audit log."""
-    record = {
-        "generated_at": summary.generated_at.isoformat(),
-        "week_start": summary.week_start.isoformat(),
-        "playlist_id": summary.playlist_id,
-        "requested_count": summary.requested_count,
-        "history_albums": summary.history_albums,
-        "history_scrobbles": summary.history_scrobbles,
-        "live_scrobbles_added": summary.live_scrobbles_added,
-        "seed_count": summary.seed_count,
-        "track_candidate_count": summary.track_candidate_count,
-        "album_candidate_count": summary.album_candidate_count,
-        "playlist_length_before": summary.playlist_length_before,
-        "playlist_length_after": summary.playlist_length_after,
-        "paused": summary.paused,
-        "dry_run": summary.dry_run,
-        "results": [_result_record(result) for result in summary.results],
-    }
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as output:
-            output.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except OSError as exc:
-        raise SauvignonStateError(f"Could not write Sauvignon log: {path}") from exc
+    """Append the original completed outcome after accepted playlist effects.
+
+    Args:
+        summary: Original complete run result.
+        path: Original audit destination.
+
+    Raises:
+        SauvignonStateError: The original log cannot be written.
+    """
+    from spotify_manager.infrastructure.sauvignon_data import append_log as append
+
+    append(summary, path)
 
 
 def fill_sauvignon_from_lastfm(
@@ -426,187 +335,34 @@ def fill_sauvignon_from_lastfm(
     now: datetime | None = None,
 ) -> SauvignonSummary:
     """Fill Sauvignon with album-level recommendations inferred from Last.fm."""
-    if count is not None and max_playlist_length is not None:
-        raise SauvignonConfigError(
-            "Use either count or maximum playlist length, not both."
-        )
-    if count is not None and count < 1:
-        raise SauvignonConfigError("Count must be at least 1.")
-    if max_playlist_length is not None and max_playlist_length < 1:
-        raise SauvignonConfigError("Maximum playlist length must be at least 1.")
-    if seed_count < 1:
-        raise SauvignonConfigError("Seed count must be at least 1.")
+    from spotify_manager.bootstrap.sauvignon import run_sauvignon
 
-    retry = retry_call or (lambda operation, _description: operation())
-    generated_at = (now or datetime.now(UTC)).astimezone(UTC)
-    week_start = found_art.listening_week_start(generated_at)
-    history, live_added = found_art.refresh_scrobble_history(
+    return run_sauvignon(
+        spotify,
         lastfm,
-        export_path=export_path,
-        recent_path=recent_path,
-        dry_run=dry_run,
-        now=generated_at,
-        progress_callback=progress_callback,
-    )
-    if progress_callback is not None:
-        progress_callback("Loading Sauvignon Terre-Neuve")
-    try:
-        playlist = new_wine.load_playlist_tracks(spotify, playlist_id, retry)
-    except new_wine.NewWineError as exc:
-        raise SauvignonSpotifyError(str(exc)) from exc
-    before = len(playlist)
-    requested = (
-        count
-        if count is not None
-        else max(
-            0,
-            (max_playlist_length or DEFAULT_MAX_PLAYLIST_LENGTH) - before,
-        )
+        playlist_id,
+        choice_reader,
+        count,
+        max_playlist_length,
+        seed_count,
+        dry_run,
+        echo,
+        progress_callback,
+        retry_call,
+        export_path,
+        recent_path,
+        cache_path,
+        log_path,
+        now,
     )
 
-    seeds: tuple[found_art.FoundArtSeed, ...] = ()
-    track_candidates: tuple[found_art.FoundArtCandidate, ...] = ()
-    album_candidates: tuple[AlbumRecommendation, ...] = ()
-    results: list[SauvignonResult] = []
-    pending: list[tuple[SpotifyAlbumOption, FirstTrack]] = []
-    paused = False
-    history_keys = heard_album_keys(history)
-    if requested:
-        track_history = found_art.aggregate_track_history(history)
-        seeds = found_art.select_seed_tracks(
-            track_history,
-            seed_count=seed_count,
-            week_start=week_start,
-        )
-        track_candidates = found_art.gather_candidates(
-            lastfm,
-            seeds,
-            {track.key for track in track_history},
-            cache_path=cache_path,
-            log_path=None,
-            week_start=week_start,
-            candidate_pool_size=max(
-                found_art.MIN_WEEKLY_CANDIDATE_POOL,
-                requested * found_art.WEEKLY_CANDIDATE_POOL_MULTIPLIER,
-            ),
-            now=generated_at,
-            progress_callback=progress_callback,
-        )
-        existing_ids = {track.release.spotify_id for track in playlist}
-        existing_keys = {
-            canonical_album_key(track.primary_artist_name, track.release.name)
-            for track in playlist
-        }
-        excluded = history_keys | existing_keys | previously_added_album_keys(log_path)
-        album_candidates = gather_album_recommendations(
-            spotify,
-            track_candidates,
-            excluded,
-            existing_ids,
-            maximum_candidates=min(
-                len(track_candidates),
-                max(MIN_SPOTIFY_CANDIDATES, requested * SPOTIFY_CANDIDATE_MULTIPLIER),
-            ),
-            week_start=week_start,
-            retry_call=retry,
-            progress_callback=progress_callback,
-        )
 
-        selected_artists: set[str] = set()
-        selected_album_ids: set[str] = set()
-        for recommendation in album_candidates:
-            if len(pending) >= requested:
-                break
-            artist_key = recommendation.key[0]
-            if artist_key in selected_artists:
-                results.append(
-                    SauvignonResult(
-                        recommendation,
-                        None,
-                        None,
-                        "artist already selected",
-                    )
-                )
-                continue
-            choice = choose_album_option(recommendation, choice_reader)
-            if choice == "quit":
-                results.append(SauvignonResult(recommendation, None, None, "quit"))
-                paused = True
-                break
-            if choice == "skip":
-                results.append(SauvignonResult(recommendation, None, None, "skipped"))
-                continue
-            if choice.spotify_id in selected_album_ids:
-                results.append(
-                    SauvignonResult(
-                        recommendation,
-                        choice,
-                        None,
-                        "already represented",
-                    )
-                )
-                continue
-            first_track = load_first_track(spotify, choice, retry)
-            action: SauvignonAction = "would add" if dry_run else "added"
-            results.append(SauvignonResult(recommendation, choice, first_track, action))
-            pending.append((choice, first_track))
-            selected_artists.add(artist_key)
-            selected_album_ids.add(choice.spotify_id)
-
-    actual_additions = 0
-    if pending and not dry_run:
-        if progress_callback is not None:
-            progress_callback("Rechecking Sauvignon before adding albums")
-        try:
-            current = new_wine.load_playlist_tracks(spotify, playlist_id, retry)
-        except new_wine.NewWineError as exc:
-            raise SauvignonSpotifyError(str(exc)) from exc
-        current_album_ids = {track.release.spotify_id for track in current}
-        current_track_ids = {track.spotify_id for track in current}
-        additions = [
-            (album, track)
-            for album, track in pending
-            if album.spotify_id not in current_album_ids
-            and track.spotify_id not in current_track_ids
-        ]
-        if additions:
-            retry(
-                lambda: spotify._post(
-                    f"playlists/{playlist_id}/items",
-                    payload={"uris": [track.uri for _album, track in additions]},
-                ),
-                f"adding {len(additions)} albums to Sauvignon Terre-Neuve",
-            )
-            actual_additions = len(additions)
-            echo(f"Added {actual_additions} albums to Sauvignon Terre-Neuve.")
-        added_ids = {album.spotify_id for album, _track in additions}
-        results = [
-            (
-                replace(result, action="already represented")
-                if result.action == "added"
-                and result.album is not None
-                and result.album.spotify_id not in added_ids
-                else result
-            )
-            for result in results
-        ]
-
-    summary = SauvignonSummary(
-        generated_at=generated_at,
-        week_start=week_start,
-        playlist_id=playlist_id,
-        requested_count=requested,
-        history_albums=len(history_keys),
-        history_scrobbles=len(history),
-        live_scrobbles_added=live_added,
-        seed_count=len(seeds),
-        track_candidate_count=len(track_candidates),
-        album_candidate_count=len(album_candidates),
-        playlist_length_before=before,
-        playlist_length_after=before + actual_additions,
-        paused=paused,
-        dry_run=dry_run,
-        results=tuple(results),
+def _append_recommendation_albums(
+    spotify: Spotify,
+    playlist_id: str,
+    additions: list[tuple[SpotifyAlbumOption, FirstTrack]],
+) -> object:
+    return spotify._post(
+        f"playlists/{playlist_id}/items",
+        payload={"uris": [track.uri for _album, track in additions]},
     )
-    append_log(summary, log_path)
-    return summary

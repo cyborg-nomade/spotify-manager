@@ -804,3 +804,33 @@ Thirty new parsing contracts passed before moving those codecs.
 
 Sauvignon's complete run, live recheck/append and audit ownership remain pending.
 Item 6 remains ongoing without a milestone PR, deployment or merge.
+
+### Sauvignon full-run and audit checkpoint
+
+Sauvignon now has an independent application coordinator for history refresh,
+capacity, evidence gathering, edition interaction, first-track observations,
+fresh membership checks, accepted appends and final audit. Ordered selection
+retains artist and album uniqueness, skip/quit outcomes and the original
+initial-size summary after fresh membership suppresses proposals. All selected
+first tracks are observed before mutation. Accepted append, output and audit
+remain sequential; a later failure preserves the original accepted-effect prefix.
+
+Twenty-one additional full-run contracts and eleven storage contracts passed
+before their respective extractions. The new immutable audit snapshot records
+source `207c8e4`, exact JSON field order, omissions and trailing newline. The
+infrastructure reader preserves tolerant non-added rows, string coercion and
+physical-line diagnostics. Two actual repeated CLI runs verify history, cache,
+catalog resolution, accepted-addition exclusions and preview audit semantics.
+
+- Full randomized suite: **3,036 tests pass**, seed `20261011`;
+  **93.37% statements** (20,742 / 22,216),
+  **83.30% branches** (4,465 / 5,360).
+- Independent gates: **357 domain tests**, **933 application tests**, both with
+  **100% statement and branch coverage** for configured targets.
+- Focused Sauvignon run, selection, values and storage: **42 tests**, **100%**
+  statement and branch coverage (237 statements, 54 branches).
+- All eleven frozen public artifacts, package Ruff/format, package mypy
+  (235 source files), and strict new source/test checks pass.
+
+The remaining history/discovery workflows and later waves are still part of
+Item 6. Work continues on this branch toward its single complete milestone PR.
