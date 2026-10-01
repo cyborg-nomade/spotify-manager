@@ -14,6 +14,7 @@ ALLOWED_IMPORTS = {
     "collections",
     "dataclasses",
     "datetime",
+    "difflib",
     "enum",
     "math",
     "re",

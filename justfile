@@ -78,6 +78,10 @@ test-application:
     uv run ruff format --check spotify_manager/application tests/application
     uv run mypy --strict spotify_manager/application tests/application
     uv run pytest --confcutdir=tests/application \
+        --cov=spotify_manager.application.historical_playlists \
+        --cov=spotify_manager.application.historical_resolution \
+        --cov=spotify_manager.application.historical_selection \
+        --cov=spotify_manager.application.historical_values \
         --cov=spotify_manager.application.history_refresh \
         --cov=spotify_manager.application.history_values \
         --cov=spotify_manager.application.album_review \

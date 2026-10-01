@@ -6,12 +6,9 @@ import gzip
 import json
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
-from dataclasses import replace
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from difflib import SequenceMatcher
 from email.utils import parsedate_to_datetime
 from functools import partial
 from pathlib import Path
@@ -25,7 +22,45 @@ from zoneinfo import ZoneInfo
 
 from spotipy import Spotify
 
+from spotify_manager.application.historical_values import (
+    BlastFromPastBatch as BlastFromPastBatch,
+)
+from spotify_manager.application.historical_values import (
+    BlastFromPastCancelledError as BlastFromPastCancelledError,
+)
+from spotify_manager.application.historical_values import (
+    BlastFromPastConfigError as BlastFromPastConfigError,
+)
+from spotify_manager.application.historical_values import (
+    BlastFromPastError as BlastFromPastError,
+)
+from spotify_manager.application.historical_values import (
+    BlastFromPastSpotifySummary as BlastFromPastSpotifySummary,
+)
+from spotify_manager.application.historical_values import (
+    LastFmExportError as LastFmExportError,
+)
+from spotify_manager.application.historical_values import PlaylistState as PlaylistState
+from spotify_manager.application.historical_values import (
+    RandomIndexSet as RandomIndexSet,
+)
+from spotify_manager.application.historical_values import (
+    RandomOrgError as RandomOrgError,
+)
+from spotify_manager.application.historical_values import (
+    SpotifySelectionResolution as SpotifySelectionResolution,
+)
+from spotify_manager.application.historical_values import (
+    SpotifySelectionResult as SpotifySelectionResult,
+)
+from spotify_manager.application.historical_values import (
+    SpotifyTrackMatch as SpotifyTrackMatch,
+)
+from spotify_manager.application.historical_values import (
+    SpotifyTrackResolutionError as SpotifyTrackResolutionError,
+)
 from spotify_manager.domain import history as history_policy
+from spotify_manager.domain import history_matching as matching_policy
 from spotify_manager.domain import titles as title_policy
 from spotify_manager.domain.history import Scrobble as Scrobble
 from spotify_manager.domain.history import ScrobbleSelection as ScrobbleSelection
@@ -57,30 +92,6 @@ RetryCall = Callable[[Callable[[], object], str], object]
 CancelCheck = Callable[[], bool]
 
 
-class BlastFromPastError(Exception):
-    """Base error for the blast-from-the-past routine."""
-
-
-class LastFmExportError(BlastFromPastError):
-    """Raised when the Last.fm export cannot be read."""
-
-
-class RandomOrgError(BlastFromPastError):
-    """Raised when Random.org cannot provide a valid selection."""
-
-
-class BlastFromPastConfigError(BlastFromPastError):
-    """Raised when the Spotify playlist configuration is invalid."""
-
-
-class SpotifyTrackResolutionError(BlastFromPastError):
-    """Raised when Spotify returns unusable track or playlist data."""
-
-
-class BlastFromPastCancelledError(BlastFromPastError):
-    """Raised when a playlist update is cancelled at a safe boundary."""
-
-
 def _direct_retry(operation: Callable[[], object], _description: str) -> object:
     """Call Spotify directly when no outer retry policy is supplied."""
     return operation()
@@ -90,85 +101,6 @@ def check_cancel(cancel_check: CancelCheck | None) -> None:
     """Stop promptly between network operations when cancellation is requested."""
     if cancel_check is not None and cancel_check():
         raise BlastFromPastCancelledError("Playlist routine cancelled.")
-
-
-@dataclass(frozen=True)
-class RandomIndexSet:
-    """Unique indexes and the Random.org generation timestamp."""
-
-    indexes: tuple[int, ...]
-    generated_at: datetime
-
-
-@dataclass(frozen=True)
-class BlastFromPastBatch:
-    """A completed batch selected from one Random.org response."""
-
-    generated_at: datetime
-    cutoff_date: date
-    available_dates: int
-    selections: tuple[ScrobbleSelection, ...]
-
-
-@dataclass(frozen=True)
-class SpotifyTrackMatch:
-    """One Spotify result that passed the artist and track thresholds."""
-
-    spotify_id: str
-    uri: str
-    track: str
-    artists: tuple[str, ...]
-    album: str
-    search_rank: int
-    track_similarity: float
-    album_similarity: float | None
-    popularity: int | None
-    liked: bool = False
-
-
-@dataclass(frozen=True)
-class PlaylistState:
-    """Current playlist size and track identities."""
-
-    total_items: int
-    track_ids: frozenset[str]
-    track_keys: frozenset[tuple[str, str]] = frozenset()
-    primary_artist_keys: frozenset[str] = frozenset()
-
-
-@dataclass(frozen=True)
-class SpotifySelectionResult:
-    """Spotify resolution and playlist outcome for one Last.fm selection."""
-
-    selection: ScrobbleSelection
-    match: SpotifyTrackMatch | None
-    qualifying_matches: int
-    action: Literal["added", "already present", "duplicate selection", "no match"]
-
-
-@dataclass(frozen=True)
-class SpotifySelectionResolution:
-    """Resolved Spotify matches and tracks waiting to be added."""
-
-    results: tuple[SpotifySelectionResult, ...]
-    pending_matches: tuple[SpotifyTrackMatch, ...]
-
-
-@dataclass(frozen=True)
-class BlastFromPastSpotifySummary:
-    """Completed Spotify playlist update for one command invocation."""
-
-    playlist_id: str
-    requested_count: int
-    playlist_length_before: int
-    playlist_length_after: int
-    batch: BlastFromPastBatch | None
-    results: tuple[SpotifySelectionResult, ...]
-
-    @property
-    def added(self) -> int:
-        """Return the number of tracks added in this run."""
-        return sum(result.action == "added" for result in self.results)
 
 
 RandomIndexReader = Callable[[int, int], RandomIndexSet]
@@ -357,12 +289,16 @@ def without_sliding_qualifiers(value: str) -> str:
 
 
 def name_similarity(expected: str, candidate: str) -> float:
-    """Return a 0-1 similarity after allowing known Spotify qualifiers."""
-    expected_name = normalize_name(without_sliding_qualifiers(expected))
-    candidate_name = normalize_name(without_sliding_qualifiers(candidate))
-    if not expected_name or not candidate_name:
-        return 0.0
-    return SequenceMatcher(None, expected_name, candidate_name).ratio()
+    """Return a 0-1 similarity after allowing known Spotify qualifiers.
+
+    Args:
+        expected: Original export title.
+        candidate: Observed catalog title.
+
+    Returns:
+        Sequence similarity after normalizing known qualifiers.
+    """
+    return matching_policy.name_similarity(expected, candidate)
 
 
 def spotify_search_query(scrobble: Scrobble) -> str:
@@ -511,37 +447,32 @@ def preferred_spotify_match(
     matches: tuple[SpotifyTrackMatch, ...],
     liked_ids: set[str],
 ) -> SpotifyTrackMatch | None:
-    """Choose a result, allowing liked status to override an album mismatch."""
-    eligible_matches = qualifying_spotify_matches(matches, liked_ids)
-    if not eligible_matches:
-        return None
-    return max(
-        eligible_matches,
-        key=lambda match: (
-            match.liked,
-            match.track_similarity,
-            match.album_similarity if match.album_similarity is not None else 1.0,
-            match.popularity if match.popularity is not None else -1,
-            -match.search_rank,
-        ),
-    )
+    """Choose a result, allowing liked status to override an album mismatch.
+
+    Args:
+        matches: Search-ranked artist/track-qualified observations.
+        liked_ids: Current liked identities.
+
+    Returns:
+        Preferred eligible observation, or none when no match qualifies.
+    """
+    return matching_policy.preferred_match(matches, liked_ids, ALBUM_MATCH_THRESHOLD)
 
 
 def qualifying_spotify_matches(
     matches: tuple[SpotifyTrackMatch, ...],
     liked_ids: set[str],
 ) -> tuple[SpotifyTrackMatch, ...]:
-    """Apply liked status and the overridable album threshold."""
-    with_liked_status = tuple(
-        replace(match, liked=match.spotify_id in liked_ids) for match in matches
-    )
-    return tuple(
-        match
-        for match in with_liked_status
-        if match.liked
-        or match.album_similarity is None
-        or match.album_similarity >= ALBUM_MATCH_THRESHOLD
-    )
+    """Apply liked status and the overridable album threshold.
+
+    Args:
+        matches: Search-ranked observations.
+        liked_ids: Current liked identities, replacing prior liked flags.
+
+    Returns:
+        Qualified observations in their original order.
+    """
+    return matching_policy.qualifying_matches(matches, liked_ids, ALBUM_MATCH_THRESHOLD)
 
 
 def _random_org_error_message(exc: HTTPError) -> str:
@@ -680,45 +611,26 @@ def select_blast_from_past(
     random_index_reader: RandomIndexReader = fetch_random_indexes,
     progress_callback: ProgressCallback | None = None,
 ) -> BlastFromPastBatch:
-    """Select a Friday-routine batch from the Last.fm export."""
-    if count < 1:
-        raise BlastFromPastError("Count must be at least 1.")
+    """Select a Friday-routine batch from the Last.fm export.
 
-    if progress_callback is not None:
-        progress_callback("Loading Last.fm scrobbles")
-    scrobbles_by_date = load_scrobbles_by_date(path)
-    cutoff = friday_track_cutoff(today)
-    available_dates = eligible_dates(scrobbles_by_date, cutoff)
-    if not available_dates:
-        raise BlastFromPastError(
-            f"No scrobbled dates are available through {cutoff.isoformat()}."
-        )
-    if count > len(available_dates):
-        raise BlastFromPastError(
-            f"Count {count} exceeds the {len(available_dates)} available dates."
-        )
+    Args:
+        count: Number of populated historical dates to select.
+        path: Existing history export.
+        today: Optional effective local date for the cutoff.
+        random_index_reader: Existing source of unique indexes and one timestamp.
+        progress_callback: Optional progress presenter.
 
-    if progress_callback is not None:
-        progress_callback("Requesting unique date indexes from Random.org")
-    random_indexes = random_index_reader(len(available_dates), count)
+    Returns:
+        Selected plays in response-index order with the original cutoff.
 
-    if progress_callback is not None:
-        progress_callback("Applying Last.fm pagination rules")
-    selections = tuple(
-        select_scrobble(
-            selected_date=available_dates[index],
-            date_index=index,
-            scrobbles=scrobbles_by_date[available_dates[index]],
-            generated_at=random_indexes.generated_at,
-        )
-        for index in random_indexes.indexes
-    )
-    return BlastFromPastBatch(
-        generated_at=random_indexes.generated_at,
-        cutoff_date=cutoff,
-        available_dates=len(available_dates),
-        selections=selections,
-    )
+    Raises:
+        BlastFromPastError: Count or eligible-date population is invalid.
+        LastFmExportError: History cannot be read.
+        RandomOrgError: The random source fails.
+    """
+    from spotify_manager.bootstrap.historical_playlists import select_blast
+
+    return select_blast(count, path, today, random_index_reader, progress_callback)
 
 
 def load_playlist_state(
@@ -838,60 +750,27 @@ def resolve_spotify_selections(
     retry_call: RetryCall = _direct_retry,
     cancel_check: CancelCheck | None = None,
 ) -> SpotifySelectionResolution:
-    """Resolve selected scrobbles and identify new playlist tracks."""
-    match_groups: list[tuple[SpotifyTrackMatch, ...]] = []
-    for index, selection in enumerate(selections, start=1):
-        check_cancel(cancel_check)
-        if progress_callback is not None:
-            progress_callback(f"Searching Spotify track {index}/{len(selections)}")
-        match_groups.append(
-            search_spotify_matches(
-                sp,
-                selection.scrobble,
-                retry_call,
-                cancel_check,
-            )
-        )
+    """Resolve selected scrobbles and identify new playlist tracks.
 
-    if progress_callback is not None:
-        progress_callback("Checking liked Spotify matches")
-    liked_ids = liked_spotify_track_ids(
-        sp,
-        match_groups,
-        retry_call,
-        cancel_check,
-    )
+    Args:
+        sp: Caller-owned Spotify client.
+        selections: Original ordered selected plays.
+        playlist: Observed destination membership.
+        progress_callback: Optional progress presenter.
+        retry_call: Original retry policy.
+        cancel_check: Optional cancellation predicate.
 
-    pending_matches: list[SpotifyTrackMatch] = []
-    pending_ids: set[str] = set()
-    results: list[SpotifySelectionResult] = []
-    for selection, matches in zip(selections, match_groups, strict=True):
-        qualifying_matches = qualifying_spotify_matches(matches, liked_ids)
-        match = preferred_spotify_match(matches, liked_ids)
-        if match is None:
-            action: Literal[
-                "added", "already present", "duplicate selection", "no match"
-            ] = "no match"
-        elif match.spotify_id in playlist.track_ids:
-            action = "already present"
-        elif match.spotify_id in pending_ids:
-            action = "duplicate selection"
-        else:
-            action = "added"
-            pending_ids.add(match.spotify_id)
-            pending_matches.append(match)
-        results.append(
-            SpotifySelectionResult(
-                selection=selection,
-                match=match,
-                qualifying_matches=len(qualifying_matches),
-                action=action,
-            )
-        )
+    Returns:
+        Ordered decisions and unique pending additions.
 
-    return SpotifySelectionResolution(
-        results=tuple(results),
-        pending_matches=tuple(pending_matches),
+    Raises:
+        SpotifyTrackResolutionError: Spotify observations are unusable.
+        BlastFromPastCancelledError: Cancellation is requested.
+    """
+    from spotify_manager.bootstrap.historical_playlists import resolve_matches
+
+    return resolve_matches(
+        sp, selections, playlist, progress_callback, retry_call, cancel_check
     )
 
 
@@ -908,76 +787,40 @@ def add_blast_from_past_to_spotify(
     cancel_check: CancelCheck | None = None,
     dry_run: bool = False,
 ) -> BlastFromPastSpotifySummary:
-    """Select, resolve, and append a blast-from-the-past batch to Spotify."""
-    if count is not None and max_playlist_length is not None:
-        raise BlastFromPastConfigError(
-            "Use either count or maximum playlist length, not both."
-        )
-    if count is not None and count < 1:
-        raise BlastFromPastConfigError("Count must be at least 1.")
-    if max_playlist_length is not None and max_playlist_length < 1:
-        raise BlastFromPastConfigError("Maximum playlist length must be at least 1.")
+    """Select, resolve, and append a blast-from-the-past batch to Spotify.
 
-    check_cancel(cancel_check)
-    if progress_callback is not None:
-        progress_callback("Loading the Spotify playlist")
-    playlist = load_playlist_state(
+    Args:
+        sp: Caller-owned Spotify client.
+        playlist_id: Destination playlist.
+        count: Optional explicit historical date count.
+        max_playlist_length: Optional destination capacity, exclusive with count.
+        path: Existing history export.
+        today: Optional effective local date for the cutoff.
+        random_index_reader: Existing random-index source.
+        progress_callback: Optional progress presenter.
+        retry_call: Original retry policy.
+        cancel_check: Optional cancellation predicate.
+        dry_run: Suppress writes while retaining resolved added actions.
+
+    Returns:
+        Original summary with observed and projected destination sizes.
+
+    Raises:
+        BlastFromPastError: Configuration, selection or observations fail.
+        BlastFromPastCancelledError: Cancellation is requested.
+    """
+    from spotify_manager.bootstrap.historical_playlists import add_blast
+
+    return add_blast(
         sp,
         playlist_id,
-        retry_call,
-        cancel_check,
-    )
-    requested_count = count if count is not None else 10
-    if max_playlist_length is not None:
-        requested_count = max(0, max_playlist_length - playlist.total_items)
-    if requested_count == 0:
-        return BlastFromPastSpotifySummary(
-            playlist_id=playlist_id,
-            requested_count=0,
-            playlist_length_before=playlist.total_items,
-            playlist_length_after=playlist.total_items,
-            batch=None,
-            results=(),
-        )
-
-    batch = select_blast_from_past(
-        count=requested_count,
-        path=path,
-        today=today,
-        random_index_reader=random_index_reader,
-        progress_callback=progress_callback,
-    )
-    check_cancel(cancel_check)
-
-    resolution = resolve_spotify_selections(
-        sp,
-        batch.selections,
-        playlist,
+        count,
+        max_playlist_length,
+        path,
+        today,
+        random_index_reader,
         progress_callback,
         retry_call,
         cancel_check,
-    )
-
-    if resolution.pending_matches and not dry_run:
-        if progress_callback is not None:
-            progress_callback(
-                f"Adding {len(resolution.pending_matches)} tracks to Spotify"
-            )
-        add_spotify_matches(
-            sp,
-            playlist_id,
-            list(resolution.pending_matches),
-            retry_call,
-            cancel_check,
-        )
-
-    return BlastFromPastSpotifySummary(
-        playlist_id=playlist_id,
-        requested_count=requested_count,
-        playlist_length_before=playlist.total_items,
-        playlist_length_after=(
-            playlist.total_items + (0 if dry_run else len(resolution.pending_matches))
-        ),
-        batch=batch,
-        results=resolution.results,
+        dry_run,
     )

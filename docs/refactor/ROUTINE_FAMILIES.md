@@ -589,3 +589,34 @@ behind the compatibility adapter for the subsequent infrastructure cleanup.
 
 History/discovery migration continues; this checkpoint does not complete Item 6
 or open its milestone PR.
+
+### Historical track selection and playlist checkpoint
+
+Friday date selection, anniversary selection, shared match resolution and both
+playlist coordinators now have independent application owners. Anniversary year
+spacing and leap-date handling belong to the domain, alongside title similarity,
+liked-status album overrides and match ranking. Existing public values are
+re-exported from their original routine modules.
+
+Twenty-two new observation/failure contracts passed against the original playlist
+and resolution functions before extraction. Friday still observes capacity before
+history selection; radio still selects first and skips Spotify for empty targets.
+Missing anniversary dates retain their original selection indexes. All searches
+precede the shared liked-status observation. Existing membership precedes pending
+batch duplicate detection; previews retain resolved `added` actions while their
+projected length excludes writes. Original synchronous parsing, batching, retry
+and Random.org helpers remain behind the compatibility adapters for later cleanup.
+
+- Full suite: **2,664 tests pass**, seed `20261002`; **93.02% statements**
+  (20,041 / 21,544), **82.43% branches** (4,367 / 5,298).
+- Independent gates: **279 domain tests**, **799 application tests**, both at
+  **100% statement and branch coverage** for configured targets.
+- Six actual CLI/HTTP tests exercise both workflows, including liked album
+  overrides, repeated radio selections, accepted appends and previews.
+- All eleven frozen interface artifacts, package Ruff formatting/lint, package
+  mypy (212 source files) and strict inner-layer checks pass.
+- The domain dependency allowlist now includes Python's pure `difflib` module for
+  the existing sequence matcher; runtime and SDK imports remain prohibited.
+
+Found Art and the remaining history/discovery routines are still pending.
+Item 6 remains one ongoing milestone with no PR or deployment.

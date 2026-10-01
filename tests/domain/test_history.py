@@ -164,3 +164,49 @@ def test_palace_rank_uses_seconds_only() -> None:
     assert historical_album_offset(_timestamp(1, 59, 59), 7) == 3
     with pytest.raises(ZeroDivisionError):
         historical_album_offset(_timestamp(), 0)
+
+
+@pytest.mark.parametrize(
+    "today,earliest,expected",
+    [
+        (
+            date(2026, 7, 22),
+            2007,
+            (
+                date(2025, 7, 22),
+                date(2020, 7, 22),
+                date(2015, 7, 22),
+                date(2010, 7, 22),
+            ),
+        ),
+        (date(2028, 2, 29), 2007, (date(2012, 2, 29),)),
+        (date(2026, 1, 1), 2026, ()),
+        (date(2026, 1, 1), 2025, (date(2025, 1, 1),)),
+    ],
+)
+def test_anniversary_dates_preserve_leap_and_year_bounds(
+    today: date, earliest: int, expected: tuple[date, ...]
+) -> None:
+    """Keep descending year intervals and skip invalid leap dates.
+
+    Args:
+        today: Effective local date.
+        earliest: Earliest export year.
+        expected: Original target dates.
+    """
+    from spotify_manager.domain.history import anniversary_dates
+
+    assert anniversary_dates(today, earliest) == expected
+
+
+def test_anniversary_interval_remains_configurable() -> None:
+    """Retain the public interval boundary and its original zero-step error."""
+    from spotify_manager.domain.history import anniversary_dates
+
+    assert anniversary_dates(date(2026, 1, 1), 2020, 2) == (
+        date(2025, 1, 1),
+        date(2023, 1, 1),
+        date(2021, 1, 1),
+    )
+    with pytest.raises(ValueError, match="range"):
+        anniversary_dates(date(2026, 1, 1), 2020, 0)
