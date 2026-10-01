@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
-from collections import Counter
 from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import asdict
@@ -13,7 +11,6 @@ from dataclasses import replace
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from datetime import timedelta
 from functools import partial
 from pathlib import Path
 from typing import Literal
@@ -22,12 +19,26 @@ from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.queue_values import (
+    QueueConfigError as QueueConfigError,
+)
+from spotify_manager.application.queue_values import QueueError as QueueError
+from spotify_manager.application.queue_values import (
+    QueueSpotifyError as QueueSpotifyError,
+)
+from spotify_manager.application.queue_values import QueueStateError as QueueStateError
+
 # UFI
 from spotify_manager.client.lastfm import LastFmSimilarArtist
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist
+from spotify_manager.domain.queue_values import ArtistHistory as ArtistHistory
+from spotify_manager.domain.queue_values import (
+    ArtistRecommendation as ArtistRecommendation,
+)
+from spotify_manager.domain.queue_values import ArtistSeed as ArtistSeed
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_kids
@@ -66,22 +77,6 @@ ArtistChoiceReader = Callable[
     ["ArtistRecommendation", tuple[release_check.SpotifyArtistCandidate, ...]],
     str,
 ]
-
-
-class QueueError(RuntimeError):
-    """Base error for The Queue routines."""
-
-
-class QueueConfigError(QueueError):
-    """Raised when a required playlist or recommendation setting is absent."""
-
-
-class QueueStateError(QueueError):
-    """Raised when Queue state, cache, or audit data is malformed."""
-
-
-class QueueSpotifyError(QueueError):
-    """Raised when Spotify returns an incomplete response."""
 
 
 class LastFmReader(found_art.LastFmReader, Protocol):
@@ -132,44 +127,6 @@ class QueuePlaylists:
         except new_wine.NewWineConfigError as exc:
             raise QueueConfigError(str(exc)) from exc
         return cls(*parsed)
-
-
-@dataclass(frozen=True)
-class ArtistHistory:
-    """Aggregated Last.fm listening history for one artist."""
-
-    artist: str
-    key: str
-    play_count: int
-    recent_play_count: int
-    annual_play_count: int
-    last_played_ms: int
-
-
-@dataclass(frozen=True)
-class ArtistSeed:
-    """One history artist used for Last.fm neighbor discovery."""
-
-    artist: str
-    key: str
-    source: Literal["recent", "annual", "overall"]
-    play_count: int
-    source_play_count: int
-    weight: float
-    weekly_rank: float
-
-
-@dataclass(frozen=True)
-class ArtistRecommendation:
-    """One unheard artist aggregated from Last.fm seed neighborhoods."""
-
-    artist: str
-    key: str
-    score: float
-    best_match: float
-    supporting_seeds: tuple[str, ...]
-    base_rank: int = 0
-    weekly_rank: float = 1.0
 
 
 @dataclass
@@ -357,40 +314,17 @@ def canonical_artist_key(name: str) -> str:
 def aggregate_artist_history(
     scrobbles: Iterable[blast_from_past.Scrobble],
 ) -> tuple[ArtistHistory, ...]:
-    """Aggregate all-time, annual, and 90-day artist seed statistics."""
-    materialized = list(scrobbles)
-    if not materialized:
-        return ()
-    latest = max(scrobble.timestamp_ms for scrobble in materialized)
-    recent_cutoff = latest - int(timedelta(days=90).total_seconds() * 1000)
-    annual_cutoff = latest - int(timedelta(days=365).total_seconds() * 1000)
-    total: Counter[str] = Counter()
-    recent: Counter[str] = Counter()
-    annual: Counter[str] = Counter()
-    display: dict[str, tuple[int, str]] = {}
-    for scrobble in materialized:
-        key = canonical_artist_key(scrobble.artist)
-        if not key:
-            continue
-        total[key] += 1
-        if scrobble.timestamp_ms >= recent_cutoff:
-            recent[key] += 1
-        if scrobble.timestamp_ms >= annual_cutoff:
-            annual[key] += 1
-        previous = display.get(key)
-        if previous is None or scrobble.timestamp_ms > previous[0]:
-            display[key] = (scrobble.timestamp_ms, scrobble.artist)
-    return tuple(
-        ArtistHistory(
-            artist=display[key][1],
-            key=key,
-            play_count=count,
-            recent_play_count=recent[key],
-            annual_play_count=annual[key],
-            last_played_ms=display[key][0],
-        )
-        for key, count in total.items()
-    )
+    """Aggregate all-time, annual, and 90-day artist seed statistics.
+
+    Args:
+        scrobbles: Original plays in observation order.
+
+    Returns:
+        Original counts and display spelling in first-identity order.
+    """
+    from spotify_manager.domain.queue_history import aggregate_artists
+
+    return aggregate_artists(scrobbles)
 
 
 def select_seed_artists(
@@ -399,98 +333,27 @@ def select_seed_artists(
     seed_count: int = DEFAULT_SEED_COUNT,
     week_start: date | None = None,
 ) -> tuple[ArtistSeed, ...]:
-    """Choose a weekly mix of recent, annual, and established artists."""
-    if seed_count < 1:
-        raise QueueConfigError("Seed count must be at least 1.")
-    artists = tuple(history)
-    if len(artists) < seed_count:
-        raise QueueStateError(
-            f"Only {len(artists)} seed artists are available; {seed_count} requested."
-        )
-    active_week = week_start or found_art.listening_week_start()
-    specs: tuple[tuple[Literal["recent", "annual", "overall"], str, float], ...] = (
-        ("recent", "recent_play_count", 1.25),
-        ("annual", "annual_play_count", 1.10),
-        ("overall", "play_count", 1.00),
+    """Choose a weekly mix of recent, annual, and established artists.
+
+    Args:
+        history: Original artist history facts.
+        seed_count: Original requested number of weekly seeds.
+        week_start: Optional original explicit listening week.
+
+    Returns:
+        Original ordered quota and fallback seeds.
+
+    Raises:
+        QueueConfigError: Original requested seed count is below one.
+        QueueStateError: Original history contains too few artists.
+    """
+    from spotify_manager.application.queue_seeds import QueueSeeds
+
+    return QueueSeeds(found_art.listening_week_start, SEED_POOL_MULTIPLIER).select(
+        history,
+        seed_count,
+        week_start,
     )
-    base, remainder = divmod(seed_count, len(specs))
-    selected: list[ArtistSeed] = []
-    used: set[str] = set()
-    for index, (source, metric, base_weight) in enumerate(specs):
-        quota = base + (1 if index < remainder else 0)
-        pool = sorted(
-            (
-                artist
-                for artist in artists
-                if artist.key not in used and int(getattr(artist, metric)) > 0
-            ),
-            key=lambda artist: (
-                -int(getattr(artist, metric)),
-                -artist.play_count,
-                -artist.last_played_ms,
-                artist.key,
-            ),
-        )[: max(quota, quota * SEED_POOL_MULTIPLIER)]
-        ranked = sorted(
-            (
-                (
-                    found_art.weekly_weighted_rank(
-                        active_week,
-                        f"queue-seed:{source}",
-                        (artist.key, ""),
-                        math.log1p(int(getattr(artist, metric))),
-                    ),
-                    artist,
-                )
-                for artist in pool
-            ),
-            key=lambda item: (-item[0], item[1].key),
-        )
-        for weekly_rank, artist in ranked[:quota]:
-            source_count = int(getattr(artist, metric))
-            selected.append(
-                ArtistSeed(
-                    artist=artist.artist,
-                    key=artist.key,
-                    source=source,
-                    play_count=artist.play_count,
-                    source_play_count=source_count,
-                    weight=base_weight * (1 + min(math.log1p(source_count), 6.0) / 10),
-                    weekly_rank=weekly_rank,
-                )
-            )
-            used.add(artist.key)
-    if len(selected) < seed_count:
-        fillers = sorted(
-            (artist for artist in artists if artist.key not in used),
-            key=lambda artist: (
-                -found_art.weekly_weighted_rank(
-                    active_week,
-                    "queue-seed:fallback",
-                    (artist.key, ""),
-                    math.log1p(artist.play_count),
-                ),
-                artist.key,
-            ),
-        )
-        for artist in fillers[: seed_count - len(selected)]:
-            selected.append(
-                ArtistSeed(
-                    artist=artist.artist,
-                    key=artist.key,
-                    source="overall",
-                    play_count=artist.play_count,
-                    source_play_count=artist.play_count,
-                    weight=1 + min(math.log1p(artist.play_count), 6.0) / 10,
-                    weekly_rank=found_art.weekly_weighted_rank(
-                        active_week,
-                        "queue-seed:fallback",
-                        (artist.key, ""),
-                        math.log1p(artist.play_count),
-                    ),
-                )
-            )
-    return tuple(selected)
 
 
 def _load_cache(path: Path) -> dict[str, object]:

@@ -1046,3 +1046,21 @@ passes, new functions satisfy the short/flat rules and contain no multiline list
 comprehensions. All 11 frozen public artifacts match. The randomized full suite
 passes 3,783 tests (seed 20261018). The Queue and the approved deep-listening,
 library and operational waves still remain before the complete Item 6 PR.
+
+### Queue history and seed selection checkpoint
+
+History counts, inclusive recent/annual cutoffs, display spelling and weekly
+quota/fallback selection now have domain owners. The application validates the
+request before consuming history and resolves the week only after checking
+availability. Compatibility models and error identities remain unchanged.
+
+Eighty-six frozen scenarios passed against the original implementation before
+extraction. Forty-eight independent policy/application cases cover valid results
+and validation observation order. These owners have 100% statement/branch
+coverage (131 statements, 40 branches). The isolated domain and application gates
+pass 555 and 1,092 tests, respectively, at 100% coverage. Ruff, formatting, package
+mypy and all 11 frozen public artifacts pass. The full randomized suite passes
+3,922 tests (seed 20261019), with 94.00% statements and 85.28% branches.
+
+Recommendation aggregation, fill and restartable flush remain in progress, as do
+the later approved waves. This checkpoint does not complete Item 6.

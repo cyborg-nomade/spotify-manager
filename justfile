@@ -95,6 +95,8 @@ test-application:
         --cov=spotify_manager.application.release_check_values \
         --cov=spotify_manager.application.release_opening \
         --cov=spotify_manager.application.genre_run \
+        --cov=spotify_manager.application.queue_seeds \
+        --cov=spotify_manager.application.queue_values \
         --cov=spotify_manager.application.genre_progress \
         --cov=spotify_manager.application.genre_values \
         --cov=spotify_manager.application.release_run \
