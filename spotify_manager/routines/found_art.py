@@ -1,6 +1,5 @@
 """Rebuild Last.fm-style track recommendations for the Found Art playlist."""
 
-import json
 from collections.abc import Iterable
 from datetime import UTC
 from datetime import date
@@ -21,7 +20,7 @@ from spotify_manager.application.found_art_values import (
     FoundArtSummary as FoundArtSummary,
 )
 from spotify_manager.client.lastfm import LastFmRecentTrack
-from spotify_manager.client.lastfm import LastFmSimilarTrack
+from spotify_manager.client.lastfm import LastFmSimilarTrack as LastFmSimilarTrack
 from spotify_manager.domain import recommendation_history as history_policy
 from spotify_manager.domain.recommendation_candidates import (
     FoundArtCandidate as FoundArtCandidate,
@@ -72,7 +71,16 @@ class LastFmReader(Protocol):
         *,
         limit: int = 50,
     ) -> tuple[LastFmSimilarTrack, ...]:
-        """Return tracks similar to a seed."""
+        """Read the original ordered neighborhood for one seed.
+
+        Args:
+            artist: Original seed artist spelling.
+            track: Original seed title spelling.
+            limit: Original maximum neighborhood size.
+
+        Returns:
+            Ordered Last.fm neighbors with original similarity scores.
+        """
 
     def recent_tracks(
         self,
@@ -81,7 +89,16 @@ class LastFmReader(Protocol):
         to_timestamp: int,
         limit: int = 200,
     ) -> tuple[LastFmRecentTrack, ...]:
-        """Return dated scrobbles in a UTC range."""
+        """Read dated canonical plays within the original UTC bounds.
+
+        Args:
+            from_timestamp: Original inclusive lower bound in seconds.
+            to_timestamp: Original inclusive upper bound in seconds.
+            limit: Original page size.
+
+        Returns:
+            Ordered Last.fm observations with original timestamps.
+        """
 
 
 def canonical_track_key(artist: str, track: str) -> TrackKey:
@@ -147,7 +164,17 @@ def weekly_weighted_rank(
 
 
 def parse_found_art_playlist_id(reference: str | None) -> str:
-    """Parse the configured Found Art destination playlist."""
+    """Parse the original destination and translate its configuration error.
+
+    Args:
+        reference: Configured playlist identifier, URI or URL.
+
+    Returns:
+        Original parsed playlist identifier.
+
+    Raises:
+        FoundArtConfigError: The original playlist parser rejects the reference.
+    """
     try:
         return blast_from_past.parse_playlist_id(
             reference,
@@ -161,7 +188,18 @@ def validate_lastfm_configuration(
     api_key: str | None,
     username: str | None,
 ) -> tuple[str, str]:
-    """Return stripped read-only Last.fm settings or raise a clear error."""
+    """Validate original Last.fm settings in API-key then username order.
+
+    Args:
+        api_key: Configured read-only Last.fm API key.
+        username: Configured Last.fm username.
+
+    Returns:
+        Original stripped API key and username.
+
+    Raises:
+        FoundArtConfigError: Either original required value is blank or absent.
+    """
     if not api_key or not api_key.strip():
         raise FoundArtConfigError("LASTFM_API_KEY is not configured.")
     if not username or not username.strip():
@@ -178,7 +216,22 @@ def refresh_scrobble_history(
     now: datetime | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[list[blast_from_past.Scrobble], int]:
-    """Refresh the canonical export and absorb the legacy Found Art delta."""
+    """Refresh canonical history and translate errors with their original cause.
+
+    Args:
+        lastfm: Caller-owned history reader with optional username metadata.
+        export_path: Original canonical export destination.
+        recent_path: Original legacy delta source.
+        dry_run: Original history refresh preview mode.
+        now: Optional effective UTC timestamp.
+        progress_callback: Optional original progress observer.
+
+    Returns:
+        Canonical plays as a list and the original live-added count.
+
+    Raises:
+        FoundArtStateError: Canonical refresh raises its original history error.
+    """
     try:
         summary = shared_scrobble_history.refresh_scrobble_history(
             lastfm,
@@ -241,34 +294,15 @@ def _cache_key(seed: FoundArtSeed) -> str:
 
 
 def _load_similar_cache(path: Path) -> dict[str, object]:
-    """Load the recommendation cache without silently replacing corruption."""
-    if not path.exists():
-        return {"version": 1, "entries": {}}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise FoundArtStateError(f"Found Art cache is invalid: {path}") from exc
-    if (
-        not isinstance(payload, dict)
-        or payload.get("version") != 1
-        or not isinstance(payload.get("entries"), dict)
-    ):
-        raise FoundArtStateError(f"Found Art cache is invalid: {path}")
-    return payload
+    from spotify_manager.infrastructure.recommendations_data import load_cache
+
+    return load_cache(path)
 
 
 def _save_similar_cache(payload: dict[str, object], path: Path) -> None:
-    """Atomically save recommendation progress after each completed seed."""
-    temporary_path = path.with_suffix(f"{path.suffix}.tmp")
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        temporary_path.replace(path)
-    except OSError as exc:
-        raise FoundArtStateError(f"Could not save Found Art cache: {path}") from exc
+    from spotify_manager.infrastructure.recommendations_data import save_cache
+
+    save_cache(payload, path)
 
 
 def _cached_similar_tracks(
@@ -276,69 +310,32 @@ def _cached_similar_tracks(
     *,
     week_start: date,
 ) -> tuple[LastFmSimilarTrack, ...] | None:
-    """Return a cache entry fetched during the active listening week."""
-    if not isinstance(entry, dict):
-        return None
-    try:
-        fetched_at = datetime.fromisoformat(str(entry["fetched_at"]))
-        if fetched_at.tzinfo is None:
-            fetched_at = fetched_at.replace(tzinfo=UTC)
-        if listening_week_start(fetched_at) != week_start:
-            return None
-        raw_tracks = entry["tracks"]
-        if not isinstance(raw_tracks, list):
-            return None
-        return tuple(
-            LastFmSimilarTrack(
-                artist=str(raw["artist"]),
-                track=str(raw["track"]),
-                match=float(raw["match"]),
-            )
-            for raw in raw_tracks
-            if isinstance(raw, dict)
-        )
-    except KeyError, TypeError, ValueError:
-        return None
+    from spotify_manager.infrastructure.recommendations_data import cached_neighbors
+
+    return cached_neighbors(
+        entry, week_start, listening_week_start, datetime.fromisoformat
+    )
 
 
 def previously_added_track_keys(
     path: Path = DEFAULT_LOG_PATH,
 ) -> set[TrackKey]:
-    """Return tracks actually added by earlier Found Art runs."""
-    if not path.exists():
-        return set()
-    keys: set[TrackKey] = set()
-    current_line = 0
-    try:
-        with path.open(encoding="utf-8") as log_file:
-            for line_number, line in enumerate(log_file, start=1):
-                current_line = line_number
-                if not line.strip():
-                    continue
-                record = json.loads(line)
-                raw_results = (
-                    record.get("results") if isinstance(record, dict) else None
-                )
-                if not isinstance(raw_results, list):
-                    raise ValueError("results must be a list")
-                for result in raw_results:
-                    if not isinstance(result, dict) or result.get("action") != "added":
-                        continue
-                    candidate = result.get("candidate")
-                    if not isinstance(candidate, dict):
-                        raise ValueError("candidate must be an object")
-                    keys.add(
-                        canonical_track_key(
-                            str(candidate["artist"]),
-                            str(candidate["track"]),
-                        )
-                    )
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        detail = f" at line {current_line}" if current_line else ""
-        raise FoundArtStateError(
-            f"Found Art audit log is invalid{detail}: {path}"
-        ) from exc
-    return keys
+    """Read actually added identities with original physical-line diagnostics.
+
+    Args:
+        path: Original audit source.
+
+    Returns:
+        Original normalized added identities, empty when the log is absent.
+
+    Raises:
+        FoundArtStateError: Reading or decoding fails at an observed physical line.
+    """
+    from spotify_manager.infrastructure.recommendations_data import (
+        previously_added_keys,
+    )
+
+    return previously_added_keys(path, canonical_track_key)
 
 
 def gather_candidates(
@@ -431,72 +428,27 @@ def resolve_spotify_candidates(
 
 
 def _result_record(result: FoundArtResult) -> dict[str, object]:
-    """Return one JSON-compatible audit result."""
-    return {
-        "candidate": {
-            "artist": result.candidate.artist,
-            "track": result.candidate.track,
-            "score": result.candidate.score,
-            "best_match": result.candidate.best_match,
-            "supporting_seeds": list(result.candidate.supporting_seeds),
-            "base_rank": result.candidate.base_rank,
-            "weekly_rank": result.candidate.weekly_rank,
-        },
-        "match": (
-            {
-                "spotify_id": result.match.spotify_id,
-                "uri": result.match.uri,
-                "track": result.match.track,
-                "artists": list(result.match.artists),
-                "album": result.match.album,
-                "track_similarity": result.match.track_similarity,
-                "popularity": result.match.popularity,
-            }
-            if result.match is not None
-            else None
-        ),
-        "action": result.action,
-    }
+    from spotify_manager.infrastructure.recommendations_data import result_record
+
+    return result_record(result)
 
 
 def append_found_art_log(
     summary: FoundArtSummary,
     path: Path = DEFAULT_LOG_PATH,
 ) -> None:
-    """Append a reviewable run record after any Spotify write succeeds."""
-    record = {
-        "generated_at": summary.generated_at.isoformat(),
-        "week_start": summary.week_start.isoformat(),
-        "playlist_id": summary.playlist_id,
-        "requested_count": summary.requested_count,
-        "seed_count": summary.seed_count,
-        "history_tracks": summary.history_tracks,
-        "history_scrobbles": summary.history_scrobbles,
-        "live_scrobbles_added": summary.live_scrobbles_added,
-        "candidate_count": summary.candidate_count,
-        "playlist_length_before": summary.playlist_length_before,
-        "playlist_length_after": summary.playlist_length_after,
-        "dry_run": summary.dry_run,
-        "seeds": [
-            {
-                "artist": seed.artist,
-                "track": seed.track,
-                "source": seed.source,
-                "play_count": seed.play_count,
-                "source_play_count": seed.source_play_count,
-                "weight": seed.weight,
-                "weekly_rank": seed.weekly_rank,
-            }
-            for seed in summary.seeds
-        ],
-        "results": [_result_record(result) for result in summary.results],
-    }
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as log_file:
-            log_file.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except OSError as exc:
-        raise FoundArtStateError(f"Could not write Found Art log: {path}") from exc
+    """Append the original audit after accepted effects, including previews.
+
+    Args:
+        summary: Completed original recommendation run.
+        path: Original audit destination.
+
+    Raises:
+        FoundArtStateError: Directory creation or log append fails.
+    """
+    from spotify_manager.infrastructure.recommendations_data import append_audit
+
+    append_audit(summary, path)
 
 
 def run_found_art(

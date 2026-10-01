@@ -3,10 +3,14 @@
 import json
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC
+from datetime import datetime
+from datetime import tzinfo
 from functools import partial
 from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
+from typing import Self
 from typing import cast
 from unittest.mock import Mock
 
@@ -21,13 +25,28 @@ from spotify_manager.client.lastfm import LastFmSimilarTrack
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import found_art
 from tests.interfaces.test_discovery_slice import _wait
-from tests.interfaces.test_historical_playlist_slices import HistoricalClock
 from tests.interfaces.test_slow_listening_slice import _stop
 from tests.interfaces.test_slow_listening_slice import _thread
 from tests.interfaces.test_vertical_slices import _http_client
 from tests.routines.test_blast_from_past import FakeSpotify
 from tests.routines.test_found_art import FakeLastFm
 from tests.routines.test_found_art import spotify_track
+
+
+class RecommendationClock(datetime):
+    """Preserve original timestamp constructor behavior for deterministic runs."""
+
+    @classmethod
+    def now(cls, tz: tzinfo | None = None) -> Self:
+        """Return the fixed timestamp as the same class used by ISO parsing.
+
+        Args:
+            tz: Requested timezone.
+
+        Returns:
+            Fixed effective timestamp in the requested timezone.
+        """
+        return cls(2026, 7, 22, 12, tzinfo=UTC).astimezone(tz)
 
 
 def _settings() -> SimpleNamespace:
@@ -102,7 +121,7 @@ def found_art_environment(
     """
     spotify, lastfm = _spotify(), _lastfm()
     threads: list[Thread] = []
-    monkeypatch.setattr(found_art, "datetime", HistoricalClock)
+    monkeypatch.setattr(found_art, "datetime", RecommendationClock)
     monkeypatch.setattr(api, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
     monkeypatch.setattr(main, "client", Mock(return_value=spotify))
@@ -199,3 +218,33 @@ def test_http_found_art_runs_real_history_cache_resolution_append_and_audit(
     )
     assert _accepted_count(environment) == int(not empty)
     assert _audit(environment)["dry_run"] is False
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_repeated_cli_runs_reuse_cache_and_respect_actual_prior_additions(
+    found_art_environment: FoundArtEnvironment,
+    preview: bool,
+) -> None:
+    """Reuse current-week neighborhoods while previews remain eligible on later runs.
+
+    Args:
+        found_art_environment: Actual CLI environment with isolated files and clients.
+        preview: Original presentation and remote-append mode.
+    """
+    environment = found_art_environment
+    arguments = ["found-art", "--count", "1", "--seed-count", "1"]
+    if preview:
+        arguments.append("--dry-run")
+    first = CliRunner().invoke(main.app, arguments)
+    assert first.exit_code == 0, first.output
+    second = CliRunner().invoke(main.app, arguments)
+    assert second.exit_code == 0, second.output
+    assert len(environment.lastfm.similar_calls) == 1
+    assert len(environment.spotify.posts) == int(not preview)
+    records = environment.audit.read_text().splitlines()
+    assert len(records) == 2
+    assert json.loads(records[0])["week_start"] == "2026-07-17"
+    second_record = json.loads(records[1])
+    actions = [result["action"] for result in second_record["results"]]
+    assert ("would add" in actions) is preview
+    assert "added" not in actions

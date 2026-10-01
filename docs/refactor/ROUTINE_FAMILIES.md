@@ -713,3 +713,34 @@ and empty neighborhood checkpoints.
 Found Art cache/audit codecs and storage ownership still remain at legacy seams.
 The remaining history/discovery routines and later waves remain pending; this
 checkpoint does not complete Item 6 or open its milestone PR.
+
+### Recommendation storage checkpoint
+
+Found Art cache loading, tolerant neighborhood decoding, atomic checkpoints,
+prior-addition parsing and append-only audit serialization now have an
+infrastructure owner. The routine retains typed compatibility facades. Codecs
+use short named helpers and preserve original JSON field order, Unicode, omitted
+internal fields, physical-line diagnostics, exception causes and partial-write
+artifacts.
+
+Thirty-three new storage contracts passed against the original code before
+extraction. A new byte snapshot records source `e8b4df4`; all earlier frozen
+fixtures remain unchanged. Two repeated CLI tests also passed with the original
+decoder loaded in memory before verifying the extracted decoder. They protect
+valid current-week cache reuse, injected timestamp constructor semantics and
+the distinction between actual prior additions and preview proposals.
+
+- Full suite: **2,872 tests pass**, seed `20261007`;
+  **93.19% statements** (20,443 / 21,938),
+  **82.81% branches** (4,412 / 5,328).
+- Focused storage and real interface checks: **65 tests pass** with
+  **100% statement and branch coverage** for the storage module.
+- The independent inner-layer gates remain **328 domain tests** and
+  **880 application tests**, both at 100% for configured targets.
+- All eleven frozen public artifacts, package Ruff lint/format, package mypy
+  (224 source files), strict inner-layer checks and strict storage/boundary test
+  checks pass. Six real CLI/HTTP cases exercise the complete Found Art path.
+
+Found Art policy, application coordination and storage extraction is implemented
+and verified. Sauvignon and the remaining history/discovery routines are next.
+Item 6 remains ongoing without its milestone PR or deployment.

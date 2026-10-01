@@ -215,7 +215,8 @@ def test_nonpositive_helper_count_has_no_observations(
     steps = MatchingSteps()
     _install(steps, monkeypatch)
     assert _resolve((candidate("Artist", "Song", 1),), steps, count) == ((), ())
-    assert steps.events == steps.messages == []
+    assert steps.events == []
+    assert steps.messages == []
 
 
 @pytest.mark.parametrize(

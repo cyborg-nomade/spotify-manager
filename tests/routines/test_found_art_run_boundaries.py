@@ -305,7 +305,8 @@ def test_full_destination_still_refreshes_history_and_audits(
     summary = _run(count=None, maximum=2, dry_run=dry_run)
     assert steps.events == ["history", "playlist", "audit"]
     assert summary.requested_count == summary.seed_count == summary.candidate_count == 0
-    assert summary.seeds == summary.results == ()
+    assert summary.seeds == ()
+    assert summary.results == ()
     assert summary.playlist_length_before == summary.playlist_length_after == 2
     assert summary.live_scrobbles_added == 3
 
