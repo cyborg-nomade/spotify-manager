@@ -112,6 +112,23 @@ original CLI tests, 99 tests pass and cover the new module's statements and
 branches at 100%. Strict typing passes and all 11 frozen public artifacts still
 match. Other CLI command/prompt/rendering families remain in progress.
 
+## Current verified checkpoint
+
+The accumulated opening, analysis-worker, router and history-CLI increments pass
+the full randomized suite: 10,317 tests with seed `20261003`, 96.38% package
+statement coverage and 92.57% branch coverage. Domain/application statements and
+branches remain 100%, as do the extracted analysis worker and history CLI module.
+Package mypy passes for 500 files; all 63 new/extracted interface, lifecycle and
+support-test files pass strict typing. Ruff/formatting and all 11 frozen public
+artifact comparisons pass.
+
+This is an in-progress checkpoint, not the Item 7 exit gate. Remaining work is
+the other worker callback/interaction families, shared lookup/cancellation/choice
+and finalization mechanics, actual feature handler logic, other CLI commands and
+prompts/renderers, and complete local frontend/job smoke verification. Open the
+single Item 7 PR and its local review environment only after the full item is
+complete; do not deploy or merge before user approval.
+
 ## Implementation sequence
 
 1. Characterize existing starts, asymmetric conflicts, command/ID guards,
