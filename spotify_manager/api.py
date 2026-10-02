@@ -71,6 +71,8 @@ from spotify_manager.core.state.models import namespace_value
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.core.state.service import StateFactory
 from spotify_manager.core.state.service import StateValidator
+from spotify_manager.interfaces.http.analysis_worker import AnalysisWorker
+from spotify_manager.interfaces.http.analysis_worker import spotify_event_setter
 from spotify_manager.interfaces.http.job_queries import active_analysis_snapshots
 from spotify_manager.interfaces.http.job_queries import active_playlist_snapshots
 from spotify_manager.interfaces.http.job_records import AnalysisJob as _AnalysisJob
@@ -681,170 +683,52 @@ def _run_analysis_job(
     mirror_resource: library_analysis.ResourceName | None = None,
 ) -> None:
     """Execute one analysis worker and translate outcomes into job state."""
-    job = get_analysis_job(job_id)
-    with _analysis_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Analysis started"
-        _append_job_log_locked(job, f"{mode.title()} analysis started.")
-
-    def progress_callback(
-        resource: library_analysis.ResourceName,
-        completed: int,
-        total: int | None,
-        progress_status: str,
-    ) -> None:
-        with _analysis_jobs_lock:
-            progress = job.result.resources[resource]
-            status_changed = progress.status != progress_status
-            progress.completed = completed
-            progress.total = total
-            progress.status = progress_status
-            if job.result.status != "cancelling":
-                job.result.status = "running"
-                job.result.detail = f"{resource.title()}: {progress_status}"
-            if status_changed:
-                count = str(completed)
-                if total is not None:
-                    count = f"{completed} / {max(completed, total)}"
-                _append_job_log_locked(
-                    job,
-                    f"{resource.title()}: {progress_status} ({count}).",
-                )
-
-    def echo(line: str) -> None:
-        with _analysis_jobs_lock:
-            _append_job_log_locked(job, line)
-            if job.result.status not in {"waiting", "cancelling"}:
-                job.result.detail = line
-
-    def retry_wait(notice: library_analysis.RetryNotice) -> bool:
-        retry_at = datetime.now(UTC) + timedelta(seconds=notice.delay_seconds)
-        failure = (
-            f"Spotify HTTP {notice.http_status}"
-            if notice.http_status is not None
-            else "Spotify connection interrupted"
-        )
-        with _analysis_jobs_lock:
-            job.result.status = "waiting"
-            job.result.retry_at = retry_at.isoformat()
-            job.result.detail = (
-                f"{failure}; retry {notice.attempt} while {notice.operation}"
-            )
-            _append_job_log_locked(
-                job,
-                f"Waiting until {retry_at.isoformat()} before retry "
-                f"{notice.attempt} after {failure} "
-                f"while {notice.operation}. Cancel to save and stop.",
-            )
-        cancelled = job.cancel_event.wait(notice.delay_seconds)
-        with _analysis_jobs_lock:
-            job.result.retry_at = None
-            if not cancelled:
-                job.result.status = "running"
-                job.result.detail = "Retrying Spotify request"
-                _append_job_log_locked(job, "Retrying Spotify request now.")
-        return not cancelled
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
+    worker = _analysis_worker(job_id, mode, spotify, full_rebuild, mirror_resource)
+    worker.start()
+    setter = spotify_event_setter(spotify)
+    previous_callback = None
+    if setter is not None:
+        previous_callback = setter(worker.echo)
     try:
-        if mode == "async":
-            summary = library_analysis.analyse_library_async_routine(
-                echo=echo,
-                progress_callback=progress_callback,
-                cancel_check=job.cancel_event.is_set,
-            )
-        elif mode == "sync":
-            if spotify is None:
-                raise library_analysis.LibrarySyncError(
-                    "A Spotify client is required for live analysis."
-                )
-            summary = library_analysis.analyse_library_sync_routine(
-                spotify,
-                echo=echo,
-                progress_callback=progress_callback,
-                retry_wait=retry_wait,
-                cancel_check=job.cancel_event.is_set,
-            )
-        elif mirror_resource is None:
-            if spotify is None:
-                raise library_analysis.LibrarySyncError(
-                    "A Spotify client is required for live mirror refresh."
-                )
-            summary = library_analysis.refresh_live_library_mirrors_routine(
-                spotify,
-                echo=echo,
-                progress_callback=progress_callback,
-                retry_wait=retry_wait,
-                cancel_check=job.cancel_event.is_set,
-                full_rebuild=full_rebuild,
-            )
-        else:
-            if spotify is None:
-                raise library_analysis.LibrarySyncError(
-                    "A Spotify client is required for live mirror refresh."
-                )
-            summary = library_analysis.refresh_live_library_resource_routine(
-                spotify,
-                mirror_resource,
-                echo=echo,
-                progress_callback=progress_callback,
-                retry_wait=retry_wait,
-                cancel_check=job.cancel_event.is_set,
-                full_rebuild=full_rebuild,
-            )
+        summary = worker.execute()
     except library_analysis.LibraryAnalysisCancelledError as exc:
-        with _analysis_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = f"{exc} Progress was saved."
-            _append_job_log_locked(job, job.result.detail)
+        worker.cancelled(exc)
     except library_analysis.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _analysis_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = "Spotify rate limit reached. Progress was saved."
-            _append_job_log_locked(job, job.result.detail)
+        worker.paused(exc)
     except library_analysis.LibrarySyncError as exc:
-        with _analysis_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_job_log_locked(job, f"Analysis failed: {exc}")
+        worker.failed(exc)
     except Exception as exc:  # pragma: no cover - last-resort worker boundary
         _analysis_logger.exception("Unexpected library analysis error")
-        with _analysis_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected analysis error: {exc}"
-            _append_job_log_locked(job, job.result.detail)
+        worker.unexpected_failure(exc)
     else:
-        with _analysis_jobs_lock:
-            job.result.status = "completed"
-            job.result.detail = "Analysis completed"
-            job.result.run_id = summary.run_id
-            job.result.backup_dir = summary.backup_dir
-            for resource in summary.resources:
-                _append_job_log_locked(
-                    job,
-                    f"{resource.resource.title()}: {resource.previous} -> "
-                    f"{resource.current} (+{resource.added}, "
-                    f"-{resource.removed}, skipped {resource.skipped}).",
-                )
-            _append_job_log_locked(
-                job,
-                f"Analysis completed. Run {summary.run_id}; "
-                f"backup {summary.backup_dir}.",
-            )
+        worker.completed(summary)
     finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _analysis_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+        if setter is not None:
+            setter(previous_callback)
+        worker.finish()
+
+
+def _analysis_worker(
+    job_id: str,
+    mode: library_analysis.AnalysisMode,
+    spotify: Spotify | None,
+    full_rebuild: bool,
+    mirror_resource: library_analysis.ResourceName | None,
+) -> AnalysisWorker:
+    return AnalysisWorker(
+        job=get_analysis_job(job_id),
+        lock=_analysis_jobs_lock,
+        now=_job_time,
+        append=_append_job_log_locked,
+        mode=mode,
+        spotify=spotify,
+        full_rebuild=full_rebuild,
+        mirror_resource=mirror_resource,
+    )
+
+
+def _job_time() -> datetime:
+    return datetime.now(UTC)
 
 
 def start_analysis_job(

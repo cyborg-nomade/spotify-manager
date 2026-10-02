@@ -92,6 +92,8 @@ fixtures to remain useful throughout the migration.
   active queries and initial shared lifecycle/log helpers.
 - [ ] Extract worker callback contexts and explicit interaction dependencies;
   complete callback ownership and cancellation/choice race tests.
+  Analysis callbacks are extracted and directly covered, including concurrent
+  sink/signal ownership and the unchanged SDK hook restoration convention.
 - [ ] Extract feature HTTP routers and CLI commands/renderers/prompts.
 - [ ] Verify full coverage, strict typing, frozen public artifacts, dependency
   boundaries and local frontend/job behavior on the complete Item 7 branch.

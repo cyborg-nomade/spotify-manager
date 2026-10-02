@@ -39,6 +39,21 @@ for 472 files; Ruff and formatting pass. The separate post-extraction capture
 still matches all 11 original public artifacts. This evidence applies to the
 opening increment, not to later unverified changes or a complete Item 7 release.
 
+## Analysis worker increment
+
+The analysis worker now uses a feature-owned `AnalysisWorker` context with
+ordinary methods for progress, logging, retry waiting, dispatch and outcome
+presentation. Its facade keeps the original scheduler target, expected exception
+handling, last-resort error boundary and callback restoration before completion
+timestamping. Client construction and shared SDK hook semantics are unchanged.
+
+Direct tests cover all four dispatch paths, missing clients/resources, repeated
+progress, unknown or smaller totals, cancellation detail, empty messages, retry
+resume/cancellation, optional rate-limit timestamps, outcome logs, SDK hook
+binding/restoration and concurrent callback/signal ownership. The 28 tests provide
+100% statement and branch coverage of the new worker. Frozen interface artifacts
+still match. Other worker families, routers and CLI adapters remain pending.
+
 ## Implementation sequence
 
 1. Characterize existing starts, asymmetric conflicts, command/ID guards,
