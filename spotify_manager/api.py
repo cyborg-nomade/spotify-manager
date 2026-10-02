@@ -14,68 +14,153 @@ by legacy endpoints is cached; call ``POST /library/refresh`` after replacing
 
 import logging
 import os
-from collections.abc import AsyncIterator
-from collections.abc import Callable
-from collections.abc import Iterator
-from contextlib import asynccontextmanager
-from datetime import UTC
-from datetime import datetime
+from collections.abc import AsyncIterator as AsyncIterator
+from collections.abc import Callable as Callable
+from collections.abc import Iterator as Iterator
+from contextlib import asynccontextmanager as asynccontextmanager
+from datetime import UTC as UTC
+from datetime import datetime as datetime
 from datetime import timedelta as timedelta
-from functools import lru_cache
-from pathlib import Path
-from threading import Event
-from threading import Lock
-from threading import Thread
-from typing import Annotated
-from typing import Any
-from typing import Literal
-from uuid import uuid4
+from functools import lru_cache as lru_cache
+from pathlib import Path as Path
+from threading import Event as Event
+from threading import Lock as Lock
+from threading import Thread as Thread
+from typing import Annotated as Annotated
+from typing import Any as Any
+from typing import Literal as Literal
+from uuid import uuid4 as uuid4
 
-from fastapi import Depends
-from fastapi import FastAPI
-from fastapi import HTTPException
-from fastapi import Query
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from fastapi.responses import Response
-from requests.exceptions import RequestException
-from spotipy import Spotify
-from spotipy.exceptions import SpotifyException
+from fastapi import Depends as Depends
+from fastapi import FastAPI as FastAPI
+from fastapi import HTTPException as HTTPException
+from fastapi import Query as Query
+from fastapi import Request as Request
+from fastapi.responses import JSONResponse as JSONResponse
+from fastapi.responses import Response as Response
+from requests.exceptions import RequestException as RequestException
+from spotipy import Spotify as Spotify
+from spotipy.exceptions import SpotifyException as SpotifyException
 
 from spotify_manager.application.job_lifecycle import (
     ACTIVE_STATUSES as _ACTIVE_JOB_STATUSES,
 )
-from spotify_manager.application.job_lifecycle import JobIdentity
-from spotify_manager.application.job_lifecycle import append_log
-from spotify_manager.application.job_lifecycle import first_active_job
-from spotify_manager.application.job_lifecycle import retain_logs
+from spotify_manager.application.job_lifecycle import JobIdentity as JobIdentity
+from spotify_manager.application.job_lifecycle import append_log as append_log
+from spotify_manager.application.job_lifecycle import (
+    first_active_job as first_active_job,
+)
+from spotify_manager.application.job_lifecycle import retain_logs as retain_logs
 from spotify_manager.bootstrap.startup import (
     hydrate_library_data as hydrate_runtime_library_data,
 )
-
-# UFI
-from spotify_manager.client import get_spotipy_client
-from spotify_manager.client.lastfm import LastFmClient
+from spotify_manager.client import get_spotipy_client as get_spotipy_client
+from spotify_manager.client.lastfm import LastFmClient as LastFmClient
 from spotify_manager.client.lastfm import LastFmError as LastFmError
-from spotify_manager.core.library_data import LibraryDataError
-from spotify_manager.core.library_data.runtime import get_library_data_service
-from spotify_manager.core.state.editor import state_editor_schema
-from spotify_manager.core.state.editor import validate_namespace_editor_change
-from spotify_manager.core.state.models import StateConfigurationError
-from spotify_manager.core.state.models import StateConflictError
-from spotify_manager.core.state.models import StateDocumentError
-from spotify_manager.core.state.models import StateError
-from spotify_manager.core.state.models import canonical_json
-from spotify_manager.core.state.models import namespace_value
-from spotify_manager.core.state.runtime import get_state_service
-from spotify_manager.core.state.service import StateFactory
-from spotify_manager.core.state.service import StateValidator
-from spotify_manager.interfaces.http.analysis_worker import AnalysisWorker
-from spotify_manager.interfaces.http.analysis_worker import spotify_event_setter
-from spotify_manager.interfaces.http.job_queries import active_analysis_snapshots
-from spotify_manager.interfaces.http.job_queries import active_playlist_snapshots
+from spotify_manager.core.library_data import LibraryDataError as LibraryDataError
+from spotify_manager.core.library_data.runtime import (
+    get_library_data_service as get_library_data_service,
+)
+from spotify_manager.core.state.editor import state_editor_schema as state_editor_schema
+from spotify_manager.core.state.editor import (
+    validate_namespace_editor_change as validate_namespace_editor_change,
+)
+from spotify_manager.core.state.models import (
+    StateConfigurationError as StateConfigurationError,
+)
+from spotify_manager.core.state.models import StateConflictError as StateConflictError
+from spotify_manager.core.state.models import StateDocumentError as StateDocumentError
+from spotify_manager.core.state.models import StateError as StateError
+from spotify_manager.core.state.models import canonical_json as canonical_json
+from spotify_manager.core.state.models import namespace_value as namespace_value
+from spotify_manager.core.state.runtime import get_state_service as get_state_service
+from spotify_manager.core.state.service import StateFactory as StateFactory
+from spotify_manager.core.state.service import StateValidator as StateValidator
+from spotify_manager.interfaces.http.analysis_worker import (
+    AnalysisWorker as AnalysisWorker,
+)
+from spotify_manager.interfaces.http.analysis_worker import (
+    spotify_event_setter as spotify_event_setter,
+)
+from spotify_manager.interfaces.http.handlers.analysis import (
+    AnalysisHandlers as AnalysisHandlers,
+)
+from spotify_manager.interfaces.http.handlers.daily_mind_radio import (
+    DailyMindRadioHandlers as DailyMindRadioHandlers,
+)
+from spotify_manager.interfaces.http.handlers.discography import (
+    DiscographyHandlers as DiscographyHandlers,
+)
+from spotify_manager.interfaces.http.handlers.discovery import (
+    DiscoveryHandlers as DiscoveryHandlers,
+)
+from spotify_manager.interfaces.http.handlers.dormant import (
+    DormantHandlers as DormantHandlers,
+)
+from spotify_manager.interfaces.http.handlers.found_art import (
+    FoundArtHandlers as FoundArtHandlers,
+)
+from spotify_manager.interfaces.http.handlers.health import (
+    HealthHandlers as HealthHandlers,
+)
+from spotify_manager.interfaces.http.handlers.historical import (
+    HistoricalHandlers as HistoricalHandlers,
+)
+from spotify_manager.interfaces.http.handlers.history import (
+    HistoryHandlers as HistoryHandlers,
+)
+from spotify_manager.interfaces.http.handlers.library_commands import (
+    LibraryCommandsHandlers as LibraryCommandsHandlers,
+)
+from spotify_manager.interfaces.http.handlers.lookups import (
+    LookupsHandlers as LookupsHandlers,
+)
+from spotify_manager.interfaces.http.handlers.new_year import (
+    NewYearHandlers as NewYearHandlers,
+)
+from spotify_manager.interfaces.http.handlers.palace import (
+    PalaceHandlers as PalaceHandlers,
+)
+from spotify_manager.interfaces.http.handlers.queue_2 import (
+    Queue2Handlers as Queue2Handlers,
+)
+from spotify_manager.interfaces.http.handlers.queue_3 import (
+    Queue3Handlers as Queue3Handlers,
+)
+from spotify_manager.interfaces.http.handlers.queue_fill import (
+    QueueFillHandlers as QueueFillHandlers,
+)
+from spotify_manager.interfaces.http.handlers.queue_flush import (
+    QueueFlushHandlers as QueueFlushHandlers,
+)
+from spotify_manager.interfaces.http.handlers.releases import (
+    ReleasesHandlers as ReleasesHandlers,
+)
+from spotify_manager.interfaces.http.handlers.requeue import (
+    RequeueHandlers as RequeueHandlers,
+)
+from spotify_manager.interfaces.http.handlers.sauvignon import (
+    SauvignonHandlers as SauvignonHandlers,
+)
+from spotify_manager.interfaces.http.handlers.slow_listening import (
+    SlowListeningHandlers as SlowListeningHandlers,
+)
+from spotify_manager.interfaces.http.handlers.something_old import (
+    SomethingOldHandlers as SomethingOldHandlers,
+)
+from spotify_manager.interfaces.http.handlers.state import (
+    StateHandlers as StateHandlers,
+)
+from spotify_manager.interfaces.http.handlers.wine import WineHandlers as WineHandlers
+from spotify_manager.interfaces.http.job_queries import (
+    active_analysis_snapshots as active_analysis_snapshots,
+)
+from spotify_manager.interfaces.http.job_queries import (
+    active_playlist_snapshots as active_playlist_snapshots,
+)
 from spotify_manager.interfaces.http.job_records import AnalysisJob as _AnalysisJob
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
+from spotify_manager.interfaces.http.job_registry import lookup_job as lookup_job
 from spotify_manager.interfaces.http.models.analysis import (
     AnalysisJobLog as AnalysisJobLog,
 )
@@ -260,7 +345,9 @@ from spotify_manager.interfaces.http.models.wine import (
 from spotify_manager.interfaces.http.models.wine import (
     NewWineTrackResult as NewWineTrackResult,
 )
-from spotify_manager.interfaces.http.playlist_retry import PlaylistRetry
+from spotify_manager.interfaces.http.playlist_retry import (
+    PlaylistRetry as PlaylistRetry,
+)
 from spotify_manager.interfaces.http.presenters.discography import (
     discography_artist_result as _discography_artist_result,
 )
@@ -355,12 +442,16 @@ from spotify_manager.interfaces.http.routers.something_old import (
 )
 from spotify_manager.interfaces.http.routers.state import router as _state_router
 from spotify_manager.interfaces.http.routers.wine import router as _wine_router
-from spotify_manager.interfaces.http.workers.blast import BlastWorker
-from spotify_manager.interfaces.http.workers.blast_artist import BlastArtistWorker
-from spotify_manager.interfaces.http.workers.daily_mind_radio import (
-    DailyMindRadioWorker,
+from spotify_manager.interfaces.http.workers.blast import BlastWorker as BlastWorker
+from spotify_manager.interfaces.http.workers.blast_artist import (
+    BlastArtistWorker as BlastArtistWorker,
 )
-from spotify_manager.interfaces.http.workers.discography import DiscographyWorker
+from spotify_manager.interfaces.http.workers.daily_mind_radio import (
+    DailyMindRadioWorker as DailyMindRadioWorker,
+)
+from spotify_manager.interfaces.http.workers.discography import (
+    DiscographyWorker as DiscographyWorker,
+)
 from spotify_manager.interfaces.http.workers.errors import (
     _DiscographyJobCancelledError as _DiscographyJobCancelledError,
 )
@@ -394,81 +485,134 @@ from spotify_manager.interfaces.http.workers.errors import (
 from spotify_manager.interfaces.http.workers.errors import (
     _SomethingOldJobCancelledError as _SomethingOldJobCancelledError,
 )
-from spotify_manager.interfaces.http.workers.found_art import FoundArtWorker
-from spotify_manager.interfaces.http.workers.new_kids import NewKidsWorker
-from spotify_manager.interfaces.http.workers.new_wine import NewWineWorker
-from spotify_manager.interfaces.http.workers.new_year import NewYearWorker
+from spotify_manager.interfaces.http.workers.found_art import (
+    FoundArtWorker as FoundArtWorker,
+)
+from spotify_manager.interfaces.http.workers.new_kids import (
+    NewKidsWorker as NewKidsWorker,
+)
+from spotify_manager.interfaces.http.workers.new_wine import (
+    NewWineWorker as NewWineWorker,
+)
+from spotify_manager.interfaces.http.workers.new_year import (
+    NewYearWorker as NewYearWorker,
+)
 from spotify_manager.interfaces.http.workers.palace_of_memory import (
-    PalaceOfMemoryWorker,
+    PalaceOfMemoryWorker as PalaceOfMemoryWorker,
 )
-from spotify_manager.interfaces.http.workers.queue_3 import Queue3Worker
-from spotify_manager.interfaces.http.workers.queue_fill import QueueFillWorker
-from spotify_manager.interfaces.http.workers.queue_flush import QueueFlushWorker
-from spotify_manager.interfaces.http.workers.release_check import ReleaseCheckWorker
+from spotify_manager.interfaces.http.workers.queue_3 import Queue3Worker as Queue3Worker
+from spotify_manager.interfaces.http.workers.queue_fill import (
+    QueueFillWorker as QueueFillWorker,
+)
+from spotify_manager.interfaces.http.workers.queue_flush import (
+    QueueFlushWorker as QueueFlushWorker,
+)
+from spotify_manager.interfaces.http.workers.release_check import (
+    ReleaseCheckWorker as ReleaseCheckWorker,
+)
 from spotify_manager.interfaces.http.workers.requeue_for_a_dream import (
-    RequeueForADreamWorker,
+    RequeueForADreamWorker as RequeueForADreamWorker,
 )
-from spotify_manager.interfaces.http.workers.sauvignon import SauvignonWorker
+from spotify_manager.interfaces.http.workers.sauvignon import (
+    SauvignonWorker as SauvignonWorker,
+)
 from spotify_manager.interfaces.http.workers.scrobble_history import (
-    ScrobbleHistoryWorker,
+    ScrobbleHistoryWorker as ScrobbleHistoryWorker,
 )
-from spotify_manager.interfaces.http.workers.slow_listening import SlowListeningWorker
-from spotify_manager.interfaces.http.workers.something_old import SomethingOldWorker
-from spotify_manager.loaders_savers import load_your_library_file
-from spotify_manager.models.lookups import AlbumEvaluation
-from spotify_manager.models.lookups import ArtistLibraryStats
-from spotify_manager.models.lookups import TrackScrobbleStatus
-from spotify_manager.models.your_library import YourLibraryFile
-from spotify_manager.processors.library_lookups import AlbumNotFoundError
-from spotify_manager.processors.library_lookups import AmbiguousAlbumError
-from spotify_manager.processors.library_lookups import AmbiguousArtistError
-from spotify_manager.processors.library_lookups import ArtistNotFoundError
-from spotify_manager.processors.library_lookups import SpotifyLookupResponseError
-from spotify_manager.processors.library_lookups import evaluate_album_live
-from spotify_manager.processors.library_lookups import get_live_artist_library_stats
-from spotify_manager.processors.library_lookups import parse_spotify_lookup_reference
-from spotify_manager.processors.scrobble_lookups import AmbiguousTrackError
-from spotify_manager.processors.scrobble_lookups import TrackNotFoundError
-from spotify_manager.processors.scrobble_lookups import get_track_scrobble_status
-from spotify_manager.processors.total_albums_processor import update_total_album_list
+from spotify_manager.interfaces.http.workers.slow_listening import (
+    SlowListeningWorker as SlowListeningWorker,
+)
+from spotify_manager.interfaces.http.workers.something_old import (
+    SomethingOldWorker as SomethingOldWorker,
+)
+from spotify_manager.loaders_savers import (
+    load_your_library_file as load_your_library_file,
+)
+from spotify_manager.models.lookups import AlbumEvaluation as AlbumEvaluation
+from spotify_manager.models.lookups import ArtistLibraryStats as ArtistLibraryStats
+from spotify_manager.models.lookups import TrackScrobbleStatus as TrackScrobbleStatus
+from spotify_manager.models.your_library import YourLibraryFile as YourLibraryFile
+from spotify_manager.processors.library_lookups import (
+    AlbumNotFoundError as AlbumNotFoundError,
+)
+from spotify_manager.processors.library_lookups import (
+    AmbiguousAlbumError as AmbiguousAlbumError,
+)
+from spotify_manager.processors.library_lookups import (
+    AmbiguousArtistError as AmbiguousArtistError,
+)
+from spotify_manager.processors.library_lookups import (
+    ArtistNotFoundError as ArtistNotFoundError,
+)
+from spotify_manager.processors.library_lookups import (
+    SpotifyLookupResponseError as SpotifyLookupResponseError,
+)
+from spotify_manager.processors.library_lookups import (
+    evaluate_album_live as evaluate_album_live,
+)
+from spotify_manager.processors.library_lookups import (
+    get_live_artist_library_stats as get_live_artist_library_stats,
+)
+from spotify_manager.processors.library_lookups import (
+    parse_spotify_lookup_reference as parse_spotify_lookup_reference,
+)
+from spotify_manager.processors.scrobble_lookups import (
+    AmbiguousTrackError as AmbiguousTrackError,
+)
+from spotify_manager.processors.scrobble_lookups import (
+    TrackNotFoundError as TrackNotFoundError,
+)
+from spotify_manager.processors.scrobble_lookups import (
+    get_track_scrobble_status as get_track_scrobble_status,
+)
+from spotify_manager.processors.total_albums_processor import (
+    update_total_album_list as update_total_album_list,
+)
 from spotify_manager.routines import analyse_library as library_analysis
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import blast_from_past_artists
+from spotify_manager.routines import blast_from_past as blast_from_past
+from spotify_manager.routines import blast_from_past_artists as blast_from_past_artists
 from spotify_manager.routines import composer_playlists as composer_playlists
 from spotify_manager.routines import daily_mind_radio as daily_mind_radio
-from spotify_manager.routines import discography
-from spotify_manager.routines import found_art
-from spotify_manager.routines import genre_reveal
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import new_wine
-from spotify_manager.routines import new_year
-from spotify_manager.routines import palace_of_memory
-from spotify_manager.routines import queue_3
-from spotify_manager.routines import recover_removed_albums
-from spotify_manager.routines import release_check
-from spotify_manager.routines import requeue_for_a_dream
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import review_artists
-from spotify_manager.routines import sauvignon
-from spotify_manager.routines import scrobble_history
-from spotify_manager.routines import slow_listening
-from spotify_manager.routines import something_old
-from spotify_manager.routines import the_queue
-from spotify_manager.routines.convert_library_file import analyse_comparison
+from spotify_manager.routines import discography as discography
+from spotify_manager.routines import found_art as found_art
+from spotify_manager.routines import genre_reveal as genre_reveal
+from spotify_manager.routines import new_kids as new_kids
+from spotify_manager.routines import new_wine as new_wine
+from spotify_manager.routines import new_year as new_year
+from spotify_manager.routines import palace_of_memory as palace_of_memory
+from spotify_manager.routines import queue_3 as queue_3
+from spotify_manager.routines import recover_removed_albums as recover_removed_albums
+from spotify_manager.routines import release_check as release_check
+from spotify_manager.routines import requeue_for_a_dream as requeue_for_a_dream
+from spotify_manager.routines import review_album_limits as review_album_limits
+from spotify_manager.routines import review_artists as review_artists
+from spotify_manager.routines import sauvignon as sauvignon
+from spotify_manager.routines import scrobble_history as scrobble_history
+from spotify_manager.routines import slow_listening as slow_listening
+from spotify_manager.routines import something_old as something_old
+from spotify_manager.routines import the_queue as the_queue
 from spotify_manager.routines.convert_library_file import (
-    compare_your_library_and_all_albums,
+    analyse_comparison as analyse_comparison,
 )
-from spotify_manager.routines.convert_library_file import convert_your_library_file
-from spotify_manager.routines.convert_library_file import restore_your_library_from_file
-from spotify_manager.routines.count_items import count_artists_in_library
-from spotify_manager.routines.monthly_routine import run_monthly_routines
-from spotify_manager.settings import Settings
+from spotify_manager.routines.convert_library_file import (
+    compare_your_library_and_all_albums as compare_your_library_and_all_albums,
+)
+from spotify_manager.routines.convert_library_file import (
+    convert_your_library_file as convert_your_library_file,
+)
+from spotify_manager.routines.convert_library_file import (
+    restore_your_library_from_file as restore_your_library_from_file,
+)
+from spotify_manager.routines.count_items import (
+    count_artists_in_library as count_artists_in_library,
+)
+from spotify_manager.routines.monthly_routine import (
+    run_monthly_routines as run_monthly_routines,
+)
+from spotify_manager.settings import Settings as Settings
 
 
-STATE_NAMESPACE_DEFINITIONS: dict[
-    str,
-    tuple[StateFactory, StateValidator],
-] = {
+STATE_NAMESPACE_DEFINITIONS: dict[str, tuple[StateFactory, StateValidator]] = {
     "discography": (discography._default_state, discography.validate_state),
     "genre_reveal": (genre_reveal._default_state, genre_reveal.validate_state),
     "new_kids": (new_kids._default_state, new_kids.validate_state),
@@ -489,8 +633,6 @@ STATE_NAMESPACE_DEFINITIONS: dict[
     "review_artists": (review_artists._default_state, review_artists.validate_state),
     "slow_listening": (slow_listening._default_state, slow_listening.validate_state),
 }
-
-
 _analysis_jobs: dict[str, _AnalysisJob] = {}
 _analysis_jobs_lock = Lock()
 _MAX_ANALYSIS_LOGS = 250
@@ -509,13 +651,12 @@ RELEASE_CHECK_STATE_PATH = Path(
 )
 RELEASE_CHECK_STATE_BACKUP_DIR = Path(
     os.environ.get(
-        "RELEASE_CHECK_STATE_BACKUP_DIR",
-        release_check.DEFAULT_STATE_BACKUP_DIR,
+        "RELEASE_CHECK_STATE_BACKUP_DIR", release_check.DEFAULT_STATE_BACKUP_DIR
     )
 )
 SPOTIFY_CONNECTION_FAILURE_DETAIL = (
-    "Spotify connection remained unavailable after automatic retries. "
-    "Please try again shortly."
+    "Spotify connection remained unavailable after "
+    "automatic retries. Please try again shortly."
 )
 DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS = 60
 
@@ -592,9 +733,7 @@ def _append_blast_log_locked(job: _BlastJob, message: str) -> None:
 
 def _create_job_log(sequence: int, message: str) -> AnalysisJobLog:
     return AnalysisJobLog(
-        sequence=sequence,
-        timestamp=datetime.now(UTC).isoformat(),
-        message=message,
+        sequence=sequence, timestamp=datetime.now(UTC).isoformat(), message=message
     )
 
 
@@ -652,17 +791,13 @@ def _require_playlist_slot(message: str) -> None:
 
 
 def _release_check_state_snapshot(
-    known_fingerprint: str | None = None,
-    *,
-    backup_path: Path | None = None,
+    known_fingerprint: str | None = None, *, backup_path: Path | None = None
 ) -> ReleaseCheckStateSnapshot:
     """Load one state snapshot, omitting its body when the browser is current."""
     state = (
         get_state_service()
         .namespace(
-            "release_check",
-            release_check._default_state,
-            release_check.validate_state,
+            "release_check", release_check._default_state, release_check.validate_state
         )
         .load()
     )
@@ -688,10 +823,7 @@ def _state_timestamp(value: str | None) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-def _release_state_is_newer(
-    candidate: dict[str, Any],
-    current: dict[str, Any],
-) -> bool:
+def _release_state_is_newer(candidate: dict[str, Any], current: dict[str, Any]) -> bool:
     """Return whether a browser-held state is semantically newer."""
     candidate_at = _state_timestamp(release_check.state_updated_at(candidate))
     current_at = _state_timestamp(release_check.state_updated_at(current))
@@ -702,27 +834,20 @@ def _release_state_is_newer(
 
 def get_analysis_job(job_id: str) -> _AnalysisJob:
     """Return one job or raise a conventional API 404."""
-    with _analysis_jobs_lock:
-        job = _analysis_jobs.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="analysis job not found")
-    return job
+    return lookup_job(
+        _analysis_jobs, _analysis_jobs_lock, job_id, "analysis job not found"
+    )
 
 
 def get_blast_job(job_id: str, command: str | None = None) -> _BlastJob:
     """Return one playlist job or raise a conventional API 404."""
-    with _blast_jobs_lock:
-        job = _blast_jobs.get(job_id)
-    if job is None or (command is not None and job.result.command != command):
-        raise HTTPException(status_code=404, detail="playlist job not found")
-    return job
+    return lookup_job(
+        _blast_jobs, _blast_jobs_lock, job_id, "playlist job not found", command
+    )
 
 
 def _cancel_simple_playlist_job(
-    job_id: str,
-    *,
-    command: str,
-    detail: str,
+    job_id: str, *, command: str, detail: str
 ) -> BlastJobResult:
     """Signal a non-interactive playlist worker to stop cleanly."""
     job = get_blast_job(job_id, command=command)
@@ -758,7 +883,7 @@ def _run_analysis_job(
         worker.paused(exc)
     except library_analysis.LibrarySyncError as exc:
         worker.failed(exc)
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
+    except Exception as exc:
         _analysis_logger.exception("Unexpected library analysis error")
         worker.unexpected_failure(exc)
     else:
@@ -811,11 +936,9 @@ def start_analysis_job(
     resources = (
         (mirror_resource,)
         if mirror_resource is not None
-        else (
-            ("albums", "tracks")
-            if mode == "mirrors"
-            else ("albums", "tracks", "artists")
-        )
+        else ("albums", "tracks")
+        if mode == "mirrors"
+        else ("albums", "tracks", "artists")
     )
     with _analysis_jobs_lock:
         _require_analysis_slot(command)
@@ -835,7 +958,6 @@ def start_analysis_job(
         _append_job_log_locked(job, f"{mode.title()} analysis queued.")
         _analysis_jobs[job_id] = job
         snapshot = _job_snapshot(job)
-
     Thread(
         target=_run_analysis_job,
         args=(job_id, mode, spotify, full_rebuild, mirror_resource),
@@ -1068,8 +1190,7 @@ def _run_new_kids_job(
 
 
 def _apply_queue_3_annual_summary(
-    job: _BlastJob,
-    summary: queue_3.AnnualImportSummary,
+    job: _BlastJob, summary: queue_3.AnnualImportSummary
 ) -> None:
     """Apply a completed annual-only summary to its web job."""
     job.result.status = "completed"
@@ -1086,16 +1207,21 @@ def _apply_queue_3_annual_summary(
         action = "would be added" if summary.dry_run else "added"
         artist_label = "artist" if summary.additions == 1 else "artists"
         job.result.detail = (
-            f"Great Discoveries {summary.source_year}: "
-            f"{summary.additions} {artist_label} {action}; "
-            f"{summary.already_present} already present."
+            "Great Discoveries "
+            f"{summary.source_year}"
+            ": "
+            f"{summary.additions}"
+            " "
+            f"{artist_label}"
+            " "
+            f"{action}"
+            "; "
+            f"{summary.already_present}"
+            " already present."
         )
 
 
-def _apply_queue_3_flush_summary(
-    job: _BlastJob,
-    summary: queue_3.FlushSummary,
-) -> None:
+def _apply_queue_3_flush_summary(job: _BlastJob, summary: queue_3.FlushSummary) -> None:
     """Apply a completed or paused flush summary to its web job."""
     job.result.status = "paused" if summary.paused else "completed"
     job.result.run_id = summary.run_id
@@ -1115,9 +1241,14 @@ def _apply_queue_3_flush_summary(
         job.result.detail = "Queue 3 flush paused. Progress was saved."
     else:
         job.result.detail = (
-            f"{summary.processed} decisions; {summary.advanced} advances; "
-            f"{summary.changed_releases} release changes; "
-            f"{summary.completed_artists} completed artists."
+            f"{summary.processed}"
+            " decisions; "
+            f"{summary.advanced}"
+            " advances; "
+            f"{summary.changed_releases}"
+            " release changes; "
+            f"{summary.completed_artists}"
+            " completed artists."
         )
 
 
@@ -1199,10 +1330,7 @@ def _run_slow_listening_job(
 def _something_old_date(timestamp_ms: int) -> str:
     """Format one scrobble timestamp in the listening timezone."""
     return (
-        datetime.fromtimestamp(
-            timestamp_ms / 1000,
-            blast_from_past.SCROBBLE_TIMEZONE,
-        )
+        datetime.fromtimestamp(timestamp_ms / 1000, blast_from_past.SCROBBLE_TIMEZONE)
         .date()
         .isoformat()
     )
@@ -1363,7 +1491,6 @@ def start_blast_job(
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_blast_job,
         args=(job_id, spotify, playlist_id, count, max_playlist_length, dry_run),
@@ -1374,10 +1501,7 @@ def start_blast_job(
 
 
 def start_blast_artist_job(
-    spotify: Spotify,
-    playlist_id: str,
-    count: int,
-    dry_run: bool,
+    spotify: Spotify, playlist_id: str, count: int, dry_run: bool
 ) -> BlastJobResult:
     """Start one dormant-artist recovery job."""
     with _blast_jobs_lock:
@@ -1398,7 +1522,6 @@ def start_blast_artist_job(
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_blast_artist_job,
         args=(job_id, spotify, playlist_id, count, dry_run),
@@ -1409,9 +1532,7 @@ def start_blast_artist_job(
 
 
 def start_daily_mind_radio_job(
-    spotify: Spotify,
-    playlist_id: str,
-    dry_run: bool,
+    spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> BlastJobResult:
     """Start one Daily Mind Radio job, rejecting another playlist routine."""
     with _blast_jobs_lock:
@@ -1419,18 +1540,14 @@ def start_daily_mind_radio_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="daily_mind_radio",
-                dry_run=dry_run,
+                job_id=job_id, command="daily_mind_radio", dry_run=dry_run
             )
         )
         _append_blast_log_locked(
-            job,
-            "Daily Mind Radio queued" + (" in dry-run mode." if dry_run else "."),
+            job, "Daily Mind Radio queued" + (" in dry-run mode." if dry_run else ".")
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_daily_mind_radio_job,
         args=(job_id, spotify, playlist_id, dry_run),
@@ -1441,11 +1558,7 @@ def start_daily_mind_radio_job(
 
 
 def start_found_art_job(
-    spotify: Spotify,
-    playlist_id: str,
-    api_key: str,
-    username: str,
-    count: int,
+    spotify: Spotify, playlist_id: str, api_key: str, username: str, count: int
 ) -> BlastJobResult:
     """Start one Found Art job, rejecting another playlist routine."""
     with _blast_jobs_lock:
@@ -1453,15 +1566,12 @@ def start_found_art_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="found_art",
-                requested_count=count,
+                job_id=job_id, command="found_art", requested_count=count
             )
         )
         _append_blast_log_locked(job, "Found Art queued.")
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_found_art_job,
         args=(job_id, spotify, playlist_id, api_key, username, count),
@@ -1496,11 +1606,14 @@ def start_sauvignon_job(
         )
         _append_blast_log_locked(
             job,
-            f"Sauvignon album discovery queued{' in dry-run mode' if dry_run else ''}.",
+            (
+                "Sauvignon album discovery queued"
+                f"{(' in dry-run mode' if dry_run else '')}"
+                "."
+            ),
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_sauvignon_job,
         args=(
@@ -1546,11 +1659,10 @@ def start_queue_fill_job(
         )
         _append_blast_log_locked(
             job,
-            f"Queue artist discovery queued{' in dry-run mode' if dry_run else ''}.",
+            f"Queue artist discovery queued{(' in dry-run mode' if dry_run else '')}.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_queue_fill_job,
         args=(
@@ -1571,29 +1683,20 @@ def start_queue_fill_job(
 
 
 def start_queue_flush_job(
-    spotify: Spotify,
-    playlists: the_queue.QueuePlaylists,
-    *,
-    dry_run: bool,
+    spotify: Spotify, playlists: the_queue.QueuePlaylists, *, dry_run: bool
 ) -> BlastJobResult:
     """Start a Queue flush job, rejecting another playlist routine."""
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
-            result=BlastJobResult(
-                job_id=job_id,
-                command="flush_queue",
-                dry_run=dry_run,
-            )
+            result=BlastJobResult(job_id=job_id, command="flush_queue", dry_run=dry_run)
         )
         _append_blast_log_locked(
-            job,
-            f"Queue flush queued{' in dry-run mode' if dry_run else ''}.",
+            job, f"Queue flush queued{(' in dry-run mode' if dry_run else '')}."
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_queue_flush_job,
         args=(job_id, spotify, playlists, dry_run),
@@ -1619,18 +1722,14 @@ def start_new_kids_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="flush_new_kids",
-                dry_run=dry_run,
+                job_id=job_id, command="flush_new_kids", dry_run=dry_run
             )
         )
         _append_blast_log_locked(
-            job,
-            f"New Kids flush queued{' in dry-run mode' if dry_run else ''}.",
+            job, f"New Kids flush queued{(' in dry-run mode' if dry_run else '')}."
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_new_kids_job,
         args=(
@@ -1665,18 +1764,14 @@ def start_queue_2_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="flush_queue_2",
-                dry_run=dry_run,
+                job_id=job_id, command="flush_queue_2", dry_run=dry_run
             )
         )
         _append_blast_log_locked(
-            job,
-            f"Queue 2 flush queued{' in dry-run mode' if dry_run else ''}.",
+            job, f"Queue 2 flush queued{(' in dry-run mode' if dry_run else '')}."
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_new_kids_job,
         args=(
@@ -1697,11 +1792,7 @@ def start_queue_2_job(
 
 
 def start_queue_3_job(
-    spotify: Spotify,
-    playlist_id: str,
-    *,
-    dry_run: bool,
-    annual_only: bool = False,
+    spotify: Spotify, playlist_id: str, *, dry_run: bool, annual_only: bool = False
 ) -> BlastJobResult:
     """Start one Queue 3 flush or standalone annual-import web job."""
     with _blast_jobs_lock:
@@ -1718,15 +1809,14 @@ def start_queue_3_job(
         _append_blast_log_locked(
             job,
             ("Previous-year Queue 3 import" if annual_only else "Queue 3 flush")
-            + f" queued{' in dry-run mode' if dry_run else ''}.",
+            + f" queued{(' in dry-run mode' if dry_run else '')}.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_queue_3_job,
         args=(job_id, spotify, playlist_id, dry_run, annual_only),
-        name=f"queue-3-{'import' if annual_only else 'flush'}-{job_id[:8]}",
+        name=f"queue-3-{('import' if annual_only else 'flush')}-{job_id[:8]}",
         daemon=True,
     ).start()
     return snapshot
@@ -1756,12 +1846,10 @@ def start_new_wine_job(
             )
         )
         _append_blast_log_locked(
-            job,
-            f"New Wine flush queued{' in dry-run mode' if dry_run else ''}.",
+            job, f"New Wine flush queued{(' in dry-run mode' if dry_run else '')}."
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_new_wine_job,
         args=(
@@ -1781,10 +1869,7 @@ def start_new_wine_job(
 
 
 def start_slow_listening_job(
-    spotify: Spotify,
-    playlist_id: str,
-    *,
-    dry_run: bool,
+    spotify: Spotify, playlist_id: str, *, dry_run: bool
 ) -> BlastJobResult:
     """Start one Slow Listening web job, rejecting another playlist routine."""
     with _blast_jobs_lock:
@@ -1792,22 +1877,17 @@ def start_slow_listening_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="flush_slow_listening",
-                dry_run=dry_run,
+                job_id=job_id, command="flush_slow_listening", dry_run=dry_run
             )
         )
         _append_blast_log_locked(
             job,
-            (
-                "Slow Listening flush queued in dry-run mode."
-                if dry_run
-                else "Slow Listening flush queued."
-            ),
+            "Slow Listening flush queued in dry-run mode."
+            if dry_run
+            else "Slow Listening flush queued.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_slow_listening_job,
         args=(job_id, spotify, playlist_id, dry_run),
@@ -1818,12 +1898,7 @@ def start_slow_listening_job(
 
 
 def start_something_old_job(
-    spotify: Spotify,
-    playlist_id: str,
-    api_key: str,
-    username: str,
-    *,
-    dry_run: bool,
+    spotify: Spotify, playlist_id: str, api_key: str, username: str, *, dry_run: bool
 ) -> BlastJobResult:
     """Start one interactive Something Old job with reload-safe state."""
     with _blast_jobs_lock:
@@ -1831,22 +1906,17 @@ def start_something_old_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="something_old",
-                dry_run=dry_run,
+                job_id=job_id, command="something_old", dry_run=dry_run
             )
         )
         _append_blast_log_locked(
             job,
-            (
-                "Something Old queued in dry-run mode."
-                if dry_run
-                else "Something Old queued."
-            ),
+            "Something Old queued in dry-run mode."
+            if dry_run
+            else "Something Old queued.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_something_old_job,
         args=(job_id, spotify, playlist_id, api_key, username, dry_run),
@@ -1870,22 +1940,17 @@ def start_release_check_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="check_new_releases",
-                dry_run=dry_run,
+                job_id=job_id, command="check_new_releases", dry_run=dry_run
             )
         )
         _append_blast_log_locked(
             job,
-            (
-                "New-release check queued in dry-run mode."
-                if dry_run
-                else "New-release check queued."
-            ),
+            "New-release check queued in dry-run mode."
+            if dry_run
+            else "New-release check queued.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_release_check_job,
         args=(job_id, spotify, playlists, api_key, username, dry_run),
@@ -1908,22 +1973,17 @@ def start_discography_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="plan_discographies",
-                dry_run=dry_run,
+                job_id=job_id, command="plan_discographies", dry_run=dry_run
             )
         )
         _append_blast_log_locked(
             job,
-            (
-                "Discography planning queued in dry-run mode."
-                if dry_run
-                else "Discography planning queued."
-            ),
+            "Discography planning queued in dry-run mode."
+            if dry_run
+            else "Discography planning queued.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_discography_job,
         args=(job_id, spotify, playlist_ids, queue_3_playlist_id, dry_run),
@@ -1934,10 +1994,7 @@ def start_discography_job(
 
 
 def start_requeue_for_a_dream_job(
-    spotify: Spotify,
-    playlist_id: str,
-    *,
-    dry_run: bool,
+    spotify: Spotify, playlist_id: str, *, dry_run: bool
 ) -> BlastJobResult:
     """Start one Requeue for a Dream job with reload-safe state."""
     with _blast_jobs_lock:
@@ -1945,22 +2002,17 @@ def start_requeue_for_a_dream_job(
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
-                job_id=job_id,
-                command="flush_requeue_for_a_dream",
-                dry_run=dry_run,
+                job_id=job_id, command="flush_requeue_for_a_dream", dry_run=dry_run
             )
         )
         _append_blast_log_locked(
             job,
-            (
-                "Requeue for a Dream queued in dry-run mode."
-                if dry_run
-                else "Requeue for a Dream queued."
-            ),
+            "Requeue for a Dream queued in dry-run mode."
+            if dry_run
+            else "Requeue for a Dream queued.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_requeue_for_a_dream_job,
         args=(job_id, spotify, playlist_id, dry_run),
@@ -1989,24 +2041,21 @@ def start_palace_of_memory_job(
                 command="fill_palace_of_memory",
                 dry_run=dry_run,
                 palace_cursor_only=cursor_only,
-                palace_alphabetical_reference=(
-                    str(cursor_position) if cursor_only else alphabetical_start
-                ),
+                palace_alphabetical_reference=str(cursor_position)
+                if cursor_only
+                else alphabetical_start,
             )
         )
         queued_message = (
             f"Palace alphabetical cursor adjustment to {cursor_position} queued."
             if cursor_only
-            else (
-                "Palace of Memory queued in dry-run mode."
-                if dry_run
-                else "Palace of Memory queued."
-            )
+            else "Palace of Memory queued in dry-run mode."
+            if dry_run
+            else "Palace of Memory queued."
         )
         _append_blast_log_locked(job, queued_message)
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_palace_of_memory_job,
         args=(
@@ -2024,11 +2073,7 @@ def start_palace_of_memory_job(
 
 
 def start_scrobble_history_job(
-    api_key: str,
-    username: str,
-    *,
-    dry_run: bool,
-    full_rebuild: bool = False,
+    api_key: str, username: str, *, dry_run: bool, full_rebuild: bool = False
 ) -> BlastJobResult:
     """Start one shared Last.fm history refresh with reload-safe state."""
     with _blast_jobs_lock:
@@ -2044,15 +2089,12 @@ def start_scrobble_history_job(
         )
         _append_blast_log_locked(
             job,
-            (
-                "Last.fm scrobble history update queued in dry-run mode."
-                if dry_run
-                else "Last.fm scrobble history update queued."
-            ),
+            "Last.fm scrobble history update queued in dry-run mode."
+            if dry_run
+            else "Last.fm scrobble history update queued.",
         )
         _blast_jobs[job_id] = job
         snapshot = _blast_job_snapshot(job)
-
     Thread(
         target=_run_scrobble_history_job,
         args=(job_id, api_key, username, dry_run, full_rebuild),
@@ -2080,8 +2122,7 @@ def _artist_not_found(request: Request, exc: ArtistNotFoundError) -> JSONRespons
 @app.exception_handler(AmbiguousArtistError)
 def _ambiguous_artist(request: Request, exc: AmbiguousArtistError) -> JSONResponse:
     return JSONResponse(
-        status_code=409,
-        content={"detail": str(exc), "candidates": exc.candidates},
+        status_code=409, content={"detail": str(exc), "candidates": exc.candidates}
     )
 
 
@@ -2105,15 +2146,13 @@ def _track_not_found(request: Request, exc: TrackNotFoundError) -> JSONResponse:
 @app.exception_handler(AmbiguousTrackError)
 def _ambiguous_track(request: Request, exc: AmbiguousTrackError) -> JSONResponse:
     return JSONResponse(
-        status_code=409,
-        content={"detail": str(exc), "candidates": exc.candidates},
+        status_code=409, content={"detail": str(exc), "candidates": exc.candidates}
     )
 
 
 @app.exception_handler(SpotifyLookupResponseError)
 def _invalid_spotify_lookup(
-    request: Request,
-    exc: SpotifyLookupResponseError,
+    request: Request, exc: SpotifyLookupResponseError
 ) -> JSONResponse:
     return JSONResponse(status_code=502, content={"detail": str(exc)})
 
@@ -2124,173 +2163,375 @@ def _spotify_lookup_failed(request: Request, exc: SpotifyException) -> JSONRespo
     if exc.http_status == 429:
         retry_after = review_album_limits.get_retry_after_seconds(exc)
         detail = (
-            "Spotify rate limit reached after trying all configured credentials. "
-            f"{review_album_limits.format_retry_after(retry_after)}."
+            "Spotify rate limit reached after trying all "
+            "configured credentials. "
+            f"{review_album_limits.format_retry_after(retry_after)}"
+            "."
         )
         headers = {"Retry-After": str(retry_after)} if retry_after is not None else None
         return JSONResponse(
-            status_code=429,
-            content={"detail": detail},
-            headers=headers,
+            status_code=429, content={"detail": detail}, headers=headers
         )
-
     status_code = exc.http_status if exc.http_status in {400, 403, 404} else 502
     return JSONResponse(
         status_code=status_code,
         content={
-            "detail": (
-                f"Spotify request failed (HTTP {exc.http_status}): "
+            ("detail"): (
+                "Spotify request failed (HTTP "
+                f"{exc.http_status}"
+                "): "
                 f"{exc.msg or 'unknown Spotify error'}"
             )
         },
     )
 
 
+def _health_handlers() -> HealthHandlers:
+    return HealthHandlers()
+
+
+def _state_handlers() -> StateHandlers:
+    return StateHandlers(
+        STATE_NAMESPACE_DEFINITIONS=STATE_NAMESPACE_DEFINITIONS,
+        canonical_json=canonical_json,
+        datetime=datetime,
+        get_state_service=get_state_service,
+        namespace_value=namespace_value,
+        state_editor_schema=state_editor_schema,
+        validate_namespace_editor_change=validate_namespace_editor_change,
+    )
+
+
+def _lookups_handlers() -> LookupsHandlers:
+    return LookupsHandlers(
+        evaluate_album_live=evaluate_album_live,
+        get_library=get_library,
+        get_live_artist_library_stats=get_live_artist_library_stats,
+        get_track_scrobble_status=get_track_scrobble_status,
+        parse_spotify_lookup_reference=parse_spotify_lookup_reference,
+    )
+
+
+def _librarycommands_handlers() -> LibraryCommandsHandlers:
+    return LibraryCommandsHandlers(
+        analyse_comparison=analyse_comparison,
+        compare_your_library_and_all_albums=compare_your_library_and_all_albums,
+        convert_your_library_file=convert_your_library_file,
+        count_artists_in_library=count_artists_in_library,
+        restore_your_library_from_file=restore_your_library_from_file,
+        run_monthly_routines=run_monthly_routines,
+        update_total_album_list=update_total_album_list,
+    )
+
+
+def _historical_handlers() -> HistoricalHandlers:
+    return HistoricalHandlers(
+        Settings=Settings,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _cancel_simple_playlist_job=_cancel_simple_playlist_job,
+        get_blast_job=get_blast_job,
+        start_blast_job=start_blast_job,
+    )
+
+
+def _dormant_handlers() -> DormantHandlers:
+    return DormantHandlers(
+        Settings=Settings,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _cancel_simple_playlist_job=_cancel_simple_playlist_job,
+        get_blast_job=get_blast_job,
+        start_blast_artist_job=start_blast_artist_job,
+    )
+
+
+def _dailymindradio_handlers() -> DailyMindRadioHandlers:
+    return DailyMindRadioHandlers(
+        Settings=Settings,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _cancel_simple_playlist_job=_cancel_simple_playlist_job,
+        get_blast_job=get_blast_job,
+        start_daily_mind_radio_job=start_daily_mind_radio_job,
+    )
+
+
+def _foundart_handlers() -> FoundArtHandlers:
+    return FoundArtHandlers(
+        Settings=Settings,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_found_art_job=start_found_art_job,
+    )
+
+
+def _sauvignon_handlers() -> SauvignonHandlers:
+    return SauvignonHandlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_sauvignon_job=start_sauvignon_job,
+    )
+
+
+def _queuefill_handlers() -> QueueFillHandlers:
+    return QueueFillHandlers(
+        Settings=Settings,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _cancel_queue_job=_cancel_queue_job,
+        _configured_queue_playlists=_configured_queue_playlists,
+        get_blast_job=get_blast_job,
+        start_queue_fill_job=start_queue_fill_job,
+    )
+
+
+def _queueflush_handlers() -> QueueFlushHandlers:
+    return QueueFlushHandlers(
+        _active_playlist_jobs=_active_playlist_jobs,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _cancel_queue_job=_cancel_queue_job,
+        _configured_queue_playlists=_configured_queue_playlists,
+        get_blast_job=get_blast_job,
+        start_queue_flush_job=start_queue_flush_job,
+    )
+
+
+def _discovery_handlers() -> DiscoveryHandlers:
+    return DiscoveryHandlers(
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _configured_album_discovery_playlists=_configured_album_discovery_playlists,
+        get_blast_job=get_blast_job,
+        start_new_kids_job=start_new_kids_job,
+    )
+
+
+def _queue2_handlers() -> Queue2Handlers:
+    return Queue2Handlers(
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _configured_album_discovery_playlists=_configured_album_discovery_playlists,
+        get_blast_job=get_blast_job,
+        start_queue_2_job=start_queue_2_job,
+    )
+
+
+def _queue3_handlers() -> Queue3Handlers:
+    return Queue3Handlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_queue_3_job=start_queue_3_job,
+    )
+
+
+def _wine_handlers() -> WineHandlers:
+    return WineHandlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_new_wine_job=start_new_wine_job,
+    )
+
+
+def _slowlistening_handlers() -> SlowListeningHandlers:
+    return SlowListeningHandlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_slow_listening_job=start_slow_listening_job,
+    )
+
+
+def _somethingold_handlers() -> SomethingOldHandlers:
+    return SomethingOldHandlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_something_old_job=start_something_old_job,
+    )
+
+
+def _releases_handlers() -> ReleasesHandlers:
+    return ReleasesHandlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs=_blast_jobs,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _release_check_state_snapshot=_release_check_state_snapshot,
+        _release_state_is_newer=_release_state_is_newer,
+        get_blast_job=get_blast_job,
+        get_state_service=get_state_service,
+        start_release_check_job=start_release_check_job,
+    )
+
+
+def _discography_handlers() -> DiscographyHandlers:
+    return DiscographyHandlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_discography_job=start_discography_job,
+    )
+
+
+def _requeue_handlers() -> RequeueHandlers:
+    return RequeueHandlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_requeue_for_a_dream_job=start_requeue_for_a_dream_job,
+    )
+
+
+def _palace_handlers() -> PalaceHandlers:
+    return PalaceHandlers(
+        Settings=Settings,
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _append_blast_log_locked=_append_blast_log_locked,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        get_blast_job=get_blast_job,
+        start_palace_of_memory_job=start_palace_of_memory_job,
+    )
+
+
+def _history_handlers() -> HistoryHandlers:
+    return HistoryHandlers(
+        LIBRARY_MIRROR_FILE_PATHS=LIBRARY_MIRROR_FILE_PATHS,
+        Settings=Settings,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _cancel_simple_playlist_job=_cancel_simple_playlist_job,
+        _server_file_status=_server_file_status,
+        get_blast_job=get_blast_job,
+        get_library_data_service=get_library_data_service,
+        start_scrobble_history_job=start_scrobble_history_job,
+    )
+
+
+def _analysis_handlers() -> AnalysisHandlers:
+    return AnalysisHandlers(
+        _ACTIVE_JOB_STATUSES=_ACTIVE_JOB_STATUSES,
+        _active_analysis_jobs=_active_analysis_jobs,
+        _analysis_jobs_lock=_analysis_jobs_lock,
+        _append_job_log_locked=_append_job_log_locked,
+        _job_snapshot=_job_snapshot,
+        get_analysis_job=get_analysis_job,
+        start_analysis_job=start_analysis_job,
+    )
+
+
+def _newyear_handlers() -> NewYearHandlers:
+    return NewYearHandlers(
+        Thread=Thread,
+        _active_playlist_jobs=_active_playlist_jobs,
+        _blast_job_snapshot=_blast_job_snapshot,
+        _blast_jobs=_blast_jobs,
+        _blast_jobs_lock=_blast_jobs_lock,
+        _cancel_simple_playlist_job=_cancel_simple_playlist_job,
+        _require_playlist_slot=_require_playlist_slot,
+        _run_new_year_job=_run_new_year_job,
+        get_blast_job=get_blast_job,
+        uuid4=uuid4,
+    )
+
+
 def health() -> dict[str, str]:
     """Liveness probe."""
-    return {"status": "ok"}
+    return _health_handlers().health()
 
 
 def auth_check() -> dict[str, str]:
     """Side-effect-free password check protected by the deployment middleware."""
-    return {"status": "ok"}
+    return _health_handlers().auth_check()
 
 
 def shared_state_summary() -> SharedStateSummary:
     """Return state freshness without transferring the complete document."""
-    try:
-        snapshot = get_state_service().snapshot()
-    except StateConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except StateError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    namespaces = snapshot.document["namespaces"]
-    return SharedStateSummary(
-        revision=snapshot.revision,
-        updated_at=snapshot.document["updated_at"],
-        namespaces={
-            name: str(envelope["updated_at"]) for name, envelope in namespaces.items()
-        },
-    )
+    return _state_handlers().shared_state_summary()
 
 
 def shared_state() -> SharedStateSnapshot:
     """Return the complete shared application state and revision guard."""
-    try:
-        snapshot = get_state_service().snapshot()
-    except StateConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except StateError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return SharedStateSnapshot(
-        revision=snapshot.revision,
-        document=snapshot.document,
-    )
+    return _state_handlers().shared_state()
 
 
 def shared_state_editor_schema() -> dict[str, Any]:
     """Return backend-owned controls and constraints for manual state edits."""
-    schema = state_editor_schema()
-    if set(schema["namespaces"]) != set(STATE_NAMESPACE_DEFINITIONS):
-        raise HTTPException(
-            status_code=500,
-            detail="State editor schema and namespace validators are out of sync.",
-        )
-    return schema
+    return _state_handlers().shared_state_editor_schema()
 
 
 def replace_shared_state_namespace(
-    namespace: str,
-    request: SharedStateNamespaceReplaceRequest,
+    namespace: str, request: SharedStateNamespaceReplaceRequest
 ) -> SharedStateSnapshot:
     """Validate and replace only one namespace at the viewed revision."""
-    definition = STATE_NAMESPACE_DEFINITIONS.get(namespace)
-    if definition is None:
-        raise HTTPException(status_code=404, detail="Unknown state namespace.")
-    default_factory, validator = definition
-    service = get_state_service()
-    try:
-        current_snapshot = service.snapshot()
-        current = namespace_value(current_snapshot.document, namespace)
-        validate_namespace_editor_change(
-            namespace,
-            current if current is not None else default_factory(),
-            request.value,
-        )
-        snapshot = service.replace_namespace(
-            namespace,
-            request.value,
-            expected_revision=request.expected_revision,
-            validator=validator,
-            message=f"Edit {namespace} state from web app",
-        )
-    except StateConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except StateDocumentError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except StateConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return SharedStateSnapshot(
-        revision=snapshot.revision,
-        document=snapshot.document,
-    )
+    return _state_handlers().replace_shared_state_namespace(namespace, request)
 
 
 def replace_shared_state(request: SharedStateReplaceRequest) -> SharedStateSnapshot:
     """Manually replace shared state only when the viewed revision is current."""
-    try:
-        snapshot = get_state_service().replace(
-            request.document,
-            expected_revision=request.expected_revision,
-            message="Edit Spotify Manager state from web app",
-        )
-    except StateConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except StateDocumentError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except StateConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return SharedStateSnapshot(
-        revision=snapshot.revision,
-        document=snapshot.document,
-    )
+    return _state_handlers().replace_shared_state(request)
 
 
 def export_shared_state() -> Response:
     """Download the current shared state as a JSON snapshot."""
-    try:
-        snapshot = get_state_service().snapshot()
-    except StateConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except StateError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    return Response(
-        canonical_json(
-            {
-                "revision": snapshot.revision,
-                "document": snapshot.document,
-            }
-        )
-        + "\n",
-        media_type="application/json",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="spotify-manager-state-{timestamp}.json"'
-            )
-        },
-    )
+    return _state_handlers().export_shared_state()
 
 
 def refresh_library() -> CommandResult:
     """Drop the cached library so the next request re-reads YourLibrary.json."""
-    get_library.cache_clear()
-    return CommandResult(command="library_refresh")
+    return _lookups_handlers().refresh_library()
 
 
-# --------------------------------------------------------------------------- #
-# Live Spotify lookups
-# --------------------------------------------------------------------------- #
 def artist_stats(
     client: ClientDep,
     reference: Annotated[str | None, Query()] = None,
@@ -2298,30 +2539,7 @@ def artist_stats(
     artist_id: Annotated[str | None, Query()] = None,
 ) -> ArtistLibraryStats:
     """Return live Liked Songs and Saved Albums counts for one artist."""
-    if reference is not None:
-        try:
-            name, artist_id = parse_spotify_lookup_reference(reference, "artist")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not name and not artist_id:
-        raise HTTPException(
-            status_code=400,
-            detail="provide an artist name, ID, or Spotify link",
-        )
-    try:
-        return get_live_artist_library_stats(
-            client,
-            name=name,
-            artist_id=artist_id,
-        )
-    except RequestException as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "Spotify could not be reached after several attempts. "
-                "Please try again shortly."
-            ),
-        ) from exc
+    return _lookups_handlers().artist_stats(client, reference, name, artist_id)
 
 
 def album_evaluation(
@@ -2333,32 +2551,9 @@ def album_evaluation(
     threshold: float = 0.5,
 ) -> AlbumEvaluation:
     """Return a keep/remove decision from live Spotify album and liked state."""
-    if reference is not None:
-        try:
-            name, album_id = parse_spotify_lookup_reference(reference, "album")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not name and not album_id:
-        raise HTTPException(
-            status_code=400,
-            detail="provide an album name, ID, or Spotify link",
-        )
-    try:
-        return evaluate_album_live(
-            client,
-            name=name,
-            album_id=album_id,
-            artist=artist,
-            threshold=threshold,
-        )
-    except RequestException as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "Spotify could not be reached after several attempts. "
-                "Please try again shortly."
-            ),
-        ) from exc
+    return _lookups_handlers().album_evaluation(
+        client, reference, name, album_id, artist, threshold
+    )
 
 
 def track_scrobble_status(
@@ -2368,83 +2563,44 @@ def track_scrobble_status(
     track_id: Annotated[str | None, Query()] = None,
 ) -> TrackScrobbleStatus:
     """Return the latest Last.fm scrobble for one live Spotify track."""
-    if reference is not None:
-        try:
-            name, track_id = parse_spotify_lookup_reference(reference, "track")
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not name and not track_id:
-        raise HTTPException(
-            status_code=400,
-            detail="provide a track name, ID, or Spotify link",
-        )
-    try:
-        return get_track_scrobble_status(
-            client,
-            name=name,
-            track_id=track_id,
-            path=scrobble_history.DEFAULT_SCROBBLES_PATH,
-        )
-    except blast_from_past.LastFmExportError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    except RequestException as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "Spotify could not be reached after several attempts. "
-                "Please try again shortly."
-            ),
-        ) from exc
+    return _lookups_handlers().track_scrobble_status(client, reference, name, track_id)
 
 
-# --------------------------------------------------------------------------- #
-# Mirrored CLI commands
-# --------------------------------------------------------------------------- #
 def cmd_monthly_routines(client: ClientDep) -> CommandResult:
     """Run the full monthly routine (compare, convert, monthly)."""
-    compare_your_library_and_all_albums()
-    convert_your_library_file(client)
-    run_monthly_routines(client)
-    return CommandResult(command="monthly_routines")
+    return _librarycommands_handlers().cmd_monthly_routines(client)
 
 
 def cmd_update_total_albums(
     client: ClientDep, just_update: bool = False
 ) -> CommandResult:
     """Update the total album list."""
-    albums = update_total_album_list(client, just_update)
-    return CommandResult(
-        command="update_total_albums", detail=f"{len(albums)} albums in list"
-    )
+    return _librarycommands_handlers().cmd_update_total_albums(client, just_update)
 
 
 def cmd_restore_your_library(client: ClientDep) -> CommandResult:
     """Restore artists and tracks from the YourLibrary file."""
-    restore_your_library_from_file(client)
-    return CommandResult(command="restore_your_library")
+    return _librarycommands_handlers().cmd_restore_your_library(client)
 
 
 def cmd_compare_lib_files() -> CommandResult:
     """Create the comparison between YourLibrary and the total-albums file."""
-    compare_your_library_and_all_albums()
-    return CommandResult(command="compare_lib_files")
+    return _librarycommands_handlers().cmd_compare_lib_files()
 
 
 def cmd_analyse_comp(client: ClientDep) -> CommandResult:
     """Analyse the saved comparison file against the live library."""
-    analyse_comparison(client)
-    return CommandResult(command="analyse_comp")
+    return _librarycommands_handlers().cmd_analyse_comp(client)
 
 
 def cmd_convert_lib(client: ClientDep) -> CommandResult:
     """Convert the YourLibrary file into the total-albums file."""
-    convert_your_library_file(client)
-    return CommandResult(command="convert_lib")
+    return _librarycommands_handlers().cmd_convert_lib(client)
 
 
 def cmd_count_artists() -> CountResult:
     """Count the artists in the YourLibrary file."""
-    return CountResult(count=count_artists_in_library())
+    return _librarycommands_handlers().cmd_count_artists()
 
 
 def cmd_blast_from_the_past(
@@ -2454,46 +2610,24 @@ def cmd_blast_from_the_past(
     dry_run: bool = True,
 ) -> BlastJobResult:
     """Start a background Friday-routine playlist update."""
-    if count is not None and max_playlist_length is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="use either count or max_playlist_length, not both",
-        )
-    effective_count = 10 if count is None and max_playlist_length is None else count
-    try:
-        playlist_id = blast_from_past.parse_playlist_id(
-            Settings().blast_from_the_past_playlist
-        )
-    except blast_from_past.BlastFromPastConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_blast_job(
-        client,
-        playlist_id,
-        effective_count,
-        max_playlist_length,
-        dry_run,
+    return _historical_handlers().cmd_blast_from_the_past(
+        client, count, max_playlist_length, dry_run
     )
 
 
 def cmd_active_blast_jobs() -> list[BlastJobResult]:
     """Return active playlist jobs so the web UI can reconnect after reload."""
-    return _active_playlist_jobs("blast_from_the_past")
+    return _historical_handlers().cmd_active_blast_jobs()
 
 
 def cmd_blast_job(job_id: str) -> BlastJobResult:
     """Return current progress for one playlist job."""
-    job = get_blast_job(job_id, command="blast_from_the_past")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _historical_handlers().cmd_blast_job(job_id)
 
 
 def cmd_cancel_blast_job(job_id: str) -> BlastJobResult:
     """Stop a Blast job at the next bounded network-operation boundary."""
-    return _cancel_simple_playlist_job(
-        job_id,
-        command="blast_from_the_past",
-        detail="Stopping A blast from the past",
-    )
+    return _historical_handlers().cmd_cancel_blast_job(job_id)
 
 
 def cmd_blast_from_the_past_artists(
@@ -2502,107 +2636,61 @@ def cmd_blast_from_the_past_artists(
     dry_run: bool = True,
 ) -> BlastJobResult:
     """Start an alphabetic dormant-artist recovery update."""
-    try:
-        playlist_id = blast_from_past.parse_playlist_id(
-            Settings().blast_from_the_past_playlist
-        )
-    except blast_from_past.BlastFromPastConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_blast_artist_job(client, playlist_id, count, dry_run)
+    return _dormant_handlers().cmd_blast_from_the_past_artists(client, count, dry_run)
 
 
 def cmd_active_blast_artist_jobs() -> list[BlastJobResult]:
     """Return the active dormant-artist job for browser reconnection."""
-    return _active_playlist_jobs("blast_from_the_past_artists")
+    return _dormant_handlers().cmd_active_blast_artist_jobs()
 
 
 def cmd_blast_artist_job(job_id: str) -> BlastJobResult:
     """Return current progress for one dormant-artist job."""
-    job = get_blast_job(job_id, command="blast_from_the_past_artists")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _dormant_handlers().cmd_blast_artist_job(job_id)
 
 
 def cmd_cancel_blast_artist_job(job_id: str) -> BlastJobResult:
     """Cancel dormant-artist recovery at the next safe boundary."""
-    return _cancel_simple_playlist_job(
-        job_id,
-        command="blast_from_the_past_artists",
-        detail="Stopping dormant-artist recovery",
-    )
+    return _dormant_handlers().cmd_cancel_blast_artist_job(job_id)
 
 
 def cmd_daily_mind_radio(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a background Daily Mind Radio anniversary update."""
-    try:
-        playlist_id = blast_from_past.parse_playlist_id(
-            Settings().daily_mind_radio_playlist,
-            setting_name="DAILY_MIND_RADIO_PLAYLIST",
-        )
-    except blast_from_past.BlastFromPastConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_daily_mind_radio_job(client, playlist_id, dry_run)
+    return _dailymindradio_handlers().cmd_daily_mind_radio(client, dry_run)
 
 
 def cmd_active_daily_mind_radio_jobs() -> list[BlastJobResult]:
     """Return active Daily Mind Radio jobs for web reload reconnection."""
-    return _active_playlist_jobs("daily_mind_radio")
+    return _dailymindradio_handlers().cmd_active_daily_mind_radio_jobs()
 
 
 def cmd_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     """Return current progress for one Daily Mind Radio job."""
-    job = get_blast_job(job_id, command="daily_mind_radio")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _dailymindradio_handlers().cmd_daily_mind_radio_job(job_id)
 
 
 def cmd_cancel_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     """Stop Daily Mind Radio at the next bounded network-operation boundary."""
-    return _cancel_simple_playlist_job(
-        job_id,
-        command="daily_mind_radio",
-        detail="Stopping Daily Mind Radio",
-    )
+    return _dailymindradio_handlers().cmd_cancel_daily_mind_radio_job(job_id)
 
 
 def cmd_found_art(
-    client: ClientDep,
-    count: Annotated[int, Query(ge=1)] = found_art.DEFAULT_COUNT,
+    client: ClientDep, count: Annotated[int, Query(ge=1)] = found_art.DEFAULT_COUNT
 ) -> BlastJobResult:
     """Start a background Found Art recommendation update."""
-    configuration = Settings()
-    try:
-        playlist_id = found_art.parse_found_art_playlist_id(
-            configuration.found_art_playlist
-        )
-        api_key, username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key,
-            configuration.lastfm_username,
-        )
-    except found_art.FoundArtConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_found_art_job(
-        client,
-        playlist_id,
-        api_key,
-        username,
-        count,
-    )
+    return _foundart_handlers().cmd_found_art(client, count)
 
 
 def cmd_active_found_art_jobs() -> list[BlastJobResult]:
     """Return active Found Art jobs for web reload reconnection."""
-    return _active_playlist_jobs("found_art")
+    return _foundart_handlers().cmd_active_found_art_jobs()
 
 
 def cmd_found_art_job(job_id: str) -> BlastJobResult:
     """Return current progress for one Found Art job."""
-    job = get_blast_job(job_id, command="found_art")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _foundart_handlers().cmd_found_art_job(job_id)
 
 
 def cmd_fill_sauvignon_from_lastfm(
@@ -2613,95 +2701,31 @@ def cmd_fill_sauvignon_from_lastfm(
     dry_run: bool = True,
 ) -> BlastJobResult:
     """Start reconnectable Last.fm album discovery for Sauvignon."""
-    if count is not None and max_playlist_length is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="use either count or maximum playlist length, not both",
-        )
-    configuration = Settings()
-    try:
-        playlist_id = sauvignon.parse_playlist_id(
-            configuration.sauvignon_terre_neuve_playlist
-        )
-        api_key, username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key,
-            configuration.lastfm_username,
-        )
-    except (sauvignon.SauvignonConfigError, found_art.FoundArtConfigError) as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    effective_maximum = (
-        sauvignon.DEFAULT_MAX_PLAYLIST_LENGTH
-        if count is None and max_playlist_length is None
-        else max_playlist_length
-    )
-    return start_sauvignon_job(
-        client,
-        playlist_id,
-        api_key,
-        username,
-        count=count,
-        max_playlist_length=effective_maximum,
-        seed_count=seed_count,
-        dry_run=dry_run,
+    return _sauvignon_handlers().cmd_fill_sauvignon_from_lastfm(
+        client, count, max_playlist_length, seed_count, dry_run
     )
 
 
 def cmd_active_sauvignon_jobs() -> list[BlastJobResult]:
     """Return active Sauvignon jobs so the UI can reconnect after reload."""
-    return _active_playlist_jobs("fill_sauvignon_from_lastfm")
+    return _sauvignon_handlers().cmd_active_sauvignon_jobs()
 
 
 def cmd_sauvignon_job(job_id: str) -> BlastJobResult:
     """Return Sauvignon progress and any pending album-edition choice."""
-    job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _sauvignon_handlers().cmd_sauvignon_job(job_id)
 
 
 def cmd_choose_sauvignon_album(
-    job_id: str,
-    request: SauvignonChoiceRequest,
+    job_id: str, request: SauvignonChoiceRequest
 ) -> BlastJobResult:
     """Submit one ambiguous Spotify album edition, skip, or quit choice."""
-    job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
-    with _blast_jobs_lock:
-        pending = job.result.sauvignon_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Sauvignon discovery is not waiting for an album choice",
-            )
-        allowed = {
-            sauvignon.CHOICE_SKIP,
-            sauvignon.CHOICE_QUIT,
-            *(option.spotify_id for option in pending.options),
-        }
-        if request.choice not in allowed:
-            raise HTTPException(status_code=400, detail="album choice is not available")
-        job.submitted_choice = request.choice
-        job.result.sauvignon_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Sauvignon album choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _sauvignon_handlers().cmd_choose_sauvignon_album(job_id, request)
 
 
 def cmd_cancel_sauvignon_job(job_id: str) -> BlastJobResult:
     """Stop Sauvignon discovery at its next safe boundary."""
-    job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(
-                status_code=409,
-                detail="Sauvignon discovery job is not active",
-            )
-        job.result.status = "cancelling"
-        job.result.sauvignon_pending_choice = None
-        job.result.detail = "Stopping Sauvignon album discovery"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _sauvignon_handlers().cmd_cancel_sauvignon_job(job_id)
 
 
 def _configured_queue_playlists() -> the_queue.QueuePlaylists:
@@ -2727,83 +2751,24 @@ def cmd_fill_queue_from_lastfm(
     dry_run: bool = True,
 ) -> BlastJobResult:
     """Start reconnectable Last.fm artist discovery for The Queue."""
-    if count is not None and max_playlist_length is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="use either count or maximum playlist length, not both",
-        )
-    configuration = Settings()
-    playlists = _configured_queue_playlists()
-    try:
-        api_key, username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key,
-            configuration.lastfm_username,
-        )
-    except found_art.FoundArtConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    effective_count = (
-        the_queue.DEFAULT_COUNT
-        if count is None and max_playlist_length is None
-        else count
-    )
-    return start_queue_fill_job(
-        client,
-        playlists,
-        api_key,
-        username,
-        count=effective_count,
-        max_playlist_length=max_playlist_length,
-        seed_count=seed_count,
-        dry_run=dry_run,
+    return _queuefill_handlers().cmd_fill_queue_from_lastfm(
+        client, count, max_playlist_length, seed_count, dry_run
     )
 
 
 def cmd_active_queue_fill_jobs() -> list[BlastJobResult]:
     """Return active Queue fill jobs so the UI can reconnect after reload."""
-    return _active_playlist_jobs("fill_queue_from_lastfm")
+    return _queuefill_handlers().cmd_active_queue_fill_jobs()
 
 
 def cmd_queue_fill_job(job_id: str) -> BlastJobResult:
     """Return Queue fill progress and any pending artist mapping."""
-    job = get_blast_job(job_id, command="fill_queue_from_lastfm")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _queuefill_handlers().cmd_queue_fill_job(job_id)
 
 
-def cmd_choose_queue_artist(
-    job_id: str,
-    request: QueueChoiceRequest,
-) -> BlastJobResult:
+def cmd_choose_queue_artist(job_id: str, request: QueueChoiceRequest) -> BlastJobResult:
     """Submit one Spotify artist mapping, custom search, skip, or quit."""
-    job = get_blast_job(job_id, command="fill_queue_from_lastfm")
-    with _blast_jobs_lock:
-        pending = job.result.queue_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Queue fill is not waiting for an artist mapping",
-            )
-        allowed = {
-            the_queue.CHOICE_SKIP,
-            the_queue.CHOICE_QUIT,
-            *(candidate.spotify_id for candidate in pending.candidates),
-        }
-        custom_search = request.choice.startswith(the_queue.CHOICE_SEARCH_PREFIX)
-        if custom_search:
-            custom_search = bool(
-                request.choice.removeprefix(the_queue.CHOICE_SEARCH_PREFIX).strip()
-            )
-        if request.choice not in allowed and not custom_search:
-            raise HTTPException(
-                status_code=400,
-                detail="artist choice is not available",
-            )
-        job.submitted_choice = request.choice
-        job.result.queue_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Queue artist choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _queuefill_handlers().cmd_choose_queue_artist(job_id, request)
 
 
 def _cancel_queue_job(job_id: str, command: str, label: str) -> BlastJobResult:
@@ -2823,45 +2788,36 @@ def _cancel_queue_job(job_id: str, command: str, label: str) -> BlastJobResult:
 
 def cmd_cancel_queue_fill_job(job_id: str) -> BlastJobResult:
     """Stop Queue artist discovery at its next safe boundary."""
-    return _cancel_queue_job(job_id, "fill_queue_from_lastfm", "Queue fill")
+    return _queuefill_handlers().cmd_cancel_queue_fill_job(job_id)
 
 
 def cmd_flush_queue(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a reconnectable flush of the first ten Queue artists."""
-    return start_queue_flush_job(
-        client,
-        _configured_queue_playlists(),
-        dry_run=dry_run,
-    )
+    return _queueflush_handlers().cmd_flush_queue(client, dry_run)
 
 
 def cmd_active_queue_flush_jobs() -> list[BlastJobResult]:
     """Return active Queue flush jobs for page reload reconnection."""
-    return _active_playlist_jobs("flush_queue")
+    return _queueflush_handlers().cmd_active_queue_flush_jobs()
 
 
 def cmd_queue_flush_job(job_id: str) -> BlastJobResult:
     """Return current Queue flush progress and result details."""
-    job = get_blast_job(job_id, command="flush_queue")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _queueflush_handlers().cmd_queue_flush_job(job_id)
 
 
 def cmd_cancel_queue_flush_job(job_id: str) -> BlastJobResult:
     """Stop a Queue flush while preserving its durable checkpoint."""
-    return _cancel_queue_job(job_id, "flush_queue", "Queue flush")
+    return _queueflush_handlers().cmd_cancel_queue_flush_job(job_id)
 
 
 def cmd_flush_new_kids(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive New Kids flush with reconnectable web state."""
-    playlist_ids = _configured_album_discovery_playlists()
-    return start_new_kids_job(client, *playlist_ids, dry_run=dry_run)
+    return _discovery_handlers().cmd_flush_new_kids(client, dry_run)
 
 
 def _configured_album_discovery_playlists() -> tuple[str, str, str, str, str]:
@@ -2873,16 +2829,14 @@ def _configured_album_discovery_playlists() -> tuple[str, str, str, str, str]:
             "NEW_KIDS_ON_THE_BLOCK_PLAYLIST",
         )
         queue_2_playlist_id = new_kids.parse_playlist_id(
-            configuration.the_queue_2_playlist,
-            "THE_QUEUE_2_PLAYLIST",
+            configuration.the_queue_2_playlist, "THE_QUEUE_2_PLAYLIST"
         )
         great_discoveries_playlist_id = new_kids.parse_playlist_id(
             configuration.great_discoveries_2026_playlist,
             "GREAT_DISCOVERIES_2026_PLAYLIST",
         )
         unlucky_ones_playlist_id = new_kids.parse_playlist_id(
-            configuration.unlucky_ones_playlist,
-            "UNLUCKY_ONES_PLAYLIST",
+            configuration.unlucky_ones_playlist, "UNLUCKY_ONES_PLAYLIST"
         )
         newfoundland_playlist_id = new_kids.parse_playlist_id(
             configuration.discography_newfoundland_playlist,
@@ -2901,218 +2855,87 @@ def _configured_album_discovery_playlists() -> tuple[str, str, str, str, str]:
 
 def cmd_active_new_kids_jobs() -> list[BlastJobResult]:
     """Return active New Kids jobs so the web UI can reconnect after reload."""
-    return _active_playlist_jobs("flush_new_kids")
+    return _discovery_handlers().cmd_active_new_kids_jobs()
 
 
 def cmd_new_kids_job(job_id: str) -> BlastJobResult:
     """Return current progress and any pending New Kids choice."""
-    job = get_blast_job(job_id, command="flush_new_kids")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _discovery_handlers().cmd_new_kids_job(job_id)
 
 
 def cmd_choose_new_kids_release(
-    job_id: str,
-    request: NewKidsChoiceRequest,
+    job_id: str, request: NewKidsChoiceRequest
 ) -> BlastJobResult:
     """Submit one release or control choice to a waiting New Kids job."""
-    job = get_blast_job(job_id, command="flush_new_kids")
-    with _blast_jobs_lock:
-        pending = job.result.new_kids_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="New Kids job is not waiting for a release choice",
-            )
-        allowed = {
-            new_kids.CHOICE_SKIP,
-            new_kids.CHOICE_QUIT,
-            *(release.spotify_id for release in pending.releases),
-        }
-        if request.choice not in allowed:
-            raise HTTPException(
-                status_code=400,
-                detail="release choice is not available",
-            )
-        job.submitted_choice = request.choice
-        job.result.new_kids_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Release choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _discovery_handlers().cmd_choose_new_kids_release(job_id, request)
 
 
 def cmd_cancel_new_kids_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next New Kids processing boundary."""
-    job = get_blast_job(job_id, command="flush_new_kids")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(status_code=409, detail="New Kids job is not active")
-        job.result.status = "cancelling"
-        job.result.new_kids_pending_choice = None
-        job.result.detail = "Stopping New Kids flush"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _discovery_handlers().cmd_cancel_new_kids_job(job_id)
 
 
 def cmd_flush_queue_2(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive Queue 2 flush with reconnectable web state."""
-    playlist_ids = _configured_album_discovery_playlists()
-    return start_queue_2_job(client, *playlist_ids, dry_run=dry_run)
+    return _queue2_handlers().cmd_flush_queue_2(client, dry_run)
 
 
 def cmd_active_queue_2_jobs() -> list[BlastJobResult]:
     """Return active Queue 2 jobs so the web UI can reconnect after reload."""
-    return _active_playlist_jobs("flush_queue_2")
+    return _queue2_handlers().cmd_active_queue_2_jobs()
 
 
 def cmd_queue_2_job(job_id: str) -> BlastJobResult:
     """Return current progress and any pending Queue 2 choice."""
-    job = get_blast_job(job_id, command="flush_queue_2")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _queue2_handlers().cmd_queue_2_job(job_id)
 
 
 def cmd_choose_queue_2_release(
-    job_id: str,
-    request: NewKidsChoiceRequest,
+    job_id: str, request: NewKidsChoiceRequest
 ) -> BlastJobResult:
     """Submit one release or control choice to a waiting Queue 2 job."""
-    job = get_blast_job(job_id, command="flush_queue_2")
-    with _blast_jobs_lock:
-        pending = job.result.new_kids_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Queue 2 job is not waiting for a release choice",
-            )
-        allowed = {
-            new_kids.CHOICE_SKIP,
-            new_kids.CHOICE_QUIT,
-            *(release.spotify_id for release in pending.releases),
-        }
-        if request.choice not in allowed:
-            raise HTTPException(
-                status_code=400,
-                detail="release choice is not available",
-            )
-        job.submitted_choice = request.choice
-        job.result.new_kids_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Release choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _queue2_handlers().cmd_choose_queue_2_release(job_id, request)
 
 
 def cmd_cancel_queue_2_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next Queue 2 processing boundary."""
-    job = get_blast_job(job_id, command="flush_queue_2")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(status_code=409, detail="Queue 2 job is not active")
-        job.result.status = "cancelling"
-        job.result.new_kids_pending_choice = None
-        job.result.detail = "Stopping Queue 2 flush"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _queue2_handlers().cmd_cancel_queue_2_job(job_id)
 
 
 def cmd_flush_queue_3(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive Queue 3 flush with reconnectable web state."""
-    configuration = Settings()
-    try:
-        playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
-    except queue_3.Queue3ConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_queue_3_job(client, playlist_id, dry_run=dry_run)
+    return _queue3_handlers().cmd_flush_queue_3(client, dry_run)
 
 
 def cmd_import_queue_3_previous_year(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start the annual Queue 3 import without advancing existing artists."""
-    configuration = Settings()
-    try:
-        playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
-    except queue_3.Queue3ConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_queue_3_job(
-        client,
-        playlist_id,
-        dry_run=dry_run,
-        annual_only=True,
-    )
+    return _queue3_handlers().cmd_import_queue_3_previous_year(client, dry_run)
 
 
 def cmd_active_queue_3_jobs() -> list[BlastJobResult]:
     """Return active Queue 3 jobs so the web UI can reconnect after reload."""
-    return _active_playlist_jobs("flush_queue_3")
+    return _queue3_handlers().cmd_active_queue_3_jobs()
 
 
 def cmd_queue_3_job(job_id: str) -> BlastJobResult:
     """Return current progress and any pending Queue 3 choice."""
-    job = get_blast_job(job_id, command="flush_queue_3")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _queue3_handlers().cmd_queue_3_job(job_id)
 
 
-def cmd_choose_queue_3(
-    job_id: str,
-    request: Queue3ChoiceRequest,
-) -> BlastJobResult:
+def cmd_choose_queue_3(job_id: str, request: Queue3ChoiceRequest) -> BlastJobResult:
     """Submit one release, composer-playlist, or quit choice to Queue 3."""
-    job = get_blast_job(job_id, command="flush_queue_3")
-    with _blast_jobs_lock:
-        pending = job.result.queue_3_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Queue 3 job is not waiting for a choice",
-            )
-        if pending.kind == "release":
-            allowed = {queue_3.CHOICE_ADVANCE, queue_3.CHOICE_QUIT}
-        else:
-            allowed = {
-                queue_3.CHOICE_QUIT,
-                *(playlist.spotify_id for playlist in pending.playlists),
-            }
-        if request.choice not in allowed:
-            raise HTTPException(
-                status_code=400,
-                detail="Queue 3 choice is not available",
-            )
-        job.submitted_choice = request.choice
-        job.result.queue_3_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Queue 3 choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _queue3_handlers().cmd_choose_queue_3(job_id, request)
 
 
 def cmd_cancel_queue_3_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next Queue 3 processing boundary."""
-    job = get_blast_job(job_id, command="flush_queue_3")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(status_code=409, detail="Queue 3 job is not active")
-        job.result.status = "cancelling"
-        job.result.queue_3_pending_choice = None
-        job.result.detail = "Stopping Queue 3 flush"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _queue3_handlers().cmd_cancel_queue_3_job(job_id)
 
 
 def cmd_flush_new_wine(
@@ -3122,632 +2945,183 @@ def cmd_flush_new_wine(
     choose_album_endpoints: bool = False,
 ) -> BlastJobResult:
     """Start an interactive New Wine flush with reconnectable web state."""
-    configuration = Settings()
-    try:
-        new_wine_playlist_id = new_wine.parse_playlist_id(
-            configuration.new_wine_from_old_bottles_playlist,
-            "NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST",
-        )
-        sauvignon_playlist_id = new_wine.parse_playlist_id(
-            configuration.sauvignon_terre_neuve_playlist,
-            "SAUVIGNON_TERRE_NEUVE_PLAYLIST",
-        )
-        wine_cellar_playlist_id = new_wine.parse_playlist_id(
-            configuration.wine_cellar_playlist,
-            "WINE_CELLAR_PLAYLIST",
-        )
-    except new_wine.NewWineConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_new_wine_job(
-        client,
-        new_wine_playlist_id,
-        sauvignon_playlist_id,
-        wine_cellar_playlist_id,
-        dry_run=dry_run,
-        no_discovery=no_discovery,
-        choose_album_endpoints=choose_album_endpoints,
+    return _wine_handlers().cmd_flush_new_wine(
+        client, dry_run, no_discovery, choose_album_endpoints
     )
 
 
 def cmd_active_new_wine_jobs() -> list[BlastJobResult]:
     """Return active New Wine jobs so the web UI can reconnect after reload."""
-    return _active_playlist_jobs("flush_new_wine")
+    return _wine_handlers().cmd_active_new_wine_jobs()
 
 
 def cmd_new_wine_job(job_id: str) -> BlastJobResult:
     """Return current progress and any pending choice for one New Wine job."""
-    job = get_blast_job(job_id, command="flush_new_wine")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _wine_handlers().cmd_new_wine_job(job_id)
 
 
 def cmd_choose_new_wine_release(
-    job_id: str,
-    request: NewWineChoiceRequest,
+    job_id: str, request: NewWineChoiceRequest
 ) -> BlastJobResult:
     """Submit one release or control choice to a waiting New Wine job."""
-    job = get_blast_job(job_id, command="flush_new_wine")
-    with _blast_jobs_lock:
-        pending = job.result.pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="New Wine job is not waiting for a release choice",
-            )
-        if pending.kind == "album_endpoint":
-            allowed = {
-                new_wine.CHOICE_CUTOFF,
-                new_wine.CHOICE_CONTINUE,
-                new_wine.CHOICE_SKIP,
-                new_wine.CHOICE_QUIT,
-            }
-        else:
-            allowed = {
-                new_wine.CHOICE_DROP,
-                new_wine.CHOICE_SKIP,
-                new_wine.CHOICE_QUIT,
-                *(release.spotify_id for release in pending.releases),
-            }
-            if pending.terminal_release:
-                allowed.add(new_wine.CHOICE_FINISH)
-        if request.choice not in allowed:
-            raise HTTPException(
-                status_code=400,
-                detail="release choice is not available",
-            )
-        job.submitted_choice = request.choice
-        job.result.pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Release choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _wine_handlers().cmd_choose_new_wine_release(job_id, request)
 
 
 def cmd_cancel_new_wine_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next New Wine processing boundary."""
-    job = get_blast_job(job_id, command="flush_new_wine")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(status_code=409, detail="New Wine job is not active")
-        job.result.status = "cancelling"
-        job.result.pending_choice = None
-        job.result.detail = "Stopping New Wine flush"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _wine_handlers().cmd_cancel_new_wine_job(job_id)
 
 
 def cmd_flush_slow_listening(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive Slow Listening flush with reconnectable state."""
-    configuration = Settings()
-    try:
-        playlist_id = slow_listening.parse_playlist_id(
-            configuration.slow_listening_playlist
-        )
-    except slow_listening.SlowListeningConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_slow_listening_job(
-        client,
-        playlist_id,
-        dry_run=dry_run,
-    )
+    return _slowlistening_handlers().cmd_flush_slow_listening(client, dry_run)
 
 
 def cmd_active_slow_listening_jobs() -> list[BlastJobResult]:
     """Return active Slow Listening jobs for page-reload reconnection."""
-    return _active_playlist_jobs("flush_slow_listening")
+    return _slowlistening_handlers().cmd_active_slow_listening_jobs()
 
 
 def cmd_slow_listening_job(job_id: str) -> BlastJobResult:
     """Return current progress and the pending Slow Listening choice."""
-    job = get_blast_job(job_id, command="flush_slow_listening")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _slowlistening_handlers().cmd_slow_listening_job(job_id)
 
 
 def cmd_choose_slow_listening_track(
-    job_id: str,
-    request: SlowListeningChoiceRequest,
+    job_id: str, request: SlowListeningChoiceRequest
 ) -> BlastJobResult:
     """Submit a candidate, release order, or completion acknowledgement."""
-    job = get_blast_job(job_id, command="flush_slow_listening")
-    with _blast_jobs_lock:
-        pending = job.result.slow_listening_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Slow Listening job is not waiting for a choice",
-            )
-
-        submitted_order: tuple[str, ...] | None = None
-        if pending.kind == "track":
-            allowed = {
-                slow_listening.CHOICE_ADVANCE,
-                slow_listening.CHOICE_SKIP,
-                slow_listening.CHOICE_QUIT,
-            }
-            if request.choice not in allowed or request.order:
-                raise HTTPException(
-                    status_code=400,
-                    detail="track choice is not available",
-                )
-        elif pending.kind == "release_order":
-            expected_ids = {release.spotify_id for release in pending.releases}
-            submitted_order = tuple(request.order)
-            if (
-                request.choice != "order"
-                or len(submitted_order) != len(expected_ids)
-                or set(submitted_order) != expected_ids
-            ):
-                raise HTTPException(
-                    status_code=400,
-                    detail="release order must include every option exactly once",
-                )
-        elif request.choice != "continue" or request.order:
-            raise HTTPException(
-                status_code=400,
-                detail="completion choice is not available",
-            )
-
-        job.submitted_choice = request.choice
-        job.submitted_order = submitted_order
-        job.result.slow_listening_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Slow Listening choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _slowlistening_handlers().cmd_choose_slow_listening_track(job_id, request)
 
 
 def cmd_cancel_slow_listening_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next Slow Listening boundary."""
-    job = get_blast_job(job_id, command="flush_slow_listening")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(
-                status_code=409,
-                detail="Slow Listening job is not active",
-            )
-        job.result.status = "cancelling"
-        job.result.slow_listening_pending_choice = None
-        job.result.detail = "Stopping Slow Listening flush"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _slowlistening_handlers().cmd_cancel_slow_listening_job(job_id)
 
 
 def cmd_something_old(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start an interactive Something Old selection with reconnectable state."""
-    configuration = Settings()
-    try:
-        playlist_id = something_old.parse_playlist_id(
-            configuration.something_old_new_playlist
-        )
-        api_key, username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key,
-            configuration.lastfm_username,
-        )
-    except (
-        something_old.SomethingOldConfigError,
-        found_art.FoundArtConfigError,
-    ) as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_something_old_job(
-        client,
-        playlist_id,
-        api_key,
-        username,
-        dry_run=dry_run,
-    )
+    return _somethingold_handlers().cmd_something_old(client, dry_run)
 
 
 def cmd_active_something_old_jobs() -> list[BlastJobResult]:
     """Return active Something Old jobs for page-reload reconnection."""
-    return _active_playlist_jobs("something_old")
+    return _somethingold_handlers().cmd_active_something_old_jobs()
 
 
 def cmd_something_old_job(job_id: str) -> BlastJobResult:
     """Return current Something Old progress and any pending choice."""
-    job = get_blast_job(job_id, command="something_old")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _somethingold_handlers().cmd_something_old_job(job_id)
 
 
 def cmd_choose_something_old(
-    job_id: str,
-    request: SomethingOldChoiceRequest,
+    job_id: str, request: SomethingOldChoiceRequest
 ) -> BlastJobResult:
     """Submit an exact artist, source mode, album/EP, or quit choice."""
-    job = get_blast_job(job_id, command="something_old")
-    with _blast_jobs_lock:
-        pending = job.result.something_old_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Something Old job is not waiting for a choice",
-            )
-
-        if pending.kind == "artist":
-            allowed = {
-                "quit",
-                *(candidate.spotify_id for candidate in pending.artist_candidates),
-            }
-        elif pending.kind == "mode":
-            allowed = {
-                "lastfm_top_tracks",
-                "spotify_top_tracks",
-                "album",
-                "quit",
-            }
-        else:
-            allowed = {
-                "quit",
-                *(release.spotify_id for release in pending.releases),
-            }
-        if request.choice not in allowed:
-            raise HTTPException(
-                status_code=400,
-                detail="Something Old choice is not available",
-            )
-
-        job.submitted_choice = request.choice
-        job.result.something_old_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Something Old choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _somethingold_handlers().cmd_choose_something_old(job_id, request)
 
 
 def cmd_cancel_something_old_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next Something Old boundary."""
-    job = get_blast_job(job_id, command="something_old")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(
-                status_code=409,
-                detail="Something Old job is not active",
-            )
-        job.result.status = "cancelling"
-        job.result.something_old_pending_choice = None
-        job.result.detail = "Stopping Something Old"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _somethingold_handlers().cmd_cancel_something_old_job(job_id)
 
 
 def cmd_check_new_releases(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a reconnectable release check for Last.fm's top artists."""
-    configuration = Settings()
-    try:
-        playlists = release_check.ReleaseCheckPlaylists.from_references(
-            configuration.wine_cellar_playlist,
-            configuration.new_vintage_playlist,
-        )
-        api_key, username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key,
-            configuration.lastfm_username,
-        )
-    except (
-        release_check.ReleaseCheckConfigError,
-        found_art.FoundArtConfigError,
-    ) as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_release_check_job(
-        client,
-        playlists,
-        api_key,
-        username,
-        dry_run=dry_run,
-    )
+    return _releases_handlers().cmd_check_new_releases(client, dry_run)
 
 
 def cmd_release_check_state(
     known_fingerprint: str | None = None,
 ) -> ReleaseCheckStateSnapshot:
     """Return restart state, omitting the payload when the browser is current."""
-    try:
-        return _release_check_state_snapshot(known_fingerprint)
-    except (release_check.ReleaseCheckStateError, StateError) as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return _releases_handlers().cmd_release_check_state(known_fingerprint)
 
 
 def cmd_restore_release_check_state(
     request: ReleaseCheckStateRestoreRequest,
 ) -> ReleaseCheckStateSnapshot:
     """Restore a newer browser mirror without overwriting concurrent progress."""
-    with _blast_jobs_lock:
-        if any(
-            job.result.command == "check_new_releases"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-            for job in _blast_jobs.values()
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail="New-release check is active; state restore was not applied",
-            )
-        try:
-            candidate = release_check.validate_state(request.state)
-            state_access = get_state_service().namespace(
-                "release_check",
-                release_check._default_state,
-                release_check.validate_state,
-            )
-            current = state_access.load()
-            current_fingerprint = release_check.state_fingerprint(current)
-            if current_fingerprint != request.expected_server_fingerprint:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Release-check state changed; reload before restoring",
-                )
-            if not _release_state_is_newer(candidate, current):
-                raise HTTPException(
-                    status_code=409,
-                    detail="Browser release-check state is not newer",
-                )
-            state_access.save(
-                candidate,
-                message="Restore newer browser release-check state",
-            )
-            return _release_check_state_snapshot()
-        except StateConflictError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except StateConfigurationError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        except release_check.ReleaseCheckStateError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _releases_handlers().cmd_restore_release_check_state(request)
 
 
 def cmd_active_release_check_jobs() -> list[BlastJobResult]:
     """Return active release checks for page-reload reconnection."""
-    return _active_playlist_jobs("check_new_releases")
+    return _releases_handlers().cmd_active_release_check_jobs()
 
 
 def cmd_release_check_job(job_id: str) -> BlastJobResult:
     """Return release-check progress and any pending interaction."""
-    job = get_blast_job(job_id, command="check_new_releases")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _releases_handlers().cmd_release_check_job(job_id)
 
 
 def cmd_choose_release_check(
-    job_id: str,
-    request: ReleaseCheckChoiceRequest,
+    job_id: str, request: ReleaseCheckChoiceRequest
 ) -> BlastJobResult:
     """Submit an artist mapping, custom search, or release decision."""
-    job = get_blast_job(job_id, command="check_new_releases")
-    with _blast_jobs_lock:
-        pending = job.result.release_check_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="New-release check is not waiting for a choice",
-            )
-
-        if pending.kind == "artist":
-            allowed = {
-                release_check.CHOICE_SKIP,
-                release_check.CHOICE_SKIP_ARTIST,
-                release_check.CHOICE_QUIT,
-                *(candidate.spotify_id for candidate in pending.artist_candidates),
-            }
-            custom_search = request.choice.startswith(
-                release_check.CHOICE_SEARCH_PREFIX
-            )
-            search_text = request.choice.removeprefix(
-                release_check.CHOICE_SEARCH_PREFIX
-            ).strip()
-            if request.choice not in allowed and not (custom_search and search_text):
-                raise HTTPException(
-                    status_code=400,
-                    detail="artist mapping choice is not available",
-                )
-        elif request.choice not in {
-            release_check.CHOICE_ADD,
-            release_check.CHOICE_PENDING,
-            release_check.CHOICE_SKIP,
-            release_check.CHOICE_QUIT,
-        } or (
-            request.choice == release_check.CHOICE_PENDING
-            and not pending.unattached_single
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="release review choice is not available",
-            )
-
-        job.submitted_choice = request.choice
-        job.result.release_check_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Release-check choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _releases_handlers().cmd_choose_release_check(job_id, request)
 
 
 def cmd_cancel_release_check_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next release-check boundary."""
-    job = get_blast_job(job_id, command="check_new_releases")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(
-                status_code=409,
-                detail="New-release check is not active",
-            )
-        job.result.status = "cancelling"
-        job.result.release_check_pending_choice = None
-        job.result.detail = "Stopping new-release check"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _releases_handlers().cmd_cancel_release_check_job(job_id)
 
 
 def cmd_plan_discographies(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a reload-safe interactive discography planning job."""
-    configuration = Settings()
-    try:
-        playlist_ids = discography.parse_playlist_ids(
-            configuration.discography_newfoundland_playlist,
-            configuration.discography_memory_lane_playlist,
-            configuration.discography_requeue_playlist,
-        )
-        queue_3_playlist_id = discography.parse_playlist_id(
-            configuration.the_queue_3_playlist,
-            "THE_QUEUE_3_PLAYLIST",
-        )
-    except discography.DiscographyConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_discography_job(
-        client,
-        playlist_ids,
-        queue_3_playlist_id,
-        dry_run=dry_run,
-    )
+    return _discography_handlers().cmd_plan_discographies(client, dry_run)
 
 
 def cmd_active_discography_jobs() -> list[BlastJobResult]:
     """Return active discography jobs for page-reload reconnection."""
-    return _active_playlist_jobs("plan_discographies")
+    return _discography_handlers().cmd_active_discography_jobs()
 
 
 def cmd_discography_job(job_id: str) -> BlastJobResult:
     """Return discography progress and its current interaction."""
-    job = get_blast_job(job_id, command="plan_discographies")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _discography_handlers().cmd_discography_job(job_id)
 
 
 def cmd_choose_discography(
-    job_id: str,
-    request: DiscographyChoiceRequest,
+    job_id: str, request: DiscographyChoiceRequest
 ) -> BlastJobResult:
     """Submit a release checklist or final marker-removal decision."""
-    job = get_blast_job(job_id, command="plan_discographies")
-    with _blast_jobs_lock:
-        pending = job.result.discography_pending_choice
-        if job.result.status != "waiting" or pending is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Discography job is not waiting for a choice",
-            )
-
-        if pending.kind == "artist":
-            available = {
-                candidate.spotify_id for candidate in pending.artist_candidates
-            }
-            if request.choice not in available | {"quit"}:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Spotify artist choice is not available",
-                )
-        elif pending.kind == "releases":
-            if request.choice not in {"select", "none", "quit"}:
-                raise HTTPException(
-                    status_code=400,
-                    detail="release checklist choice is not available",
-                )
-            available = {release.spotify_id for release in pending.releases}
-            selected = set(request.release_ids)
-            if request.choice == "select" and (
-                not request.release_ids
-                or len(selected) != len(request.release_ids)
-                or not selected.issubset(available)
-            ):
-                raise HTTPException(
-                    status_code=400,
-                    detail="selected releases are not available",
-                )
-        elif request.choice not in {"apply", "keep", "quit"}:
-            raise HTTPException(
-                status_code=400,
-                detail="final discography choice is not available",
-            )
-
-        job.submitted_choice = request.choice
-        job.submitted_order = tuple(request.release_ids)
-        job.result.discography_pending_choice = None
-        job.result.status = "running"
-        job.result.detail = "Discography choice submitted"
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _discography_handlers().cmd_choose_discography(job_id, request)
 
 
 def cmd_cancel_discography_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next discography boundary."""
-    job = get_blast_job(job_id, command="plan_discographies")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(
-                status_code=409,
-                detail="Discography job is not active",
-            )
-        job.result.status = "cancelling"
-        job.result.discography_pending_choice = None
-        job.result.detail = "Stopping discography planning"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        job.choice_event.set()
-        return _blast_job_snapshot(job)
+    return _discography_handlers().cmd_cancel_discography_job(job_id)
 
 
 def cmd_flush_requeue_for_a_dream(
-    client: InteractiveClientDep,
-    dry_run: bool = True,
+    client: InteractiveClientDep, dry_run: bool = True
 ) -> BlastJobResult:
     """Start a reconnectable Requeue for a Dream transition."""
-    configuration = Settings()
-    try:
-        playlist_id = requeue_for_a_dream.parse_playlist_id(
-            configuration.reqeueue_for_a_dream_playlist
-        )
-    except requeue_for_a_dream.RequeueForADreamConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_requeue_for_a_dream_job(
-        client,
-        playlist_id,
-        dry_run=dry_run,
-    )
+    return _requeue_handlers().cmd_flush_requeue_for_a_dream(client, dry_run)
 
 
 def cmd_active_requeue_for_a_dream_jobs() -> list[BlastJobResult]:
     """Return active Requeue for a Dream jobs after a page reload."""
-    return _active_playlist_jobs("flush_requeue_for_a_dream")
+    return _requeue_handlers().cmd_active_requeue_for_a_dream_jobs()
 
 
 def cmd_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
     """Return the current state and logs for one Requeue transition."""
-    job = get_blast_job(job_id, command="flush_requeue_for_a_dream")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _requeue_handlers().cmd_requeue_for_a_dream_job(job_id)
 
 
 def cmd_cancel_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next API or retry boundary."""
-    job = get_blast_job(job_id, command="flush_requeue_for_a_dream")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(
-                status_code=409,
-                detail="Requeue for a Dream job is not active",
-            )
-        job.result.status = "cancelling"
-        job.result.detail = "Stopping Requeue for a Dream"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        return _blast_job_snapshot(job)
+    return _requeue_handlers().cmd_cancel_requeue_for_a_dream_job(job_id)
 
 
 def cmd_fill_palace_of_memory(
@@ -3757,88 +3131,31 @@ def cmd_fill_palace_of_memory(
     set_alphabetical_cursor: int | None = Query(default=None, ge=1),
 ) -> BlastJobResult:
     """Start a reconnectable Palace fill or cursor-only adjustment."""
-    cleaned_start = alphabetical_start.strip() if alphabetical_start else None
-    if set_alphabetical_cursor is not None and dry_run:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "set_alphabetical_cursor persists immediately and cannot use dry_run"
-            ),
-        )
-    if set_alphabetical_cursor is not None and cleaned_start is not None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "use either set_alphabetical_cursor or alphabetical_start, not both"
-            ),
-        )
-
-    playlist_id = None
-    if set_alphabetical_cursor is None:
-        configuration = Settings()
-        try:
-            playlist_id = palace_of_memory.parse_playlist_id(
-                configuration.palace_of_memory_playlist
-            )
-        except palace_of_memory.PalaceOfMemoryConfigError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    return start_palace_of_memory_job(
-        client,
-        playlist_id,
-        dry_run=dry_run,
-        alphabetical_start=cleaned_start,
-        cursor_position=set_alphabetical_cursor,
+    return _palace_handlers().cmd_fill_palace_of_memory(
+        client, dry_run, alphabetical_start, set_alphabetical_cursor
     )
 
 
 def cmd_active_palace_of_memory_jobs() -> list[BlastJobResult]:
     """Return active Palace jobs after a page reload."""
-    return _active_playlist_jobs("fill_palace_of_memory")
+    return _palace_handlers().cmd_active_palace_of_memory_jobs()
 
 
 def cmd_palace_of_memory_job(job_id: str) -> BlastJobResult:
     """Return current Palace progress, results, and logs."""
-    job = get_blast_job(job_id, command="fill_palace_of_memory")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _palace_handlers().cmd_palace_of_memory_job(job_id)
 
 
 def cmd_cancel_palace_of_memory_job(job_id: str) -> BlastJobResult:
     """Request a clean Palace stop at the next API or retry boundary."""
-    job = get_blast_job(job_id, command="fill_palace_of_memory")
-    with _blast_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(
-                status_code=409,
-                detail="Palace of Memory job is not active",
-            )
-        job.result.status = "cancelling"
-        job.result.detail = "Stopping Palace of Memory"
-        _append_blast_log_locked(job, job.result.detail)
-        job.cancel_event.set()
-        return _blast_job_snapshot(job)
+    return _palace_handlers().cmd_cancel_palace_of_memory_job(job_id)
 
 
 def cmd_update_scrobble_history(
-    dry_run: bool = True,
-    full_rebuild: bool = False,
+    dry_run: bool = True, full_rebuild: bool = False
 ) -> BlastJobResult:
     """Start a background refresh of the shared Last.fm scrobble record."""
-    configuration = Settings()
-    try:
-        api_key, username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key,
-            configuration.lastfm_username,
-        )
-    except found_art.FoundArtConfigError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return start_scrobble_history_job(
-        api_key,
-        username,
-        dry_run=dry_run,
-        full_rebuild=full_rebuild,
-    )
+    return _history_handlers().cmd_update_scrobble_history(dry_run, full_rebuild)
 
 
 def _server_file_status(path: Path) -> ServerFileStatus:
@@ -3852,74 +3169,44 @@ def _server_file_status(path: Path) -> ServerFileStatus:
             status_code=500,
             detail=f"Could not read server file status for {path.name}.",
         ) from exc
-    return ServerFileStatus(
-        filename=path.name,
-        exists=True,
-        updated_at=modified_at,
-    )
+    return ServerFileStatus(filename=path.name, exists=True, updated_at=modified_at)
 
 
 def library_mirror_files_status() -> LibraryMirrorFilesStatus:
     """Return durable update metadata for all canonical data files."""
-    try:
-        statuses = get_library_data_service().statuses()
-    except LibraryDataError:
-        return LibraryMirrorFilesStatus(
-            files=[_server_file_status(path) for path in LIBRARY_MIRROR_FILE_PATHS]
-        )
-    if not any(item.exists for item in statuses):
-        return LibraryMirrorFilesStatus(
-            files=[_server_file_status(path) for path in LIBRARY_MIRROR_FILE_PATHS]
-        )
-    return LibraryMirrorFilesStatus(
-        files=[
-            ServerFileStatus(
-                filename=item.filename,
-                exists=item.exists,
-                updated_at=item.updated_at,
-            )
-            for item in statuses
-        ]
-    )
+    return _history_handlers().library_mirror_files_status()
 
 
 def cmd_active_scrobble_history_jobs() -> list[BlastJobResult]:
     """Return active history refreshes for page-reload reconnection."""
-    return _active_playlist_jobs("update_scrobble_history")
+    return _history_handlers().cmd_active_scrobble_history_jobs()
 
 
 def cmd_scrobble_history_job(job_id: str) -> BlastJobResult:
     """Return the current state and logs for one history refresh."""
-    job = get_blast_job(job_id, command="update_scrobble_history")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _history_handlers().cmd_scrobble_history_job(job_id)
 
 
 def cmd_cancel_scrobble_history_job(job_id: str) -> BlastJobResult:
     """Request a clean history stop before its next persistence boundary."""
-    return _cancel_simple_playlist_job(
-        job_id,
-        command="update_scrobble_history",
-        detail="Stopping Last.fm scrobble history update",
-    )
+    return _history_handlers().cmd_cancel_scrobble_history_job(job_id)
 
 
 def cmd_analyse_library_async() -> AnalysisJobResult:
     """Start an export-only ``*_async`` library analysis."""
-    return start_analysis_job("async")
+    return _analysis_handlers().cmd_analyse_library_async()
 
 
 def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
     """Start a live-only ``*_sync`` library analysis."""
-    return start_analysis_job("sync", client)
+    return _analysis_handlers().cmd_analyse_library_sync(client)
 
 
 def cmd_refresh_library_mirrors(
-    client: AnalysisClientDep,
-    full_rebuild: bool = False,
+    client: AnalysisClientDep, full_rebuild: bool = False
 ) -> AnalysisJobResult:
     """Refresh canonical saved-album and liked-track mirrors from Spotify."""
-    return start_analysis_job("mirrors", client, full_rebuild=full_rebuild)
+    return _analysis_handlers().cmd_refresh_library_mirrors(client, full_rebuild)
 
 
 def cmd_refresh_library_mirror_resource(
@@ -3928,37 +3215,24 @@ def cmd_refresh_library_mirror_resource(
     full_rebuild: bool = False,
 ) -> AnalysisJobResult:
     """Refresh one canonical Spotify mirror with independent progress."""
-    return start_analysis_job(
-        "mirrors",
-        client,
-        full_rebuild=full_rebuild,
-        mirror_resource=resource,
+    return _analysis_handlers().cmd_refresh_library_mirror_resource(
+        resource, client, full_rebuild
     )
 
 
 def cmd_active_library_analysis_jobs() -> list[AnalysisJobResult]:
     """Return active analyses so the web UI can reconnect after a reload."""
-    return _active_analysis_jobs()
+    return _analysis_handlers().cmd_active_library_analysis_jobs()
 
 
 def cmd_library_analysis_job(job_id: str) -> AnalysisJobResult:
     """Return current progress for one library analysis job."""
-    job = get_analysis_job(job_id)
-    with _analysis_jobs_lock:
-        return _job_snapshot(job)
+    return _analysis_handlers().cmd_library_analysis_job(job_id)
 
 
 def cmd_cancel_library_analysis_job(job_id: str) -> AnalysisJobResult:
     """Request a clean stop at the next durable analysis boundary."""
-    job = get_analysis_job(job_id)
-    with _analysis_jobs_lock:
-        if job.result.status not in _ACTIVE_JOB_STATUSES:
-            raise HTTPException(status_code=409, detail="analysis job is not active")
-        job.cancel_event.set()
-        job.result.status = "cancelling"
-        job.result.detail = "Saving progress and stopping"
-        _append_job_log_locked(job, "Cancellation requested; saving progress.")
-        return _job_snapshot(job)
+    return _analysis_handlers().cmd_cancel_library_analysis_job(job_id)
 
 
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
@@ -3991,40 +3265,22 @@ def cmd_new_year(
     client: ClientDep, dry_run: bool = True, year: int | None = None
 ) -> BlastJobResult:
     """Start all New Year's Routines for the previous completed calendar year."""
-    with _blast_jobs_lock:
-        _require_playlist_slot("another playlist or history routine is running")
-        job_id = uuid4().hex
-        job = _BlastJob(
-            result=BlastJobResult(job_id=job_id, command="new_year", dry_run=dry_run)
-        )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
-    Thread(
-        target=_run_new_year_job,
-        args=(job_id, client, year, dry_run),
-        name=f"new-year-{job_id[:8]}",
-        daemon=True,
-    ).start()
-    return snapshot
+    return _newyear_handlers().cmd_new_year(client, dry_run, year)
 
 
 def cmd_active_new_year_jobs() -> list[BlastJobResult]:
     """Reconnect to an active annual workflow after browser reload."""
-    return _active_playlist_jobs("new_year")
+    return _newyear_handlers().cmd_active_new_year_jobs()
 
 
 def cmd_new_year_job(job_id: str) -> BlastJobResult:
     """Return annual progress, rankings, and logs."""
-    job = get_blast_job(job_id, command="new_year")
-    with _blast_jobs_lock:
-        return _blast_job_snapshot(job)
+    return _newyear_handlers().cmd_new_year_job(job_id)
 
 
 def cmd_cancel_new_year_job(job_id: str) -> BlastJobResult:
     """Cancel at the next boundary, retaining completed annual steps."""
-    return _cancel_simple_playlist_job(
-        job_id, command="new_year", detail="Stopping New Year's Routines"
-    )
+    return _newyear_handlers().cmd_cancel_new_year_job(job_id)
 
 
 def _active_playlist_jobs(command: str) -> list[BlastJobResult]:

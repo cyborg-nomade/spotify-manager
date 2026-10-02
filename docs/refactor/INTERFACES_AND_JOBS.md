@@ -129,6 +129,22 @@ prompts/renderers, and complete local frontend/job smoke verification. Open the
 single Item 7 PR and its local review environment only after the full item is
 complete; do not deploy or merge before user approval.
 
+## HTTP handler increment
+
+The 24 feature adapters under `interfaces/http/handlers/` now own endpoint
+validation, routine delegation, interaction submission and response presentation.
+Named factories in `api.py` supply the original overrideable dependencies;
+public facade signatures and router registrations are unchanged. No runtime
+handler generation or module-global copying is used. Choice validation is
+separated from atomic submission updates so the original lock still surrounds
+both. Shared handle lookup preserves lookup-before-command-guard ordering and
+the existing feature-specific 404 messages.
+
+All 1,510 focused HTTP, worker, web and route-inventory checks pass after this
+extraction. Strict typing, Ruff and formatting pass, and all 11 original public
+artifacts match. The remaining CLI and complete final coverage/local review
+gates are still pending before the single Item 7 PR.
+
 ## Implementation sequence
 
 The next verified increment extracts all 18 remaining HTTP worker entry points
