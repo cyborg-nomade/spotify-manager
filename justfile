@@ -78,6 +78,7 @@ test-application:
     uv run ruff format --check spotify_manager/application tests/application
     uv run mypy --strict spotify_manager/application tests/application
     uv run pytest --confcutdir=tests/application \
+        --cov=spotify_manager.application.job_lifecycle \
         --cov=spotify_manager.application.found_art_values \
         --cov=spotify_manager.application.recommendation_seeds \
         --cov=spotify_manager.application.recommendation_candidates \

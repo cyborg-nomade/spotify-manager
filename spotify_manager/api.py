@@ -16,9 +16,8 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from collections.abc import Callable
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from dataclasses import field as dataclass_field
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -40,12 +39,17 @@ from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
-from pydantic import BaseModel
-from pydantic import Field
 from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.job_lifecycle import (
+    ACTIVE_STATUSES as _ACTIVE_JOB_STATUSES,
+)
+from spotify_manager.application.job_lifecycle import JobIdentity
+from spotify_manager.application.job_lifecycle import append_log
+from spotify_manager.application.job_lifecycle import first_active_job
+from spotify_manager.application.job_lifecycle import retain_logs
 from spotify_manager.bootstrap.startup import (
     hydrate_library_data as hydrate_runtime_library_data,
 )
@@ -67,6 +71,242 @@ from spotify_manager.core.state.models import namespace_value
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.core.state.service import StateFactory
 from spotify_manager.core.state.service import StateValidator
+from spotify_manager.interfaces.http.job_queries import active_analysis_snapshots
+from spotify_manager.interfaces.http.job_queries import active_playlist_snapshots
+from spotify_manager.interfaces.http.job_records import AnalysisJob as _AnalysisJob
+from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
+from spotify_manager.interfaces.http.models.analysis import (
+    AnalysisJobLog as AnalysisJobLog,
+)
+from spotify_manager.interfaces.http.models.analysis import (
+    AnalysisJobResult as AnalysisJobResult,
+)
+from spotify_manager.interfaces.http.models.analysis import (
+    AnalysisResourceProgress as AnalysisResourceProgress,
+)
+from spotify_manager.interfaces.http.models.common import CommandResult as CommandResult
+from spotify_manager.interfaces.http.models.common import CountResult as CountResult
+from spotify_manager.interfaces.http.models.common import JobStatus as JobStatus
+from spotify_manager.interfaces.http.models.common import (
+    LibraryMirrorFilesStatus as LibraryMirrorFilesStatus,
+)
+from spotify_manager.interfaces.http.models.common import (
+    ServerFileStatus as ServerFileStatus,
+)
+from spotify_manager.interfaces.http.models.discography import (
+    DiscographyArtistResult as DiscographyArtistResult,
+)
+from spotify_manager.interfaces.http.models.discography import (
+    DiscographyChoiceRequest as DiscographyChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.discography import (
+    DiscographyPendingChoice as DiscographyPendingChoice,
+)
+from spotify_manager.interfaces.http.models.discography import (
+    DiscographyReleaseOption as DiscographyReleaseOption,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    NewKidsChoiceRequest as NewKidsChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    NewKidsFillResult as NewKidsFillResult,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    NewKidsPendingChoice as NewKidsPendingChoice,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    NewKidsReleaseOption as NewKidsReleaseOption,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    NewKidsTrackResult as NewKidsTrackResult,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    Queue3AnnualImportEntry as Queue3AnnualImportEntry,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    Queue3ChoiceRequest as Queue3ChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    Queue3ComposerPlaylistOption as Queue3ComposerPlaylistOption,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    Queue3PendingChoice as Queue3PendingChoice,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    Queue3ReleaseOption as Queue3ReleaseOption,
+)
+from spotify_manager.interfaces.http.models.discovery import (
+    Queue3TrackResult as Queue3TrackResult,
+)
+from spotify_manager.interfaces.http.models.historical import (
+    BlastSelectionResult as BlastSelectionResult,
+)
+from spotify_manager.interfaces.http.models.historical import (
+    DormantArtistResultEntry as DormantArtistResultEntry,
+)
+from spotify_manager.interfaces.http.models.jobs import BlastJobResult as BlastJobResult
+from spotify_manager.interfaces.http.models.palace import (
+    PalaceAlbumRefreshResult as PalaceAlbumRefreshResult,
+)
+from spotify_manager.interfaces.http.models.palace import (
+    PalaceAlbumSelectionResult as PalaceAlbumSelectionResult,
+)
+from spotify_manager.interfaces.http.models.queue import (
+    QueueArtistOption as QueueArtistOption,
+)
+from spotify_manager.interfaces.http.models.queue import (
+    QueueChoiceRequest as QueueChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.queue import (
+    QueueFillResultEntry as QueueFillResultEntry,
+)
+from spotify_manager.interfaces.http.models.queue import (
+    QueueFlushResultEntry as QueueFlushResultEntry,
+)
+from spotify_manager.interfaces.http.models.queue import (
+    QueuePendingChoice as QueuePendingChoice,
+)
+from spotify_manager.interfaces.http.models.recommendations import (
+    FoundArtSelectionResult as FoundArtSelectionResult,
+)
+from spotify_manager.interfaces.http.models.recommendations import (
+    SauvignonAlbumOption as SauvignonAlbumOption,
+)
+from spotify_manager.interfaces.http.models.recommendations import (
+    SauvignonChoiceRequest as SauvignonChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.recommendations import (
+    SauvignonPendingChoice as SauvignonPendingChoice,
+)
+from spotify_manager.interfaces.http.models.recommendations import (
+    SauvignonSelectionResult as SauvignonSelectionResult,
+)
+from spotify_manager.interfaces.http.models.releases import (
+    ReleaseCheckArtistOption as ReleaseCheckArtistOption,
+)
+from spotify_manager.interfaces.http.models.releases import (
+    ReleaseCheckChoiceRequest as ReleaseCheckChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.releases import (
+    ReleaseCheckPendingChoice as ReleaseCheckPendingChoice,
+)
+from spotify_manager.interfaces.http.models.releases import (
+    ReleaseCheckResultEntry as ReleaseCheckResultEntry,
+)
+from spotify_manager.interfaces.http.models.releases import (
+    ReleaseCheckStateRestoreRequest as ReleaseCheckStateRestoreRequest,
+)
+from spotify_manager.interfaces.http.models.releases import (
+    ReleaseCheckStateSnapshot as ReleaseCheckStateSnapshot,
+)
+from spotify_manager.interfaces.http.models.slow_listening import (
+    SlowListeningChoiceRequest as SlowListeningChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.slow_listening import (
+    SlowListeningPendingChoice as SlowListeningPendingChoice,
+)
+from spotify_manager.interfaces.http.models.slow_listening import (
+    SlowListeningReleaseOption as SlowListeningReleaseOption,
+)
+from spotify_manager.interfaces.http.models.slow_listening import (
+    SlowListeningTrackResult as SlowListeningTrackResult,
+)
+from spotify_manager.interfaces.http.models.something_old import (
+    SomethingOldArtistOption as SomethingOldArtistOption,
+)
+from spotify_manager.interfaces.http.models.something_old import (
+    SomethingOldChoiceRequest as SomethingOldChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.something_old import (
+    SomethingOldPendingChoice as SomethingOldPendingChoice,
+)
+from spotify_manager.interfaces.http.models.something_old import (
+    SomethingOldRankingEntry as SomethingOldRankingEntry,
+)
+from spotify_manager.interfaces.http.models.something_old import (
+    SomethingOldReleaseOption as SomethingOldReleaseOption,
+)
+from spotify_manager.interfaces.http.models.something_old import (
+    SomethingOldTrackResult as SomethingOldTrackResult,
+)
+from spotify_manager.interfaces.http.models.state import (
+    SharedStateNamespaceReplaceRequest as SharedStateNamespaceReplaceRequest,
+)
+from spotify_manager.interfaces.http.models.state import (
+    SharedStateReplaceRequest as SharedStateReplaceRequest,
+)
+from spotify_manager.interfaces.http.models.state import (
+    SharedStateSnapshot as SharedStateSnapshot,
+)
+from spotify_manager.interfaces.http.models.state import (
+    SharedStateSummary as SharedStateSummary,
+)
+from spotify_manager.interfaces.http.models.wine import (
+    NewWineCellarTrackResult as NewWineCellarTrackResult,
+)
+from spotify_manager.interfaces.http.models.wine import (
+    NewWineChoiceRequest as NewWineChoiceRequest,
+)
+from spotify_manager.interfaces.http.models.wine import (
+    NewWinePendingChoice as NewWinePendingChoice,
+)
+from spotify_manager.interfaces.http.models.wine import (
+    NewWineRefillResult as NewWineRefillResult,
+)
+from spotify_manager.interfaces.http.models.wine import (
+    NewWineReleaseOption as NewWineReleaseOption,
+)
+from spotify_manager.interfaces.http.models.wine import (
+    NewWineTrackResult as NewWineTrackResult,
+)
+from spotify_manager.interfaces.http.presenters.discography import (
+    discography_artist_result as _discography_artist_result,
+)
+from spotify_manager.interfaces.http.presenters.discovery import (
+    new_kids_fill_result as _new_kids_fill_result,
+)
+from spotify_manager.interfaces.http.presenters.discovery import (
+    new_kids_track_result as _new_kids_track_result,
+)
+from spotify_manager.interfaces.http.presenters.discovery import (
+    queue_3_annual_entries as _queue_3_annual_entries,
+)
+from spotify_manager.interfaces.http.presenters.discovery import (
+    queue_3_release_option as _queue_3_release_option,
+)
+from spotify_manager.interfaces.http.presenters.discovery import (
+    queue_3_track_result as _queue_3_track_result,
+)
+from spotify_manager.interfaces.http.presenters.historical import (
+    blast_selection_result as _blast_selection_result,
+)
+from spotify_manager.interfaces.http.presenters.queue import (
+    queue_fill_result_entry as _queue_fill_result_entry,
+)
+from spotify_manager.interfaces.http.presenters.queue import (
+    queue_flush_result_entry as _queue_flush_result_entry,
+)
+from spotify_manager.interfaces.http.presenters.recommendations import (
+    found_art_selection_result as _found_art_selection_result,
+)
+from spotify_manager.interfaces.http.presenters.recommendations import (
+    sauvignon_selection_result as _sauvignon_selection_result,
+)
+from spotify_manager.interfaces.http.presenters.releases import (
+    release_check_result as _release_check_result,
+)
+from spotify_manager.interfaces.http.presenters.slow_listening import (
+    slow_listening_track_result as _slow_listening_track_result,
+)
+from spotify_manager.interfaces.http.presenters.something_old import (
+    something_old_track_result as _something_old_track_result,
+)
+from spotify_manager.interfaces.http.presenters.wine import (
+    new_wine_refill_result as _new_wine_refill_result,
+)
+from spotify_manager.interfaces.http.presenters.wine import (
+    new_wine_track_result as _new_wine_track_result,
+)
 from spotify_manager.loaders_savers import load_your_library_file
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import ArtistLibraryStats
@@ -118,43 +358,6 @@ from spotify_manager.routines.monthly_routine import run_monthly_routines
 from spotify_manager.settings import Settings
 
 
-class CommandResult(BaseModel):
-    """Result of running a side-effecting command endpoint."""
-
-    command: str
-    status: str = "completed"
-    detail: str | None = None
-
-
-class SharedStateSnapshot(BaseModel):
-    """One revision-guarded snapshot of the complete shared state."""
-
-    revision: str
-    document: dict[str, Any]
-
-
-class SharedStateReplaceRequest(BaseModel):
-    """Guarded manual replacement of the complete shared state."""
-
-    expected_revision: str
-    document: dict[str, Any]
-
-
-class SharedStateNamespaceReplaceRequest(BaseModel):
-    """Guarded manual replacement of one validated state namespace."""
-
-    expected_revision: str
-    value: dict[str, Any]
-
-
-class SharedStateSummary(BaseModel):
-    """Compact metadata for the cockpit state indicator."""
-
-    revision: str
-    updated_at: str
-    namespaces: dict[str, str]
-
-
 STATE_NAMESPACE_DEFINITIONS: dict[
     str,
     tuple[StateFactory, StateValidator],
@@ -179,794 +382,6 @@ STATE_NAMESPACE_DEFINITIONS: dict[
     "review_artists": (review_artists._default_state, review_artists.validate_state),
     "slow_listening": (slow_listening._default_state, slow_listening.validate_state),
 }
-
-
-class CountResult(BaseModel):
-    """Number of artists in the YourLibrary file."""
-
-    count: int
-
-
-JobStatus = Literal[
-    "queued",
-    "running",
-    "waiting",
-    "cancelling",
-    "cancelled",
-    "paused",
-    "completed",
-    "failed",
-]
-
-
-class AnalysisResourceProgress(BaseModel):
-    """Latest progress for one library resource."""
-
-    completed: int = 0
-    total: int | None = None
-    status: str = "Queued"
-
-
-class AnalysisJobLog(BaseModel):
-    """One timestamped analysis event shown by the web interface."""
-
-    sequence: int
-    timestamp: str
-    message: str
-
-
-class AnalysisJobResult(BaseModel):
-    """Pollable state for one background library analysis."""
-
-    job_id: str
-    command: str
-    status: JobStatus = "queued"
-    detail: str | None = None
-    retry_at: str | None = None
-    started_at: str | None = None
-    completed_at: str | None = None
-    run_id: str | None = None
-    backup_dir: str | None = None
-    full_rebuild: bool = False
-    mirror_resource: library_analysis.ResourceName | None = None
-    resources: dict[str, AnalysisResourceProgress]
-    logs: list[AnalysisJobLog] = Field(default_factory=list)
-
-
-class ServerFileStatus(BaseModel):
-    """Filesystem update status for one canonical server-side mirror."""
-
-    filename: str
-    exists: bool
-    updated_at: str | None = None
-
-
-class LibraryMirrorFilesStatus(BaseModel):
-    """Update status for the files consumed by New Wine."""
-
-    files: list[ServerFileStatus]
-
-
-class BlastSelectionResult(BaseModel):
-    """One Last.fm selection and its Spotify playlist outcome."""
-
-    selected_date: str
-    page: int
-    total_pages: int
-    direction: str
-    position: int
-    lastfm_scrobble: str
-    spotify_match: str | None = None
-    liked: bool | None = None
-    track_similarity: float | None = None
-    album_similarity: float | None = None
-    qualifying_matches: int = 0
-    action: str
-
-
-class FoundArtSelectionResult(BaseModel):
-    """One Last.fm recommendation and its Spotify playlist outcome."""
-
-    artist: str
-    track: str
-    score: float
-    best_match: float
-    supporting_seeds: list[str] = Field(default_factory=list)
-    base_rank: int
-    weekly_rank: float
-    spotify_match: str | None = None
-    track_similarity: float | None = None
-    action: str
-
-
-class DormantArtistResultEntry(BaseModel):
-    """One dormant Last.fm artist and the liked track selected on Spotify."""
-
-    artist: str
-    scrobbles: int
-    spotify_artist: str | None = None
-    track: str | None = None
-    popularity: int | None = None
-    action: str
-
-
-class SauvignonAlbumOption(BaseModel):
-    """One materially distinct Spotify album edition offered to the user."""
-
-    spotify_id: str
-    artist: str
-    album: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-
-
-class SauvignonPendingChoice(BaseModel):
-    """Current ambiguous Sauvignon album match shown by the web client."""
-
-    artist: str
-    album: str
-    score: float
-    best_match: float
-    base_rank: int
-    weekly_rank: float
-    supporting_tracks: list[str] = Field(default_factory=list)
-    options: list[SauvignonAlbumOption] = Field(default_factory=list)
-
-
-class SauvignonSelectionResult(BaseModel):
-    """One Last.fm-derived album recommendation and its Spotify outcome."""
-
-    artist: str
-    album: str
-    score: float
-    best_match: float
-    supporting_tracks: list[str] = Field(default_factory=list)
-    base_rank: int
-    weekly_rank: float
-    spotify_album: str | None = None
-    spotify_album_id: str | None = None
-    release_type: str | None = None
-    release_date: str | None = None
-    first_track: str | None = None
-    action: str
-
-
-class SauvignonChoiceRequest(BaseModel):
-    """One album edition, skip, or quit choice for Sauvignon discovery."""
-
-    choice: str
-
-
-class PalaceAlbumSelectionResult(BaseModel):
-    """One Palace of Memory album and its resolved first track."""
-
-    source: str
-    selected_date: str | None = None
-    history_position: int | None = None
-    albums_on_date: int | None = None
-    artist: str
-    album: str
-    spotify_album: str | None = None
-    first_track: str | None = None
-    action: str
-
-
-class PalaceAlbumRefreshResult(BaseModel):
-    """Saved-album mirror refresh details shown by the web client."""
-
-    previous: int
-    current: int
-    added: int
-    removed: int
-    skipped: int
-    persisted: bool
-    backup_path: str | None = None
-
-
-class NewWineReleaseOption(BaseModel):
-    """One release offered while a web flush waits for a choice."""
-
-    spotify_id: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    primary_artist_name: str
-
-
-class NewWinePendingChoice(BaseModel):
-    """Current interactive choice exposed to the web client."""
-
-    kind: Literal["release", "album_endpoint"] = "release"
-    artist: str
-    source_track: str
-    release: str | None = None
-    track_position: int | None = None
-    total_tracks: int | None = None
-    terminal_release: bool = False
-    releases: list[NewWineReleaseOption] = Field(default_factory=list)
-
-
-class NewWineTrackResult(BaseModel):
-    """One completed New Wine source-track decision."""
-
-    artist: str
-    source_track: str
-    release: str
-    release_type: str
-    current_liked: bool
-    consecutive_unliked: int
-    action: str
-    target_track: str | None = None
-    album_unsaved: bool = False
-    advance_reason: str | None = None
-    drop_reason: str | None = None
-    continuation_release: str | None = None
-    continuation_track: str | None = None
-    canonical_track_count: int | None = None
-    canonical_cutoff_track: str | None = None
-
-
-class NewWineCellarTrackResult(BaseModel):
-    """One Wine Cellar entry moved or reconciled by a web flush."""
-
-    artist: str
-    source_track: str
-    action: str
-    liked_tracks: int | None = None
-    saved_albums: int | None = None
-
-
-class NewWineRefillResult(BaseModel):
-    """Web representation of the post-flush Wine Cellar refill."""
-
-    target_size: int
-    before: int
-    after: int
-    added: int
-    removed_from_cellar: int
-    ineligible: int
-    no_discovery: bool
-    results: list[NewWineCellarTrackResult] = Field(default_factory=list)
-
-
-class NewWineChoiceRequest(BaseModel):
-    """Choice submitted for a waiting New Wine job."""
-
-    choice: str
-
-
-class NewKidsReleaseOption(BaseModel):
-    """One ranked release offered by an interactive New Kids job."""
-
-    spotify_id: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    popularity: int | None = None
-    top_track_rank: int | None = None
-    saved: bool = False
-
-
-class NewKidsPendingChoice(BaseModel):
-    """Current New Kids release choice exposed to the web client."""
-
-    artist: str
-    releases: list[NewKidsReleaseOption] = Field(default_factory=list)
-
-
-class NewKidsTrackResult(BaseModel):
-    """One completed New Kids artist decision."""
-
-    artist: str
-    source_track: str
-    source_release: str
-    current_liked: bool
-    consecutive_unliked: int
-    action: str
-    target_track: str | None = None
-    target_release: str | None = None
-    release_number: int | None = None
-    album_decision: str | None = None
-    album_liked_tracks: int | None = None
-    album_total_tracks: int | None = None
-    qualification_reasons: list[str] = Field(default_factory=list)
-    composer_playlist: str | None = None
-    composer_position: int | None = None
-    composer_limit: int | None = None
-
-
-class NewKidsFillResult(BaseModel):
-    """One Queue 2 marker handled while filling New Kids."""
-
-    artist: str
-    track: str
-    action: str
-
-
-class NewKidsChoiceRequest(BaseModel):
-    """Release or control choice submitted to a waiting New Kids job."""
-
-    choice: str
-
-
-class QueueArtistOption(BaseModel):
-    """One Spotify artist offered for a Last.fm Queue recommendation."""
-
-    spotify_id: str
-    name: str
-    popularity: int | None = None
-    followers: int | None = None
-    exact_name: bool
-
-
-class QueuePendingChoice(BaseModel):
-    """Current Last.fm-to-Spotify artist mapping shown by the web client."""
-
-    artist: str
-    base_rank: int
-    score: float
-    supporting_seeds: list[str] = Field(default_factory=list)
-    candidates: list[QueueArtistOption] = Field(default_factory=list)
-
-
-class QueueFillResultEntry(BaseModel):
-    """One Last.fm Queue recommendation resolved against Spotify."""
-
-    lastfm_artist: str
-    score: float
-    best_match: float
-    supporting_seeds: list[str] = Field(default_factory=list)
-    spotify_artist: str | None = None
-    spotify_artist_id: str | None = None
-    track: str | None = None
-    action: str
-    followed: bool = False
-
-
-class QueueFlushResultEntry(BaseModel):
-    """One live top-track decision from a Queue flush."""
-
-    artist: str
-    source_track: str
-    action: str
-    top_tracks: int
-    top_liked_tracks: int
-    total_liked_tracks: int
-    target_track: str | None = None
-    target_release: str | None = None
-    reason: str | None = None
-
-
-class QueueChoiceRequest(BaseModel):
-    """Artist mapping, custom search, skip, or quit choice for Queue fill."""
-
-    choice: str
-
-
-class Queue3ReleaseOption(BaseModel):
-    """One current or next Queue 3 release shown at a boundary."""
-
-    spotify_id: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-
-
-class Queue3ComposerPlaylistOption(BaseModel):
-    """One owned composer playlist offered to a Queue 3 job."""
-
-    spotify_id: str
-    name: str
-    total_tracks: int
-
-
-class Queue3PendingChoice(BaseModel):
-    """Current Queue 3 release or composer-playlist decision."""
-
-    kind: Literal["release", "composer_playlist"]
-    artist: str
-    source_track: str | None = None
-    current_release: Queue3ReleaseOption | None = None
-    next_release: Queue3ReleaseOption | None = None
-    playlists: list[Queue3ComposerPlaylistOption] = Field(default_factory=list)
-
-
-class Queue3TrackResult(BaseModel):
-    """One completed Queue 3 artist transition."""
-
-    artist: str
-    source_track: str
-    source_release: str
-    action: str
-    target_track: str | None = None
-    target_release: str | None = None
-    album_decision: str | None = None
-    album_liked_tracks: int | None = None
-    album_total_tracks: int | None = None
-    composer_playlist: str | None = None
-    reason: str | None = None
-
-
-class Queue3AnnualImportEntry(BaseModel):
-    """One previous-year discovery considered during Queue 3 fill-up."""
-
-    artist: str
-    track: str
-    source_year: int
-    action: str
-
-
-class Queue3ChoiceRequest(BaseModel):
-    """Release, composer-playlist, or quit choice for Queue 3."""
-
-    choice: str
-
-
-class SlowListeningReleaseOption(BaseModel):
-    """One equal-date release offered for chronological ordering."""
-
-    spotify_id: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    saved: bool
-    plain: bool
-
-
-class SlowListeningPendingChoice(BaseModel):
-    """Current Slow Listening interaction exposed to the web client."""
-
-    kind: Literal["track", "release_order", "completion"]
-    artist: str
-    source_track: str | None = None
-    source_release: str | None = None
-    target_track: str | None = None
-    target_release: str | None = None
-    release_date: str | None = None
-    releases: list[SlowListeningReleaseOption] = Field(default_factory=list)
-
-
-class SlowListeningTrackResult(BaseModel):
-    """One completed Slow Listening source-track transition."""
-
-    artist: str
-    source_track: str
-    source_release: str
-    action: str
-    target_track: str | None = None
-    target_release: str | None = None
-    skipped_candidates: list[str] = Field(default_factory=list)
-    reason: str | None = None
-
-
-class SlowListeningChoiceRequest(BaseModel):
-    """Choice or release ordering submitted to a waiting web job."""
-
-    choice: str
-    order: list[str] = Field(default_factory=list)
-
-
-class SomethingOldArtistOption(BaseModel):
-    """One exact-name Spotify artist offered to the web client."""
-
-    spotify_id: str
-    name: str
-    popularity: int | None = None
-    followers: int | None = None
-
-
-class SomethingOldReleaseOption(BaseModel):
-    """One filtered studio album or EP offered for Something Old."""
-
-    spotify_id: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    saved: bool
-    plain: bool
-
-
-class SomethingOldPendingChoice(BaseModel):
-    """Current Something Old interaction exposed to the web client."""
-
-    kind: Literal["artist", "mode", "album"]
-    artist: str
-    scrobbles: int
-    average_scrobble_date: str
-    spotify_artist: str | None = None
-    artist_candidates: list[SomethingOldArtistOption] = Field(default_factory=list)
-    releases: list[SomethingOldReleaseOption] = Field(default_factory=list)
-
-
-class SomethingOldRankingEntry(BaseModel):
-    """One Golden Oldies artist shown in the web ranking preview."""
-
-    artist: str
-    scrobbles: int
-    average_scrobble_date: str
-
-
-class SomethingOldTrackResult(BaseModel):
-    """One Spotify track selected for Something Old."""
-
-    spotify_id: str
-    track: str
-    album: str
-    artists: list[str]
-    source: str
-    lastfm_scrobbles: int | None = None
-
-
-class SomethingOldChoiceRequest(BaseModel):
-    """One artist, source mode, album, or quit choice."""
-
-    choice: str
-
-
-class ReleaseCheckArtistOption(BaseModel):
-    """One Spotify artist offered for a Last.fm artist mapping."""
-
-    spotify_id: str
-    name: str
-    popularity: int | None = None
-    followers: int | None = None
-    exact_name: bool
-
-
-class ReleaseCheckPendingChoice(BaseModel):
-    """Current artist mapping or release approval exposed to the web client."""
-
-    kind: Literal["artist", "release"]
-    artist: str
-    artist_rank: int
-    artist_scrobbles: int
-    artist_candidates: list[ReleaseCheckArtistOption] = Field(default_factory=list)
-    release: str | None = None
-    release_type: str | None = None
-    release_date: str | None = None
-    first_track: str | None = None
-    destinations: list[str] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
-    unattached_single: bool = False
-
-
-class ReleaseCheckResultEntry(BaseModel):
-    """One release decision and its destination-playlist outcomes."""
-
-    artist: str
-    artist_rank: int
-    artist_scrobbles: int
-    spotify_artist_id: str
-    release_id: str
-    release: str
-    release_type: str
-    release_date: str
-    first_track_id: str | None = None
-    first_track: str | None = None
-    linked_future_release: str | None = None
-    wine_cellar_action: str
-    new_vintage_action: str
-    reason: str | None = None
-    dry_run: bool
-
-
-class ReleaseCheckChoiceRequest(BaseModel):
-    """One artist, custom search, release approval, skip, or quit choice."""
-
-    choice: str
-
-
-class ReleaseCheckStateSnapshot(BaseModel):
-    """Versioned release-check state mirrored by the authenticated browser."""
-
-    updated_at: str | None
-    fingerprint: str
-    state: dict[str, Any] | None = None
-    backup_path: str | None = None
-
-
-class ReleaseCheckStateRestoreRequest(BaseModel):
-    """Optimistic restore request for a newer browser-held state copy."""
-
-    expected_server_fingerprint: str
-    state: dict[str, Any]
-
-
-class DiscographyReleaseOption(BaseModel):
-    """One canonical release offered in a discography checklist."""
-
-    spotify_id: str
-    name: str
-    release_type: str
-    release_date: str
-    total_tracks: int
-    saved: bool
-    default: bool
-
-
-class DiscographyPendingChoice(BaseModel):
-    """Current release checklist or final confirmation shown by the web client."""
-
-    kind: Literal["artist", "releases", "confirm"]
-    artist: str | None = None
-    queue: str | None = None
-    artist_candidates: list[SomethingOldArtistOption] = Field(default_factory=list)
-    releases: list[DiscographyReleaseOption] = Field(default_factory=list)
-    default_release_ids: list[str] = Field(default_factory=list)
-
-
-class DiscographyArtistResult(BaseModel):
-    """One artist selected for the next discography batch."""
-
-    spotify_id: str
-    artist: str
-    queue: str
-    releases: int
-    days: float
-    release_names: list[str] = Field(default_factory=list)
-
-
-class DiscographyChoiceRequest(BaseModel):
-    """One release checklist, final approval, or cancellation response."""
-
-    choice: str
-    release_ids: list[str] = Field(default_factory=list)
-
-
-class BlastJobResult(BaseModel):
-    """Pollable state for one Last.fm-based playlist job."""
-
-    job_id: str
-    command: str = "blast_from_the_past"
-    status: JobStatus = "queued"
-    detail: str | None = None
-    started_at: str | None = None
-    completed_at: str | None = None
-    run_id: str | None = None
-    requested_count: int | None = None
-    playlist_length_before: int | None = None
-    playlist_length_after: int | None = None
-    added: int | None = None
-    random_org_timestamp: str | None = None
-    target_dates: list[str] = Field(default_factory=list)
-    missing_dates: list[str] = Field(default_factory=list)
-    selections: list[BlastSelectionResult] = Field(default_factory=list)
-    dormant_artist_years: list[int] = Field(default_factory=list)
-    dormant_artist_current_year: int | None = None
-    dormant_artist_represented: int | None = None
-    dormant_artist_results: list[DormantArtistResultEntry] = Field(default_factory=list)
-    week_start: str | None = None
-    history_tracks: int | None = None
-    history_scrobbles: int | None = None
-    history_export_scrobbles: int | None = None
-    history_legacy_scrobbles_added: int | None = None
-    live_scrobbles_added: int | None = None
-    history_persisted: bool | None = None
-    history_full_rebuild: bool = False
-    history_backup_path: str | None = None
-    new_year_result: dict[str, Any] | None = None
-    candidate_count: int | None = None
-    found_art_results: list[FoundArtSelectionResult] = Field(default_factory=list)
-    sauvignon_history_albums: int | None = None
-    sauvignon_seed_count: int | None = None
-    sauvignon_track_candidate_count: int | None = None
-    sauvignon_album_candidate_count: int | None = None
-    sauvignon_results: list[SauvignonSelectionResult] = Field(default_factory=list)
-    sauvignon_pending_choice: SauvignonPendingChoice | None = None
-    dry_run: bool = False
-    no_discovery: bool = False
-    choose_album_endpoints: bool = False
-    processed: int | None = None
-    total: int | None = None
-    advanced: int | None = None
-    dropped: int | None = None
-    sent_to_sauvignon: int | None = None
-    completed_singles: int | None = None
-    skipped: int | None = None
-    albums_unsaved: int | None = None
-    new_wine_results: list[NewWineTrackResult] = Field(default_factory=list)
-    new_wine_refill: NewWineRefillResult | None = None
-    pending_choice: NewWinePendingChoice | None = None
-    new_kids_results: list[NewKidsTrackResult] = Field(default_factory=list)
-    new_kids_prefill: list[NewKidsFillResult] = Field(default_factory=list)
-    new_kids_postfill: list[NewKidsFillResult] = Field(default_factory=list)
-    new_kids_pending_choice: NewKidsPendingChoice | None = None
-    new_kids_resumed: bool = False
-    new_kids_paused: bool = False
-    queue_history_artists: int | None = None
-    queue_seed_count: int | None = None
-    queue_max_playlist_length: int | None = None
-    queue_fill_results: list[QueueFillResultEntry] = Field(default_factory=list)
-    queue_flush_results: list[QueueFlushResultEntry] = Field(default_factory=list)
-    queue_pending_choice: QueuePendingChoice | None = None
-    queue_resumed: bool = False
-    queue_3_results: list[Queue3TrackResult] = Field(default_factory=list)
-    queue_3_annual_import: list[Queue3AnnualImportEntry] = Field(default_factory=list)
-    queue_3_annual_only: bool = False
-    queue_3_annual_import_completed: bool = False
-    queue_3_pending_choice: Queue3PendingChoice | None = None
-    queue_3_resumed: bool = False
-    queue_3_paused: bool = False
-    queue_3_changed_releases: int | None = None
-    completed_artists: int | None = None
-    slow_listening_results: list[SlowListeningTrackResult] = Field(default_factory=list)
-    slow_listening_pending_choice: SlowListeningPendingChoice | None = None
-    something_old_action: str | None = None
-    something_old_artist: str | None = None
-    something_old_average_scrobble_date: str | None = None
-    something_old_spotify_artist: str | None = None
-    something_old_mode: str | None = None
-    something_old_release: str | None = None
-    something_old_ranking: list[SomethingOldRankingEntry] = Field(default_factory=list)
-    something_old_tracks: list[SomethingOldTrackResult] = Field(default_factory=list)
-    something_old_pending_choice: SomethingOldPendingChoice | None = None
-    release_check_checked_from: str | None = None
-    release_check_checked_through: str | None = None
-    release_check_resumed: bool = False
-    release_check_paused: bool = False
-    release_check_wine_cellar_duplicates_removed: int | None = None
-    release_check_wine_cellar_added: int | None = None
-    release_check_new_vintage_added: int | None = None
-    release_check_results: list[ReleaseCheckResultEntry] = Field(default_factory=list)
-    release_check_pending_choice: ReleaseCheckPendingChoice | None = None
-    discography_start_queue: str | None = None
-    discography_next_queue: str | None = None
-    discography_total_releases: int | None = None
-    discography_days: float | None = None
-    discography_open_slots: int | None = None
-    discography_removed_artists: int | None = None
-    discography_removed_markers: int | None = None
-    discography_results: list[DiscographyArtistResult] = Field(default_factory=list)
-    discography_pending_choice: DiscographyPendingChoice | None = None
-    requeue_action: str | None = None
-    requeue_artist: str | None = None
-    requeue_source_track: str | None = None
-    requeue_source_release: str | None = None
-    requeue_target_track: str | None = None
-    requeue_target_release: str | None = None
-    requeue_target_release_type: str | None = None
-    requeue_target_release_date: str | None = None
-    requeue_target_already_present: bool | None = None
-    palace_cursor_only: bool = False
-    palace_alphabetical_reference: str | None = None
-    palace_alphabetical_start_index: int | None = None
-    palace_alphabetical_next_index: int | None = None
-    palace_alphabetical_cursor_overridden: bool = False
-    palace_next_album_artist: str | None = None
-    palace_next_album: str | None = None
-    palace_cutoff_date: str | None = None
-    palace_available_dates: int | None = None
-    palace_album_refresh: PalaceAlbumRefreshResult | None = None
-    palace_results: list[PalaceAlbumSelectionResult] = Field(default_factory=list)
-    retry_at: str | None = None
-    logs: list[AnalysisJobLog] = Field(default_factory=list)
-
-
-@dataclass
-class _AnalysisJob:
-    """Mutable server-side state and cancellation signal for one job."""
-
-    result: AnalysisJobResult
-    cancel_event: Event
-    next_log_sequence: int = 1
-
-
-@dataclass
-class _BlastJob:
-    """Mutable server-side state for one playlist routine job."""
-
-    result: BlastJobResult
-    next_log_sequence: int = 1
-    choice_event: Event = dataclass_field(default_factory=Event)
-    cancel_event: Event = dataclass_field(default_factory=Event)
-    submitted_choice: str | None = None
-    submitted_order: tuple[str, ...] | None = None
 
 
 class _NewWineJobCancelledError(RuntimeError):
@@ -1015,7 +430,6 @@ class _PalaceOfMemoryJobCancelledError(RuntimeError):
 
 _analysis_jobs: dict[str, _AnalysisJob] = {}
 _analysis_jobs_lock = Lock()
-_ACTIVE_JOB_STATUSES = {"queued", "running", "waiting", "cancelling"}
 _MAX_ANALYSIS_LOGS = 250
 _analysis_logger = logging.getLogger(__name__)
 _blast_jobs: dict[str, _BlastJob] = {}
@@ -1092,16 +506,10 @@ def _append_job_log_locked(job: _AnalysisJob, message: str) -> None:
     """Append one bounded log entry while the caller holds the jobs lock."""
     if not message:
         return
-    job.result.logs.append(
-        AnalysisJobLog(
-            sequence=job.next_log_sequence,
-            timestamp=datetime.now(UTC).isoformat(),
-            message=message,
-        )
+    job.next_log_sequence = append_log(
+        job.result.logs, job.next_log_sequence, message, _create_job_log
     )
-    job.next_log_sequence += 1
-    if len(job.result.logs) > _MAX_ANALYSIS_LOGS:
-        del job.result.logs[: len(job.result.logs) - _MAX_ANALYSIS_LOGS]
+    retain_logs(job.result.logs, _MAX_ANALYSIS_LOGS)
 
 
 def _blast_job_snapshot(job: _BlastJob) -> BlastJobResult:
@@ -1113,16 +521,71 @@ def _append_blast_log_locked(job: _BlastJob, message: str) -> None:
     """Append one bounded playlist-job log entry while holding its lock."""
     if not message:
         return
-    job.result.logs.append(
-        AnalysisJobLog(
-            sequence=job.next_log_sequence,
-            timestamp=datetime.now(UTC).isoformat(),
-            message=message,
-        )
+    job.next_log_sequence = append_log(
+        job.result.logs, job.next_log_sequence, message, _create_job_log
     )
-    job.next_log_sequence += 1
-    if len(job.result.logs) > _MAX_BLAST_LOGS:
-        del job.result.logs[: len(job.result.logs) - _MAX_BLAST_LOGS]
+    retain_logs(job.result.logs, _MAX_BLAST_LOGS)
+
+
+def _create_job_log(sequence: int, message: str) -> AnalysisJobLog:
+    return AnalysisJobLog(
+        sequence=sequence,
+        timestamp=datetime.now(UTC).isoformat(),
+        message=message,
+    )
+
+
+def _analysis_job_identities() -> Iterator[JobIdentity]:
+    for job in _analysis_jobs.values():
+        yield job.result
+
+
+def _playlist_job_identities() -> Iterator[JobIdentity]:
+    for job in _blast_jobs.values():
+        yield job.result
+
+
+def _require_analysis_slot(command: str) -> None:
+    """Keep the original command-scoped conflict while the registry is locked.
+
+    Args:
+        command: Original analysis command requesting reservation.
+
+    Raises:
+        HTTPException: A matching active analysis retains its original 409 detail.
+    """
+    existing = first_active_job(_analysis_job_identities(), command)
+    if existing is None:
+        return
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "message": "an analysis of this type is already running",
+            "job_id": existing.job_id,
+        },
+    )
+
+
+def _require_playlist_slot(message: str) -> None:
+    """Keep the original shared playlist/history conflict under its registry lock.
+
+    Args:
+        message: Original feature-specific conflict text.
+
+    Raises:
+        HTTPException: An active playlist/history job retains its original detail.
+    """
+    existing = first_active_job(_playlist_job_identities())
+    if existing is None:
+        return
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "message": message,
+            "job_id": existing.job_id,
+            "command": existing.command,
+        },
+    )
 
 
 def _release_check_state_snapshot(
@@ -1410,18 +873,7 @@ def start_analysis_job(
         )
     )
     with _analysis_jobs_lock:
-        for existing in _analysis_jobs.values():
-            if (
-                existing.result.command == command
-                and existing.result.status in _ACTIVE_JOB_STATUSES
-            ):
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "an analysis of this type is already running",
-                        "job_id": existing.result.job_id,
-                    },
-                )
+        _require_analysis_slot(command)
         job_id = uuid4().hex
         job = _AnalysisJob(
             result=AnalysisJobResult(
@@ -1446,42 +898,6 @@ def start_analysis_job(
         daemon=True,
     ).start()
     return snapshot
-
-
-def _blast_selection_result(
-    result: blast_from_past.SpotifySelectionResult,
-) -> BlastSelectionResult:
-    """Convert one routine result into its stable API representation."""
-    selection = result.selection
-    scrobble = selection.scrobble
-    lastfm_album = scrobble.album or "(no album)"
-    spotify_match = None
-    liked = None
-    track_similarity = None
-    album_similarity = None
-    if result.match is not None:
-        spotify_album = result.match.album or "(no album)"
-        spotify_match = (
-            f"{', '.join(result.match.artists)} - {result.match.track} - "
-            f"{spotify_album}"
-        )
-        liked = result.match.liked
-        track_similarity = result.match.track_similarity
-        album_similarity = result.match.album_similarity
-    return BlastSelectionResult(
-        selected_date=selection.selected_date.isoformat(),
-        page=selection.page,
-        total_pages=selection.total_pages,
-        direction=selection.direction,
-        position=selection.position,
-        lastfm_scrobble=f"{scrobble.artist} - {scrobble.track} - {lastfm_album}",
-        spotify_match=spotify_match,
-        liked=liked,
-        track_similarity=track_similarity,
-        album_similarity=album_similarity,
-        qualifying_matches=result.qualifying_matches,
-        action=result.action,
-    )
 
 
 def _playlist_job_retry(
@@ -1879,32 +1295,6 @@ def _run_daily_mind_radio_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
-def _found_art_selection_result(
-    result: found_art.FoundArtResult,
-) -> FoundArtSelectionResult:
-    """Convert one Found Art result into its stable API representation."""
-    spotify_match = None
-    track_similarity = None
-    if result.match is not None:
-        album = result.match.album or "(no album)"
-        spotify_match = (
-            f"{', '.join(result.match.artists)} - {result.match.track} - {album}"
-        )
-        track_similarity = result.match.track_similarity
-    return FoundArtSelectionResult(
-        artist=result.candidate.artist,
-        track=result.candidate.track,
-        score=result.candidate.score,
-        best_match=result.candidate.best_match,
-        supporting_seeds=list(result.candidate.supporting_seeds),
-        base_rank=result.candidate.base_rank,
-        weekly_rank=result.candidate.weekly_rank,
-        spotify_match=spotify_match,
-        track_similarity=track_similarity,
-        action=result.action,
-    )
-
-
 def _run_found_art_job(
     job_id: str,
     spotify: Spotify,
@@ -1991,28 +1381,6 @@ def _run_found_art_job(
             spotify_event_setter(previous_spotify_event_callback)
         with _blast_jobs_lock:
             job.result.completed_at = datetime.now(UTC).isoformat()
-
-
-def _sauvignon_selection_result(
-    result: sauvignon.SauvignonResult,
-) -> SauvignonSelectionResult:
-    """Convert one Sauvignon album recommendation for stable web polling."""
-    album = result.album
-    return SauvignonSelectionResult(
-        artist=result.recommendation.artist,
-        album=result.recommendation.album,
-        score=result.recommendation.score,
-        best_match=result.recommendation.best_match,
-        supporting_tracks=list(result.recommendation.supporting_tracks),
-        base_rank=result.recommendation.base_rank,
-        weekly_rank=result.recommendation.weekly_rank,
-        spotify_album=album.album if album is not None else None,
-        spotify_album_id=album.spotify_id if album is not None else None,
-        release_type=album.release_type if album is not None else None,
-        release_date=album.release_date if album is not None else None,
-        first_track=result.first_track.name if result.first_track is not None else None,
-        action=result.action,
-    )
 
 
 def _run_sauvignon_job(
@@ -2233,42 +1601,6 @@ def _run_sauvignon_job(
         with _blast_jobs_lock:
             job.result.sauvignon_pending_choice = None
             job.result.completed_at = datetime.now(UTC).isoformat()
-
-
-def _queue_fill_result_entry(result: the_queue.FillResult) -> QueueFillResultEntry:
-    """Convert one Queue recommendation into its stable web representation."""
-    return QueueFillResultEntry(
-        lastfm_artist=result.recommendation.artist,
-        score=result.recommendation.score,
-        best_match=result.recommendation.best_match,
-        supporting_seeds=list(result.recommendation.supporting_seeds),
-        spotify_artist=(
-            result.spotify_artist.name if result.spotify_artist is not None else None
-        ),
-        spotify_artist_id=(
-            result.spotify_artist.spotify_id
-            if result.spotify_artist is not None
-            else None
-        ),
-        track=result.track.name if result.track is not None else None,
-        action=result.action,
-        followed=result.followed,
-    )
-
-
-def _queue_flush_result_entry(result: the_queue.FlushResult) -> QueueFlushResultEntry:
-    """Convert one Queue top-track transition for web polling."""
-    return QueueFlushResultEntry(
-        artist=result.artist,
-        source_track=result.source_track,
-        action=result.action,
-        top_tracks=result.top_tracks,
-        top_liked_tracks=result.top_liked_tracks,
-        total_liked_tracks=result.total_liked_tracks,
-        target_track=result.target_track,
-        target_release=result.target_release,
-        reason=result.reason,
-    )
 
 
 def _run_queue_fill_job(
@@ -2633,37 +1965,6 @@ def _run_queue_flush_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
-def _new_kids_track_result(result: new_kids.FlushResult) -> NewKidsTrackResult:
-    """Convert one New Kids result into its stable API representation."""
-    return NewKidsTrackResult(
-        artist=result.artist,
-        source_track=result.source_track,
-        source_release=result.source_release,
-        current_liked=result.current_liked,
-        consecutive_unliked=result.consecutive_unliked,
-        action=result.action,
-        target_track=result.target_track,
-        target_release=result.target_release,
-        release_number=result.release_number,
-        album_decision=result.album_decision,
-        album_liked_tracks=result.album_liked_tracks,
-        album_total_tracks=result.album_total_tracks,
-        qualification_reasons=list(result.qualification_reasons),
-        composer_playlist=result.composer_playlist,
-        composer_position=result.composer_position,
-        composer_limit=result.composer_limit,
-    )
-
-
-def _new_kids_fill_result(result: new_kids.FillResult) -> NewKidsFillResult:
-    """Convert one Queue 2 transfer into its web representation."""
-    return NewKidsFillResult(
-        artist=result.artist,
-        track=result.track,
-        action=result.action,
-    )
-
-
 def _run_new_kids_job(
     job_id: str,
     spotify: Spotify,
@@ -2963,51 +2264,6 @@ def _run_new_kids_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
-def _queue_3_release_option(
-    release: slow_listening.DiscographyRelease,
-) -> Queue3ReleaseOption:
-    """Convert one Queue 3 boundary release for the web client."""
-    return Queue3ReleaseOption(
-        spotify_id=release.spotify_id,
-        name=release.name,
-        release_type=release.release_type,
-        release_date=release.chronology_date,
-        total_tracks=release.total_tracks,
-    )
-
-
-def _queue_3_track_result(result: queue_3.FlushResult) -> Queue3TrackResult:
-    """Convert one Queue 3 transition into its web representation."""
-    return Queue3TrackResult(
-        artist=result.artist,
-        source_track=result.source_track,
-        source_release=result.source_release,
-        action=result.action,
-        target_track=result.target_track,
-        target_release=result.target_release,
-        album_decision=result.album_decision,
-        album_liked_tracks=result.album_liked_tracks,
-        album_total_tracks=result.album_total_tracks,
-        composer_playlist=result.composer_playlist,
-        reason=result.reason,
-    )
-
-
-def _queue_3_annual_entries(
-    results: tuple[queue_3.AnnualImportResult, ...],
-) -> list[Queue3AnnualImportEntry]:
-    """Convert annual-import results into the stable web representation."""
-    return [
-        Queue3AnnualImportEntry(
-            artist=result.artist,
-            track=result.track,
-            source_year=result.source_year,
-            action=result.action,
-        )
-        for result in results
-    ]
-
-
 def _apply_queue_3_annual_summary(
     job: _BlastJob,
     summary: queue_3.AnnualImportSummary,
@@ -3258,55 +2514,6 @@ def _run_queue_3_job(
         with _blast_jobs_lock:
             job.result.queue_3_pending_choice = None
             job.result.completed_at = datetime.now(UTC).isoformat()
-
-
-def _new_wine_track_result(result: new_wine.FlushResult) -> NewWineTrackResult:
-    """Convert one New Wine result into its stable API representation."""
-    return NewWineTrackResult(
-        artist=result.artist,
-        source_track=result.source_track,
-        release=result.release,
-        release_type=result.release_type,
-        current_liked=result.current_liked,
-        consecutive_unliked=result.consecutive_unliked,
-        action=result.action,
-        target_track=result.target_track,
-        album_unsaved=result.album_unsaved,
-        advance_reason=result.advance_reason,
-        drop_reason=result.drop_reason,
-        continuation_release=result.continuation_release,
-        continuation_track=result.continuation_track,
-        canonical_track_count=result.canonical_track_count,
-        canonical_cutoff_track=result.canonical_cutoff_track,
-    )
-
-
-def _new_wine_refill_result(
-    refill: new_wine.CellarRefillSummary | None,
-) -> NewWineRefillResult | None:
-    """Convert a Wine Cellar refill while keeping web payloads compact."""
-    if refill is None:
-        return None
-    return NewWineRefillResult(
-        target_size=refill.target_size,
-        before=refill.before,
-        after=refill.after,
-        added=refill.added,
-        removed_from_cellar=refill.removed_from_cellar,
-        ineligible=refill.ineligible,
-        no_discovery=refill.no_discovery,
-        results=[
-            NewWineCellarTrackResult(
-                artist=result.artist,
-                source_track=result.source_track,
-                action=result.action,
-                liked_tracks=result.liked_tracks,
-                saved_albums=result.saved_albums,
-            )
-            for result in refill.results
-            if result.action != "ineligible"
-        ],
-    )
 
 
 def _run_new_wine_job(
@@ -3580,22 +2787,6 @@ def _run_new_wine_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
-def _slow_listening_track_result(
-    result: slow_listening.FlushResult,
-) -> SlowListeningTrackResult:
-    """Convert one Slow Listening result into its stable API representation."""
-    return SlowListeningTrackResult(
-        artist=result.artist,
-        source_track=result.source_track,
-        source_release=result.source_release,
-        action=result.action,
-        target_track=result.target_track,
-        target_release=result.target_release,
-        skipped_candidates=list(result.skipped_candidates),
-        reason=result.reason,
-    )
-
-
 def _run_slow_listening_job(
     job_id: str,
     spotify: Spotify,
@@ -3849,20 +3040,6 @@ def _something_old_date(timestamp_ms: int) -> str:
         )
         .date()
         .isoformat()
-    )
-
-
-def _something_old_track_result(
-    track: something_old.SelectedTrack,
-) -> SomethingOldTrackResult:
-    """Convert one Something Old selection into its API representation."""
-    return SomethingOldTrackResult(
-        spotify_id=track.spotify_id,
-        track=track.track,
-        album=track.album,
-        artists=list(track.artists),
-        source=track.source,
-        lastfm_scrobbles=track.lastfm_scrobbles,
     )
 
 
@@ -4171,29 +3348,6 @@ def _run_something_old_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
-def _release_check_result(
-    result: release_check.ReleaseCheckResult,
-) -> ReleaseCheckResultEntry:
-    """Convert one release-check decision into its API representation."""
-    return ReleaseCheckResultEntry(
-        artist=result.artist,
-        artist_rank=result.artist_rank,
-        artist_scrobbles=result.artist_scrobbles,
-        spotify_artist_id=result.spotify_artist_id,
-        release_id=result.release_id,
-        release=result.release,
-        release_type=result.release_type,
-        release_date=result.release_date,
-        first_track_id=result.first_track_id,
-        first_track=result.first_track,
-        linked_future_release=result.linked_future_release,
-        wine_cellar_action=result.wine_cellar_action,
-        new_vintage_action=result.new_vintage_action,
-        reason=result.reason,
-        dry_run=result.dry_run,
-    )
-
-
 def _run_release_check_job(
     job_id: str,
     spotify: Spotify,
@@ -4444,20 +3598,6 @@ def _run_release_check_job(
         with _blast_jobs_lock:
             job.result.release_check_pending_choice = None
             job.result.completed_at = datetime.now(UTC).isoformat()
-
-
-def _discography_artist_result(
-    selection: discography.ArtistSelection,
-) -> DiscographyArtistResult:
-    """Convert one planned discography artist into its API representation."""
-    return DiscographyArtistResult(
-        spotify_id=selection.spotify_id,
-        artist=selection.name,
-        queue=discography.QUEUE_LABELS[selection.source_queue],
-        releases=selection.release_count,
-        days=selection.days,
-        release_names=[release.name for release in selection.releases],
-    )
 
 
 def _run_discography_job(
@@ -5203,16 +4343,7 @@ def start_blast_job(
 ) -> BlastJobResult:
     """Start one playlist job, rejecting another active invocation."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(result=BlastJobResult(job_id=job_id, dry_run=dry_run))
         _append_blast_log_locked(
@@ -5239,16 +4370,7 @@ def start_blast_artist_job(
 ) -> BlastJobResult:
     """Start one dormant-artist recovery job."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5282,16 +4404,7 @@ def start_daily_mind_radio_job(
 ) -> BlastJobResult:
     """Start one Daily Mind Radio job, rejecting another playlist routine."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5325,16 +4438,7 @@ def start_found_art_job(
 ) -> BlastJobResult:
     """Start one Found Art job, rejecting another playlist routine."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5369,16 +4473,7 @@ def start_sauvignon_job(
 ) -> BlastJobResult:
     """Start a Sauvignon album-discovery job, rejecting playlist overlap."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5427,16 +4522,7 @@ def start_queue_fill_job(
 ) -> BlastJobResult:
     """Start a Queue artist-discovery job, rejecting playlist overlap."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5481,16 +4567,7 @@ def start_queue_flush_job(
 ) -> BlastJobResult:
     """Start a Queue flush job, rejecting another playlist routine."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5527,16 +4604,7 @@ def start_new_kids_job(
 ) -> BlastJobResult:
     """Start one New Kids web job, rejecting another playlist routine."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5582,16 +4650,7 @@ def start_queue_2_job(
 ) -> BlastJobResult:
     """Start one Queue 2 web job, rejecting another playlist routine."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5635,16 +4694,7 @@ def start_queue_3_job(
 ) -> BlastJobResult:
     """Start one Queue 3 flush or standalone annual-import web job."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5683,16 +4733,7 @@ def start_new_wine_job(
 ) -> BlastJobResult:
     """Start one New Wine web job, rejecting another playlist routine."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5736,16 +4777,7 @@ def start_slow_listening_job(
 ) -> BlastJobResult:
     """Start one Slow Listening web job, rejecting another playlist routine."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5784,16 +4816,7 @@ def start_something_old_job(
 ) -> BlastJobResult:
     """Start one interactive Something Old job with reload-safe state."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5832,16 +4855,7 @@ def start_release_check_job(
 ) -> BlastJobResult:
     """Start one interactive release check with reload-safe web state."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5879,16 +4893,7 @@ def start_discography_job(
 ) -> BlastJobResult:
     """Start one interactive discography planner with reload-safe state."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5925,16 +4930,7 @@ def start_requeue_for_a_dream_job(
 ) -> BlastJobResult:
     """Start one Requeue for a Dream job with reload-safe state."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -5973,16 +4969,7 @@ def start_palace_of_memory_job(
 ) -> BlastJobResult:
     """Start one reload-safe Palace fill or cursor adjustment."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist routine is already running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
         cursor_only = cursor_position is not None
         job = _BlastJob(
@@ -6034,16 +5021,7 @@ def start_scrobble_history_job(
 ) -> BlastJobResult:
     """Start one shared Last.fm history refresh with reload-safe state."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist or history routine is running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist or history routine is running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(
@@ -6519,13 +5497,7 @@ def cmd_blast_from_the_past(
 )
 def cmd_active_blast_jobs() -> list[BlastJobResult]:
     """Return active playlist jobs so the web UI can reconnect after reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "blast_from_the_past"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("blast_from_the_past")
 
 
 @app.get(
@@ -6578,13 +5550,7 @@ def cmd_blast_from_the_past_artists(
 )
 def cmd_active_blast_artist_jobs() -> list[BlastJobResult]:
     """Return the active dormant-artist job for browser reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "blast_from_the_past_artists"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("blast_from_the_past_artists")
 
 
 @app.get(
@@ -6637,13 +5603,7 @@ def cmd_daily_mind_radio(
 )
 def cmd_active_daily_mind_radio_jobs() -> list[BlastJobResult]:
     """Return active Daily Mind Radio jobs for web reload reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "daily_mind_radio"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("daily_mind_radio")
 
 
 @app.get(
@@ -6706,13 +5666,7 @@ def cmd_found_art(
 )
 def cmd_active_found_art_jobs() -> list[BlastJobResult]:
     """Return active Found Art jobs for web reload reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "found_art"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("found_art")
 
 
 @app.get(
@@ -6778,13 +5732,7 @@ def cmd_fill_sauvignon_from_lastfm(
 )
 def cmd_active_sauvignon_jobs() -> list[BlastJobResult]:
     """Return active Sauvignon jobs so the UI can reconnect after reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "fill_sauvignon_from_lastfm"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("fill_sauvignon_from_lastfm")
 
 
 @app.get(
@@ -6917,13 +5865,7 @@ def cmd_fill_queue_from_lastfm(
 )
 def cmd_active_queue_fill_jobs() -> list[BlastJobResult]:
     """Return active Queue fill jobs so the UI can reconnect after reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "fill_queue_from_lastfm"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("fill_queue_from_lastfm")
 
 
 @app.get(
@@ -7024,13 +5966,7 @@ def cmd_flush_queue(
 )
 def cmd_active_queue_flush_jobs() -> list[BlastJobResult]:
     """Return active Queue flush jobs for page reload reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "flush_queue"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("flush_queue")
 
 
 @app.get(
@@ -7108,13 +6044,7 @@ def _configured_album_discovery_playlists() -> tuple[str, str, str, str, str]:
 )
 def cmd_active_new_kids_jobs() -> list[BlastJobResult]:
     """Return active New Kids jobs so the web UI can reconnect after reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "flush_new_kids"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("flush_new_kids")
 
 
 @app.get(
@@ -7202,13 +6132,7 @@ def cmd_flush_queue_2(
 )
 def cmd_active_queue_2_jobs() -> list[BlastJobResult]:
     """Return active Queue 2 jobs so the web UI can reconnect after reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "flush_queue_2"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("flush_queue_2")
 
 
 @app.get(
@@ -7323,13 +6247,7 @@ def cmd_import_queue_3_previous_year(
 )
 def cmd_active_queue_3_jobs() -> list[BlastJobResult]:
     """Return active Queue 3 jobs so the web UI can reconnect after reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "flush_queue_3"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("flush_queue_3")
 
 
 @app.get(
@@ -7444,13 +6362,7 @@ def cmd_flush_new_wine(
 )
 def cmd_active_new_wine_jobs() -> list[BlastJobResult]:
     """Return active New Wine jobs so the web UI can reconnect after reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "flush_new_wine"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("flush_new_wine")
 
 
 @app.get(
@@ -7559,13 +6471,7 @@ def cmd_flush_slow_listening(
 )
 def cmd_active_slow_listening_jobs() -> list[BlastJobResult]:
     """Return active Slow Listening jobs for page-reload reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "flush_slow_listening"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("flush_slow_listening")
 
 
 @app.get(
@@ -7697,13 +6603,7 @@ def cmd_something_old(
 )
 def cmd_active_something_old_jobs() -> list[BlastJobResult]:
     """Return active Something Old jobs for page-reload reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "something_old"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("something_old")
 
 
 @app.get(
@@ -7892,13 +6792,7 @@ def cmd_restore_release_check_state(
 )
 def cmd_active_release_check_jobs() -> list[BlastJobResult]:
     """Return active release checks for page-reload reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "check_new_releases"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("check_new_releases")
 
 
 @app.get(
@@ -8029,13 +6923,7 @@ def cmd_plan_discographies(
 )
 def cmd_active_discography_jobs() -> list[BlastJobResult]:
     """Return active discography jobs for page-reload reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "plan_discographies"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("plan_discographies")
 
 
 @app.get(
@@ -8160,13 +7048,7 @@ def cmd_flush_requeue_for_a_dream(
 )
 def cmd_active_requeue_for_a_dream_jobs() -> list[BlastJobResult]:
     """Return active Requeue for a Dream jobs after a page reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "flush_requeue_for_a_dream"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("flush_requeue_for_a_dream")
 
 
 @app.get(
@@ -8253,13 +7135,7 @@ def cmd_fill_palace_of_memory(
 )
 def cmd_active_palace_of_memory_jobs() -> list[BlastJobResult]:
     """Return active Palace jobs after a page reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "fill_palace_of_memory"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("fill_palace_of_memory")
 
 
 @app.get(
@@ -8371,13 +7247,7 @@ def library_mirror_files_status() -> LibraryMirrorFilesStatus:
 )
 def cmd_active_scrobble_history_jobs() -> list[BlastJobResult]:
     """Return active history refreshes for page-reload reconnection."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "update_scrobble_history"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("update_scrobble_history")
 
 
 @app.get(
@@ -8462,12 +7332,7 @@ def cmd_refresh_library_mirror_resource(
 )
 def cmd_active_library_analysis_jobs() -> list[AnalysisJobResult]:
     """Return active analyses so the web UI can reconnect after a reload."""
-    with _analysis_jobs_lock:
-        return [
-            _job_snapshot(job)
-            for job in _analysis_jobs.values()
-            if job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_analysis_jobs()
 
 
 @app.get(
@@ -8561,16 +7426,7 @@ def cmd_new_year(
 ) -> BlastJobResult:
     """Start all New Year's Routines for the previous completed calendar year."""
     with _blast_jobs_lock:
-        for existing in _blast_jobs.values():
-            if existing.result.status in _ACTIVE_JOB_STATUSES:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "another playlist or history routine is running",
-                        "job_id": existing.result.job_id,
-                        "command": existing.result.command,
-                    },
-                )
+        _require_playlist_slot("another playlist or history routine is running")
         job_id = uuid4().hex
         job = _BlastJob(
             result=BlastJobResult(job_id=job_id, command="new_year", dry_run=dry_run)
@@ -8589,13 +7445,7 @@ def cmd_new_year(
 @app.get("/commands/new-year-jobs", response_model=list[BlastJobResult])
 def cmd_active_new_year_jobs() -> list[BlastJobResult]:
     """Reconnect to an active annual workflow after browser reload."""
-    with _blast_jobs_lock:
-        return [
-            _blast_job_snapshot(job)
-            for job in _blast_jobs.values()
-            if job.result.command == "new_year"
-            and job.result.status in _ACTIVE_JOB_STATUSES
-        ]
+    return _active_playlist_jobs("new_year")
 
 
 @app.get("/commands/new-year-jobs/{job_id}", response_model=BlastJobResult)
@@ -8612,3 +7462,15 @@ def cmd_cancel_new_year_job(job_id: str) -> BlastJobResult:
     return _cancel_simple_playlist_job(
         job_id, command="new_year", detail="Stopping New Year's Routines"
     )
+
+
+def _active_playlist_jobs(command: str) -> list[BlastJobResult]:
+    with _blast_jobs_lock:
+        return active_playlist_snapshots(
+            _blast_jobs.values(), command, _blast_job_snapshot
+        )
+
+
+def _active_analysis_jobs() -> list[AnalysisJobResult]:
+    with _analysis_jobs_lock:
+        return active_analysis_snapshots(_analysis_jobs.values(), _job_snapshot)
