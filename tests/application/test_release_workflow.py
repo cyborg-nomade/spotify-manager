@@ -105,11 +105,10 @@ def test_release_cleanup_audit_follows_cleanup_progress(preview: bool) -> None:
         ("Would remove" if preview else "Removed")
         + " 1 duplicate Wine Cellar track(s)",
     ]
-    audits = [
-        event
-        for event in effects.events
-        if cast(list[object], event)[0] == "audit:wine_cellar_deduplicated"
-    ]
+    audits = []
+    for event in effects.events:
+        if cast(list[object], event)[0] == "audit:wine_cellar_deduplicated":
+            audits.append(event)
     assert len(audits) == (0 if preview else 1)
     if not preview:
         assert effects.events[4] == [

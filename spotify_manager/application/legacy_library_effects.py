@@ -174,6 +174,7 @@ class FailureScope(Protocol):
     """Report original ordinary failures at an injected execution boundary."""
 
     failed: bool
+    error: Exception | None
 
     def __enter__(self) -> FailureScope:
         """Enter an original attempt.

@@ -46,13 +46,16 @@ from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.bootstrap.startup import (
+    hydrate_library_data as hydrate_runtime_library_data,
+)
+
 # UFI
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.core.library_data import LibraryDataError
 from spotify_manager.core.library_data.runtime import get_library_data_service
-from spotify_manager.core.library_data.runtime import hydrate_runtime_library_data
 from spotify_manager.core.state.editor import state_editor_schema
 from spotify_manager.core.state.editor import validate_namespace_editor_change
 from spotify_manager.core.state.models import StateConfigurationError

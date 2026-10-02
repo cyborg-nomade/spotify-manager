@@ -1,8 +1,10 @@
 # Item 6: routine family migration
 
-**Status:** in progress on `codex/refactor-06-routine-families`, based on item 5's
-merge `3d7c1df`. This document records checkpoints, not completion of item 6.
-The full milestone remains one PR under the approved roadmap.
+**Status:** implemented and verified, ready for review on
+`codex/refactor-06-routine-families`, based on item 5's merge `3d7c1df`.
+Item 6 is delivered as one complete PR under the approved roadmap. The earlier
+sections retain wave checkpoint evidence; the final verification below supersedes
+their provisional statuses. Deployment and merge require the user's approval.
 
 ## Wave inventory
 
@@ -12,8 +14,8 @@ The full milestone remains one PR under the approved roadmap.
 | Release progression | Implemented and verified | Composer matching/observations, Slow Listening, New Wine, New Kids/Queue 2, Queue 3 and shared Requeue catalog integration. |
 | History and discovery | Implemented and verified | History, radio, discovery, releases, The Queue and genre workflows. |
 | Deep listening and retrospectives | Implemented and verified | Something Old, Palace of Memory, Discography and New Year. |
-| Library and legacy workflows | In progress | Analysis, artist review, conversion, monthly workflows, counts and JSON loaders are complete; remaining lookup processors are pending. |
-| Operational integration | Pending | Uploads, authentication/settings, automation and startup. |
+| Library and legacy workflows | Implemented and verified | Analysis, artist review, conversion, monthly workflows, counts, JSON loaders and lookup processors. |
+| Operational integration | Implemented and verified | Uploads, authentication/settings, automation, startup and shared historical observation boundaries. |
 
 ## Foundation responsibilities
 
@@ -1412,3 +1414,88 @@ Verification:
 
 Remaining lookup processors and operational integration precede the final Item 6
 ownership audit and complete pull request.
+
+## Completed lookup and operational migration
+
+Library and scrobble lookups now delegate to injected application stages. Pure
+policies retain exact-match precedence, edition fallback, primary-credit
+qualification, popularity ties, first-position/last-value duplicate handling and
+local seasonal windows. Infrastructure owns raw response parsing, paging,
+reference coercion and history records. Composition supplies caches, clocks,
+timezone objects and the original caller-owned SDK callbacks. Cache-hit, refresh,
+validation and membership-read order remain unchanged.
+
+Library upload now separates preparation, local materialization, manifest
+selection and ordered remote publication. Domain rules retain part suffixes and
+the original stale-file policy. File adapters preserve deterministic gzip/base64
+bytes, all-temporary-writes-before-replacement, partial publication and the exact
+cleanup behavior after failures. Remote listing still precedes local writes;
+manifest construction still precedes the commit error boundary. Original result
+fields, native malformed inputs and ordinary-error translations remain intact.
+
+The web access policy preserves password, OPTIONS, path, automation-token and
+direct-loopback bypass precedence. Peer parsing and constant-time comparison
+remain explicit boundary operations. Settings and startup construction move to
+bootstrap while public field definitions, dotenv behavior, warning text and
+hydration callback seams remain compatible. Feature handlers and shared job
+mechanics remain item 7.
+
+Nightly automation now has an application coordinator, pure maintenance calendar
+and explicit HTTP/response adapters. It preserves polling, retry/deadline timing,
+connection checks, duplicate-job selection, cancellation and lost-job recovery.
+The executable facade retains its CLI and callback seams and works without
+installed application dependencies. All imported automation modules parse as
+Python 3.13; the Actions workflow and its Python version remain unchanged.
+
+The final ownership audit also moves shared history export, playlist observation,
+Random.org and matching record codecs to infrastructure. Historical qualification
+and shared direct-call defaults have inward owners. Raw fallback authority,
+malformed-record errors, retry scope and delayed query construction remain as
+before. Legacy refresh retains the original implicit exception context as well as
+its failure class and message.
+
+Additional immutable original evidence covers **253 lookup scenarios**, **90
+automation scenarios**, **16 two-attempt upload publication scenarios** and **44
+history export boundary cases**. Lookup, automation and upload observations replay
+through both public composition and independently assembled application
+dependencies. Failure cases include accepted effects followed by interruption
+and rerun. The automation capture corrected one harness-only temporary-path
+placeholder by recapturing the original script and checking that the other 89
+observations stayed identical; expected behavior was not recaptured from the
+refactored implementation.
+
+## Final Item 6 verification
+
+- Full randomized suite: **9,049 tests pass**, seed `20261101`, in 210.46 seconds.
+  The one warning is the existing FastAPI TestClient dependency deprecation.
+- Separate package coverage: **96.13% statements** (26,434 / 27,499) and
+  **91.66% branches** (5,305 / 5,788), above the roadmap's 95% / 90% gates.
+- Aggregate domain/application coverage: **100% statements** (10,605 / 10,605)
+  and **100% branches** (2,868 / 2,868), above the 98% / 95% gates.
+- Isolated gates: **1,201 domain tests** and **3,604 application tests** pass,
+  with **100% statement and branch coverage** for their configured targets.
+  Fresh-interpreter and static checks enforce inward dependencies.
+- Package mypy passes for **443 source files**. Domain/application modules,
+  independent tests and new boundary support pass strict typing. Package and
+  changed-test Ruff, formatting and structural checks pass. Unchanged legacy
+  tests retain their pre-existing lint/format exceptions.
+- All **11 frozen public artifacts** match. Original baseline files remain
+  unchanged. Route and Spotify inventory comparisons ignore only source line
+  locations; public identity, request expressions, parameters and reference
+  counts remain checked, with rejection tests protecting the comparison.
+- The [ownership audit](ROUTINE_OWNERSHIP.md) accounts for all **44 original
+  commands**, related processors and operational entry points. A static guard
+  covers all **27 routine modules** and rejects another routine's private helper
+  as a dependency.
+
+Reproduce using `just test-domain`, `just test-application`, package mypy and Ruff,
+and the randomized full suite with `--cov=spotify_manager --cov-branch
+--cov-fail-under=0 --cov-report=json`. Check statement and branch percentages
+separately against the roadmap thresholds. Capture and compare public interfaces
+using the commands in `VERTICAL_SLICES.md`.
+
+Execution deliberately remains synchronous for this structural item. Native async
+transport, awaited orchestration and measured concurrency are items 8–10.
+Preserved legacy recovery and malformed-input limitations remain characterized;
+this item does not silently repair them. After PR review and local testing, the
+approved workflow requires deployment verification before merge and cleanup.

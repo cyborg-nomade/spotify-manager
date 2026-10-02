@@ -304,10 +304,10 @@ def _queues(edge: QueueReads, extra: str | None) -> object:
             cast(legacy.RetryCall, None),
             extra,
         )
-    queue_rows = {
-        name: [asdict(item) for item in items] for name, items in queues.items()
-    }
-    group_rows = {
-        name: [asdict(item) for item in items] for name, items in groups.items()
-    }
+    queue_rows = {}
+    for name, items in queues.items():
+        queue_rows[name] = [asdict(item) for item in items]
+    group_rows = {}
+    for artist_id, markers in groups.items():
+        group_rows[artist_id] = [asdict(item) for item in markers]
     return {"queues": queue_rows, "markers": group_rows}

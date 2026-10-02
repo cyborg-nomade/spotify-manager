@@ -89,10 +89,11 @@ def cursor_index(
     Raises:
         ZeroDivisionError: The original mirror is empty.
     """
-    if last_identity:
-        for index, album in enumerate(albums):
-            if album.spotify_id == last_identity:
-                return (index + 1) % len(albums)
+    if not last_identity:
+        return fallback % len(albums)
+    for index, album in enumerate(albums):
+        if album.spotify_id == last_identity:
+            return (index + 1) % len(albums)
     return fallback % len(albums)
 
 

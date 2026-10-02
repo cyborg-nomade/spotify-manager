@@ -96,3 +96,16 @@ class HistoricalResolution:
         self.progress("Checking liked Spotify matches")
         liked = self.liked(groups)
         return _project(selections, groups, liked, playlist, self.album_threshold)
+
+
+def direct_call(operation: Callable[[], object], _description: str) -> object:
+    """Execute the original direct observation when no outer retry is supplied.
+
+    Args:
+        operation: Original delayed observation.
+        _description: Original passive callback description.
+
+    Returns:
+        Original observation result, propagating its original failure unchanged.
+    """
+    return operation()

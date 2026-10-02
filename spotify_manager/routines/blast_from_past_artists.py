@@ -16,6 +16,7 @@ from spotify_manager.application.dormant_values import (
 from spotify_manager.application.dormant_values import (
     DormantArtistSummary as DormantArtistSummary,
 )
+from spotify_manager.application.historical_resolution import direct_call
 from spotify_manager.domain.dormant_artists import DormantArtist as DormantArtist
 from spotify_manager.domain.dormant_artists import (
     DormantArtistResult as DormantArtistResult,
@@ -151,11 +152,10 @@ def _spotify_artist(
         scrobbles=artist.scrobbles,
         rank=rank,
     )
-    exact = tuple(
-        candidate
-        for candidate in release_check.search_spotify_artists(sp, ranked, retry_call)
-        if candidate.exact_name
-    )
+    exact = []
+    for candidate in release_check.search_spotify_artists(sp, ranked, retry_call):
+        if candidate.exact_name:
+            exact.append(candidate)
     return exact[0] if len(exact) == 1 else None
 
 
@@ -168,7 +168,7 @@ def add_dormant_artists_to_blast_from_past(
     today: date | None = None,
     echo: Echo = print,
     progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = blast_from_past._direct_retry,
+    retry_call: RetryCall = direct_call,
     cancel_check: CancelCheck | None = None,
     dry_run: bool = False,
 ) -> DormantArtistSummary:

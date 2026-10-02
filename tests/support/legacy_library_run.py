@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 from typing import cast
 
@@ -105,8 +106,8 @@ def scenarios() -> list[Scenario]:
             "follow",
             "like",
         ):
-            for after in (False, True):
-                result.append(Scenario(workflow, fault=fault, after=after))
+            result.append(Scenario(workflow, fault=fault, after=False))
+            result.append(Scenario(workflow, fault=fault, after=True))
     for repeats in (1, 2):
         profile = "monthly-additions"
         result.append(Scenario("monthly", profile, repeats=repeats))
@@ -120,10 +121,8 @@ def scenarios() -> list[Scenario]:
             "save_albums",
             "save_stats",
         ):
-            for after in (False, True):
-                result.append(
-                    Scenario("monthly", profile, fault, after, repeats=repeats)
-                )
+            result.append(Scenario("monthly", profile, fault, False, repeats=repeats))
+            result.append(Scenario("monthly", profile, fault, True, repeats=repeats))
     return result
 
 
@@ -422,15 +421,21 @@ def bind(monkeypatch: pytest.MonkeyPatch, memory: Memory) -> Catalog:
     """
     catalog = Catalog(memory)
     for module in (total, control, stats, conversion, monthly_routine, count_items):
-        for name, callback in bindings(memory).items():
-            if hasattr(module, name):
-                monkeypatch.setattr(module, name, callback)
+        _bind_module(monkeypatch, module, memory)
     monkeypatch.setattr(total, "datetime", FixedDatetime)
     monkeypatch.setattr(builtins, "print", memory.echo)
     if memory.scenario.profile == "zero-limit":
         monkeypatch.setattr(total.settings, "limit", 0)
     monkeypatch.setattr(comparison, "get_spotipy_client", partial(identity, catalog))
     return catalog
+
+
+def _bind_module(
+    monkeypatch: pytest.MonkeyPatch, module: ModuleType, memory: Memory
+) -> None:
+    for name, callback in bindings(memory).items():
+        if hasattr(module, name):
+            monkeypatch.setattr(module, name, callback)
 
 
 def identity[T](value: T) -> T:

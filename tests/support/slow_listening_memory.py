@@ -162,9 +162,11 @@ class MemorySlowListening:
             RuntimeError: A failure is scripted before or after acceptance.
         """
         self._before("remove", source.spotify_id)
-        self.live = [
-            track for track in self.live if track.spotify_id != source.spotify_id
-        ]
+        remaining = []
+        for track in self.live:
+            if track.spotify_id != source.spotify_id:
+                remaining.append(track)
+        self.live = remaining
         self._fault("remove", True)
 
     def audit(self, run_id: str, result: FlushResult) -> None:

@@ -15,8 +15,6 @@ The plain API (no gate, no frontend) is still available unchanged as
 ``spotify_manager.api:app`` for local use and tests.
 """
 
-import logging
-import os
 from pathlib import Path
 from threading import Lock
 
@@ -29,6 +27,8 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager._auth import PasswordMiddleware
 from spotify_manager.api import ClientDep
 from spotify_manager.api import app
+from spotify_manager.bootstrap.web import environment
+from spotify_manager.bootstrap.web import managed_path
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.infrastructure.spotify.retry import format_retry_delay
 from spotify_manager.infrastructure.spotify.retry import get_retry_after_seconds
@@ -39,32 +39,20 @@ from spotify_manager.settings import Settings
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
 INDEX_HTML = FRONTEND_DIR / "index.html"
 GENRE_REVEAL_HTML = FRONTEND_DIR / "genre-reveal.html"
-GENRE_REVEAL_STATE_PATH = Path(
-    os.environ.get(
-        "GENRE_REVEAL_STATE_PATH",
-        genre_reveal.DEFAULT_STATE_PATH,
-    )
+GENRE_REVEAL_STATE_PATH = managed_path(
+    "GENRE_REVEAL_STATE_PATH", genre_reveal.DEFAULT_STATE_PATH
 )
-GENRE_REVEAL_LOG_PATH = Path(
-    os.environ.get(
-        "GENRE_REVEAL_LOG_PATH",
-        genre_reveal.DEFAULT_LOG_PATH,
-    )
+GENRE_REVEAL_LOG_PATH = managed_path(
+    "GENRE_REVEAL_LOG_PATH", genre_reveal.DEFAULT_LOG_PATH
 )
 _genre_reveal_state_lock = Lock()
 _genre_reveal_run_lock = Lock()
 
 
-_password = os.environ.get("APP_PASSWORD") or None
-_automation_token = os.environ.get("AUTOMATION_TOKEN") or None
-_allow_any_loopback_password = not any(
-    os.environ.get(name) for name in ("SPACE_ID", "SPACE_HOST")
-)
-if _password is None:
-    logging.getLogger("uvicorn.error").warning(
-        "APP_PASSWORD is not set — the password gate is DISABLED. "
-        "Set APP_PASSWORD before deploying."
-    )
+_environment = environment()
+_password = _environment.password
+_automation_token = _environment.automation_token
+_allow_any_loopback_password = _environment.allow_loopback
 
 app.add_middleware(
     PasswordMiddleware,
@@ -152,16 +140,7 @@ def run_next_genre_reveal(
         )
 
     try:
-        with _genre_reveal_state_lock:
-            state = genre_reveal.load_genre_reveal_state(
-                GENRE_REVEAL_STATE_PATH,
-                state_service=get_state_service(),
-            )
-            if request.slug in state.completed:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"{request.name} is already completed",
-                )
+        _require_incomplete_genre(request)
 
         destination_playlist_id = genre_reveal.parse_destination_playlist_id(
             Settings().genre_reveal_playlist
@@ -219,3 +198,14 @@ def serve(host: str = "0.0.0.0", port: int = 7860) -> None:  # noqa: S104
     import uvicorn
 
     uvicorn.run(app, host=host, port=port)
+
+
+def _require_incomplete_genre(request: genre_reveal.GenreRevealRunRequest) -> None:
+    with _genre_reveal_state_lock:
+        state = genre_reveal.load_genre_reveal_state(
+            GENRE_REVEAL_STATE_PATH, state_service=get_state_service()
+        )
+        if request.slug in state.completed:
+            raise HTTPException(
+                status_code=409, detail=f"{request.name} is already completed"
+            )

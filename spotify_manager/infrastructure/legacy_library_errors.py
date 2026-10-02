@@ -21,6 +21,7 @@ class LegacyFailure:
         """
         self.echo = echo
         self.failed = False
+        self.error: Exception | None = None
 
     def __enter__(self) -> Self:
         """Enter the original failure scope.
@@ -50,4 +51,5 @@ class LegacyFailure:
             return False
         self.echo(error)
         self.failed = True
+        self.error = error
         return True

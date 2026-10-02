@@ -1,12 +1,7 @@
 """Select past Last.fm scrobbles using the music-listening rules."""
 
-import base64
-import binascii
-import gzip
-import json
 import re
 from collections.abc import Callable
-from datetime import UTC
 from datetime import date
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -22,6 +17,9 @@ from zoneinfo import ZoneInfo
 
 from spotipy import Spotify
 
+from spotify_manager.application.historical_resolution import (
+    direct_call as _direct_retry,
+)
 from spotify_manager.application.historical_values import (
     BlastFromPastBatch as BlastFromPastBatch,
 )
@@ -67,6 +65,10 @@ from spotify_manager.domain.history import ScrobbleSelection as ScrobbleSelectio
 from spotify_manager.domain.titles import BRACKETED_SUFFIX as BRACKETED_SUFFIX
 from spotify_manager.domain.titles import DASHED_SUFFIX as DASHED_SUFFIX
 from spotify_manager.domain.titles import SLIDING_QUALIFIER as SLIDING_QUALIFIER
+from spotify_manager.infrastructure import history_export
+from spotify_manager.infrastructure import history_matching_records
+from spotify_manager.infrastructure import history_playlist
+from spotify_manager.infrastructure import random_indexes
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -92,13 +94,12 @@ RetryCall = Callable[[Callable[[], object], str], object]
 CancelCheck = Callable[[], bool]
 
 
-def _direct_retry(operation: Callable[[], object], _description: str) -> object:
-    """Call Spotify directly when no outer retry policy is supplied."""
-    return operation()
-
-
 def check_cancel(cancel_check: CancelCheck | None) -> None:
-    """Stop promptly between network operations when cancellation is requested."""
+    """Stop promptly between network operations when cancellation is requested.
+
+    Args:
+        cancel_check: Original cancel check observation.
+    """
     if cancel_check is not None and cancel_check():
         raise BlastFromPastCancelledError("Playlist routine cancelled.")
 
@@ -107,7 +108,14 @@ RandomIndexReader = Callable[[int, int], RandomIndexSet]
 
 
 def friday_track_cutoff(today: date | None = None) -> date:
-    """Return Dec 31 of five years before the current year."""
+    """Return Dec 31 of five years before the current year.
+
+    Args:
+        today: Original today observation.
+
+    Returns:
+        Original friday track cutoff result.
+    """
     current_date = today or datetime.now(SCROBBLE_TIMEZONE).date()
     return date(current_date.year - FRIDAY_TRACK_CUTOFF_YEARS, 12, 31)
 
@@ -115,117 +123,29 @@ def friday_track_cutoff(today: date | None = None) -> date:
 def load_scrobble_export(
     path: Path = DEFAULT_SCROBBLES_PATH,
 ) -> dict[str, object]:
-    """Load the Last.fm export, including its deployment fallbacks."""
-    compressed_path = Path(f"{path}.gz")
-    compressed_parts = tuple(sorted(path.parent.glob(f"{path.name}.gz.part-*")))
-    encoded_parts = tuple(sorted(path.parent.glob(f"{path.name}.gz.b64.part-*")))
-    failures: list[str] = []
-    payload: object | None = None
+    """Load the Last.fm export, including its deployment fallbacks.
 
-    try:
-        with path.open(encoding="utf-8") as export_file:
-            payload = json.load(export_file)
-    except OSError as exc:
-        failures.append(f"could not read {path}: {exc}")
-    except json.JSONDecodeError as exc:
-        failures.append(
-            f"{path} is not valid JSON: {exc.msg} "
-            f"at line {exc.lineno}, column {exc.colno}"
-        )
+    Args:
+        path: Original caller-supplied managed file location.
 
-    if payload is None and compressed_path.exists():
-        try:
-            with gzip.open(compressed_path, mode="rt", encoding="utf-8") as export_file:
-                payload = json.load(export_file)
-        except OSError as exc:
-            failures.append(f"could not read {compressed_path}: {exc}")
-        except json.JSONDecodeError as exc:
-            failures.append(
-                f"{compressed_path} is not valid JSON: {exc.msg} "
-                f"at line {exc.lineno}, column {exc.colno}"
-            )
-
-    if payload is None and compressed_parts:
-        try:
-            compressed = b"".join(part.read_bytes() for part in compressed_parts)
-            payload = json.loads(gzip.decompress(compressed))
-        except (OSError, UnicodeError) as exc:
-            failures.append(
-                "could not read compressed Last.fm export parts "
-                f"{compressed_parts[0].parent}: {exc}"
-            )
-        except json.JSONDecodeError as exc:
-            failures.append(
-                "compressed Last.fm export parts are not valid JSON: "
-                f"{exc.msg} at line {exc.lineno}, column {exc.colno}"
-            )
-
-    if payload is None and encoded_parts:
-        try:
-            encoded = b"".join(part.read_bytes() for part in encoded_parts)
-            compressed = base64.b64decode(encoded)
-            payload = json.loads(gzip.decompress(compressed))
-        except (OSError, UnicodeError, binascii.Error) as exc:
-            failures.append(
-                "could not read encoded Last.fm export parts "
-                f"{encoded_parts[0].parent}: {exc}"
-            )
-        except json.JSONDecodeError as exc:
-            failures.append(
-                "encoded Last.fm export parts are not valid JSON: "
-                f"{exc.msg} at line {exc.lineno}, column {exc.colno}"
-            )
-
-    if payload is None:
-        raise LastFmExportError("Last.fm export failed: " + "; ".join(failures))
-
-    if not isinstance(payload, dict) or not isinstance(payload.get("scrobbles"), list):
-        raise LastFmExportError(
-            f"Last.fm export must contain a 'scrobbles' list: {path}"
-        )
-    return payload
+    Returns:
+        Original load scrobble export result.
+    """
+    return history_export.load_export(path)
 
 
 def load_scrobbles_by_date(
     path: Path = DEFAULT_SCROBBLES_PATH,
 ) -> dict[date, list[Scrobble]]:
-    """Load every export scrobble into Berlin-local Last.fm date buckets."""
-    payload = load_scrobble_export(path)
-    raw_scrobbles = payload["scrobbles"]
-    assert isinstance(raw_scrobbles, list)
+    """Load every export scrobble into Berlin-local Last.fm date buckets.
 
-    by_date: dict[date, list[Scrobble]] = {}
-    for index, raw_scrobble in enumerate(raw_scrobbles):
-        if not isinstance(raw_scrobble, dict):
-            raise LastFmExportError(f"Scrobble {index} is not an object.")
-        try:
-            timestamp_ms = int(raw_scrobble["date"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise LastFmExportError(
-                f"Scrobble {index} has no valid millisecond timestamp."
-            ) from exc
+    Args:
+        path: Original caller-supplied managed file location.
 
-        try:
-            played_at = datetime.fromtimestamp(
-                timestamp_ms / 1000,
-                SCROBBLE_TIMEZONE,
-            )
-        except (OSError, OverflowError, ValueError) as exc:
-            raise LastFmExportError(
-                f"Scrobble {index} has an out-of-range timestamp."
-            ) from exc
-
-        scrobble = Scrobble(
-            track=str(raw_scrobble.get("track") or "Unknown track"),
-            artist=str(raw_scrobble.get("artist") or "Unknown artist"),
-            album=str(raw_scrobble.get("album") or ""),
-            timestamp_ms=timestamp_ms,
-        )
-        by_date.setdefault(played_at.date(), []).append(scrobble)
-
-    for scrobbles in by_date.values():
-        scrobbles.sort(key=lambda item: item.timestamp_ms, reverse=True)
-    return by_date
+    Returns:
+        Original load scrobbles by date result.
+    """
+    return history_export.by_date(load_scrobble_export, path, SCROBBLE_TIMEZONE)
 
 
 def eligible_dates(
@@ -247,7 +167,15 @@ def parse_playlist_id(
     reference: str | None,
     setting_name: str = "BLAST_FROM_THE_PAST_PLAYLIST",
 ) -> str:
-    """Extract a Spotify playlist id from a URL, URI, or bare id."""
+    """Extract a Spotify playlist id from a URL, URI, or bare id.
+
+    Args:
+        reference: Original name, bare identity, URI or Spotify share link.
+        setting_name: Original setting name observation.
+
+    Returns:
+        Original parse playlist id result.
+    """
     if not reference or not reference.strip():
         raise BlastFromPastConfigError(f"{setting_name} is not configured.")
 
@@ -302,7 +230,14 @@ def name_similarity(expected: str, candidate: str) -> float:
 
 
 def spotify_search_query(scrobble: Scrobble) -> str:
-    """Build a field-filtered Spotify track search query."""
+    """Build a field-filtered Spotify track search query.
+
+    Args:
+        scrobble: Original scrobble observation.
+
+    Returns:
+        Original spotify search query result.
+    """
     track = scrobble.track.replace('"', " ").strip()
     artist = scrobble.artist.replace('"', " ").strip()
     return f'track:"{track}" artist:"{artist}"'
@@ -310,14 +245,7 @@ def spotify_search_query(scrobble: Scrobble) -> str:
 
 def _spotify_artist_names(raw_track: dict[str, object]) -> tuple[str, ...]:
     """Extract ordered artist names from a Spotify track response."""
-    raw_artists = raw_track.get("artists")
-    if not isinstance(raw_artists, list):
-        return ()
-    return tuple(
-        str(raw_artist.get("name"))
-        for raw_artist in raw_artists
-        if isinstance(raw_artist, dict) and raw_artist.get("name")
-    )
+    return history_matching_records.artist_names(raw_track)
 
 
 def matching_spotify_track(
@@ -325,45 +253,18 @@ def matching_spotify_track(
     raw_track: object,
     search_rank: int,
 ) -> SpotifyTrackMatch | None:
-    """Return a candidate when the mandatory artist and track thresholds pass."""
-    if not isinstance(raw_track, dict):
-        return None
-    spotify_id = str(raw_track.get("id") or "").strip()
-    uri = str(raw_track.get("uri") or "").strip()
-    track_name = str(raw_track.get("name") or "").strip()
-    artists = _spotify_artist_names(raw_track)
-    if not spotify_id or not uri or not track_name or not artists:
-        return None
+    """Return a candidate when the mandatory artist and track thresholds pass.
 
-    expected_artist = normalize_name(scrobble.artist)
-    if not expected_artist or not any(
-        normalize_name(artist) == expected_artist for artist in artists
-    ):
-        return None
+    Args:
+        scrobble: Original scrobble observation.
+        raw_track: Original raw track observation.
+        search_rank: Original search rank observation.
 
-    track_similarity = name_similarity(scrobble.track, track_name)
-    if track_similarity < TRACK_MATCH_THRESHOLD:
-        return None
-
-    raw_album = raw_track.get("album")
-    album_name = (
-        str(raw_album.get("name") or "").strip() if isinstance(raw_album, dict) else ""
-    )
-    album_similarity: float | None = None
-    if scrobble.album:
-        album_similarity = name_similarity(scrobble.album, album_name)
-
-    popularity = raw_track.get("popularity")
-    return SpotifyTrackMatch(
-        spotify_id=spotify_id,
-        uri=uri,
-        track=track_name,
-        artists=artists,
-        album=album_name,
-        search_rank=search_rank,
-        track_similarity=track_similarity,
-        album_similarity=album_similarity,
-        popularity=popularity if isinstance(popularity, int) else None,
+    Returns:
+        Original matching spotify track result.
+    """
+    return history_matching_records.matching_track(
+        scrobble, raw_track, search_rank, TRACK_MATCH_THRESHOLD
     )
 
 
@@ -373,15 +274,20 @@ def search_spotify_matches(
     retry_call: RetryCall = _direct_retry,
     cancel_check: CancelCheck | None = None,
 ) -> tuple[SpotifyTrackMatch, ...]:
-    """Search Spotify once and return every qualifying result in rank order."""
+    """Search Spotify once and return every qualifying result in rank order.
+
+    Args:
+        sp: Caller-owned original synchronous Spotify client.
+        scrobble: Original scrobble observation.
+        retry_call: Original retry call observation.
+        cancel_check: Original cancel check observation.
+
+    Returns:
+        Original search spotify matches result.
+    """
     check_cancel(cancel_check)
     response = retry_call(
-        lambda: sp.search(
-            q=spotify_search_query(scrobble),
-            type="track",
-            limit=SPOTIFY_SEARCH_LIMIT,
-            offset=0,
-        ),
+        partial(_search_historical_track, sp, scrobble),
         f"searching Spotify for {scrobble.artist} - {scrobble.track}",
     )
     check_cancel(cancel_check)
@@ -414,10 +320,18 @@ def liked_spotify_track_ids(
     retry_call: RetryCall = _direct_retry,
     cancel_check: CancelCheck | None = None,
 ) -> set[str]:
-    """Return live liked status for all unique qualifying candidates in batches."""
-    track_ids = list(
-        dict.fromkeys(match.spotify_id for matches in match_groups for match in matches)
-    )
+    """Return live liked status for all unique qualifying candidates in batches.
+
+    Args:
+        sp: Caller-owned original synchronous Spotify client.
+        match_groups: Original match groups observation.
+        retry_call: Original retry call observation.
+        cancel_check: Original cancel check observation.
+
+    Returns:
+        Original liked spotify track ids result.
+    """
+    track_ids = matching_policy.candidate_ids(match_groups)
     liked_ids: set[str] = set()
     for start in range(0, len(track_ids), SPOTIFY_LIKED_BATCH_SIZE):
         check_cancel(cancel_check)
@@ -435,11 +349,7 @@ def liked_spotify_track_ids(
             raise SpotifyTrackResolutionError(
                 "Spotify returned incomplete liked-track statuses."
             )
-        liked_ids.update(
-            spotify_id
-            for spotify_id, is_liked in zip(batch, statuses, strict=True)
-            if is_liked
-        )
+        liked_ids.update(matching_policy.liked_identities(batch, statuses))
     return liked_ids
 
 
@@ -485,7 +395,15 @@ def _random_org_error_message(exc: HTTPError) -> str:
 
 
 def fetch_random_indexes(population_size: int, count: int) -> RandomIndexSet:
-    """Fetch unique zero-based indexes and one UTC timestamp from Random.org."""
+    """Fetch unique zero-based indexes and one UTC timestamp from Random.org.
+
+    Args:
+        population_size: Original population size observation.
+        count: Original count observation.
+
+    Returns:
+        Original fetch random indexes result.
+    """
     if population_size < 1:
         raise ValueError("population_size must be at least 1")
     if count < 1 or count > population_size:
@@ -520,37 +438,8 @@ def fetch_random_indexes(population_size: int, count: int) -> RandomIndexSet:
     except (TimeoutError, URLError) as exc:
         raise RandomOrgError(f"Could not reach Random.org: {exc}") from exc
 
-    if "Error:" in body:
-        error_line = next(
-            (line.strip() for line in body.splitlines() if "Error:" in line),
-            body,
-        )
-        raise RandomOrgError(f"Random.org could not generate indexes: {error_line}")
-
-    indexes = tuple(int(value) for value in re.findall(r"-?\d+", body))
-    if len(indexes) != count:
-        raise RandomOrgError(
-            f"Random.org returned {len(indexes)} indexes; expected {count}."
-        )
-    if len(set(indexes)) != count:
-        raise RandomOrgError("Random.org returned duplicate date indexes.")
-    if any(index < 0 or index >= population_size for index in indexes):
-        raise RandomOrgError("Random.org returned an out-of-range date index.")
-    if not timestamp_header:
-        raise RandomOrgError("Random.org response did not include a timestamp.")
-
-    try:
-        generated_at = parsedate_to_datetime(timestamp_header)
-    except (TypeError, ValueError) as exc:
-        raise RandomOrgError(
-            f"Random.org returned an invalid timestamp: {timestamp_header}"
-        ) from exc
-    if generated_at.tzinfo is None:
-        generated_at = generated_at.replace(tzinfo=UTC)
-
-    return RandomIndexSet(
-        indexes=indexes,
-        generated_at=generated_at.astimezone(UTC),
+    return random_indexes.result(
+        body, timestamp_header, population_size, count, parsedate_to_datetime
     )
 
 
@@ -639,84 +528,22 @@ def load_playlist_state(
     retry_call: RetryCall = _direct_retry,
     cancel_check: CancelCheck | None = None,
 ) -> PlaylistState:
-    """Load the complete target playlist once."""
-    offset = 0
-    track_ids: set[str] = set()
-    track_keys: set[tuple[str, str]] = set()
-    primary_artist_keys: set[str] = set()
-    seen_next_pages: set[str] = set()
-    while True:
-        check_cancel(cancel_check)
-        response = retry_call(
-            partial(
-                sp._get,
-                f"playlists/{playlist_id}/items",
-                limit=SPOTIFY_PLAYLIST_PAGE_SIZE,
-                offset=offset,
-            ),
-            f"loading Spotify playlist items at offset {offset}",
-        )
-        check_cancel(cancel_check)
-        if not isinstance(response, dict) or not isinstance(
-            response.get("items"), list
-        ):
-            raise SpotifyTrackResolutionError(
-                f"Spotify returned invalid playlist data for {playlist_id}."
-            )
-        raw_items = response["items"]
-        for raw_entry in raw_items:
-            if not isinstance(raw_entry, dict):
-                continue
-            raw_track = raw_entry.get("item") or raw_entry.get("track")
-            if not isinstance(raw_track, dict):
-                continue
-            spotify_id = str(raw_track.get("id") or "").strip()
-            if spotify_id:
-                track_ids.add(spotify_id)
-            track_name = str(raw_track.get("name") or "").strip()
-            if track_name:
-                artist_names = _spotify_artist_names(raw_track)
-                normalized_track = normalize_name(
-                    without_sliding_qualifiers(track_name)
-                )
-                track_keys.update(
-                    (normalize_name(artist), normalized_track)
-                    for artist in artist_names
-                    if normalize_name(artist) and normalized_track
-                )
-                if artist_names and normalize_name(artist_names[0]):
-                    primary_artist_keys.add(normalize_name(artist_names[0]))
+    """Load the complete target playlist once.
 
-        offset += len(raw_items)
-        total = response.get("total")
-        next_page = response.get("next")
-        has_more = bool(next_page)
-        if "next" not in response and isinstance(total, int):
-            has_more = offset < total
-        if not has_more:
-            total_items = (
-                offset
-                if "next" in response
-                else total
-                if isinstance(total, int)
-                else offset
-            )
-            return PlaylistState(
-                total_items=total_items,
-                track_ids=frozenset(track_ids),
-                track_keys=frozenset(track_keys),
-                primary_artist_keys=frozenset(primary_artist_keys),
-            )
-        if not raw_items:
-            raise SpotifyTrackResolutionError(
-                f"Spotify returned an empty playlist page for {playlist_id}."
-            )
-        if isinstance(next_page, str):
-            if next_page in seen_next_pages:
-                raise SpotifyTrackResolutionError(
-                    f"Spotify repeated a playlist page for {playlist_id}."
-                )
-            seen_next_pages.add(next_page)
+    Args:
+        sp: Caller-owned original synchronous Spotify client.
+        playlist_id: Original playlist id observation.
+        retry_call: Original retry call observation.
+        cancel_check: Original cancel check observation.
+
+    Returns:
+        Original load playlist state result.
+    """
+    return history_playlist.state(
+        partial(_playlist_page, sp, playlist_id, retry_call, cancel_check),
+        _spotify_artist_names,
+        playlist_id,
+    )
 
 
 def add_spotify_matches(
@@ -726,7 +553,15 @@ def add_spotify_matches(
     retry_call: RetryCall = _direct_retry,
     cancel_check: CancelCheck | None = None,
 ) -> None:
-    """Append Spotify matches to the playlist in API-sized batches."""
+    """Append Spotify matches to the playlist in API-sized batches.
+
+    Args:
+        sp: Caller-owned original synchronous Spotify client.
+        playlist_id: Original playlist id observation.
+        matches: Original matches observation.
+        retry_call: Original retry call observation.
+        cancel_check: Original cancel check observation.
+    """
     uris = [match.uri for match in matches]
     for start in range(0, len(uris), SPOTIFY_PLAYLIST_ADD_BATCH_SIZE):
         check_cancel(cancel_check)
@@ -823,4 +658,34 @@ def add_blast_from_past_to_spotify(
         retry_call,
         cancel_check,
         dry_run,
+    )
+
+
+def _playlist_page(
+    sp: Spotify,
+    playlist_id: str,
+    retry_call: RetryCall,
+    cancel_check: CancelCheck | None,
+    offset: int,
+) -> object:
+    check_cancel(cancel_check)
+    response = retry_call(
+        partial(
+            sp._get,
+            f"playlists/{playlist_id}/items",
+            limit=SPOTIFY_PLAYLIST_PAGE_SIZE,
+            offset=offset,
+        ),
+        f"loading Spotify playlist items at offset {offset}",
+    )
+    check_cancel(cancel_check)
+    return response
+
+
+def _search_historical_track(sp: Spotify, scrobble: Scrobble) -> object:
+    return sp.search(
+        q=spotify_search_query(scrobble),
+        type="track",
+        limit=SPOTIFY_SEARCH_LIMIT,
+        offset=0,
     )

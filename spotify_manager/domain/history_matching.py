@@ -127,3 +127,72 @@ def preferred_match(
     if not eligible:
         return None
     return max(eligible, key=_rank)
+
+
+def candidate_similarity(
+    expected_artist: str,
+    expected_track: str,
+    artists: tuple[str, ...],
+    title: str,
+    threshold: float,
+) -> float | None:
+    """Qualify original credited artist and edition-aware title observations.
+
+    Args:
+        expected_artist: Original export artist.
+        expected_track: Original export title.
+        artists: Original ordered observed artist display names.
+        title: Original observed title.
+        threshold: Original title similarity floor.
+
+    Returns:
+        Qualified original similarity, or no matching candidate.
+    """
+    expected = normalize_name(expected_artist)
+    if not expected:
+        return None
+    matched = False
+    for artist in artists:
+        if normalize_name(artist) == expected:
+            matched = True
+            break
+    if not matched:
+        return None
+    similarity = name_similarity(expected_track, title)
+    return None if similarity < threshold else similarity
+
+
+def candidate_ids(groups: list[tuple[SpotifyTrackMatch, ...]]) -> list[str]:
+    """Retain the original first-encounter unique candidate identity order.
+
+    Args:
+        groups: Original ordered per-selection search candidates.
+
+    Returns:
+        Original ordered unique identities.
+    """
+    identifiers: dict[str, None] = {}
+    for group in groups:
+        for match in group:
+            identifiers[match.spotify_id] = None
+    return list(identifiers)
+
+
+def liked_identities(identifiers: list[str], statuses: list[object]) -> set[str]:
+    """Retain original truthy-status membership and strict parallel observations.
+
+    Args:
+        identifiers: Original requested identity batch.
+        statuses: Original equal-length raw membership observations.
+
+    Returns:
+        Original liked identities without coercing the raw observations.
+
+    Raises:
+        ValueError: The original strict zip receives mismatched observations.
+    """
+    result: set[str] = set()
+    for identifier, status in zip(identifiers, statuses, strict=True):
+        if status:
+            result.add(identifier)
+    return result

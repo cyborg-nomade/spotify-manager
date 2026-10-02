@@ -138,6 +138,14 @@ test-application:
         --cov=spotify_manager.application.artist_review_catalog \
         --cov=spotify_manager.application.artist_review_membership \
         --cov=spotify_manager.application.artist_review_state \
+        --cov=spotify_manager.application.automation_run \
+        --cov=spotify_manager.application.automation_values \
+        --cov=spotify_manager.application.upload_run \
+        --cov=spotify_manager.application.upload_values \
+        --cov=spotify_manager.application.library_lookup_run \
+        --cov=spotify_manager.application.lookup_effects \
+        --cov=spotify_manager.application.lookup_resolution \
+        --cov=spotify_manager.application.scrobble_lookup_run \
         --cov=spotify_manager.application.legacy_library_control \
         --cov=spotify_manager.application.legacy_library_conversion \
         --cov=spotify_manager.application.legacy_library_effects \

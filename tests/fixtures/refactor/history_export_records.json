@@ -1,0 +1,222 @@
+[
+  {
+    "result": {
+      "scrobbles": []
+    }
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: ",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: <TMP>/history.json is not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: <TMP>/history.json is not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "error": "UnicodeDecodeError",
+    "message": "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: <TMP>/history.json is not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "result": {
+      "scrobbles": []
+    }
+  },
+  {
+    "result": {
+      "scrobbles": []
+    }
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; <TMP>/history.json.gz is not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; <TMP>/history.json.gz is not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "error": "UnicodeDecodeError",
+    "message": "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; could not read <TMP>/history.json.gz: Not a gzipped file (b'co')",
+    "cause": null
+  },
+  {
+    "result": {
+      "scrobbles": []
+    }
+  },
+  {
+    "result": {
+      "scrobbles": []
+    }
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; compressed Last.fm export parts are not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; compressed Last.fm export parts are not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; could not read compressed Last.fm export parts <TMP>: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; could not read compressed Last.fm export parts <TMP>: Not a gzipped file (b'co')",
+    "cause": null
+  },
+  {
+    "result": {
+      "scrobbles": []
+    }
+  },
+  {
+    "result": {
+      "scrobbles": []
+    }
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export must contain a 'scrobbles' list: <TMP>/history.json",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; encoded Last.fm export parts are not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; encoded Last.fm export parts are not valid JSON: Expecting value at line 1, column 1",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; could not read encoded Last.fm export parts <TMP>: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'",
+    "cause": null
+  },
+  {
+    "error": "LastFmExportError",
+    "message": "Last.fm export failed: could not read <TMP>/history.json: [Errno 2] No such file or directory: '<TMP>/history.json'; could not read encoded Last.fm export parts <TMP>: Invalid base64-encoded string: number of data characters (1) cannot be 1 more than a multiple of 4",
+    "cause": null
+  },
+  {
+    "result": {
+      "scrobbles": []
+    }
+  }
+]

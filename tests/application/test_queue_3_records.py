@@ -191,9 +191,10 @@ def test_snapshot_cap_counts_unique_logical_artists_in_original_order() -> None:
         tracks.extend([marker, marker])
     run = new_run("queue", tracks, {"composer_routes": {}}, SnapshotClock().now, 10)
     entries = cast(list[dict[str, object]], run["entries"])
-    assert [entry["artist_id"] for entry in entries] == [
-        str(index) for index in range(10)
-    ]
+    expected = []
+    for index in range(10):
+        expected.append(str(index))
+    assert [entry["artist_id"] for entry in entries] == expected
 
 
 def test_empty_snapshot_still_reads_both_original_timestamps() -> None:

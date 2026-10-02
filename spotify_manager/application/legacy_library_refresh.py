@@ -123,10 +123,12 @@ def advance(
     if not attempt.failed:
         return
     if not scan.next_observed:
-        raise UnboundLocalError(
+        error = UnboundLocalError(
             "cannot access local variable 'last_next' "
             "where it is not associated with a value"
         )
+        error.__context__ = attempt.error
+        raise error
     echo(scan.next_url)
     scan.index -= 1
     scan.page = deps.recover(scan.offset)

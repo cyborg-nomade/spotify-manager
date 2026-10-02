@@ -15,6 +15,7 @@ type Json = None | bool | int | float | str | list[Json] | dict[str, Json]
 BASELINE = Path(__file__).parent / "baseline"
 SOURCE_REPORTS = {"source-inventory.json", "routine-dependencies.md"}
 ENDPOINTS = "spotify-endpoints.json"
+ROUTES = "routes.json"
 
 
 def _normalize_sequence(items: list[Json]) -> list[Json]:
@@ -25,7 +26,7 @@ def _normalize_sequence(items: list[Json]) -> list[Json]:
 
 
 def _without_source_lines(value: Json) -> Json:
-    """Remove location-only evidence from Spotify endpoint comparisons.
+    """Remove location-only evidence from endpoint and route inventories.
 
     Args:
         value: Decoded endpoint inventory.
@@ -42,7 +43,7 @@ def _without_source_lines(value: Json) -> Json:
         return value
     result = {}
     for key, item in value.items():
-        if key != "line":
+        if key not in {"line", "source_line"}:
             result[key] = _without_source_lines(item)
     return result
 
@@ -71,7 +72,12 @@ def compare_interfaces(candidate: Path, baseline: Path = BASELINE) -> int:
     for path in sorted(baseline.iterdir()):
         if path.name in SOURCE_REPORTS or path.name == ENDPOINTS:
             continue
-        assert (candidate / path.name).read_bytes() == path.read_bytes(), path.name
+        if path.name == ROUTES:
+            assert _endpoint_contracts(candidate / ROUTES) == _endpoint_contracts(
+                path
+            ), ROUTES
+        else:
+            assert (candidate / path.name).read_bytes() == path.read_bytes(), path.name
         checked += 1
     assert _endpoint_contracts(candidate / ENDPOINTS) == _endpoint_contracts(
         baseline / ENDPOINTS

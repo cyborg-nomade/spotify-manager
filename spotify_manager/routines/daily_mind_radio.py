@@ -7,6 +7,7 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.historical_resolution import direct_call
 from spotify_manager.application.historical_values import (
     DailyMindRadioBatch as DailyMindRadioBatch,
 )
@@ -73,7 +74,7 @@ def add_daily_mind_radio_to_spotify(
         blast_from_past.fetch_random_timestamp
     ),
     progress_callback: blast_from_past.ProgressCallback | None = None,
-    retry_call: blast_from_past.RetryCall = blast_from_past._direct_retry,
+    retry_call: blast_from_past.RetryCall = direct_call,
     cancel_check: blast_from_past.CancelCheck | None = None,
     dry_run: bool = False,
 ) -> DailyMindRadioSpotifySummary:

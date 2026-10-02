@@ -2,6 +2,8 @@
 
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
+from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
@@ -145,6 +147,38 @@ def _update_keys(
     keys.update(_added_keys(json.loads(line), key_of))
 
 
+@dataclass
+class _AuditRead:
+    """Keep accepted identities and the last physical line during a failed read.
+
+    Args:
+        key_of: Original identity normalization callback.
+        keys: Identities accepted before a read or parse failure.
+        current_line: Last physical line observed, or zero before reading.
+    """
+
+    key_of: Callable[[str, str], TrackKey]
+    keys: set[TrackKey] = field(default_factory=set)
+    current_line: int = 0
+
+    def read(self, path: Path) -> None:
+        """Consume the original file while preserving physical-line diagnostics.
+
+        Args:
+            path: Original UTF-8 audit source.
+
+        Raises:
+            OSError: Opening, reading or closing fails.
+            KeyError: An audit record lacks an originally required field.
+            TypeError: An audit record has an originally invalid shape.
+            ValueError: Decoding or identity normalization fails.
+        """
+        with path.open(encoding="utf-8") as log_file:
+            for line_number, line in enumerate(log_file, start=1):
+                self.current_line = line_number
+                _update_keys(self.keys, line, self.key_of)
+
+
 def previously_added_keys(
     path: Path, key_of: Callable[[str, str], TrackKey]
 ) -> set[TrackKey]:
@@ -162,19 +196,15 @@ def previously_added_keys(
     """
     if not path.exists():
         return set()
-    keys: set[TrackKey] = set()
-    current_line = 0
+    reader = _AuditRead(key_of)
     try:
-        with path.open(encoding="utf-8") as log_file:
-            for line_number, line in enumerate(log_file, start=1):
-                current_line = line_number
-                _update_keys(keys, line, key_of)
+        reader.read(path)
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        detail = f" at line {current_line}" if current_line else ""
+        detail = f" at line {reader.current_line}" if reader.current_line else ""
         raise FoundArtStateError(
             f"Found Art audit log is invalid{detail}: {path}"
         ) from exc
-    return keys
+    return reader.keys
 
 
 def _candidate_record(candidate: FoundArtCandidate) -> dict[str, object]:
