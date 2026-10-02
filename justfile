@@ -138,6 +138,15 @@ test-application:
         --cov=spotify_manager.application.artist_review_catalog \
         --cov=spotify_manager.application.artist_review_membership \
         --cov=spotify_manager.application.artist_review_state \
+        --cov=spotify_manager.application.library_analysis_artists \
+        --cov=spotify_manager.application.library_analysis_checkpoint \
+        --cov=spotify_manager.application.library_analysis_effects \
+        --cov=spotify_manager.application.library_analysis_export \
+        --cov=spotify_manager.application.library_analysis_offsets \
+        --cov=spotify_manager.application.library_analysis_publication \
+        --cov=spotify_manager.application.library_analysis_records \
+        --cov=spotify_manager.application.library_analysis_run \
+        --cov=spotify_manager.application.library_analysis_values \
         --cov=spotify_manager.application.queue_values \
         --cov=spotify_manager.application.genre_progress \
         --cov=spotify_manager.application.genre_values \

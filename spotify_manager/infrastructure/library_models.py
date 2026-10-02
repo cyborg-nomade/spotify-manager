@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 
+from spotify_manager.domain.library_analysis import deduplicate_models as deduplicate
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
@@ -19,12 +20,7 @@ def deduplicate_models[T: LibraryModel](models: Sequence[T]) -> list[T]:
     Returns:
         Original latest values in first-identity encounter order.
     """
-    by_id: dict[str, T] = {}
-    for model in models:
-        spotify_id = getattr(model, "spotify_id", "")
-        if spotify_id:
-            by_id[spotify_id] = model
-    return list(by_id.values())
+    return deduplicate(models)
 
 
 def album_from_saved_item(item: object) -> YourLibraryAlbum | None:

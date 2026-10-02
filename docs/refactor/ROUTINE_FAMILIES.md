@@ -10,9 +10,9 @@ The full milestone remains one PR under the approved roadmap.
 | --- | --- | --- |
 | Foundation | Implemented and verified | Album review/recovery and artist-follow use cases in `application`; date policy in `domain`; explicit wiring in `bootstrap`; presentation and legacy integration adapters. |
 | Release progression | Implemented and verified | Composer matching/observations, Slow Listening, New Wine, New Kids/Queue 2, Queue 3 and shared Requeue catalog integration. |
-| History and discovery | In progress | History, radio, discovery, releases, The Queue and genre workflows. |
-| Deep listening and retrospectives | Pending | Something Old, Palace of Memory, Discography and New Year. |
-| Library and legacy workflows | Pending | Analysis, artist review, conversion, monthly workflows, counts and remaining loaders/processors. |
+| History and discovery | Implemented and verified | History, radio, discovery, releases, The Queue and genre workflows. |
+| Deep listening and retrospectives | Implemented and verified | Something Old, Palace of Memory, Discography and New Year. |
+| Library and legacy workflows | In progress | Analysis and artist review are complete; conversion, monthly workflows, counts and remaining loaders/processors are pending. |
 | Operational integration | Pending | Uploads, authentication/settings, automation and startup. |
 
 ## Foundation responsibilities
@@ -1305,3 +1305,63 @@ passes 6,795 tests with seed 20261029 (95.34% statements, 89.43% branches).
 
 Library analysis, remaining legacy processors/loaders and operational integration
 remain before the final Item 6 ownership audit and complete pull request.
+
+### Library analysis checkpoint
+
+Export-only analysis, complete live analysis, canonical album/track refresh and
+independent resource refresh now use explicit application stages. Checkpoint
+compatibility, export preparation, monotonic scans, stable reconciliation,
+artist fallback verification and publication are separate named responsibilities.
+The compatibility facade retains original signatures, defaults, caller-owned
+Spotify expressions, clock seams and output families.
+
+Identity comparison, newest-value deduplication, verification candidate priority,
+raw-size statistics and retry delay have pure domain owners. Their identity
+protocol and count values import independently of file models, SDKs and runtime
+startup. Application conversion builds the unchanged statistics models and
+retains resource-specific ordering. Typed progress views preserve the same raw
+checkpoint objects, including unknown fields and original native malformed-field
+errors; they do not introduce validation or change serialization.
+
+Original file parsing, staging bytes, undo snapshots, backed-up history, restore
+effects and transport retries have infrastructure owners. Publication still
+creates its backup before accepting the finalizing checkpoint, writes requested
+mirrors in their original order and only then accepts completion. Resumed
+publication reads pre-analysis history from its backup. Full and incremental
+refreshes retain their different authority rules. Artist discovery still falls
+back immediately on its original 502 signal, preserves partially accepted rows
+and verifies candidates in bounded, resumable batches. Within-page duplicate
+additions, original cursor checks and raw-row offsets remain unchanged.
+
+The original public error boundary still translates arbitrary callback failures
+and preserves their causes. An explicit reporting context retains its original
+pause/failure audits without broad exception handlers in business stages. File
+codecs preserve torn-final-line recovery, earlier-line corruption errors and
+native permissive manifest constructor behavior. Audit details remain arbitrary,
+including keys named like newly injected dependencies.
+
+Before migration, **177 complete original scenarios** froze decisions, progress,
+retries, cancellation, all accepted file bytes, managed publication and failure
+prefixes followed by restart. Both public composition and independently
+constructed dependencies replay those immutable observations. Typed memory
+tests additionally cover cursor budgets, nonadvancing cursors, malformed
+verification, completed-resource guards and large-export progress boundaries.
+
+Verification:
+
+- Full randomized suite: **7,241 tests pass**, seed `20261030`; separate coverage
+  is **95.76% statements** (25,015 / 26,122) and **90.68% branches**
+  (5,051 / 5,570).
+- Isolated gates: **967 domain tests** and **2,918 application tests**, with
+  **100% statement and branch coverage** for configured targets. The application
+  gate includes every new library analysis stage and model conversion.
+- The five new file, backup, restore, retry and error-reporting boundaries reach
+  **100% statement and branch coverage** in the 437-test focused boundary run.
+- Package mypy passes for **400 source files**; new boundaries and tests pass
+  strict typing. Ruff, formatting and short/flat structure checks pass.
+- All **11 frozen public artifacts** match, including the unchanged Spotify
+  expression inventory. Frozen snapshots and original workflow fixtures remain
+  unchanged.
+
+Conversion, monthly workflows, counts, remaining legacy processors/loaders and
+operational integration still precede the final Item 6 ownership audit and PR.
