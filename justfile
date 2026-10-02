@@ -119,6 +119,16 @@ test-application:
         --cov=spotify_manager.application.discography_history \
         --cov=spotify_manager.application.discography_catalog \
         --cov=spotify_manager.application.discography_queues \
+        --cov=spotify_manager.application.new_year_values \
+        --cov=spotify_manager.application.new_year_effects \
+        --cov=spotify_manager.application.new_year_run \
+        --cov=spotify_manager.application.new_year_execution \
+        --cov=spotify_manager.application.new_year_planning \
+        --cov=spotify_manager.application.new_year_resolution \
+        --cov=spotify_manager.application.new_year_sources \
+        --cov=spotify_manager.application.new_year_charts \
+        --cov=spotify_manager.application.new_year_membership \
+        --cov=spotify_manager.application.new_year_retry \
         --cov=spotify_manager.application.queue_values \
         --cov=spotify_manager.application.genre_progress \
         --cov=spotify_manager.application.genre_values \

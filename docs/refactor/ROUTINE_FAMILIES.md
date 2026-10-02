@@ -1248,3 +1248,29 @@ suite passes 5,523 tests with seed 20261027 (94.89% statements, 87.84% branches)
 
 New Year, library/legacy and operational integration remain before Item 6 is
 complete and its pull request is opened.
+
+### New Year checkpoint
+
+New Year now has pure annual ranking and marker qualification policies, with an
+explicit timezone supplied at composition. Named application stages own complete
+history planning, marker resolution, chart reconciliation, membership retries and
+lazy checkpointed execution. State validation and legacy storage remain outer
+boundaries. Original public signatures, error identities and SDK expressions are
+retained at the compatibility facade.
+
+Immutable original evidence covers 13 annual rankings, 98 complete runs, 16
+accepted-effect recovery scenarios, 48 membership retry/reorder scenarios, ten
+calendar-year boundaries, 18 incomplete resumed records and two large histories
+exercising the 50/20/5 limits. Injected execution agrees with every captured
+outcome and failure prefix. Every mutation retry rereads current membership;
+marker searches can extend beyond the top fifty tracks. Stored overrides and
+native failures on incomplete resumed records keep their original timing.
+
+The isolated gates pass 853 domain and 2,036 application tests at 100% statement
+and branch coverage. New state boundaries also reach 100% in focused tests.
+Ruff, formatting, package mypy and strict inner-layer typing pass. All 11 frozen
+public artifacts match. The complete randomized suite passes 5,753 tests with
+seed 20261028.
+
+Library/legacy and operational integration remain before the final Item 6
+ownership audit and complete pull request.
