@@ -1,0 +1,662 @@
+[
+  {
+    "profile": "normal",
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated_at": "2026-08-08 00:00:00+00:00",
+        "cutoff_date": "2025-12-31",
+        "available_dates": 3,
+        "selected_date": "2020-01-02",
+        "date_index": 0,
+        "artists_on_date": 1,
+        "position": 1,
+        "artist": {
+          "name": "Artist",
+          "scrobbles": 1
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated_at": "2026-08-08 00:00:01+00:00",
+        "cutoff_date": "2025-12-31",
+        "available_dates": 3,
+        "selected_date": "2020-01-02",
+        "date_index": 0,
+        "artists_on_date": 1,
+        "position": 1,
+        "artist": {
+          "name": "Artist",
+          "scrobbles": 1
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated_at": "2026-08-08 00:00:59+00:00",
+        "cutoff_date": "2025-12-31",
+        "available_dates": 3,
+        "selected_date": "2020-01-02",
+        "date_index": 0,
+        "artists_on_date": 1,
+        "position": 1,
+        "artist": {
+          "name": "Artist",
+          "scrobbles": 1
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "second": 0,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "No artist-bearing Last.fm dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "second": 1,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "No artist-bearing Last.fm dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "second": 59,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "No artist-bearing Last.fm dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "second": 0,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "second": 1,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "second": 59,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "second": 0,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "second": 1,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "second": 59,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "second": 0,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "second": 1,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "second": 59,
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "second": 0,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "second": 1,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "second": 59,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated_at": "2026-08-08 00:00:00+00:00",
+        "cutoff_date": "2025-12-31",
+        "available_dates": 3,
+        "selected_date": "2021-01-02",
+        "date_index": 1,
+        "artists_on_date": 1,
+        "position": 1,
+        "artist": {
+          "name": "Artist",
+          "scrobbles": 2
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated_at": "2026-08-08 00:00:01+00:00",
+        "cutoff_date": "2025-12-31",
+        "available_dates": 3,
+        "selected_date": "2021-01-02",
+        "date_index": 1,
+        "artists_on_date": 1,
+        "position": 1,
+        "artist": {
+          "name": "Artist",
+          "scrobbles": 2
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated_at": "2026-08-08 00:00:59+00:00",
+        "cutoff_date": "2025-12-31",
+        "available_dates": 3,
+        "selected_date": "2021-01-02",
+        "date_index": 1,
+        "artists_on_date": 1,
+        "position": 1,
+        "artist": {
+          "name": "Artist",
+          "scrobbles": 2
+        }
+      },
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "second": 0,
+    "outcome": {
+      "error": "IndexError",
+      "message": "tuple index out of range",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "second": 1,
+    "outcome": {
+      "error": "IndexError",
+      "message": "tuple index out of range",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "second": 59,
+    "outcome": {
+      "error": "IndexError",
+      "message": "tuple index out of range",
+      "trace": [
+        [
+          "progress",
+          "Memory Lane is empty; loading Last.fm artist history"
+        ],
+        [
+          "history",
+          "/Users/uriel.fiori/dev/spotify-manager/tests/fixtures/refactor/history"
+        ],
+        [
+          "progress",
+          "Requesting a historical date from Random.org"
+        ],
+        [
+          "random",
+          3,
+          1
+        ]
+      ]
+    }
+  }
+]

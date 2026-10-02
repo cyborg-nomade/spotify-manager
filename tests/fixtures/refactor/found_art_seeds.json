@@ -1,0 +1,1316 @@
+{
+  "source": "f1704d0",
+  "scenarios": [
+    {
+      "name": "mixed",
+      "history": [
+        {
+          "artist": "artist0",
+          "track": "Track 0",
+          "key": [
+            "artist0",
+            "track0"
+          ],
+          "play_count": 100,
+          "recent_play_count": 20,
+          "annual_play_count": 50,
+          "last_played_ms": 1000
+        },
+        {
+          "artist": "artist1",
+          "track": "Track 1",
+          "key": [
+            "artist1",
+            "track1"
+          ],
+          "play_count": 99,
+          "recent_play_count": 19,
+          "annual_play_count": 49,
+          "last_played_ms": 999
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "play_count": 98,
+          "recent_play_count": 18,
+          "annual_play_count": 48,
+          "last_played_ms": 998
+        },
+        {
+          "artist": "artist3",
+          "track": "Track 3",
+          "key": [
+            "artist3",
+            "track3"
+          ],
+          "play_count": 97,
+          "recent_play_count": 17,
+          "annual_play_count": 47,
+          "last_played_ms": 997
+        },
+        {
+          "artist": "artist4",
+          "track": "Track 4",
+          "key": [
+            "artist4",
+            "track4"
+          ],
+          "play_count": 96,
+          "recent_play_count": 16,
+          "annual_play_count": 46,
+          "last_played_ms": 996
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "play_count": 95,
+          "recent_play_count": 15,
+          "annual_play_count": 45,
+          "last_played_ms": 995
+        },
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "play_count": 94,
+          "recent_play_count": 14,
+          "annual_play_count": 44,
+          "last_played_ms": 994
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "play_count": 93,
+          "recent_play_count": 13,
+          "annual_play_count": 43,
+          "last_played_ms": 993
+        },
+        {
+          "artist": "artist8",
+          "track": "Track 8",
+          "key": [
+            "artist8",
+            "track8"
+          ],
+          "play_count": 92,
+          "recent_play_count": 12,
+          "annual_play_count": 42,
+          "last_played_ms": 992
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "play_count": 91,
+          "recent_play_count": 11,
+          "annual_play_count": 41,
+          "last_played_ms": 991
+        },
+        {
+          "artist": "artist10",
+          "track": "Track 10",
+          "key": [
+            "artist10",
+            "track10"
+          ],
+          "play_count": 90,
+          "recent_play_count": 10,
+          "annual_play_count": 40,
+          "last_played_ms": 990
+        },
+        {
+          "artist": "artist11",
+          "track": "Track 11",
+          "key": [
+            "artist11",
+            "track11"
+          ],
+          "play_count": 89,
+          "recent_play_count": 9,
+          "annual_play_count": 39,
+          "last_played_ms": 989
+        }
+      ],
+      "seed_count": 6,
+      "week_start": "2026-07-17",
+      "seeds": [
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "source": "recent",
+          "play_count": 94,
+          "source_play_count": 14,
+          "weight": 1.5885062751377763,
+          "weekly_rank": 0.9961300139323356
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "source": "recent",
+          "play_count": 91,
+          "source_play_count": 11,
+          "weight": 1.5606133312235002,
+          "weekly_rank": 0.939678639818152
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "source": "annual",
+          "play_count": 98,
+          "source_play_count": 48,
+          "weight": 1.528100232792169,
+          "weekly_rank": 0.9894123202447186
+        },
+        {
+          "artist": "artist11",
+          "track": "Track 11",
+          "key": [
+            "artist11",
+            "track11"
+          ],
+          "source": "annual",
+          "play_count": 89,
+          "source_play_count": 39,
+          "weight": 1.505776739952533,
+          "weekly_rank": 0.9613871243344164
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "source": "overall",
+          "play_count": 95,
+          "source_play_count": 95,
+          "weight": 1.4564348191467835,
+          "weekly_rank": 0.9941124158992168
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "source": "overall",
+          "play_count": 93,
+          "source_play_count": 93,
+          "weight": 1.4543294782270004,
+          "weekly_rank": 0.9725420107105481
+        }
+      ]
+    },
+    {
+      "name": "single",
+      "history": [
+        {
+          "artist": "artist0",
+          "track": "Track 0",
+          "key": [
+            "artist0",
+            "track0"
+          ],
+          "play_count": 100,
+          "recent_play_count": 20,
+          "annual_play_count": 50,
+          "last_played_ms": 1000
+        },
+        {
+          "artist": "artist1",
+          "track": "Track 1",
+          "key": [
+            "artist1",
+            "track1"
+          ],
+          "play_count": 99,
+          "recent_play_count": 19,
+          "annual_play_count": 49,
+          "last_played_ms": 999
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "play_count": 98,
+          "recent_play_count": 18,
+          "annual_play_count": 48,
+          "last_played_ms": 998
+        },
+        {
+          "artist": "artist3",
+          "track": "Track 3",
+          "key": [
+            "artist3",
+            "track3"
+          ],
+          "play_count": 97,
+          "recent_play_count": 17,
+          "annual_play_count": 47,
+          "last_played_ms": 997
+        },
+        {
+          "artist": "artist4",
+          "track": "Track 4",
+          "key": [
+            "artist4",
+            "track4"
+          ],
+          "play_count": 96,
+          "recent_play_count": 16,
+          "annual_play_count": 46,
+          "last_played_ms": 996
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "play_count": 95,
+          "recent_play_count": 15,
+          "annual_play_count": 45,
+          "last_played_ms": 995
+        },
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "play_count": 94,
+          "recent_play_count": 14,
+          "annual_play_count": 44,
+          "last_played_ms": 994
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "play_count": 93,
+          "recent_play_count": 13,
+          "annual_play_count": 43,
+          "last_played_ms": 993
+        },
+        {
+          "artist": "artist8",
+          "track": "Track 8",
+          "key": [
+            "artist8",
+            "track8"
+          ],
+          "play_count": 92,
+          "recent_play_count": 12,
+          "annual_play_count": 42,
+          "last_played_ms": 992
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "play_count": 91,
+          "recent_play_count": 11,
+          "annual_play_count": 41,
+          "last_played_ms": 991
+        },
+        {
+          "artist": "artist10",
+          "track": "Track 10",
+          "key": [
+            "artist10",
+            "track10"
+          ],
+          "play_count": 90,
+          "recent_play_count": 10,
+          "annual_play_count": 40,
+          "last_played_ms": 990
+        },
+        {
+          "artist": "artist11",
+          "track": "Track 11",
+          "key": [
+            "artist11",
+            "track11"
+          ],
+          "play_count": 89,
+          "recent_play_count": 9,
+          "annual_play_count": 39,
+          "last_played_ms": 989
+        }
+      ],
+      "seed_count": 1,
+      "week_start": "2026-07-17",
+      "seeds": [
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "source": "recent",
+          "play_count": 94,
+          "source_play_count": 14,
+          "weight": 1.5885062751377763,
+          "weekly_rank": 0.9961300139323356
+        }
+      ]
+    },
+    {
+      "name": "two",
+      "history": [
+        {
+          "artist": "artist0",
+          "track": "Track 0",
+          "key": [
+            "artist0",
+            "track0"
+          ],
+          "play_count": 100,
+          "recent_play_count": 20,
+          "annual_play_count": 50,
+          "last_played_ms": 1000
+        },
+        {
+          "artist": "artist1",
+          "track": "Track 1",
+          "key": [
+            "artist1",
+            "track1"
+          ],
+          "play_count": 99,
+          "recent_play_count": 19,
+          "annual_play_count": 49,
+          "last_played_ms": 999
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "play_count": 98,
+          "recent_play_count": 18,
+          "annual_play_count": 48,
+          "last_played_ms": 998
+        },
+        {
+          "artist": "artist3",
+          "track": "Track 3",
+          "key": [
+            "artist3",
+            "track3"
+          ],
+          "play_count": 97,
+          "recent_play_count": 17,
+          "annual_play_count": 47,
+          "last_played_ms": 997
+        },
+        {
+          "artist": "artist4",
+          "track": "Track 4",
+          "key": [
+            "artist4",
+            "track4"
+          ],
+          "play_count": 96,
+          "recent_play_count": 16,
+          "annual_play_count": 46,
+          "last_played_ms": 996
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "play_count": 95,
+          "recent_play_count": 15,
+          "annual_play_count": 45,
+          "last_played_ms": 995
+        },
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "play_count": 94,
+          "recent_play_count": 14,
+          "annual_play_count": 44,
+          "last_played_ms": 994
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "play_count": 93,
+          "recent_play_count": 13,
+          "annual_play_count": 43,
+          "last_played_ms": 993
+        },
+        {
+          "artist": "artist8",
+          "track": "Track 8",
+          "key": [
+            "artist8",
+            "track8"
+          ],
+          "play_count": 92,
+          "recent_play_count": 12,
+          "annual_play_count": 42,
+          "last_played_ms": 992
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "play_count": 91,
+          "recent_play_count": 11,
+          "annual_play_count": 41,
+          "last_played_ms": 991
+        },
+        {
+          "artist": "artist10",
+          "track": "Track 10",
+          "key": [
+            "artist10",
+            "track10"
+          ],
+          "play_count": 90,
+          "recent_play_count": 10,
+          "annual_play_count": 40,
+          "last_played_ms": 990
+        },
+        {
+          "artist": "artist11",
+          "track": "Track 11",
+          "key": [
+            "artist11",
+            "track11"
+          ],
+          "play_count": 89,
+          "recent_play_count": 9,
+          "annual_play_count": 39,
+          "last_played_ms": 989
+        }
+      ],
+      "seed_count": 2,
+      "week_start": "2026-07-17",
+      "seeds": [
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "source": "recent",
+          "play_count": 94,
+          "source_play_count": 14,
+          "weight": 1.5885062751377763,
+          "weekly_rank": 0.9961300139323356
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "source": "annual",
+          "play_count": 98,
+          "source_play_count": 48,
+          "weight": 1.528100232792169,
+          "weekly_rank": 0.9894123202447186
+        }
+      ]
+    },
+    {
+      "name": "remainder",
+      "history": [
+        {
+          "artist": "artist0",
+          "track": "Track 0",
+          "key": [
+            "artist0",
+            "track0"
+          ],
+          "play_count": 100,
+          "recent_play_count": 20,
+          "annual_play_count": 50,
+          "last_played_ms": 1000
+        },
+        {
+          "artist": "artist1",
+          "track": "Track 1",
+          "key": [
+            "artist1",
+            "track1"
+          ],
+          "play_count": 99,
+          "recent_play_count": 19,
+          "annual_play_count": 49,
+          "last_played_ms": 999
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "play_count": 98,
+          "recent_play_count": 18,
+          "annual_play_count": 48,
+          "last_played_ms": 998
+        },
+        {
+          "artist": "artist3",
+          "track": "Track 3",
+          "key": [
+            "artist3",
+            "track3"
+          ],
+          "play_count": 97,
+          "recent_play_count": 17,
+          "annual_play_count": 47,
+          "last_played_ms": 997
+        },
+        {
+          "artist": "artist4",
+          "track": "Track 4",
+          "key": [
+            "artist4",
+            "track4"
+          ],
+          "play_count": 96,
+          "recent_play_count": 16,
+          "annual_play_count": 46,
+          "last_played_ms": 996
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "play_count": 95,
+          "recent_play_count": 15,
+          "annual_play_count": 45,
+          "last_played_ms": 995
+        },
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "play_count": 94,
+          "recent_play_count": 14,
+          "annual_play_count": 44,
+          "last_played_ms": 994
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "play_count": 93,
+          "recent_play_count": 13,
+          "annual_play_count": 43,
+          "last_played_ms": 993
+        },
+        {
+          "artist": "artist8",
+          "track": "Track 8",
+          "key": [
+            "artist8",
+            "track8"
+          ],
+          "play_count": 92,
+          "recent_play_count": 12,
+          "annual_play_count": 42,
+          "last_played_ms": 992
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "play_count": 91,
+          "recent_play_count": 11,
+          "annual_play_count": 41,
+          "last_played_ms": 991
+        },
+        {
+          "artist": "artist10",
+          "track": "Track 10",
+          "key": [
+            "artist10",
+            "track10"
+          ],
+          "play_count": 90,
+          "recent_play_count": 10,
+          "annual_play_count": 40,
+          "last_played_ms": 990
+        },
+        {
+          "artist": "artist11",
+          "track": "Track 11",
+          "key": [
+            "artist11",
+            "track11"
+          ],
+          "play_count": 89,
+          "recent_play_count": 9,
+          "annual_play_count": 39,
+          "last_played_ms": 989
+        }
+      ],
+      "seed_count": 4,
+      "week_start": "2026-07-17",
+      "seeds": [
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "source": "recent",
+          "play_count": 94,
+          "source_play_count": 14,
+          "weight": 1.5885062751377763,
+          "weekly_rank": 0.9961300139323356
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "source": "recent",
+          "play_count": 91,
+          "source_play_count": 11,
+          "weight": 1.5606133312235002,
+          "weekly_rank": 0.939678639818152
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "source": "annual",
+          "play_count": 98,
+          "source_play_count": 48,
+          "weight": 1.528100232792169,
+          "weekly_rank": 0.9894123202447186
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "source": "overall",
+          "play_count": 95,
+          "source_play_count": 95,
+          "weight": 1.4564348191467835,
+          "weekly_rank": 0.9941124158992168
+        }
+      ]
+    },
+    {
+      "name": "fallback",
+      "history": [
+        {
+          "artist": "artist0",
+          "track": "Track 0",
+          "key": [
+            "artist0",
+            "track0"
+          ],
+          "play_count": 100,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 1000
+        },
+        {
+          "artist": "artist1",
+          "track": "Track 1",
+          "key": [
+            "artist1",
+            "track1"
+          ],
+          "play_count": 99,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 999
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "play_count": 98,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 998
+        },
+        {
+          "artist": "artist3",
+          "track": "Track 3",
+          "key": [
+            "artist3",
+            "track3"
+          ],
+          "play_count": 97,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 997
+        },
+        {
+          "artist": "artist4",
+          "track": "Track 4",
+          "key": [
+            "artist4",
+            "track4"
+          ],
+          "play_count": 96,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 996
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "play_count": 95,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 995
+        },
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "play_count": 94,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 994
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "play_count": 93,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 993
+        },
+        {
+          "artist": "artist8",
+          "track": "Track 8",
+          "key": [
+            "artist8",
+            "track8"
+          ],
+          "play_count": 92,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 992
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "play_count": 91,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 991
+        },
+        {
+          "artist": "artist10",
+          "track": "Track 10",
+          "key": [
+            "artist10",
+            "track10"
+          ],
+          "play_count": 90,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 990
+        },
+        {
+          "artist": "artist11",
+          "track": "Track 11",
+          "key": [
+            "artist11",
+            "track11"
+          ],
+          "play_count": 89,
+          "recent_play_count": 0,
+          "annual_play_count": 0,
+          "last_played_ms": 989
+        }
+      ],
+      "seed_count": 6,
+      "week_start": "2026-07-17",
+      "seeds": [
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "source": "overall",
+          "play_count": 95,
+          "source_play_count": 95,
+          "weight": 1.4564348191467835,
+          "weekly_rank": 0.9941124158992168
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "source": "overall",
+          "play_count": 93,
+          "source_play_count": 93,
+          "weight": 1.4543294782270004,
+          "weekly_rank": 0.9725420107105481
+        },
+        {
+          "artist": "artist4",
+          "track": "Track 4",
+          "key": [
+            "artist4",
+            "track4"
+          ],
+          "source": "overall",
+          "play_count": 96,
+          "source_play_count": 96,
+          "weight": 1.4574710978503382,
+          "weekly_rank": 0.9328570489107787
+        },
+        {
+          "artist": "artist8",
+          "track": "Track 8",
+          "key": [
+            "artist8",
+            "track8"
+          ],
+          "source": "overall",
+          "play_count": 92,
+          "source_play_count": 92,
+          "weight": 1.4532599493153255,
+          "weekly_rank": 0.9015796819426685
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "source": "overall",
+          "play_count": 98,
+          "source_play_count": 98,
+          "weight": 1.459511985013459,
+          "weekly_rank": 0.8953963404930383
+        },
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "source": "overall",
+          "play_count": 94,
+          "source_play_count": 94,
+          "weight": 1.4553876891600541,
+          "weekly_rank": 0.8843293592075527
+        }
+      ]
+    },
+    {
+      "name": "duplicates",
+      "history": [
+        {
+          "artist": "artist0",
+          "track": "Track 0",
+          "key": [
+            "artist0",
+            "track0"
+          ],
+          "play_count": 100,
+          "recent_play_count": 20,
+          "annual_play_count": 50,
+          "last_played_ms": 1000
+        },
+        {
+          "artist": "artist1",
+          "track": "Track 1",
+          "key": [
+            "artist0",
+            "track0"
+          ],
+          "play_count": 100,
+          "recent_play_count": 20,
+          "annual_play_count": 50,
+          "last_played_ms": 1000
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "play_count": 98,
+          "recent_play_count": 18,
+          "annual_play_count": 48,
+          "last_played_ms": 998
+        },
+        {
+          "artist": "artist3",
+          "track": "Track 3",
+          "key": [
+            "artist3",
+            "track3"
+          ],
+          "play_count": 97,
+          "recent_play_count": 17,
+          "annual_play_count": 47,
+          "last_played_ms": 997
+        },
+        {
+          "artist": "artist4",
+          "track": "Track 4",
+          "key": [
+            "artist4",
+            "track4"
+          ],
+          "play_count": 96,
+          "recent_play_count": 16,
+          "annual_play_count": 46,
+          "last_played_ms": 996
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "play_count": 95,
+          "recent_play_count": 15,
+          "annual_play_count": 45,
+          "last_played_ms": 995
+        },
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "play_count": 94,
+          "recent_play_count": 14,
+          "annual_play_count": 44,
+          "last_played_ms": 994
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "play_count": 93,
+          "recent_play_count": 13,
+          "annual_play_count": 43,
+          "last_played_ms": 993
+        },
+        {
+          "artist": "artist8",
+          "track": "Track 8",
+          "key": [
+            "artist8",
+            "track8"
+          ],
+          "play_count": 92,
+          "recent_play_count": 12,
+          "annual_play_count": 42,
+          "last_played_ms": 992
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "play_count": 91,
+          "recent_play_count": 11,
+          "annual_play_count": 41,
+          "last_played_ms": 991
+        },
+        {
+          "artist": "artist10",
+          "track": "Track 10",
+          "key": [
+            "artist10",
+            "track10"
+          ],
+          "play_count": 90,
+          "recent_play_count": 10,
+          "annual_play_count": 40,
+          "last_played_ms": 990
+        },
+        {
+          "artist": "artist11",
+          "track": "Track 11",
+          "key": [
+            "artist11",
+            "track11"
+          ],
+          "play_count": 89,
+          "recent_play_count": 9,
+          "annual_play_count": 39,
+          "last_played_ms": 989
+        }
+      ],
+      "seed_count": 6,
+      "week_start": "2026-07-17",
+      "seeds": [
+        {
+          "artist": "artist6",
+          "track": "Track 6",
+          "key": [
+            "artist6",
+            "track6"
+          ],
+          "source": "recent",
+          "play_count": 94,
+          "source_play_count": 14,
+          "weight": 1.5885062751377763,
+          "weekly_rank": 0.9961300139323356
+        },
+        {
+          "artist": "artist9",
+          "track": "Track 9",
+          "key": [
+            "artist9",
+            "track9"
+          ],
+          "source": "recent",
+          "play_count": 91,
+          "source_play_count": 11,
+          "weight": 1.5606133312235002,
+          "weekly_rank": 0.939678639818152
+        },
+        {
+          "artist": "artist2",
+          "track": "Track 2",
+          "key": [
+            "artist2",
+            "track2"
+          ],
+          "source": "annual",
+          "play_count": 98,
+          "source_play_count": 48,
+          "weight": 1.528100232792169,
+          "weekly_rank": 0.9894123202447186
+        },
+        {
+          "artist": "artist11",
+          "track": "Track 11",
+          "key": [
+            "artist11",
+            "track11"
+          ],
+          "source": "annual",
+          "play_count": 89,
+          "source_play_count": 39,
+          "weight": 1.505776739952533,
+          "weekly_rank": 0.9613871243344164
+        },
+        {
+          "artist": "artist5",
+          "track": "Track 5",
+          "key": [
+            "artist5",
+            "track5"
+          ],
+          "source": "overall",
+          "play_count": 95,
+          "source_play_count": 95,
+          "weight": 1.4564348191467835,
+          "weekly_rank": 0.9941124158992168
+        },
+        {
+          "artist": "artist7",
+          "track": "Track 7",
+          "key": [
+            "artist7",
+            "track7"
+          ],
+          "source": "overall",
+          "play_count": 93,
+          "source_play_count": 93,
+          "weight": 1.4543294782270004,
+          "weekly_rank": 0.9725420107105481
+        }
+      ]
+    },
+    {
+      "name": "one-artist",
+      "history": [
+        {
+          "artist": "same",
+          "track": "Track 0",
+          "key": [
+            "same",
+            "track0"
+          ],
+          "play_count": 100,
+          "recent_play_count": 20,
+          "annual_play_count": 50,
+          "last_played_ms": 1000
+        },
+        {
+          "artist": "same",
+          "track": "Track 1",
+          "key": [
+            "same",
+            "track1"
+          ],
+          "play_count": 99,
+          "recent_play_count": 19,
+          "annual_play_count": 49,
+          "last_played_ms": 999
+        },
+        {
+          "artist": "same",
+          "track": "Track 2",
+          "key": [
+            "same",
+            "track2"
+          ],
+          "play_count": 98,
+          "recent_play_count": 18,
+          "annual_play_count": 48,
+          "last_played_ms": 998
+        },
+        {
+          "artist": "same",
+          "track": "Track 3",
+          "key": [
+            "same",
+            "track3"
+          ],
+          "play_count": 97,
+          "recent_play_count": 17,
+          "annual_play_count": 47,
+          "last_played_ms": 997
+        },
+        {
+          "artist": "same",
+          "track": "Track 4",
+          "key": [
+            "same",
+            "track4"
+          ],
+          "play_count": 96,
+          "recent_play_count": 16,
+          "annual_play_count": 46,
+          "last_played_ms": 996
+        }
+      ],
+      "seed_count": 4,
+      "week_start": "2026-07-17",
+      "error": "Only 2 sufficiently diverse seed tracks are available; 4 were requested."
+    }
+  ]
+}

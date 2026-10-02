@@ -1,15 +1,13 @@
-"""Build export-only and live-only Spotify library mirrors."""
+"""Preserve public analysis seams while binding typed inner business stages.
 
-import json
-import shutil
+The legacy checkpoint dictionaries remain permissive external boundaries. Inner
+stages use typed progress views without changing validation or persisted bytes.
+"""
+
 from collections.abc import Callable
 from collections.abc import Sequence
-from dataclasses import asdict
-from dataclasses import dataclass
-from dataclasses import replace
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from time import sleep as default_sleep
 from typing import Any
@@ -17,44 +15,100 @@ from typing import Literal
 from typing import cast
 
 from pydantic import BaseModel
-from requests.exceptions import ConnectionError as RequestsConnectionError
-from requests.exceptions import Timeout as RequestsTimeout
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application import library_analysis_artists as analysis_artists
+from spotify_manager.application import (
+    library_analysis_checkpoint as analysis_checkpoints,
+)
+from spotify_manager.application import library_analysis_export as analysis_export
+from spotify_manager.application import library_analysis_offsets as analysis_offsets
+from spotify_manager.application import (
+    library_analysis_publication as analysis_publication_owner,
+)
+from spotify_manager.application import library_analysis_records as analysis_records
+from spotify_manager.application import library_analysis_run as analysis_runs
+from spotify_manager.application import library_analysis_values as analysis_values_paths
+from spotify_manager.application.library_analysis_values import Checkpoint
+from spotify_manager.application.library_analysis_values import (
+    LibraryAnalysisPaths as LibraryAnalysisPaths,
+)
+from spotify_manager.bootstrap.library_analysis import (
+    analysis_files as analysis_storage,
+)
+from spotify_manager.bootstrap.library_analysis import analysis_publication
+from spotify_manager.bootstrap.library_analysis import analysis_session
+
 # UFI
 from spotify_manager.core.library_data.runtime import publish_managed_path
-from spotify_manager.models.stats import AlbumsStats
-from spotify_manager.models.stats import ArtistsStats
+from spotify_manager.domain import library_analysis as analysis_policy
+from spotify_manager.domain import library_analysis_values as analysis_values
+from spotify_manager.domain.library_analysis_values import (
+    ALBUM_PAGE_LIMIT as ALBUM_PAGE_LIMIT,
+)
+from spotify_manager.domain.library_analysis_values import (
+    ARTIST_DIRECT_MAX_PAGES as ARTIST_DIRECT_MAX_PAGES,
+)
+from spotify_manager.domain.library_analysis_values import (
+    ARTIST_PAGE_LIMIT as ARTIST_PAGE_LIMIT,
+)
+from spotify_manager.domain.library_analysis_values import (
+    ARTIST_VERIFICATION_BATCH_LIMIT as ARTIST_VERIFICATION_BATCH_LIMIT,
+)
+from spotify_manager.domain.library_analysis_values import (
+    ARTIST_VERIFICATION_MAX_ATTEMPTS as ARTIST_VERIFICATION_MAX_ATTEMPTS,
+)
+from spotify_manager.domain.library_analysis_values import (
+    OFFSET_RECONCILIATION_STABLE_PAGES as OFFSET_RECONCILIATION_STABLE_PAGES,
+)
+from spotify_manager.domain.library_analysis_values import (
+    RECONCILIATION_STABLE_PASSES as RECONCILIATION_STABLE_PASSES,
+)
+from spotify_manager.domain.library_analysis_values import (
+    TRACK_PAGE_LIMIT as TRACK_PAGE_LIMIT,
+)
+from spotify_manager.domain.library_analysis_values import (
+    IncompleteLiveResourceError as IncompleteLiveResourceError,
+)
+from spotify_manager.domain.library_analysis_values import (
+    LibraryAnalysisCancelledError as LibraryAnalysisCancelledError,
+)
+from spotify_manager.domain.library_analysis_values import (
+    LibrarySyncError as LibrarySyncError,
+)
+from spotify_manager.domain.library_analysis_values import (
+    LibrarySyncRestoreError as LibrarySyncRestoreError,
+)
+from spotify_manager.domain.library_analysis_values import (
+    LibrarySyncSummary as LibrarySyncSummary,
+)
+from spotify_manager.domain.library_analysis_values import (
+    ResourceSyncSummary as ResourceSyncSummary,
+)
+from spotify_manager.domain.library_analysis_values import RetryNotice as RetryNotice
+from spotify_manager.infrastructure import library_analysis_backups as analysis_backups
+from spotify_manager.infrastructure import library_analysis_files as analysis_files
+from spotify_manager.infrastructure import library_analysis_restore as analysis_restore
+from spotify_manager.infrastructure.library_analysis_errors import AnalysisFailure
+from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
+from spotify_manager.infrastructure.library_records import (
+    current_stats_history_key as current_stats_history_key,
+)
+from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
 from spotify_manager.models.stats import StatsReport
-from spotify_manager.models.stats import TracksStats
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
-from spotify_manager.routines.review_album_limits import SpotifyRateLimitError
-from spotify_manager.routines.review_album_limits import current_stats_history_key
-from spotify_manager.routines.review_album_limits import get_retry_after_seconds
-from spotify_manager.utils.growth import calculate_growth
-from spotify_manager.utils.sorting import album_sort_key
-from spotify_manager.utils.sorting import artist_sort_key
-from spotify_manager.utils.sorting import track_sort_key
 
 
-ALBUM_PAGE_LIMIT = 50
-TRACK_PAGE_LIMIT = 10
-ARTIST_PAGE_LIMIT = 10
-ARTIST_DIRECT_MAX_PAGES = 25
-ARTIST_VERIFICATION_BATCH_LIMIT = 40
-ARTIST_VERIFICATION_MAX_ATTEMPTS = 3
-RECONCILIATION_STABLE_PASSES = 2
-OFFSET_RECONCILIATION_STABLE_PAGES = {
-    "albums": 2,
-    "tracks": 3,
-}
 TRANSIENT_RETRY_BASE_SECONDS = 10
 TRANSIENT_RETRY_MAX_SECONDS = 30 * 60
 CHECKPOINT_VERSION = 1
+_FollowedArtistsEndpointUnavailableError = (
+    analysis_values._FollowedArtistsEndpointUnavailableError
+)
 
 AnalysisMode = Literal["async", "sync", "mirrors"]
 ResourceName = Literal["albums", "tracks", "artists"]
@@ -66,62 +120,7 @@ Sleep = Callable[[float], None]
 LibraryModel = YourLibraryAlbum | YourLibraryTrack | YourLibraryArtist
 
 
-@dataclass(frozen=True)
-class RetryNotice:
-    """One scheduled retry after a transient Spotify failure."""
-
-    http_status: int | None
-    operation: str
-    attempt: int
-    delay_seconds: int
-
-
 RetryWait = Callable[[RetryNotice], bool]
-
-
-@dataclass(frozen=True)
-class LibraryAnalysisPaths:
-    """Filesystem paths for one independent analysis output family."""
-
-    mode: AnalysisMode
-    files_dir: Path
-    your_library: Path
-    albums_total: Path
-    liked_tracks_total: Path
-    artists_total: Path
-    stats_history: Path
-    checkpoint: Path
-    staging_dir: Path
-    event_log: Path
-    backups_dir: Path
-
-    @classmethod
-    def for_files_dir(
-        cls,
-        files_dir: Path,
-        mode: AnalysisMode = "sync",
-    ) -> LibraryAnalysisPaths:
-        """Build conventional paths beneath ``files_dir`` for one mode."""
-        workspace = files_dir / f"library_analysis_{mode}"
-        suffix = "" if mode == "mirrors" else f"_{mode}"
-        return cls(
-            mode=mode,
-            files_dir=files_dir,
-            your_library=files_dir / "YourLibrary.json",
-            albums_total=files_dir / f"albums_total_new{suffix}.json",
-            liked_tracks_total=files_dir / f"liked_tracks_total{suffix}.json",
-            artists_total=files_dir / f"artists_total{suffix}.json",
-            stats_history=files_dir / f"stats_history{suffix}.json",
-            checkpoint=workspace / "checkpoint.json",
-            staging_dir=workspace / "staging",
-            event_log=files_dir / f"library_analysis_{mode}_log.jsonl",
-            backups_dir=files_dir / f"library_analysis_{mode}_backups",
-        )
-
-    def stage(self, resource: ResourceName) -> Path:
-        """Return the staging path for one resource."""
-        suffix = ".json" if self.mode == "async" else ".jsonl"
-        return self.staging_dir / f"{resource}{suffix}"
 
 
 # Backwards-compatible type name for callers that supplied custom paths.
@@ -133,78 +132,46 @@ DEFAULT_LIVE_MIRROR_PATHS = LibraryAnalysisPaths.for_files_dir(FILES_DIR, "mirro
 DEFAULT_PATHS = DEFAULT_SYNC_PATHS
 
 
-@dataclass(frozen=True)
-class ResourceSyncSummary:
-    """Final source and diff counts for one generated file."""
-
-    resource: ResourceName
-    source: str
-    previous: int
-    current: int
-    added: int
-    removed: int
-    skipped: int = 0
-
-
-@dataclass(frozen=True)
-class LibrarySyncSummary:
-    """Final outcome of one completed library analysis."""
-
-    run_id: str
-    mode: AnalysisMode
-    backup_dir: str
-    resources: tuple[ResourceSyncSummary, ...]
-
-
-class LibrarySyncError(RuntimeError):
-    """Base exception for an analysis that cannot safely publish output."""
-
-
-class LibraryAnalysisCancelledError(LibrarySyncError):
-    """Raised after a user requests a clean, checkpointed stop."""
-
-
-class IncompleteLiveResourceError(LibrarySyncError):
-    """Raised when Spotify returns a structurally incomplete page sequence."""
-
-
-class _FollowedArtistsEndpointUnavailableError(RuntimeError):
-    """Signal that cursor discovery should switch to verified fallback."""
-
-
-class LibrarySyncRestoreError(LibrarySyncError):
-    """Raised when a requested analysis backup cannot be restored."""
-
-
 def utc_now() -> str:
-    """Return an ISO-8601 UTC timestamp."""
+    """Return an ISO-8601 UTC timestamp.
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     return datetime.now(UTC).isoformat()
 
 
 def new_run_id() -> str:
-    """Return a sortable identifier for one analysis run."""
+    """Return a sortable identifier for one analysis run.
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
 
 
 def write_json_atomic(path: Path, value: object) -> None:
-    """Write JSON through a sibling temporary file and atomically replace it."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(f"{path.suffix}.tmp")
-    temporary.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    temporary.replace(path)
+    """Write JSON through a sibling temporary file and atomically replace it.
+
+    Args:
+        path: Original complete file or staging location.
+        value: Original complete JSON value to accept.
+    """
+    return analysis_files.write_json_atomic(path, value)
 
 
 def load_json(path: Path, default: object | None = None) -> Any:
-    """Load JSON, returning ``default`` when the file does not exist."""
-    if not path.exists():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise LibrarySyncError(f"Could not read valid JSON from {path}.") from exc
+    """Load JSON, returning ``default`` when the file does not exist.
+
+    Args:
+        path: Original complete file or staging location.
+        default: Original value returned when the file is absent.
+
+
+    Returns:
+        Unvalidated original external JSON or the caller-supplied default.
+    """
+    return analysis_files.load_json(path, default)
 
 
 def append_event(
@@ -213,147 +180,155 @@ def append_event(
     event: str,
     **details: object,
 ) -> None:
-    """Append one durable JSON-lines audit event."""
-    paths.event_log.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "timestamp": utc_now(),
-        "run_id": run_id,
-        "mode": paths.mode,
-        "event": event,
-        **details,
-    }
-    with paths.event_log.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    """Append one durable JSON-lines audit event.
+
+    Args:
+        paths: Original independent output family.
+        run_id: Original sortable run identity.
+        event: Original audit event name.
+        details: Original complete audit facts, including unknown keys.
+    """
+    return analysis_files.append_event(utc_now, paths, run_id, event, **details)
 
 
 def write_models(path: Path, models: Sequence[BaseModel]) -> None:
-    """Atomically write a list of Pydantic models."""
-    write_json_atomic(path, [model.model_dump() for model in models])
-    publish_managed_path(path, source="Spotify live library refresh")
+    """Atomically write a list of Pydantic models.
+
+    Args:
+        path: Original complete file or staging location.
+        models: Original complete ordered model values.
+    """
+    return analysis_files.write_models(
+        path, models, write=write_json_atomic, publish=_publish_restored
+    )
 
 
 def append_models_jsonl(path: Path, models: Sequence[BaseModel]) -> None:
-    """Append models to a resumable JSON-lines staging file."""
-    if not models:
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        for model in models:
-            handle.write(json.dumps(model.model_dump(), ensure_ascii=False) + "\n")
+    """Append models to a resumable JSON-lines staging file.
+
+    Args:
+        path: Original complete file or staging location.
+        models: Original complete ordered model values.
+    """
+    return analysis_files.append_models_jsonl(path, models)
 
 
 def load_model_list[T: BaseModel](path: Path, model: type[T]) -> list[T]:
-    """Load a JSON array of models, treating a missing file as empty."""
-    raw = load_json(path, default=[])
-    if not isinstance(raw, list):
-        raise LibrarySyncError(f"Expected a JSON list in {path}.")
-    return [model.model_validate(item) for item in raw]
+    """Load a JSON array of models, treating a missing file as empty.
+
+    Args:
+        path: Original complete file or staging location.
+        model: Original tolerant model constructor.
+
+
+    Returns:
+        Original complete models in stored array order.
+    """
+    return analysis_files.load_model_list(path, model, read=load_json)
 
 
 def load_models_jsonl[T: BaseModel](path: Path, model: type[T]) -> list[T]:
-    """Load models from JSON-lines staging, ignoring a torn final line."""
-    if not path.exists():
-        return []
-    models: list[T] = []
-    lines = path.read_text(encoding="utf-8").splitlines()
-    for index, line in enumerate(lines):
-        try:
-            models.append(model.model_validate_json(line))
-        except ValueError, json.JSONDecodeError:
-            if index == len(lines) - 1:
-                break
-            raise LibrarySyncError(f"Invalid staging data in {path}.") from None
-    return models
+    """Load models from JSON-lines staging, ignoring a torn final line.
+
+    Args:
+        path: Original complete file or staging location.
+        model: Original tolerant model constructor.
+
+
+    Returns:
+        Original accepted staged models before a torn final record.
+    """
+    return analysis_files.load_models_jsonl(path, model)
 
 
 def deduplicate_models[T: LibraryModel](models: Sequence[T]) -> list[T]:
-    """Deduplicate models by Spotify id while preserving the newest value."""
-    by_id: dict[str, T] = {}
-    for model in models:
-        spotify_id = getattr(model, "spotify_id", "")
-        if spotify_id:
-            by_id[spotify_id] = model
-    return list(by_id.values())
+    """Deduplicate models by Spotify id while preserving the newest value.
+
+    Args:
+        models: Original complete ordered model values.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.infrastructure.library_models import (
+        deduplicate_models as deduplicate,
+    )
+
+    return deduplicate(models)
 
 
 def load_your_library(paths: LibraryAnalysisPaths) -> YourLibraryFile:
-    """Load the Spotify export used exclusively by async analysis."""
-    raw = load_json(paths.your_library)
-    if raw is None:
-        raise LibrarySyncError(f"Your Library export not found: {paths.your_library}")
-    try:
-        return YourLibraryFile.model_validate(raw)
-    except ValueError as exc:
-        raise LibrarySyncError(
-            f"Your Library export is invalid: {paths.your_library}"
-        ) from exc
+    """Load the Spotify export used exclusively by async analysis.
+
+    Args:
+        paths: Original independent output family.
+
+
+    Returns:
+        Original validated export authority.
+    """
+    return analysis_files.load_your_library(paths, read=load_json)
 
 
 def album_from_saved_item(item: object) -> YourLibraryAlbum | None:
-    """Convert one Spotify saved-album item into the local model."""
-    if not isinstance(item, dict) or not isinstance(item.get("album"), dict):
-        return None
-    album = item["album"]
-    artists = album.get("artists")
-    primary = artists[0] if isinstance(artists, list) and artists else {}
-    spotify_id = album.get("id")
-    name = album.get("name")
-    artist_name = primary.get("name") if isinstance(primary, dict) else None
-    if not spotify_id or not name or not artist_name:
-        return None
-    return YourLibraryAlbum(
-        artist=str(artist_name),
-        album=str(name),
-        uri=str(album.get("uri") or f"spotify:album:{spotify_id}"),
+    """Convert one Spotify saved-album item into the local model.
+
+    Args:
+        item: Original unvalidated Spotify boundary row.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    from spotify_manager.infrastructure.library_models import (
+        album_from_saved_item as parse_album,
     )
+
+    return parse_album(item)
 
 
 def track_from_saved_item(item: object) -> YourLibraryTrack | None:
-    """Convert one Spotify saved-track item into the local model."""
-    if not isinstance(item, dict) or not isinstance(item.get("track"), dict):
-        return None
-    track = item["track"]
-    artists = track.get("artists")
-    primary = artists[0] if isinstance(artists, list) and artists else {}
-    album = track.get("album")
-    spotify_id = track.get("id")
-    name = track.get("name")
-    artist_name = primary.get("name") if isinstance(primary, dict) else None
-    album_name = album.get("name") if isinstance(album, dict) else None
-    if not spotify_id or not name or not artist_name or not album_name:
-        return None
-    return YourLibraryTrack(
-        artist=str(artist_name),
-        album=str(album_name),
-        track=str(name),
-        uri=str(track.get("uri") or f"spotify:track:{spotify_id}"),
-    )
+    """Convert one Spotify saved-track item into the local model.
+
+    Args:
+        item: Original unvalidated Spotify boundary row.
+
+
+    Returns:
+        Original saved-track model or none for unusable raw facts.
+    """
+    return analysis_files.track_from_saved_item(item)
 
 
 def artist_from_api_item(item: object) -> YourLibraryArtist | None:
-    """Convert one Spotify artist object into the local model."""
-    if not isinstance(item, dict):
-        return None
-    spotify_id = item.get("id")
-    name = item.get("name")
-    if not spotify_id or not name:
-        return None
-    return YourLibraryArtist(
-        name=str(name),
-        uri=str(item.get("uri") or f"spotify:artist:{spotify_id}"),
-    )
+    """Convert one Spotify artist object into the local model.
+
+    Args:
+        item: Original unvalidated Spotify boundary row.
+
+
+    Returns:
+        Original artist model or none for unusable raw facts.
+    """
+    return analysis_files.artist_from_api_item(item)
 
 
 def model_diff(
     previous: Sequence[LibraryModel],
     current: Sequence[LibraryModel],
 ) -> tuple[list[LibraryModel], list[LibraryModel]]:
-    """Return models added to and removed from a Spotify-id keyed mirror."""
-    previous_by_id = {item.spotify_id: item for item in previous}
-    current_by_id = {item.spotify_id: item for item in current}
-    added = [item for key, item in current_by_id.items() if key not in previous_by_id]
-    removed = [item for key, item in previous_by_id.items() if key not in current_by_id]
-    return added, removed
+    """Return models added to and removed from a Spotify-id keyed mirror.
+
+    Args:
+        previous: Original complete models before analysis.
+        current: Original complete models after analysis.
+
+
+    Returns:
+        Original added and removed newest-value models in encounter order.
+    """
+    return analysis_policy.model_diff(previous, current)
 
 
 def stats_report_for_analysis(
@@ -364,32 +339,22 @@ def stats_report_for_analysis(
     previous_artists: Sequence[YourLibraryArtist],
     artists: Sequence[YourLibraryArtist],
 ) -> StatsReport:
-    """Build a stats report from exact pre/post analysis mirrors."""
-    added_albums, removed_albums = model_diff(previous_albums, albums)
-    added_tracks, removed_tracks = model_diff(previous_tracks, tracks)
-    added_artists, removed_artists = model_diff(previous_artists, artists)
-    artist_count = max(1, len(artists))
-    return StatsReport(
-        albums_stats=AlbumsStats(
-            total_saved_albums=len(albums),
-            removed_albums=len(removed_albums),
-            added_albums=len(added_albums),
-            growth=calculate_growth(len(albums), len(previous_albums)),
-        ),
-        artists_stats=ArtistsStats(
-            total_followed_artists=len(artists),
-            removed_artists=len(removed_artists),
-            added_artists=len(added_artists),
-            growth=calculate_growth(len(artists), len(previous_artists)),
-        ),
-        tracks_stats=TracksStats(
-            total_liked_tracks=len(tracks),
-            removed_tracks=len(removed_tracks),
-            added_tracks=len(added_tracks),
-            growth=calculate_growth(len(tracks), len(previous_tracks)),
-        ),
-        avg_albums_per_artists=len(albums) // artist_count,
-        avg_liked_tracks_per_artists=len(tracks) // artist_count,
+    """Build a stats report from exact pre/post analysis mirrors.
+
+    Args:
+        previous_albums: Original pre-analysis saved albums.
+        albums: Original complete saved-album facts.
+        previous_tracks: Original pre-analysis liked tracks.
+        tracks: Original complete liked-track facts.
+        previous_artists: Original pre-analysis followed artists.
+        artists: Original complete followed-artist facts.
+
+
+    Returns:
+        Original size, membership-difference and growth counts.
+    """
+    return analysis_records.stats_report_for_analysis(
+        previous_albums, albums, previous_tracks, tracks, previous_artists, artists
     )
 
 
@@ -400,27 +365,35 @@ def resource_summary(
     current: Sequence[LibraryModel],
     skipped: int,
 ) -> ResourceSyncSummary:
-    """Build one resource summary and exact diff counts."""
-    added, removed = model_diff(previous, current)
-    return ResourceSyncSummary(
-        resource=resource,
-        source=source,
-        previous=len(previous),
-        current=len(current),
-        added=len(added),
-        removed=len(removed),
-        skipped=skipped,
+    """Build one resource summary and exact diff counts.
+
+    Args:
+        resource: Original active library resource identity.
+        source: Original source authority or publication label.
+        previous: Original complete models before analysis.
+        current: Original complete models after analysis.
+        skipped: Original skipped raw-row count.
+
+
+    Returns:
+        Original source and exact pre/post difference counts.
+    """
+    return analysis_policy.resource_summary(
+        resource, source, previous, current, skipped
     )
 
 
 def backup_targets(paths: LibraryAnalysisPaths) -> dict[str, Path]:
-    """Return every generated file changed by publication."""
-    return {
-        "albums": paths.albums_total,
-        "tracks": paths.liked_tracks_total,
-        "artists": paths.artists_total,
-        "stats_history": paths.stats_history,
-    }
+    """Return every generated file changed by publication.
+
+    Args:
+        paths: Original independent output family.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_backups.backup_targets(paths)
 
 
 def create_backup_manifest(
@@ -431,59 +404,42 @@ def create_backup_manifest(
     report: StatsReport,
     summaries: tuple[ResourceSyncSummary, ...],
 ) -> Path:
-    """Snapshot generated files and record exact changes for review and undo."""
-    backup_dir = paths.backups_dir / run_id
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    targets: dict[str, dict[str, object]] = {}
-    for name, target_path in backup_targets(paths).items():
-        backup_name = f"{name}.before.json"
-        existed = target_path.exists()
-        if existed:
-            shutil.copy2(target_path, backup_dir / backup_name)
-        targets[name] = {
-            "target_name": target_path.name,
-            "existed": existed,
-            "backup_file": backup_name if existed else None,
-        }
+    """Snapshot generated files and record exact changes for review and undo.
 
-    changes: dict[str, object] = {}
-    for resource in ("albums", "tracks", "artists"):
-        added, removed = model_diff(previous[resource], current[resource])
-        changes[resource] = {
-            "added": [item.model_dump() for item in added],
-            "removed": [item.model_dump() for item in removed],
-        }
+    Args:
+        paths: Original independent output family.
+        run_id: Original sortable run identity.
+        previous: Original complete models before analysis.
+        current: Original complete models after analysis.
+        report: Original complete pre/post analysis statistics.
+        summaries: Original ordered resource outcomes.
 
-    manifest = {
-        "version": 1,
-        "run_id": run_id,
-        "mode": paths.mode,
-        "created_at": utc_now(),
-        "targets": targets,
-        "changes": changes,
-        "stats_report": report.model_dump(),
-        "summaries": [asdict(summary) for summary in summaries],
-    }
-    write_json_atomic(backup_dir / "manifest.json", manifest)
-    append_event(paths, run_id, "backup_created", backup_dir=str(backup_dir))
-    return backup_dir
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_backups.create_backup_manifest(
+        paths, run_id, previous, current, report, summaries, analysis_storage()
+    )
 
 
 def pre_analysis_stats_history(
     paths: LibraryAnalysisPaths,
     backup_dir: Path,
 ) -> dict[str, object]:
-    """Load stats from the backup so interrupted publication is repeatable."""
-    manifest = load_json(backup_dir / "manifest.json")
-    if not isinstance(manifest, dict):
-        raise LibrarySyncError("The analysis backup manifest is invalid.")
-    target = manifest["targets"]["stats_history"]
-    if not target["existed"]:
-        return {}
-    raw = load_json(backup_dir / str(target["backup_file"]), default={})
-    if not isinstance(raw, dict):
-        raise LibrarySyncError("The backed-up stats history is invalid.")
-    return raw
+    """Load stats from the backup so interrupted publication is repeatable.
+
+    Args:
+        paths: Original independent output family.
+        backup_dir: Original accepted undo snapshot directory.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_backups.pre_analysis_stats_history(
+        paths, backup_dir, analysis_storage()
+    )
 
 
 def sort_resources(
@@ -491,12 +447,18 @@ def sort_resources(
     tracks: list[YourLibraryTrack],
     artists: list[YourLibraryArtist],
 ) -> tuple[list[YourLibraryAlbum], list[YourLibraryTrack], list[YourLibraryArtist]]:
-    """Deduplicate and apply Spotify-like output ordering."""
-    return (
-        sorted(deduplicate_models(albums), key=album_sort_key),
-        sorted(deduplicate_models(tracks), key=track_sort_key),
-        sorted(deduplicate_models(artists), key=artist_sort_key),
-    )
+    """Deduplicate and apply Spotify-like output ordering.
+
+    Args:
+        albums: Original complete saved-album facts.
+        tracks: Original complete liked-track facts.
+        artists: Original complete followed-artist facts.
+
+
+    Returns:
+        Original deduplicated albums, tracks and artists in output order.
+    """
+    return analysis_records.sort_resources(albums, tracks, artists)
 
 
 def finalize_analysis(
@@ -506,84 +468,25 @@ def finalize_analysis(
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
 ) -> LibrarySyncSummary:
-    """Publish completed staging data with an idempotent undo snapshot."""
-    albums, tracks, artists = sort_resources(albums, tracks, artists)
-    current: dict[ResourceName, Sequence[LibraryModel]] = {
-        "albums": albums,
-        "tracks": tracks,
-        "artists": artists,
-    }
+    """Publish completed staging data with an idempotent undo snapshot.
 
-    if checkpoint["status"] != "finalizing":
-        previous_albums = load_model_list(paths.albums_total, YourLibraryAlbum)
-        previous_tracks = load_model_list(paths.liked_tracks_total, YourLibraryTrack)
-        previous_artists = load_model_list(paths.artists_total, YourLibraryArtist)
-        previous: dict[ResourceName, Sequence[LibraryModel]] = {
-            "albums": previous_albums,
-            "tracks": previous_tracks,
-            "artists": previous_artists,
-        }
-        report = stats_report_for_analysis(
-            previous_albums,
-            albums,
-            previous_tracks,
-            tracks,
-            previous_artists,
-            artists,
-        )
-        source = "YourLibrary.json" if paths.mode == "async" else "live_api"
-        resource_names: tuple[ResourceName, ...] = ("albums", "tracks", "artists")
-        summaries = tuple(
-            resource_summary(
-                resource,
-                source,
-                previous[resource],
-                current[resource],
-                int(checkpoint["resources"][resource].get("skipped", 0)),
-            )
-            for resource in resource_names
-        )
-        backup_dir = create_backup_manifest(
-            paths,
-            str(checkpoint["run_id"]),
-            previous,
-            current,
-            report,
-            summaries,
-        )
-        checkpoint["status"] = "finalizing"
-        checkpoint["backup_dir"] = str(backup_dir)
-        write_json_atomic(paths.checkpoint, checkpoint)
-    else:
-        backup_dir = Path(str(checkpoint["backup_dir"]))
-        manifest = load_json(backup_dir / "manifest.json")
-        if not isinstance(manifest, dict):
-            raise LibrarySyncError("The analysis backup manifest is invalid.")
-        report = StatsReport.model_validate(manifest["stats_report"])
-        summaries = tuple(ResourceSyncSummary(**item) for item in manifest["summaries"])
+    Args:
+        albums: Original complete saved-album facts.
+        tracks: Original complete liked-track facts.
+        artists: Original complete followed-artist facts.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
 
-    write_models(paths.albums_total, albums)
-    write_models(paths.liked_tracks_total, tracks)
-    write_models(paths.artists_total, artists)
-    history = pre_analysis_stats_history(paths, backup_dir)
-    history[current_stats_history_key()] = report.model_dump()
-    write_json_atomic(paths.stats_history, history)
 
-    checkpoint["status"] = "complete"
-    checkpoint["completed_at"] = utc_now()
-    write_json_atomic(paths.checkpoint, checkpoint)
-    append_event(
-        paths,
-        str(checkpoint["run_id"]),
-        "run_completed",
-        backup_dir=str(backup_dir),
-        summaries=[asdict(summary) for summary in summaries],
-    )
-    return LibrarySyncSummary(
-        run_id=str(checkpoint["run_id"]),
-        mode=paths.mode,
-        backup_dir=str(backup_dir),
-        resources=summaries,
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_publication_owner.finalize_analysis(
+        analysis_session(paths, cast(Checkpoint, checkpoint)),
+        analysis_publication(),
+        albums,
+        tracks,
+        artists,
     )
 
 
@@ -594,40 +497,22 @@ def create_live_mirror_backup_manifest(
     current: dict[ResourceName, Sequence[LibraryModel]],
     summaries: tuple[ResourceSyncSummary, ...],
 ) -> Path:
-    """Back up the two canonical mirrors before a live refresh publishes."""
-    backup_dir = paths.backups_dir / run_id
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    targets: dict[str, dict[str, object]] = {}
-    changes: dict[str, object] = {}
-    for resource in ("albums", "tracks"):
-        target_path = backup_targets(paths)[resource]
-        backup_name = f"{resource}.before.json"
-        existed = target_path.exists()
-        if existed:
-            shutil.copy2(target_path, backup_dir / backup_name)
-        targets[resource] = {
-            "target_name": target_path.name,
-            "existed": existed,
-            "backup_file": backup_name if existed else None,
-        }
-        added, removed = model_diff(previous[resource], current[resource])
-        changes[resource] = {
-            "added": [item.model_dump() for item in added],
-            "removed": [item.model_dump() for item in removed],
-        }
+    """Back up the two canonical mirrors before a live refresh publishes.
 
-    manifest = {
-        "version": 1,
-        "run_id": run_id,
-        "mode": paths.mode,
-        "created_at": utc_now(),
-        "targets": targets,
-        "changes": changes,
-        "summaries": [asdict(summary) for summary in summaries],
-    }
-    write_json_atomic(backup_dir / "manifest.json", manifest)
-    append_event(paths, run_id, "backup_created", backup_dir=str(backup_dir))
-    return backup_dir
+    Args:
+        paths: Original independent output family.
+        run_id: Original sortable run identity.
+        previous: Original complete models before analysis.
+        current: Original complete models after analysis.
+        summaries: Original ordered resource outcomes.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_backups.create_live_mirror_backup_manifest(
+        paths, run_id, previous, current, summaries, analysis_storage()
+    )
 
 
 def finalize_live_mirrors(
@@ -636,64 +521,23 @@ def finalize_live_mirrors(
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
 ) -> LibrarySyncSummary:
-    """Atomically publish canonical album and liked-track mirrors."""
-    albums = sorted(deduplicate_models(albums), key=album_sort_key)
-    tracks = sorted(deduplicate_models(tracks), key=track_sort_key)
-    current: dict[ResourceName, Sequence[LibraryModel]] = {
-        "albums": albums,
-        "tracks": tracks,
-    }
+    """Atomically publish canonical album and liked-track mirrors.
 
-    if checkpoint["status"] != "finalizing":
-        previous: dict[ResourceName, Sequence[LibraryModel]] = {
-            "albums": load_model_list(paths.albums_total, YourLibraryAlbum),
-            "tracks": load_model_list(paths.liked_tracks_total, YourLibraryTrack),
-        }
-        resource_names: tuple[ResourceName, ...] = ("albums", "tracks")
-        summaries = tuple(
-            resource_summary(
-                resource,
-                "live_api",
-                previous[resource],
-                current[resource],
-                int(checkpoint["resources"][resource].get("skipped", 0)),
-            )
-            for resource in resource_names
-        )
-        backup_dir = create_live_mirror_backup_manifest(
-            paths,
-            str(checkpoint["run_id"]),
-            previous,
-            current,
-            summaries,
-        )
-        checkpoint["status"] = "finalizing"
-        checkpoint["backup_dir"] = str(backup_dir)
-        write_json_atomic(paths.checkpoint, checkpoint)
-    else:
-        backup_dir = Path(str(checkpoint["backup_dir"]))
-        manifest = load_json(backup_dir / "manifest.json")
-        if not isinstance(manifest, dict):
-            raise LibrarySyncError("The live-mirror backup manifest is invalid.")
-        summaries = tuple(ResourceSyncSummary(**item) for item in manifest["summaries"])
+    Args:
+        albums: Original complete saved-album facts.
+        tracks: Original complete liked-track facts.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
 
-    write_models(paths.albums_total, albums)
-    write_models(paths.liked_tracks_total, tracks)
-    checkpoint["status"] = "complete"
-    checkpoint["completed_at"] = utc_now()
-    write_json_atomic(paths.checkpoint, checkpoint)
-    append_event(
-        paths,
-        str(checkpoint["run_id"]),
-        "run_completed",
-        backup_dir=str(backup_dir),
-        summaries=[asdict(summary) for summary in summaries],
-    )
-    return LibrarySyncSummary(
-        run_id=str(checkpoint["run_id"]),
-        mode=paths.mode,
-        backup_dir=str(backup_dir),
-        resources=summaries,
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_publication_owner.finalize_mirrors(
+        analysis_session(paths, cast(Checkpoint, checkpoint)),
+        analysis_publication(),
+        albums,
+        tracks,
     )
 
 
@@ -701,13 +545,17 @@ def live_mirror_resource_paths(
     paths: LibraryAnalysisPaths,
     resource: ResourceName,
 ) -> LibraryAnalysisPaths:
-    """Give each canonical resource an independent resumable workspace."""
-    workspace = paths.checkpoint.parent / resource
-    return replace(
-        paths,
-        checkpoint=workspace / "checkpoint.json",
-        staging_dir=workspace / "staging",
-    )
+    """Give each canonical resource an independent resumable workspace.
+
+    Args:
+        paths: Original independent output family.
+        resource: Original active library resource identity.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_values_paths.scoped_paths(paths, resource)
 
 
 def _live_resource_config(
@@ -719,32 +567,7 @@ def _live_resource_config(
     Callable[[LibraryModel], tuple[int, ...]],
 ]:
     """Return the output path, model, and ordering key for one live mirror."""
-    if resource == "albums":
-        return cast(
-            tuple[
-                Path,
-                type[LibraryModel],
-                Callable[[LibraryModel], tuple[int, ...]],
-            ],
-            (paths.albums_total, YourLibraryAlbum, album_sort_key),
-        )
-    if resource == "tracks":
-        return cast(
-            tuple[
-                Path,
-                type[LibraryModel],
-                Callable[[LibraryModel], tuple[int, ...]],
-            ],
-            (paths.liked_tracks_total, YourLibraryTrack, track_sort_key),
-        )
-    return cast(
-        tuple[
-            Path,
-            type[LibraryModel],
-            Callable[[LibraryModel], tuple[int, ...]],
-        ],
-        (paths.artists_total, YourLibraryArtist, artist_sort_key),
-    )
+    return analysis_values_paths.resource_config(paths, resource)
 
 
 def finalize_live_mirror_resource(
@@ -753,154 +576,81 @@ def finalize_live_mirror_resource(
     paths: LibraryAnalysisPaths,
     checkpoint: dict[str, Any],
 ) -> LibrarySyncSummary:
-    """Atomically publish exactly one canonical mirror with an undo snapshot."""
-    target, model_type, sort_key = _live_resource_config(paths, resource)
-    current = sorted(deduplicate_models(models), key=sort_key)
+    """Atomically publish exactly one canonical mirror with an undo snapshot.
 
-    if checkpoint["status"] != "finalizing":
-        previous = load_model_list(target, model_type)
-        summary = resource_summary(
-            resource,
-            str(checkpoint["resources"][resource].get("source") or "live_api"),
-            previous,
-            current,
-            int(checkpoint["resources"][resource].get("skipped", 0)),
-        )
-        backup_dir = paths.backups_dir / str(checkpoint["run_id"])
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        backup_name = f"{resource}.before.json"
-        existed = target.exists()
-        if existed:
-            shutil.copy2(target, backup_dir / backup_name)
-        added, removed = model_diff(previous, current)
-        manifest = {
-            "version": 1,
-            "run_id": str(checkpoint["run_id"]),
-            "mode": paths.mode,
-            "created_at": utc_now(),
-            "targets": {
-                resource: {
-                    "target_name": target.name,
-                    "existed": existed,
-                    "backup_file": backup_name if existed else None,
-                }
-            },
-            "changes": {
-                resource: {
-                    "added": [item.model_dump() for item in added],
-                    "removed": [item.model_dump() for item in removed],
-                }
-            },
-            "summaries": [asdict(summary)],
-        }
-        write_json_atomic(backup_dir / "manifest.json", manifest)
-        append_event(
-            paths,
-            str(checkpoint["run_id"]),
-            "backup_created",
-            backup_dir=str(backup_dir),
-            resource=resource,
-        )
-        checkpoint["status"] = "finalizing"
-        checkpoint["backup_dir"] = str(backup_dir)
-        write_json_atomic(paths.checkpoint, checkpoint)
-    else:
-        backup_dir = Path(str(checkpoint["backup_dir"]))
-        manifest = load_json(backup_dir / "manifest.json")
-        if not isinstance(manifest, dict):
-            raise LibrarySyncError("The live-mirror backup manifest is invalid.")
-        summary = ResourceSyncSummary(**cast(dict[str, Any], manifest)["summaries"][0])
+    Args:
+        resource: Original active library resource identity.
+        models: Original complete ordered model values.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
 
-    write_models(target, current)
-    checkpoint["status"] = "complete"
-    checkpoint["completed_at"] = utc_now()
-    write_json_atomic(paths.checkpoint, checkpoint)
-    append_event(
-        paths,
-        str(checkpoint["run_id"]),
-        "run_completed",
-        backup_dir=str(backup_dir),
-        summaries=[asdict(summary)],
-    )
-    return LibrarySyncSummary(
-        run_id=str(checkpoint["run_id"]),
-        mode=paths.mode,
-        backup_dir=str(backup_dir),
-        resources=(summary,),
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_publication_owner.finalize_resource(
+        analysis_session(paths, cast(Checkpoint, checkpoint)),
+        analysis_publication(),
+        resource,
+        models,
     )
 
 
 def export_fingerprint(path: Path) -> dict[str, int]:
-    """Return enough metadata to detect an export replaced between resumes."""
-    try:
-        stat = path.stat()
-    except OSError as exc:
-        raise LibrarySyncError(f"Your Library export not found: {path}") from exc
-    return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+    """Return enough metadata to detect an export replaced between resumes.
+
+    Args:
+        path: Original complete file or staging location.
+
+
+    Returns:
+        Original export size and nanosecond modification time.
+    """
+    return analysis_files.export_fingerprint(path)
 
 
 def new_checkpoint(
     paths: LibraryAnalysisPaths,
     mirror_refresh_mode: MirrorRefreshMode | None = None,
 ) -> dict[str, Any]:
-    """Create a fresh checkpoint for one mode."""
-    checkpoint: dict[str, Any] = {
-        "version": CHECKPOINT_VERSION,
-        "mode": paths.mode,
-        "run_id": new_run_id(),
-        "status": "running",
-        "created_at": utc_now(),
-        "resources": {
-            resource: {
-                "status": "pending",
-                "offset": 0,
-                "after": None,
-                "total": None,
-                "pages": 0,
-                "skipped": 0,
-                "stable_passes": 0,
-            }
-            for resource in ("albums", "tracks", "artists")
-        },
-    }
-    if paths.mode == "async":
-        checkpoint["export_fingerprint"] = export_fingerprint(paths.your_library)
-    if paths.mode == "mirrors":
-        checkpoint["mirror_refresh_mode"] = mirror_refresh_mode or "incremental"
-    return checkpoint
+    """Create a fresh checkpoint for one mode.
+
+    Args:
+        paths: Original independent output family.
+        mirror_refresh_mode: Original explicit full-versus-incremental choice.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return cast(
+        dict[str, Any],
+        analysis_checkpoints.new_checkpoint(
+            analysis_storage(), paths, mirror_refresh_mode
+        ),
+    )
 
 
 def load_or_create_checkpoint(
     paths: LibraryAnalysisPaths,
     mirror_refresh_mode: MirrorRefreshMode | None = None,
 ) -> dict[str, Any]:
-    """Resume a compatible incomplete checkpoint or start a fresh run."""
-    raw = load_json(paths.checkpoint)
-    compatible = (
-        isinstance(raw, dict)
-        and raw.get("version") == CHECKPOINT_VERSION
-        and raw.get("mode") == paths.mode
-        and raw.get("status") != "complete"
-    )
-    if compatible and paths.mode == "async":
-        compatible = raw.get("export_fingerprint") == export_fingerprint(
-            paths.your_library
-        )
-    if compatible and paths.mode == "mirrors":
-        compatible = raw.get("mirror_refresh_mode") == (
-            mirror_refresh_mode or "incremental"
-        )
-    if compatible:
-        append_event(paths, str(raw["run_id"]), "run_resumed")
-        return raw
+    """Resume a compatible incomplete checkpoint or start a fresh run.
 
-    if paths.staging_dir.exists():
-        shutil.rmtree(paths.staging_dir)
-    paths.staging_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint = new_checkpoint(paths, mirror_refresh_mode)
-    write_json_atomic(paths.checkpoint, checkpoint)
-    append_event(paths, str(checkpoint["run_id"]), "run_started")
-    return checkpoint
+    Args:
+        paths: Original independent output family.
+        mirror_refresh_mode: Original explicit full-versus-incremental choice.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return cast(
+        dict[str, Any],
+        analysis_checkpoints.load_or_create_checkpoint(
+            analysis_storage(), paths, mirror_refresh_mode
+        ),
+    )
 
 
 def prepare_export_resource[T: LibraryModel](
@@ -913,42 +663,34 @@ def prepare_export_resource[T: LibraryModel](
     progress_callback: ProgressCallback | None,
     cancel_check: CancelCheck | None,
 ) -> list[T]:
-    """Prepare and stage one export resource, with resumable boundaries."""
-    state = checkpoint["resources"][resource]
-    if state["status"] == "complete":
-        completed = load_model_list(paths.stage(resource), model_type)
-        if progress_callback:
-            progress_callback(resource, len(completed), len(completed), "Complete")
-        return completed
+    """Prepare and stage one export resource, with resumable boundaries.
 
-    total = len(models)
-    if progress_callback:
-        progress_callback(resource, 0, total, "Reading YourLibrary.json")
-    by_id: dict[str, T] = {}
-    update_every = max(1, total // 100)
-    for index, model in enumerate(models, start=1):
-        if index == 1 or index % update_every == 0:
-            check_cancel(cancel_check)
-        by_id[model.spotify_id] = model
-        if progress_callback and (index == total or index % update_every == 0):
-            progress_callback(resource, index, total, "Reading YourLibrary.json")
-    prepared = sorted(by_id.values(), key=sort_key)
-    write_models(paths.stage(resource), prepared)
-    state["status"] = "complete"
-    state["total"] = len(prepared)
-    state["skipped"] = total - len(prepared)
-    write_json_atomic(paths.checkpoint, checkpoint)
-    append_event(
-        paths,
-        str(checkpoint["run_id"]),
-        "resource_completed",
-        resource=resource,
-        count=len(prepared),
-        skipped=total - len(prepared),
+    Args:
+        resource: Original active library resource identity.
+        models: Original complete ordered model values.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        model_type: Original tolerant resource model constructor.
+        sort_key: Original resource-specific output ordering rule.
+        progress_callback: Original optional resource-level progress callback.
+        cancel_check: Original optional durable cancellation observation.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_export.prepare_export_resource(
+        analysis_session(
+            paths,
+            cast(Checkpoint, checkpoint),
+            progress=progress_callback,
+            cancel_check=cancel_check,
+        ),
+        resource,
+        models,
+        model_type,
+        sort_key,
     )
-    if progress_callback:
-        progress_callback(resource, total, total, "Complete")
-    return prepared
 
 
 def analyse_library_async_routine(
@@ -957,78 +699,49 @@ def analyse_library_async_routine(
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_ASYNC_PATHS,
 ) -> LibrarySyncSummary:
-    """Build ``*_async`` mirrors exclusively from ``YourLibrary.json``."""
+    """Build ``*_async`` mirrors exclusively from ``YourLibrary.json``.
+
+    Args:
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        cancel_check: Original optional durable cancellation observation.
+        paths: Original independent output family.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     del echo
     if paths.mode != "async":
         raise LibrarySyncError("Export analysis requires async output paths.")
     checkpoint = load_or_create_checkpoint(paths)
-    try:
-        if checkpoint["status"] == "finalizing":
-            return finalize_analysis(
-                load_model_list(paths.stage("albums"), YourLibraryAlbum),
-                load_model_list(paths.stage("tracks"), YourLibraryTrack),
-                load_model_list(paths.stage("artists"), YourLibraryArtist),
-                paths,
-                checkpoint,
-            )
-        library = load_your_library(paths)
-        albums = prepare_export_resource(
-            "albums",
-            library.albums,
-            paths,
-            checkpoint,
-            YourLibraryAlbum,
-            album_sort_key,
-            progress_callback,
-            cancel_check,
-        )
-        tracks = prepare_export_resource(
-            "tracks",
-            library.tracks,
-            paths,
-            checkpoint,
-            YourLibraryTrack,
-            track_sort_key,
-            progress_callback,
-            cancel_check,
-        )
-        artists = prepare_export_resource(
-            "artists",
-            library.artists,
-            paths,
-            checkpoint,
-            YourLibraryArtist,
-            artist_sort_key,
-            progress_callback,
-            cancel_check,
-        )
-        return finalize_analysis(albums, tracks, artists, paths, checkpoint)
-    except LibraryAnalysisCancelledError:
-        append_event(paths, str(checkpoint["run_id"]), "run_paused")
-        raise
-    except KeyboardInterrupt:
-        append_event(paths, str(checkpoint["run_id"]), "run_paused")
-        raise
-    except LibrarySyncError:
-        append_event(paths, str(checkpoint["run_id"]), "run_failed")
-        raise
-    except Exception as exc:
-        append_event(
-            paths,
-            str(checkpoint["run_id"]),
-            "run_failed",
-            error=type(exc).__name__,
-            detail=str(exc),
-        )
-        raise LibrarySyncError(f"Export analysis failed: {exc}") from exc
+    session = analysis_session(
+        paths,
+        cast(Checkpoint, checkpoint),
+        progress=progress_callback,
+        cancel_check=cancel_check,
+    )
+    with AnalysisFailure(
+        session,
+        "Export analysis failed",
+        (LibraryAnalysisCancelledError, KeyboardInterrupt),
+    ):
+        return analysis_runs.analyse_export(session, analysis_publication())
 
 
 def retry_delay(base: int, maximum: int, attempt: int) -> int:
-    """Return the capped exponential delay for a one-based attempt."""
-    if base <= 0 or maximum <= 0:
-        return 0
-    exponent = min(max(0, attempt - 1), maximum.bit_length())
-    return min(maximum, base * (1 << exponent))
+    """Return the capped exponential delay for a one-based attempt.
+
+    Args:
+        base: Original first transient retry delay.
+        maximum: Original maximum transient retry delay.
+        attempt: Original one-based transient attempt.
+
+
+    Returns:
+        Original capped exponential delay, including zero-wait semantics.
+    """
+    return analysis_policy.retry_delay(base, maximum, attempt)
 
 
 def spotify_call[T](
@@ -1043,80 +756,35 @@ def spotify_call[T](
     retry_max_seconds: int,
     max_attempts: int | None = None,
 ) -> T:
-    """Call Spotify, retrying 5xx and transport failures with backoff."""
-    attempt = 0
-    while True:
-        try:
-            return operation()
-        except SpotifyException as exc:
-            if exc.http_status == 429:
-                raise SpotifyRateLimitError(get_retry_after_seconds(exc)) from exc
-            if exc.http_status is None or not 500 <= exc.http_status <= 599:
-                raise LibrarySyncError(
-                    f"Spotify request failed while {description} "
-                    f"(HTTP {exc.http_status}): {exc.msg}"
-                ) from exc
-            attempt += 1
-            if max_attempts is not None and attempt >= max_attempts:
-                raise LibrarySyncError(
-                    f"Spotify HTTP {exc.http_status} persisted for {attempt} attempts "
-                    f"while {description}."
-                ) from exc
-            delay = retry_delay(retry_base_seconds, retry_max_seconds, attempt)
-            notice = RetryNotice(exc.http_status, description, attempt, delay)
-            append_event(
-                paths,
-                str(checkpoint["run_id"]),
-                "server_retry_scheduled",
-                http_status=exc.http_status,
-                operation=description,
-                attempt=attempt,
-                delay_seconds=delay,
-            )
-            echo(
-                f"Spotify HTTP {exc.http_status} while {description}; "
-                f"retrying in {delay} seconds (attempt {attempt})."
-            )
-            should_continue = (
-                retry_wait(notice)
-                if retry_wait is not None
-                else _default_retry_wait(delay, sleep)
-            )
-            if not should_continue:
-                raise LibraryAnalysisCancelledError(
-                    "Live analysis paused during a Spotify retry wait."
-                ) from exc
-        except (RequestsConnectionError, RequestsTimeout) as exc:
-            attempt += 1
-            if max_attempts is not None and attempt >= max_attempts:
-                raise LibrarySyncError(
-                    f"Spotify connection remained unavailable for {attempt} attempts "
-                    f"while {description}."
-                ) from exc
-            delay = retry_delay(retry_base_seconds, retry_max_seconds, attempt)
-            notice = RetryNotice(None, description, attempt, delay)
-            append_event(
-                paths,
-                str(checkpoint["run_id"]),
-                "transport_retry_scheduled",
-                error=type(exc).__name__,
-                operation=description,
-                attempt=attempt,
-                delay_seconds=delay,
-            )
-            echo(
-                f"Spotify connection interrupted while {description}; "
-                f"retrying in {delay} seconds (attempt {attempt})."
-            )
-            should_continue = (
-                retry_wait(notice)
-                if retry_wait is not None
-                else _default_retry_wait(delay, sleep)
-            )
-            if not should_continue:
-                raise LibraryAnalysisCancelledError(
-                    "Live analysis paused during a Spotify retry wait."
-                ) from exc
+    """Call Spotify, retrying 5xx and transport failures with backoff.
+
+    Args:
+        operation: Original complete caller-supplied live request.
+        description: Original visible operation label.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        retry_wait: Original optional interactive retry decision.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+        max_attempts: Original optional maximum request attempts.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    retry = LibraryRetry(
+        paths,
+        cast(Checkpoint, checkpoint),
+        analysis_storage(),
+        echo,
+        retry_wait,
+        sleep,
+        retry_base_seconds,
+        retry_max_seconds,
+    )
+    return retry.call(operation, description, max_attempts)
 
 
 def _default_retry_wait(delay: int, sleep: Sleep) -> bool:
@@ -1126,39 +794,56 @@ def _default_retry_wait(delay: int, sleep: Sleep) -> bool:
 
 
 def check_cancel(cancel_check: CancelCheck | None) -> None:
-    """Raise a clean pause signal at a durable page boundary."""
+    """Raise a clean pause signal at a durable page boundary.
+
+    Args:
+        cancel_check: Original optional durable cancellation observation.
+    """
     if cancel_check is not None and cancel_check():
         raise LibraryAnalysisCancelledError("Live analysis paused by request.")
 
 
 def page_items(page: object, resource: ResourceName) -> list[object]:
-    """Validate and return the item list from an offset page."""
-    if not isinstance(page, dict) or not isinstance(page.get("items"), list):
-        raise IncompleteLiveResourceError(
-            f"Spotify returned an invalid {resource} page."
-        )
-    return page["items"]
+    """Validate and return the item list from an offset page.
+
+    Args:
+        page: Original unvalidated live page envelope.
+        resource: Original active library resource identity.
 
 
-def followed_artist_page_items(page: object) -> tuple[list[object], dict[str, Any]]:
-    """Validate and unpack a followed-artists cursor page."""
-    if not isinstance(page, dict) or not isinstance(page.get("artists"), dict):
-        raise IncompleteLiveResourceError(
-            "Spotify returned an invalid followed-artists page."
-        )
-    artists = page["artists"]
-    if not isinstance(artists.get("items"), list):
-        raise IncompleteLiveResourceError(
-            "Spotify returned an invalid followed-artists item list."
-        )
-    return artists["items"], artists
+    Returns:
+        The original mutable raw offset-page item list.
+    """
+    return analysis_files.page_items(page, resource)
+
+
+def followed_artist_page_items(page: object) -> tuple[list[object], dict[str, object]]:
+    """Validate and unpack a followed-artists cursor page.
+
+    Args:
+        page: Original unvalidated live page envelope.
+
+
+    Returns:
+        Original mutable artist items and page envelope.
+    """
+    return analysis_files.followed_artist_page_items(page)
 
 
 def fetch_followed_artists_page(
     sp: Spotify,
     after: str | None,
 ) -> object:
-    """Read one cursor page, surfacing Spotify's common 502 immediately."""
+    """Read one cursor page, surfacing Spotify's common 502 immediately.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        after: Original current or stored artist cursor.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     try:
         return sp.current_user_followed_artists(
             limit=ARTIST_PAGE_LIMIT,
@@ -1185,67 +870,34 @@ def sync_initial_offset_resource(
     retry_base_seconds: int,
     retry_max_seconds: int,
 ) -> None:
-    """Scan one offset resource monotonically without reacting to total changes."""
-    state = checkpoint["resources"][resource]
-    if state["status"] != "pending" and state["status"] != "scanning":
-        return
-    state["status"] = "scanning"
-    write_json_atomic(paths.checkpoint, checkpoint)
-    limit = ALBUM_PAGE_LIMIT if resource == "albums" else TRACK_PAGE_LIMIT
-    method = (
-        sp.current_user_saved_albums
-        if resource == "albums"
-        else sp.current_user_saved_tracks
-    )
-    converter = album_from_saved_item if resource == "albums" else track_from_saved_item
+    """Scan one offset resource monotonically without reacting to total changes.
 
-    while True:
-        check_cancel(cancel_check)
-        offset = int(state["offset"])
-        page = spotify_call(
-            partial(method, limit=limit, offset=offset),
-            f"reading saved {resource} at offset {offset}",
-            paths,
-            checkpoint,
-            echo,
-            retry_wait,
-            sleep,
-            retry_base_seconds,
-            retry_max_seconds,
-        )
-        raw_items = page_items(page, resource)
-        converted = [item for raw in raw_items if (item := converter(raw)) is not None]
-        append_models_jsonl(paths.stage(resource), converted)
-        state["skipped"] += len(raw_items) - len(converted)
-        state["offset"] = offset + len(raw_items)
-        state["pages"] += 1
-        state["total"] = page.get("total")
-        write_json_atomic(paths.checkpoint, checkpoint)
-        append_event(
-            paths,
-            str(checkpoint["run_id"]),
-            "page_saved",
-            resource=resource,
-            offset=offset,
-            count=len(converted),
-            reported_total=page.get("total"),
-        )
-        if progress_callback:
-            progress_callback(
-                resource,
-                int(state["offset"]),
-                page.get("total") if isinstance(page.get("total"), int) else None,
-                "Reading live API",
-            )
-        if not raw_items and page.get("next"):
-            raise IncompleteLiveResourceError(
-                f"Spotify returned an empty {resource} page with a next link."
-            )
-        if not raw_items or not page.get("next"):
-            state["status"] = "reconciling"
-            state["stable_passes"] = 0
-            write_json_atomic(paths.checkpoint, checkpoint)
-            return
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        resource: Original active library resource identity.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    session = analysis_session(
+        paths,
+        cast(Checkpoint, checkpoint),
+        echo=echo,
+        progress=progress_callback,
+        spotify=sp,
+        retry_wait=retry_wait,
+        cancel_check=cancel_check,
+        sleep=sleep,
+        retry_base_seconds=retry_base_seconds,
+        retry_max_seconds=retry_max_seconds,
+    )
+    analysis_offsets.scan_initial(session, resource)
 
 
 def reconcile_offset_resource(
@@ -1261,121 +913,34 @@ def reconcile_offset_resource(
     retry_base_seconds: int,
     retry_max_seconds: int,
 ) -> None:
-    """Re-read the newest pages until two passes find no additions."""
-    state = checkpoint["resources"][resource]
-    if state["status"] == "complete":
-        if resource == "albums":
-            completed_count = len(
-                deduplicate_models(
-                    load_models_jsonl(paths.stage(resource), YourLibraryAlbum)
-                )
-            )
-        else:
-            completed_count = len(
-                deduplicate_models(
-                    load_models_jsonl(paths.stage(resource), YourLibraryTrack)
-                )
-            )
-        if progress_callback:
-            progress_callback(
-                resource,
-                completed_count,
-                completed_count,
-                "Complete",
-            )
-        return
-    limit = ALBUM_PAGE_LIMIT if resource == "albums" else TRACK_PAGE_LIMIT
-    method = (
-        sp.current_user_saved_albums
-        if resource == "albums"
-        else sp.current_user_saved_tracks
-    )
-    converter = album_from_saved_item if resource == "albums" else track_from_saved_item
-    stable_pages_required = OFFSET_RECONCILIATION_STABLE_PAGES[resource]
+    """Re-read the newest pages until two passes find no additions.
 
-    while int(state["stable_passes"]) < RECONCILIATION_STABLE_PASSES:
-        if resource == "albums":
-            staged: list[LibraryModel] = load_models_jsonl(
-                paths.stage(resource),
-                YourLibraryAlbum,
-            )
-        else:
-            staged = load_models_jsonl(paths.stage(resource), YourLibraryTrack)
-        known = {item.spotify_id for item in staged}
-        offset = 0
-        pass_added = 0
-        stable_pages = 0
-        while True:
-            check_cancel(cancel_check)
-            page = spotify_call(
-                partial(method, limit=limit, offset=offset),
-                f"reconciling saved {resource} at offset {offset}",
-                paths,
-                checkpoint,
-                echo,
-                retry_wait,
-                sleep,
-                retry_base_seconds,
-                retry_max_seconds,
-            )
-            raw_items = page_items(page, resource)
-            converted = [
-                item for raw in raw_items if (item := converter(raw)) is not None
-            ]
-            unseen = [item for item in converted if item.spotify_id not in known]
-            append_models_jsonl(paths.stage(resource), unseen)
-            known.update(item.spotify_id for item in unseen)
-            pass_added += len(unseen)
-            stable_pages = 0 if unseen else stable_pages + 1
-            write_json_atomic(paths.checkpoint, checkpoint)
-            if progress_callback:
-                progress_callback(
-                    resource,
-                    len(known),
-                    page.get("total") if isinstance(page.get("total"), int) else None,
-                    f"Checking for additions (pass {int(state['stable_passes']) + 1})",
-                )
-            if (
-                not raw_items
-                or not page.get("next")
-                or stable_pages >= stable_pages_required
-            ):
-                break
-            offset += len(raw_items)
-
-        if pass_added:
-            state["stable_passes"] = 0
-            append_event(
-                paths,
-                str(checkpoint["run_id"]),
-                "reconciliation_additions",
-                resource=resource,
-                count=pass_added,
-            )
-        else:
-            state["stable_passes"] += 1
-        write_json_atomic(paths.checkpoint, checkpoint)
-
-    state["status"] = "complete"
-    write_json_atomic(paths.checkpoint, checkpoint)
-    if resource == "albums":
-        completed: list[LibraryModel] = load_models_jsonl(
-            paths.stage(resource),
-            YourLibraryAlbum,
-        )
-    else:
-        completed = load_models_jsonl(paths.stage(resource), YourLibraryTrack)
-    count = len(deduplicate_models(completed))
-    append_event(
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        resource: Original active library resource identity.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    session = analysis_session(
         paths,
-        str(checkpoint["run_id"]),
-        "resource_completed",
-        resource=resource,
-        count=count,
-        skipped=state["skipped"],
+        cast(Checkpoint, checkpoint),
+        echo=echo,
+        progress=progress_callback,
+        spotify=sp,
+        retry_wait=retry_wait,
+        cancel_check=cancel_check,
+        sleep=sleep,
+        retry_base_seconds=retry_base_seconds,
+        retry_max_seconds=retry_max_seconds,
     )
-    if progress_callback:
-        progress_callback(resource, count, count, "Complete")
+    analysis_offsets.reconcile(session, resource)
 
 
 def seed_incremental_offset_resource(
@@ -1385,54 +950,45 @@ def seed_incremental_offset_resource(
     echo: Echo,
     progress_callback: ProgressCallback | None,
 ) -> None:
-    """Seed resource staging from its mirror before scanning the recent edge."""
-    state = checkpoint["resources"][resource]
-    if state["status"] != "pending":
-        return
+    """Seed resource staging from its mirror before scanning the recent edge.
 
-    if resource == "albums":
-        existing: list[LibraryModel] = load_model_list(
-            paths.albums_total,
-            YourLibraryAlbum,
-        )
-        retained_label = "Unsaved albums"
-    else:
-        existing = load_model_list(paths.liked_tracks_total, YourLibraryTrack)
-        retained_label = "Unliked tracks"
-    append_models_jsonl(paths.stage(resource), existing)
-    state["status"] = "reconciling"
-    state["total"] = len(existing)
-    state["stable_passes"] = 0
-    write_json_atomic(paths.checkpoint, checkpoint)
-    append_event(
-        paths,
-        str(checkpoint["run_id"]),
-        f"incremental_{resource}_seeded",
-        count=len(existing),
+    Args:
+        resource: Original active library resource identity.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+    """
+    session = analysis_session(
+        paths, cast(Checkpoint, checkpoint), echo=echo, progress=progress_callback
     )
-    echo(
-        f"{resource.title()}: checking recent additions against "
-        f"{len(existing)} stored entries. {retained_label} remain until a full rebuild."
-    )
-    if progress_callback:
-        progress_callback(
-            resource,
-            len(existing),
-            len(existing),
-            "Checking recent additions",
-        )
+    analysis_offsets.seed_incremental(session, resource)
 
 
 def artist_verification_candidates_path(paths: LibraryAnalysisPaths) -> Path:
-    """Return the resumable candidate list used by artist fallback checks."""
+    """Return the resumable candidate list used by artist fallback checks.
+
+    Args:
+        paths: Original independent output family.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     return paths.staging_dir / "artist_candidates.jsonl"
 
 
 def latest_export_artists(paths: LibraryAnalysisPaths) -> list[YourLibraryArtist]:
-    """Load export artist candidates when a durable export is available."""
-    if not paths.your_library.exists():
-        return []
-    return load_your_library(paths).artists
+    """Load export artist candidates when a durable export is available.
+
+    Args:
+        paths: Original independent output family.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
+    return analysis_files.latest_export_artists(paths, load_your_library)
 
 
 def prepare_artist_verification(
@@ -1443,54 +999,18 @@ def prepare_artist_verification(
     echo: Echo,
     reason: str,
 ) -> None:
-    """Prepare a live batch verification fallback without losing checkpoints."""
-    state = checkpoint["resources"]["artists"]
-    if state["status"] == "verifying_fallback":
-        return
+    """Prepare a live batch verification fallback without losing checkpoints.
 
-    existing = load_model_list(paths.artists_total, YourLibraryArtist)
-    partial_live = load_models_jsonl(paths.stage("artists"), YourLibraryArtist)
-    export = latest_export_artists(paths)
-    all_candidates = deduplicate_models([*existing, *export, *partial_live])
-
-    if full_rebuild:
-        retained: list[YourLibraryArtist] = []
-        candidates = all_candidates
-    else:
-        retained = deduplicate_models([*existing, *partial_live])
-        retained_ids = {item.spotify_id for item in retained}
-        candidates = [
-            item for item in all_candidates if item.spotify_id not in retained_ids
-        ]
-
-    candidate_path = artist_verification_candidates_path(paths)
-    candidate_path.unlink(missing_ok=True)
-    paths.stage("artists").unlink(missing_ok=True)
-    append_models_jsonl(candidate_path, candidates)
-    append_models_jsonl(paths.stage("artists"), retained)
-    state.update(
-        {
-            "status": "verifying_fallback",
-            "candidate_index": 0,
-            "retained": len(retained),
-            "total": len(retained) + len(candidates),
-            "source": "live_verified_fallback",
-            "after": None,
-        }
-    )
-    write_json_atomic(paths.checkpoint, checkpoint)
-    append_event(
-        paths,
-        str(checkpoint["run_id"]),
-        "artist_fallback_activated",
-        reason=reason,
-        full_rebuild=full_rebuild,
-        retained=len(retained),
-        candidates=len(candidates),
-    )
-    echo(
-        f"Artists: {reason}; checking {len(candidates)} candidate(s) through "
-        "Spotify's live follow-status endpoint."
+    Args:
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        full_rebuild: Whether to rebuild complete original live authority.
+        echo: Original visible output callback.
+        reason: Original visible fallback explanation.
+    """
+    session = analysis_session(paths, cast(Checkpoint, checkpoint), echo=echo)
+    analysis_artists.prepare_verification(
+        session, full_rebuild=full_rebuild, reason=reason
     )
 
 
@@ -1506,71 +1026,33 @@ def verify_artist_candidates(
     retry_base_seconds: int,
     retry_max_seconds: int,
 ) -> None:
-    """Verify fallback candidates in bounded, resumable live API batches."""
-    state = checkpoint["resources"]["artists"]
-    candidates = load_models_jsonl(
-        artist_verification_candidates_path(paths),
-        YourLibraryArtist,
-    )
-    retained = int(state.get("retained", 0))
-    while int(state.get("candidate_index", 0)) < len(candidates):
-        check_cancel(cancel_check)
-        start = int(state.get("candidate_index", 0))
-        batch = candidates[start : start + ARTIST_VERIFICATION_BATCH_LIMIT]
-        response = spotify_call(
-            partial(
-                sp.current_user_following_artists,
-                [item.spotify_id for item in batch],
-            ),
-            f"verifying followed artists {start + 1}-{start + len(batch)}",
-            paths,
-            checkpoint,
-            echo,
-            retry_wait,
-            sleep,
-            retry_base_seconds,
-            retry_max_seconds,
-            max_attempts=ARTIST_VERIFICATION_MAX_ATTEMPTS,
-        )
-        statuses = list(response) if isinstance(response, Sequence) else []
-        if len(statuses) != len(batch):
-            raise IncompleteLiveResourceError(
-                "Spotify returned an incomplete artist-follow verification batch."
-            )
-        followed = [
-            artist
-            for artist, is_followed in zip(batch, statuses, strict=True)
-            if is_followed
-        ]
-        append_models_jsonl(paths.stage("artists"), followed)
-        state["candidate_index"] = start + len(batch)
-        state["skipped"] += len(batch) - len(followed)
-        write_json_atomic(paths.checkpoint, checkpoint)
-        append_event(
-            paths,
-            str(checkpoint["run_id"]),
-            "artist_candidates_verified",
-            start=start,
-            checked=len(batch),
-            followed=len(followed),
-        )
-        if progress_callback:
-            progress_callback(
-                "artists",
-                retained + int(state["candidate_index"]),
-                int(state["total"]),
-                "Verifying live follow status",
-            )
+    """Verify fallback candidates in bounded, resumable live API batches.
 
-    state["status"] = "complete"
-    write_json_atomic(paths.checkpoint, checkpoint)
-    if progress_callback:
-        count = len(
-            deduplicate_models(
-                load_models_jsonl(paths.stage("artists"), YourLibraryArtist)
-            )
-        )
-        progress_callback("artists", count, count, "Complete")
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    session = analysis_session(
+        paths,
+        cast(Checkpoint, checkpoint),
+        echo=echo,
+        progress=progress_callback,
+        spotify=sp,
+        retry_wait=retry_wait,
+        cancel_check=cancel_check,
+        sleep=sleep,
+        retry_base_seconds=retry_base_seconds,
+        retry_max_seconds=retry_max_seconds,
+    )
+    analysis_artists.verify(session)
 
 
 def sync_initial_artists(
@@ -1585,69 +1067,33 @@ def sync_initial_artists(
     retry_base_seconds: int,
     retry_max_seconds: int,
 ) -> None:
-    """Scan followed artists once with cursor pagination."""
-    state = checkpoint["resources"]["artists"]
-    if state["status"] != "pending" and state["status"] != "scanning":
-        return
-    state["status"] = "scanning"
-    write_json_atomic(paths.checkpoint, checkpoint)
-    while True:
-        check_cancel(cancel_check)
-        if int(state["pages"]) >= ARTIST_DIRECT_MAX_PAGES:
-            raise _FollowedArtistsEndpointUnavailableError(
-                "the followed-artists cursor scan reached its bounded page budget"
-            )
-        after = state["after"]
-        page = spotify_call(
-            partial(
-                fetch_followed_artists_page,
-                sp,
-                after,
-            ),
-            f"reading followed artists after {after or 'the beginning'}",
-            paths,
-            checkpoint,
-            echo,
-            retry_wait,
-            sleep,
-            retry_base_seconds,
-            retry_max_seconds,
-        )
-        raw_items, artists_page = followed_artist_page_items(page)
-        converted = [
-            item for raw in raw_items if (item := artist_from_api_item(raw)) is not None
-        ]
-        append_models_jsonl(paths.stage("artists"), converted)
-        state["skipped"] += len(raw_items) - len(converted)
-        state["pages"] += 1
-        state["total"] = artists_page.get("total")
-        next_after = (artists_page.get("cursors") or {}).get("after")
-        state["after"] = next_after
-        write_json_atomic(paths.checkpoint, checkpoint)
-        if progress_callback:
-            count = len(
-                deduplicate_models(
-                    load_models_jsonl(paths.stage("artists"), YourLibraryArtist)
-                )
-            )
-            progress_callback(
-                "artists",
-                count,
-                artists_page.get("total")
-                if isinstance(artists_page.get("total"), int)
-                else None,
-                "Reading live API",
-            )
-        if not raw_items or not artists_page.get("next"):
-            state["status"] = "reconciling"
-            state["stable_passes"] = 0
-            state["after"] = None
-            write_json_atomic(paths.checkpoint, checkpoint)
-            return
-        if next_after is None or next_after == after:
-            raise IncompleteLiveResourceError(
-                "Spotify did not advance the followed-artists cursor."
-            )
+    """Scan followed artists once with cursor pagination.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    session = analysis_session(
+        paths,
+        cast(Checkpoint, checkpoint),
+        echo=echo,
+        progress=progress_callback,
+        spotify=sp,
+        retry_wait=retry_wait,
+        cancel_check=cancel_check,
+        sleep=sleep,
+        retry_base_seconds=retry_base_seconds,
+        retry_max_seconds=retry_max_seconds,
+    )
+    analysis_artists.scan_initial(session)
 
 
 def reconcile_artists(
@@ -1662,103 +1108,33 @@ def reconcile_artists(
     retry_base_seconds: int,
     retry_max_seconds: int,
 ) -> None:
-    """Fully rescan cursor-ordered artists until two passes find no additions."""
-    state = checkpoint["resources"]["artists"]
-    if state["status"] == "complete":
-        completed_count = len(
-            deduplicate_models(
-                load_models_jsonl(paths.stage("artists"), YourLibraryArtist)
-            )
-        )
-        if progress_callback:
-            progress_callback(
-                "artists",
-                completed_count,
-                completed_count,
-                "Complete",
-            )
-        return
-    while int(state["stable_passes"]) < RECONCILIATION_STABLE_PASSES:
-        known = {
-            item.spotify_id
-            for item in load_models_jsonl(paths.stage("artists"), YourLibraryArtist)
-        }
-        after: str | None = None
-        pass_added = 0
-        while True:
-            check_cancel(cancel_check)
-            page = spotify_call(
-                partial(
-                    sp.current_user_followed_artists,
-                    limit=ARTIST_PAGE_LIMIT,
-                    after=after,
-                ),
-                f"reconciling followed artists after {after or 'the beginning'}",
-                paths,
-                checkpoint,
-                echo,
-                retry_wait,
-                sleep,
-                retry_base_seconds,
-                retry_max_seconds,
-            )
-            raw_items, artists_page = followed_artist_page_items(page)
-            converted = [
-                item
-                for raw in raw_items
-                if (item := artist_from_api_item(raw)) is not None
-            ]
-            unseen = [item for item in converted if item.spotify_id not in known]
-            append_models_jsonl(paths.stage("artists"), unseen)
-            known.update(item.spotify_id for item in unseen)
-            pass_added += len(unseen)
-            write_json_atomic(paths.checkpoint, checkpoint)
-            if progress_callback:
-                progress_callback(
-                    "artists",
-                    len(known),
-                    artists_page.get("total")
-                    if isinstance(artists_page.get("total"), int)
-                    else None,
-                    f"Checking for additions (pass {int(state['stable_passes']) + 1})",
-                )
-            next_after = (artists_page.get("cursors") or {}).get("after")
-            if not raw_items or not artists_page.get("next"):
-                break
-            if next_after is None or next_after == after:
-                raise IncompleteLiveResourceError(
-                    "Spotify did not advance the followed-artists cursor."
-                )
-            after = str(next_after)
+    """Fully rescan cursor-ordered artists until two passes find no additions.
 
-        if pass_added:
-            state["stable_passes"] = 0
-            append_event(
-                paths,
-                str(checkpoint["run_id"]),
-                "reconciliation_additions",
-                resource="artists",
-                count=pass_added,
-            )
-        else:
-            state["stable_passes"] += 1
-        write_json_atomic(paths.checkpoint, checkpoint)
-
-    state["status"] = "complete"
-    write_json_atomic(paths.checkpoint, checkpoint)
-    count = len(
-        deduplicate_models(load_models_jsonl(paths.stage("artists"), YourLibraryArtist))
-    )
-    append_event(
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        paths: Original independent output family.
+        checkpoint: Original durable progress, preserving unknown fields.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+    """
+    session = analysis_session(
         paths,
-        str(checkpoint["run_id"]),
-        "resource_completed",
-        resource="artists",
-        count=count,
-        skipped=state["skipped"],
+        cast(Checkpoint, checkpoint),
+        echo=echo,
+        progress=progress_callback,
+        spotify=sp,
+        retry_wait=retry_wait,
+        cancel_check=cancel_check,
+        sleep=sleep,
+        retry_base_seconds=retry_base_seconds,
+        retry_max_seconds=retry_max_seconds,
     )
-    if progress_callback:
-        progress_callback("artists", count, count, "Complete")
+    analysis_artists.reconcile(session)
 
 
 def analyse_library_sync_routine(
@@ -1772,95 +1148,44 @@ def analyse_library_sync_routine(
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
 ) -> LibrarySyncSummary:
-    """Build ``*_sync`` mirrors exclusively from the live Spotify API."""
+    """Build ``*_sync`` mirrors exclusively from the live Spotify API.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        paths: Original independent output family.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     if paths.mode != "sync":
         raise LibrarySyncError("Live analysis requires sync output paths.")
     checkpoint = load_or_create_checkpoint(paths)
-    try:
-        if checkpoint["status"] == "finalizing":
-            return finalize_analysis(
-                load_models_jsonl(paths.stage("albums"), YourLibraryAlbum),
-                load_models_jsonl(paths.stage("tracks"), YourLibraryTrack),
-                load_models_jsonl(paths.stage("artists"), YourLibraryArtist),
-                paths,
-                checkpoint,
-            )
-        for resource in ("albums", "tracks"):
-            sync_initial_offset_resource(
-                sp,
-                resource,
-                paths,
-                checkpoint,
-                echo,
-                progress_callback,
-                retry_wait,
-                cancel_check,
-                sleep,
-                retry_base_seconds,
-                retry_max_seconds,
-            )
-            reconcile_offset_resource(
-                sp,
-                resource,
-                paths,
-                checkpoint,
-                echo,
-                progress_callback,
-                retry_wait,
-                cancel_check,
-                sleep,
-                retry_base_seconds,
-                retry_max_seconds,
-            )
-        sync_initial_artists(
-            sp,
-            paths,
-            checkpoint,
-            echo,
-            progress_callback,
-            retry_wait,
-            cancel_check,
-            sleep,
-            retry_base_seconds,
-            retry_max_seconds,
-        )
-        reconcile_artists(
-            sp,
-            paths,
-            checkpoint,
-            echo,
-            progress_callback,
-            retry_wait,
-            cancel_check,
-            sleep,
-            retry_base_seconds,
-            retry_max_seconds,
-        )
-        return finalize_analysis(
-            load_models_jsonl(paths.stage("albums"), YourLibraryAlbum),
-            load_models_jsonl(paths.stage("tracks"), YourLibraryTrack),
-            load_models_jsonl(paths.stage("artists"), YourLibraryArtist),
-            paths,
-            checkpoint,
-        )
-    except LibraryAnalysisCancelledError, SpotifyRateLimitError:
-        append_event(paths, str(checkpoint["run_id"]), "run_paused")
-        raise
-    except KeyboardInterrupt:
-        append_event(paths, str(checkpoint["run_id"]), "run_paused")
-        raise
-    except LibrarySyncError:
-        append_event(paths, str(checkpoint["run_id"]), "run_failed")
-        raise
-    except Exception as exc:
-        append_event(
-            paths,
-            str(checkpoint["run_id"]),
-            "run_failed",
-            error=type(exc).__name__,
-            detail=str(exc),
-        )
-        raise LibrarySyncError(f"Live analysis failed: {exc}") from exc
+    session = analysis_session(
+        paths,
+        cast(Checkpoint, checkpoint),
+        progress=progress_callback,
+        cancel_check=cancel_check,
+        spotify=sp,
+        echo=echo,
+        retry_wait=retry_wait,
+        sleep=sleep,
+        retry_base_seconds=retry_base_seconds,
+        retry_max_seconds=retry_max_seconds,
+    )
+    with AnalysisFailure(
+        session,
+        "Live analysis failed",
+        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
+    ):
+        return analysis_runs.analyse_live(session, analysis_publication())
 
 
 def refresh_live_library_mirrors_routine(
@@ -1875,79 +1200,48 @@ def refresh_live_library_mirrors_routine(
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,
 ) -> LibrarySyncSummary:
-    """Merge recent album and track additions or fully rebuild both mirrors."""
+    """Merge recent album and track additions or fully rebuild both mirrors.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        paths: Original independent output family.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+        full_rebuild: Whether to rebuild complete original live authority.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     if paths.mode != "mirrors":
         raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
-    mirror_refresh_mode: MirrorRefreshMode = "full" if full_rebuild else "incremental"
-    checkpoint = load_or_create_checkpoint(paths, mirror_refresh_mode)
-    try:
-        if checkpoint["status"] == "finalizing":
-            return finalize_live_mirrors(
-                load_models_jsonl(paths.stage("albums"), YourLibraryAlbum),
-                load_models_jsonl(paths.stage("tracks"), YourLibraryTrack),
-                paths,
-                checkpoint,
-            )
-        for resource in ("albums", "tracks"):
-            if full_rebuild:
-                sync_initial_offset_resource(
-                    sp,
-                    resource,
-                    paths,
-                    checkpoint,
-                    echo,
-                    progress_callback,
-                    retry_wait,
-                    cancel_check,
-                    sleep,
-                    retry_base_seconds,
-                    retry_max_seconds,
-                )
-            else:
-                seed_incremental_offset_resource(
-                    resource,
-                    paths,
-                    checkpoint,
-                    echo,
-                    progress_callback,
-                )
-            reconcile_offset_resource(
-                sp,
-                resource,
-                paths,
-                checkpoint,
-                echo,
-                progress_callback,
-                retry_wait,
-                cancel_check,
-                sleep,
-                retry_base_seconds,
-                retry_max_seconds,
-            )
-        return finalize_live_mirrors(
-            load_models_jsonl(paths.stage("albums"), YourLibraryAlbum),
-            load_models_jsonl(paths.stage("tracks"), YourLibraryTrack),
-            paths,
-            checkpoint,
+    refresh_mode: MirrorRefreshMode = "full" if full_rebuild else "incremental"
+    checkpoint = load_or_create_checkpoint(paths, refresh_mode)
+    session = analysis_session(
+        paths,
+        cast(Checkpoint, checkpoint),
+        progress=progress_callback,
+        cancel_check=cancel_check,
+        spotify=sp,
+        echo=echo,
+        retry_wait=retry_wait,
+        sleep=sleep,
+        retry_base_seconds=retry_base_seconds,
+        retry_max_seconds=retry_max_seconds,
+    )
+    with AnalysisFailure(
+        session,
+        "Live mirror refresh failed",
+        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
+    ):
+        return analysis_runs.refresh_mirrors(
+            session, analysis_publication(), full_rebuild
         )
-    except LibraryAnalysisCancelledError, SpotifyRateLimitError:
-        append_event(paths, str(checkpoint["run_id"]), "run_paused")
-        raise
-    except KeyboardInterrupt:
-        append_event(paths, str(checkpoint["run_id"]), "run_paused")
-        raise
-    except LibrarySyncError:
-        append_event(paths, str(checkpoint["run_id"]), "run_failed")
-        raise
-    except Exception as exc:
-        append_event(
-            paths,
-            str(checkpoint["run_id"]),
-            "run_failed",
-            error=type(exc).__name__,
-            detail=str(exc),
-        )
-        raise LibrarySyncError(f"Live mirror refresh failed: {exc}") from exc
 
 
 def refresh_live_library_resource_routine(
@@ -1963,214 +1257,74 @@ def refresh_live_library_resource_routine(
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,
 ) -> LibrarySyncSummary:
-    """Refresh one canonical library mirror without reading or publishing others."""
+    """Refresh one canonical library mirror without reading or publishing others.
+
+    Args:
+        sp: Original caller-owned synchronous Spotify client.
+        resource: Original active library resource identity.
+        echo: Original visible output callback.
+        progress_callback: Original optional resource-level progress callback.
+        retry_wait: Original optional interactive retry decision.
+        cancel_check: Original optional durable cancellation observation.
+        paths: Original independent output family.
+        sleep: Original caller-supplied blocking retry wait.
+        retry_base_seconds: Original initial transient retry delay.
+        retry_max_seconds: Original capped transient retry delay.
+        full_rebuild: Whether to rebuild complete original live authority.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     if paths.mode != "mirrors":
         raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
-    scoped_paths = live_mirror_resource_paths(paths, resource)
-    rebuild = full_rebuild
-    refresh_mode: MirrorRefreshMode = "full" if rebuild else "incremental"
-    checkpoint = load_or_create_checkpoint(scoped_paths, refresh_mode)
-    try:
-        if checkpoint["status"] == "finalizing":
-            _target, model_type, _sort_key = _live_resource_config(
-                scoped_paths,
-                resource,
-            )
-            return finalize_live_mirror_resource(
-                resource,
-                load_models_jsonl(scoped_paths.stage(resource), model_type),
-                scoped_paths,
-                checkpoint,
-            )
-
-        if resource in {"albums", "tracks"}:
-            offset_resource = cast(Literal["albums", "tracks"], resource)
-            if rebuild:
-                sync_initial_offset_resource(
-                    sp,
-                    offset_resource,
-                    scoped_paths,
-                    checkpoint,
-                    echo,
-                    progress_callback,
-                    retry_wait,
-                    cancel_check,
-                    sleep,
-                    retry_base_seconds,
-                    retry_max_seconds,
-                )
-            else:
-                seed_incremental_offset_resource(
-                    offset_resource,
-                    scoped_paths,
-                    checkpoint,
-                    echo,
-                    progress_callback,
-                )
-            reconcile_offset_resource(
-                sp,
-                offset_resource,
-                scoped_paths,
-                checkpoint,
-                echo,
-                progress_callback,
-                retry_wait,
-                cancel_check,
-                sleep,
-                retry_base_seconds,
-                retry_max_seconds,
-            )
-            model_type = YourLibraryAlbum if resource == "albums" else YourLibraryTrack
-        else:
-            state = checkpoint["resources"]["artists"]
-            if not rebuild:
-                prepare_artist_verification(
-                    scoped_paths,
-                    checkpoint,
-                    full_rebuild=False,
-                    echo=echo,
-                    reason="using the fast incremental candidate refresh",
-                )
-                verify_artist_candidates(
-                    sp,
-                    scoped_paths,
-                    checkpoint,
-                    echo,
-                    progress_callback,
-                    retry_wait,
-                    cancel_check,
-                    sleep,
-                    retry_base_seconds,
-                    retry_max_seconds,
-                )
-            else:
-                if state["status"] != "verifying_fallback":
-                    try:
-                        sync_initial_artists(
-                            sp,
-                            scoped_paths,
-                            checkpoint,
-                            echo,
-                            progress_callback,
-                            retry_wait,
-                            cancel_check,
-                            sleep,
-                            retry_base_seconds,
-                            retry_max_seconds,
-                        )
-                    except _FollowedArtistsEndpointUnavailableError as exc:
-                        prepare_artist_verification(
-                            scoped_paths,
-                            checkpoint,
-                            full_rebuild=True,
-                            echo=echo,
-                            reason=str(exc),
-                        )
-                if state["status"] == "verifying_fallback":
-                    verify_artist_candidates(
-                        sp,
-                        scoped_paths,
-                        checkpoint,
-                        echo,
-                        progress_callback,
-                        retry_wait,
-                        cancel_check,
-                        sleep,
-                        retry_base_seconds,
-                        retry_max_seconds,
-                    )
-                else:
-                    reconcile_artists(
-                        sp,
-                        scoped_paths,
-                        checkpoint,
-                        echo,
-                        progress_callback,
-                        retry_wait,
-                        cancel_check,
-                        sleep,
-                        retry_base_seconds,
-                        retry_max_seconds,
-                    )
-            model_type = YourLibraryArtist
-
-        return finalize_live_mirror_resource(
-            resource,
-            load_models_jsonl(scoped_paths.stage(resource), model_type),
-            scoped_paths,
-            checkpoint,
+    paths = live_mirror_resource_paths(paths, resource)
+    refresh_mode: MirrorRefreshMode = "full" if full_rebuild else "incremental"
+    checkpoint = load_or_create_checkpoint(paths, refresh_mode)
+    session = analysis_session(
+        paths,
+        cast(Checkpoint, checkpoint),
+        progress=progress_callback,
+        cancel_check=cancel_check,
+        spotify=sp,
+        echo=echo,
+        retry_wait=retry_wait,
+        sleep=sleep,
+        retry_base_seconds=retry_base_seconds,
+        retry_max_seconds=retry_max_seconds,
+    )
+    with AnalysisFailure(
+        session,
+        f"Live {resource} mirror refresh failed",
+        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
+    ):
+        return analysis_runs.refresh_resource(
+            session, analysis_publication(), resource, full_rebuild
         )
-    except LibraryAnalysisCancelledError, SpotifyRateLimitError:
-        append_event(scoped_paths, str(checkpoint["run_id"]), "run_paused")
-        raise
-    except KeyboardInterrupt:
-        append_event(scoped_paths, str(checkpoint["run_id"]), "run_paused")
-        raise
-    except LibrarySyncError:
-        append_event(scoped_paths, str(checkpoint["run_id"]), "run_failed")
-        raise
-    except Exception as exc:
-        append_event(
-            scoped_paths,
-            str(checkpoint["run_id"]),
-            "run_failed",
-            error=type(exc).__name__,
-            detail=str(exc),
-        )
-        raise LibrarySyncError(f"Live {resource} mirror refresh failed: {exc}") from exc
 
 
 def restore_library_sync(
     run_id: str,
     paths: LibraryAnalysisPaths | None = None,
 ) -> tuple[str, ...]:
-    """Restore generated files from one completed async or sync backup."""
-    if not run_id or any(part in run_id for part in ("/", "\\", "..")):
-        raise LibrarySyncRestoreError("Invalid library-analysis run id.")
+    """Restore generated files from one completed async or sync backup.
+
+    Args:
+        run_id: Original sortable run identity.
+        paths: Original independent output family.
+
+
+    Returns:
+        Original complete result with unchanged source and recovery semantics.
+    """
     candidates = (
         [paths]
         if paths is not None
         else [DEFAULT_SYNC_PATHS, DEFAULT_ASYNC_PATHS, DEFAULT_LIVE_MIRROR_PATHS]
     )
-    selected: LibraryAnalysisPaths | None = None
-    backup_dir: Path | None = None
-    manifest: dict[str, Any] | None = None
-    for candidate in candidates:
-        if candidate is None:
-            continue
-        possible_dir = candidate.backups_dir / run_id
-        raw = load_json(possible_dir / "manifest.json")
-        if isinstance(raw, dict) and raw.get("run_id") == run_id:
-            selected = candidate
-            backup_dir = possible_dir
-            manifest = raw
-            break
-    if selected is None or backup_dir is None or manifest is None:
-        raise LibrarySyncRestoreError(f"No valid backup found for run {run_id}.")
-
-    targets = manifest.get("targets")
-    if not isinstance(targets, dict):
-        raise LibrarySyncRestoreError("The backup manifest has no target list.")
-    current_targets = backup_targets(selected)
-    restored: list[str] = []
-    for name, details in targets.items():
-        if name not in current_targets or not isinstance(details, dict):
-            continue
-        target = current_targets[name]
-        if details.get("existed"):
-            backup_file = backup_dir / str(details["backup_file"])
-            if not backup_file.exists():
-                raise LibrarySyncRestoreError(f"Backup file missing for {target.name}.")
-            temporary = target.with_suffix(f"{target.suffix}.restore")
-            shutil.copy2(backup_file, temporary)
-            temporary.replace(target)
-            publish_managed_path(target, source=f"restore analysis {run_id}")
-        else:
-            target.unlink(missing_ok=True)
-        restored.append(target.name)
-
-    append_event(selected, run_id, "run_restored", restored_files=restored)
-    return tuple(restored)
+    return analysis_restore.restore_library_sync(
+        run_id, candidates, analysis_storage(), _publish_restored
+    )
 
 
 # Compatibility alias for integrations that imported the old hybrid entry point.
@@ -2197,3 +1351,35 @@ __all__ = [
     "refresh_live_library_resource_routine",
     "restore_library_sync",
 ]
+
+
+def _initial_offset_reader(
+    sp: Spotify, resource: ResourceName
+) -> Callable[..., object]:
+    return (
+        sp.current_user_saved_albums
+        if resource == "albums"
+        else sp.current_user_saved_tracks
+    )
+
+
+def _reconcile_offset_reader(
+    sp: Spotify, resource: ResourceName
+) -> Callable[..., object]:
+    return (
+        sp.current_user_saved_albums
+        if resource == "albums"
+        else sp.current_user_saved_tracks
+    )
+
+
+def _reconcile_artist_page(sp: Spotify, after: str | None) -> object:
+    return sp.current_user_followed_artists(limit=ARTIST_PAGE_LIMIT, after=after)
+
+
+def _following_artists(sp: Spotify, identities: list[str]) -> object:
+    return sp.current_user_following_artists(identities)
+
+
+def _publish_restored(path: Path, source: str) -> None:
+    publish_managed_path(path, source=source)

@@ -5,19 +5,28 @@ import json
 import os
 import shutil
 import tempfile
-from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 from typing import cast
 
-# UFI
+from spotify_manager.application.history_values import (
+    ScrobbleHistoryCancelledError as ScrobbleHistoryCancelledError,
+)
+from spotify_manager.application.history_values import (
+    ScrobbleHistoryError as ScrobbleHistoryError,
+)
+from spotify_manager.application.history_values import (
+    ScrobbleHistorySummary as ScrobbleHistorySummary,
+)
 from spotify_manager.client.lastfm import LastFmRecentTrack
-from spotify_manager.core.library_data.runtime import artifact_for_path
-from spotify_manager.core.library_data.runtime import get_library_data_service
+from spotify_manager.core.library_data.runtime import (
+    artifact_for_path as artifact_for_path,
+)
+from spotify_manager.core.library_data.runtime import (
+    get_library_data_service as get_library_data_service,
+)
 from spotify_manager.routines import blast_from_past
 
 
@@ -28,14 +37,6 @@ DEFAULT_BACKUP_DIR = FILES_DIR / "lastfm_history_backups"
 DEFAULT_LOG_PATH = FILES_DIR / "scrobble_history_update_log.jsonl"
 ProgressCallback = Callable[[str], None]
 CancelCheck = Callable[[], bool]
-
-
-class ScrobbleHistoryError(RuntimeError):
-    """Raised when the canonical Last.fm record cannot be updated safely."""
-
-
-class ScrobbleHistoryCancelledError(ScrobbleHistoryError):
-    """Raised when a history refresh stops at a persistence boundary."""
 
 
 def check_cancel(cancel_check: CancelCheck | None) -> None:
@@ -55,26 +56,6 @@ class LastFmReader(Protocol):
         limit: int = 200,
     ) -> tuple[LastFmRecentTrack, ...]:
         """Return all dated scrobbles in a closed UTC range."""
-
-
-@dataclass(frozen=True)
-class ScrobbleHistorySummary:
-    """One complete in-memory or persisted history refresh."""
-
-    checked_at: datetime
-    username: str
-    history: tuple[blast_from_past.Scrobble, ...]
-    export_scrobbles: int
-    legacy_scrobbles_added: int
-    live_scrobbles_added: int
-    dry_run: bool
-    persisted: bool
-    backup_path: Path | None
-
-    @property
-    def total_scrobbles(self) -> int:
-        """Return the merged canonical history size."""
-        return len(self.history)
 
 
 def _normalized_event_key(
@@ -331,129 +312,40 @@ def refresh_scrobble_history(
     progress_callback: ProgressCallback | None = None,
     cancel_check: CancelCheck | None = None,
 ) -> ScrobbleHistorySummary:
-    """Merge recent plays, or replace all history from a complete API rebuild."""
-    managed_artifact = artifact_for_path(export_path)
-    data_service = None
-    if managed_artifact == "scrobbles":
-        data_service = get_library_data_service()
-        data_service.hydrate("scrobbles")
-    check_cancel(cancel_check)
-    checked_at = (now or datetime.now(UTC)).astimezone(UTC)
-    if progress_callback is not None:
-        progress_callback("Loading the canonical Last.fm history")
-    payload, export_records, recovered_from_fallback = _load_export(export_path)
-    check_cancel(cancel_check)
-    if recovered_from_fallback and progress_callback is not None:
-        progress_callback("Recovered Last.fm history from compressed fallback parts")
-    username = str(payload.get("username") or "").strip()
-    if (
-        expected_username
-        and username
-        and username.casefold() != expected_username.casefold()
-    ):
-        raise ScrobbleHistoryError(
-            f"Last.fm export belongs to {username}, not {expected_username}."
-        )
-    username = username or (expected_username or "")
+    """Merge recent plays, or replace all history from a complete API rebuild.
 
-    records = [] if full_rebuild else list(export_records)
-    known_counts = Counter(_record_key(record) for record in records)
-    legacy_added = 0
-    legacy_seen: Counter[tuple[int, str, str, str]] = Counter()
-    legacy_records = (
-        ()
-        if full_rebuild or payload.get("full_rebuilt_at")
-        else _load_legacy_delta(legacy_delta_path)
-    )
-    for record in legacy_records:
-        key = _record_key(record)
-        legacy_seen[key] += 1
-        if legacy_seen[key] <= known_counts[key]:
-            continue
-        records.append(record)
-        legacy_added += 1
-    if not records and not full_rebuild:
-        raise ScrobbleHistoryError("The Last.fm scrobble history is empty.")
+    Args:
+        lastfm: Caller-owned reader for dated Last.fm tracks.
+        expected_username: Optional export ownership constraint.
+        export_path: Canonical export file.
+        legacy_delta_path: Optional legacy Found Art delta.
+        backup_dir: Destination for compressed original-history backups.
+        log_path: Append-only refresh audit destination.
+        dry_run: Suppress persistence while retaining observations.
+        full_rebuild: Replace local history from the entire live API range.
+        now: Optional effective refresh timestamp.
+        progress_callback: Optional existing progress presenter.
+        cancel_check: Optional predicate checked before expensive or mutating steps.
 
-    known_counts = Counter(_record_key(record) for record in records)
-    latest_timestamp_ms = max(
-        (cast(int, record["date"]) for record in records), default=0
-    )
-    from_timestamp = latest_timestamp_ms // 1000
-    to_timestamp = int(checked_at.timestamp())
-    live_added = 0
-    if from_timestamp <= to_timestamp:
-        if progress_callback is not None:
-            progress_callback(
-                "Rebuilding all scrobbles from Last.fm"
-                if full_rebuild
-                else "Fetching newer scrobbles from Last.fm"
-            )
-        live_seen: Counter[tuple[int, str, str, str]] = Counter()
-        live_tracks = lastfm.recent_tracks(
-            from_timestamp=from_timestamp,
-            to_timestamp=to_timestamp,
-        )
-        check_cancel(cancel_check)
-        for live_track in live_tracks:
-            record = _api_record(live_track)
-            key = _record_key(record)
-            live_seen[key] += 1
-            if live_seen[key] <= known_counts[key]:
-                continue
-            records.append(record)
-            live_added += 1
+    Returns:
+        Complete merged history and accepted persistence effects.
 
-    records = sorted(
-        records,
-        key=lambda record: cast(int, record["date"]),
-    )
-    if full_rebuild and not records and export_records:
-        raise ScrobbleHistoryError(
-            "Refusing to replace nonempty history with an empty API response."
-        )
-    changed = full_rebuild or legacy_added > 0 or live_added > 0
-    backup_path: Path | None = None
-    persisted = False
-    check_cancel(cancel_check)
-    if changed and not dry_run:
-        if progress_callback is not None:
-            progress_callback("Backing up and atomically saving Last.fm history")
-        backup_path = _backup_export(
-            export_path,
-            backup_dir,
-            checked_at,
-            recovered_payload=payload if recovered_from_fallback else None,
-        )
-        updated_payload = (
-            dict(payload, full_rebuilt_at=checked_at.isoformat())
-            if full_rebuild
-            else payload
-        )
-        _write_export_atomic(export_path, updated_payload, records)
-        persisted = True
+    Raises:
+        ScrobbleHistoryError: Export validation, ownership or persistence fails.
+        ScrobbleHistoryCancelledError: Cancellation is requested at a boundary.
+    """
+    from spotify_manager.bootstrap.history import refresh_history
 
-    summary = ScrobbleHistorySummary(
-        checked_at=checked_at,
-        username=username,
-        history=_history(records),
-        export_scrobbles=len(export_records),
-        legacy_scrobbles_added=legacy_added,
-        live_scrobbles_added=live_added,
-        dry_run=dry_run,
-        persisted=persisted,
-        backup_path=backup_path,
+    return refresh_history(
+        lastfm,
+        expected_username,
+        export_path,
+        legacy_delta_path,
+        backup_dir,
+        log_path,
+        dry_run,
+        full_rebuild,
+        now,
+        progress_callback,
+        cancel_check,
     )
-    if not dry_run:
-        _mark_export_checked(export_path, checked_at)
-        if data_service is not None:
-            data_service.publish(
-                "scrobbles",
-                source="Last.fm API full rebuild"
-                if full_rebuild
-                else "Last.fm API refresh",
-            )
-        if not changed and progress_callback is not None:
-            progress_callback("History already current; recorded successful check time")
-        _append_log(summary, log_path)
-    return summary

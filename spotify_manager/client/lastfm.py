@@ -11,6 +11,13 @@ from urllib.parse import urlencode
 from urllib.request import Request
 from urllib.request import urlopen
 
+from spotify_manager.domain.queue_candidates import (
+    LastFmSimilarArtist as LastFmSimilarArtist,
+)
+from spotify_manager.domain.recommendation_candidates import (
+    LastFmSimilarTrack as LastFmSimilarTrack,
+)
+
 
 LASTFM_API_URL = "https://ws.audioscrobbler.com/2.0/"
 LASTFM_USER_AGENT = "spotify-manager/0.1.0 (u.fiori@iib-institut.de)"
@@ -27,23 +34,6 @@ class LastFmError(RuntimeError):
 
 class LastFmResponseError(LastFmError):
     """Raised when Last.fm returns an error or an invalid response."""
-
-
-@dataclass(frozen=True)
-class LastFmSimilarTrack:
-    """One track returned by ``track.getSimilar``."""
-
-    artist: str
-    track: str
-    match: float
-
-
-@dataclass(frozen=True)
-class LastFmSimilarArtist:
-    """One artist returned by ``artist.getSimilar``."""
-
-    artist: str
-    match: float
 
 
 @dataclass(frozen=True)

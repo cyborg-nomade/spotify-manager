@@ -1,0 +1,1479 @@
+[
+  {
+    "outcome": [
+      "result",
+      {
+        "album": [
+          {
+            "id": "track",
+            "name": "Élan"
+          }
+        ]
+      }
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{\"album\": [{\"id\": \"track\", \"name\": \"Élan\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      {}
+    ],
+    "output": "",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "result",
+      {}
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "null"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      "unexpected"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "\"unexpected\""
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      []
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "[]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      [
+        {
+          "bad": 1
+        }
+      ]
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"bad\": 1}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      [
+        {
+          "album": {
+            "spotify_id": "album",
+            "name": "Album",
+            "artist": {
+              "spotify_id": "artist",
+              "name": "Artist"
+            },
+            "ordering_string": "ALBUM"
+          },
+          "result": ""
+        }
+      ]
+    ],
+    "output": "Loading control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"album\": {\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}, \"result\": \"\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/value.json'"
+    ],
+    "output": "Loading control file...\n",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "error",
+      "JSONDecodeError",
+      "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    ],
+    "output": "Loading control file...\n",
+    "effects": [],
+    "files": {
+      "value.json": "{"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "TypeError",
+      "'NoneType' object is not iterable"
+    ],
+    "output": "Loading control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "null"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "1 validation error for ControlFileItem\n  Input should be a valid dictionary or instance of ControlFileItem [type=model_type, input_value='u', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type"
+    ],
+    "output": "Loading control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "\"unexpected\""
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      []
+    ],
+    "output": "Loading control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "2 validation errors for ControlFileItem\nalbum\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nresult\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing"
+    ],
+    "output": "Loading control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"bad\": 1}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      [
+        {
+          "spotify_id": "album",
+          "name": "Album",
+          "artist": {
+            "spotify_id": "artist",
+            "name": "Artist"
+          },
+          "ordering_string": "ALBUM"
+        }
+      ]
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/value.json'"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "error",
+      "JSONDecodeError",
+      "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    ],
+    "output": "Loading Total Albums file\n",
+    "effects": [],
+    "files": {
+      "value.json": "{"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "TypeError",
+      "'NoneType' object is not iterable"
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "null"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "1 validation error for SimplifiedAlbum\n  Input should be a valid dictionary or instance of SimplifiedAlbum [type=model_type, input_value='u', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type"
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "\"unexpected\""
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      []
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "4 validation errors for SimplifiedAlbum\nspotify_id\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nname\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nartist\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nordering_string\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing"
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"bad\": 1}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      [
+        {
+          "artist": "Artist",
+          "album": "Album",
+          "uri": "spotify:album:album"
+        }
+      ]
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/value.json'"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "error",
+      "JSONDecodeError",
+      "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    ],
+    "output": "Loading Total Albums file\n",
+    "effects": [],
+    "files": {
+      "value.json": "{"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "TypeError",
+      "'NoneType' object is not iterable"
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "null"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "1 validation error for YourLibraryAlbum\n  Input should be a valid dictionary or instance of YourLibraryAlbum [type=model_type, input_value='u', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type"
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "\"unexpected\""
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      []
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "3 validation errors for YourLibraryAlbum\nartist\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nalbum\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nuri\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing"
+    ],
+    "output": "Loading Total Albums file\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"bad\": 1}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      {
+        "tracks": [
+          {
+            "artist": "Artist",
+            "album": "Album",
+            "track": "Track",
+            "uri": "spotify:track:track"
+          }
+        ],
+        "albums": [
+          {
+            "artist": "Artist",
+            "album": "Album",
+            "uri": "spotify:album:album"
+          }
+        ],
+        "artists": [
+          {
+            "name": "Artist",
+            "uri": "spotify:artist:artist"
+          }
+        ]
+      }
+    ],
+    "output": "Loading Your Library file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"tracks\": [{\"artist\": \"Artist\", \"album\": \"Album\", \"track\": \"Track\", \"uri\": \"spotify:track:track\"}], \"albums\": [{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}], \"artists\": [{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/value.json'"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "error",
+      "JSONDecodeError",
+      "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    ],
+    "output": "Loading Your Library file..\n",
+    "effects": [],
+    "files": {
+      "value.json": "{"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "1 validation error for YourLibraryFile\n  Input should be a valid dictionary or instance of YourLibraryFile [type=model_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type"
+    ],
+    "output": "Loading Your Library file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "null"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "1 validation error for YourLibraryFile\n  Input should be a valid dictionary or instance of YourLibraryFile [type=model_type, input_value='unexpected', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type"
+    ],
+    "output": "Loading Your Library file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "\"unexpected\""
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "1 validation error for YourLibraryFile\n  Input should be a valid dictionary or instance of YourLibraryFile [type=model_type, input_value=[], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type"
+    ],
+    "output": "Loading Your Library file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "1 validation error for YourLibraryFile\n  Input should be a valid dictionary or instance of YourLibraryFile [type=model_type, input_value=[{'bad': 1}], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type"
+    ],
+    "output": "Loading Your Library file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"bad\": 1}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      {
+        "add": [
+          {
+            "name": "Élan",
+            "id": "album"
+          }
+        ],
+        "remove": []
+      }
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{\"add\": [{\"name\": \"Élan\", \"id\": \"album\"}], \"remove\": []}"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/value.json'"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "error",
+      "JSONDecodeError",
+      "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "null"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      "unexpected"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "\"unexpected\""
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      []
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "[]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      [
+        {
+          "bad": 1
+        }
+      ]
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"bad\": 1}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      [
+        {
+          "name": "Artist",
+          "uri": "spotify:artist:artist"
+        }
+      ]
+    ],
+    "output": "Loading total artists file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/value.json'"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "error",
+      "JSONDecodeError",
+      "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    ],
+    "output": "Loading total artists file..\n",
+    "effects": [],
+    "files": {
+      "value.json": "{"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "TypeError",
+      "'NoneType' object is not iterable"
+    ],
+    "output": "Loading total artists file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "null"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "1 validation error for YourLibraryArtist\n  Input should be a valid dictionary or instance of YourLibraryArtist [type=model_type, input_value='u', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/model_type"
+    ],
+    "output": "Loading total artists file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "\"unexpected\""
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      []
+    ],
+    "output": "Loading total artists file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValidationError",
+      "2 validation errors for YourLibraryArtist\nname\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nuri\n  Field required [type=missing, input_value={'bad': 1}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing"
+    ],
+    "output": "Loading total artists file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"bad\": 1}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      {
+        "period": {
+          "albums_stats": {
+            "total_saved_albums": 1,
+            "removed_albums": 0,
+            "added_albums": 1,
+            "growth": 1.0
+          },
+          "artists_stats": {
+            "total_followed_artists": 1,
+            "removed_artists": 0,
+            "added_artists": 1,
+            "growth": 1.0
+          },
+          "tracks_stats": {
+            "total_liked_tracks": 1,
+            "removed_tracks": 0,
+            "added_tracks": 1,
+            "growth": 1.0
+          },
+          "avg_albums_per_artists": 1,
+          "avg_liked_tracks_per_artists": 1
+        }
+      }
+    ],
+    "output": "Loading liked tracks file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"period\": {\"albums_stats\": {\"total_saved_albums\": 1, \"removed_albums\": 0, \"added_albums\": 1, \"growth\": 1.0}, \"artists_stats\": {\"total_followed_artists\": 1, \"removed_artists\": 0, \"added_artists\": 1, \"growth\": 1.0}, \"tracks_stats\": {\"total_liked_tracks\": 1, \"removed_tracks\": 0, \"added_tracks\": 1, \"growth\": 1.0}, \"avg_albums_per_artists\": 1, \"avg_liked_tracks_per_artists\": 1}}"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/value.json'"
+    ],
+    "output": "",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "error",
+      "JSONDecodeError",
+      "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    ],
+    "output": "Loading liked tracks file..\n",
+    "effects": [],
+    "files": {
+      "value.json": "{"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "AttributeError",
+      "'NoneType' object has no attribute 'items'"
+    ],
+    "output": "Loading liked tracks file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "null"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "AttributeError",
+      "'str' object has no attribute 'items'"
+    ],
+    "output": "Loading liked tracks file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "\"unexpected\""
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "AttributeError",
+      "'list' object has no attribute 'items'"
+    ],
+    "output": "Loading liked tracks file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "AttributeError",
+      "'list' object has no attribute 'items'"
+    ],
+    "output": "Loading liked tracks file..\nDone.\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"bad\": 1}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{\"album\": [{\"id\": \"track\", \"name\": \"Élan\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{\"album\": [{\"id\": \"track\", \"name\": \"Élan\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{\"album\": [{\"id\": \"track\", \"name\": \"Élan\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{\"album\": [{\"id\": \"track\", \"name\": \"Élan\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{\"album\": [{\"id\": \"track\", \"name\": \"Élan\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "value.json": "{\"album\": [{\"id\": \"track\", \"name\": \"Élan\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "",
+    "effects": [],
+    "files": {
+      "missing/value.json": "{\"album\": [{\"id\": \"track\", \"name\": \"Élan\"}]}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"album\": {\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}, \"result\": \"\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValueError",
+      "serialization failed"
+    ],
+    "output": "Saving control file...\n",
+    "effects": [],
+    "files": {
+      "value.json": ""
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"album\": {\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}, \"result\": \"\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"album\": {\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}, \"result\": \"\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"album\": {\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}, \"result\": \"\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving control file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"album\": {\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}, \"result\": \"\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/missing/value.json'"
+    ],
+    "output": "Saving control file...\n",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving total albums file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValueError",
+      "serialization failed"
+    ],
+    "output": "Saving total albums file...\n",
+    "effects": [],
+    "files": {
+      "value.json": ""
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving total albums file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving total albums file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving total albums file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving total albums file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"spotify_id\": \"album\", \"name\": \"Album\", \"artist\": {\"spotify_id\": \"artist\", \"name\": \"Artist\"}, \"ordering_string\": \"ALBUM\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/missing/value.json'"
+    ],
+    "output": "Saving total albums file...\n",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving total albums file...\nOK!\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ],
+      [
+        "publish",
+        "before",
+        "value.json",
+        "library routine"
+      ],
+      [
+        "publish",
+        "after",
+        "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValueError",
+      "serialization failed"
+    ],
+    "output": "Saving total albums file...\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]",
+      "value.json.tmp": ""
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "OSError",
+      "replacement failed"
+    ],
+    "output": "Saving total albums file...\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]",
+      "value.json.tmp": "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "OSError",
+      "replacement failed"
+    ],
+    "output": "Saving total albums file...\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "OSError",
+      "publication failed"
+    ],
+    "output": "Saving total albums file...\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ],
+      [
+        "publish",
+        "before",
+        "value.json",
+        "library routine"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "OSError",
+      "publication failed"
+    ],
+    "output": "Saving total albums file...\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ],
+      [
+        "publish",
+        "before",
+        "value.json",
+        "library routine"
+      ],
+      [
+        "publish",
+        "after",
+        "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"artist\": \"Artist\", \"album\": \"Album\", \"uri\": \"spotify:album:album\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/missing/value.json.tmp'"
+    ],
+    "output": "Saving total albums file...\n",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving comparison file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"add\": [{\"name\": \"Élan\", \"id\": \"album\"}], \"remove\": []}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving comparison file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"add\": [{\"name\": \"Élan\", \"id\": \"album\"}], \"remove\": []}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving comparison file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"add\": [{\"name\": \"Élan\", \"id\": \"album\"}], \"remove\": []}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving comparison file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"add\": [{\"name\": \"Élan\", \"id\": \"album\"}], \"remove\": []}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving comparison file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"add\": [{\"name\": \"Élan\", \"id\": \"album\"}], \"remove\": []}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving comparison file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"add\": [{\"name\": \"Élan\", \"id\": \"album\"}], \"remove\": []}"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/missing/value.json'"
+    ],
+    "output": "Saving comparison file...\n",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving total artists file...\nOK!\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ],
+      [
+        "publish",
+        "before",
+        "value.json",
+        "library routine"
+      ],
+      [
+        "publish",
+        "after",
+        "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "ValueError",
+      "serialization failed"
+    ],
+    "output": "Saving total artists file...\n",
+    "effects": [],
+    "files": {
+      "value.json": "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]",
+      "value.json.tmp": ""
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "OSError",
+      "replacement failed"
+    ],
+    "output": "Saving total artists file...\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]",
+      "value.json.tmp": "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "OSError",
+      "replacement failed"
+    ],
+    "output": "Saving total artists file...\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "OSError",
+      "publication failed"
+    ],
+    "output": "Saving total artists file...\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ],
+      [
+        "publish",
+        "before",
+        "value.json",
+        "library routine"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "OSError",
+      "publication failed"
+    ],
+    "output": "Saving total artists file...\n",
+    "effects": [
+      [
+        "replace",
+        "value.json.tmp",
+        "value.json"
+      ],
+      [
+        "publish",
+        "before",
+        "value.json",
+        "library routine"
+      ],
+      [
+        "publish",
+        "after",
+        "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]"
+      ]
+    ],
+    "files": {
+      "value.json": "[{\"name\": \"Artist\", \"uri\": \"spotify:artist:artist\"}]"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/missing/value.json.tmp'"
+    ],
+    "output": "Saving total artists file...\n",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"period\": {\"albums_stats\": {\"total_saved_albums\": 1, \"removed_albums\": 0, \"added_albums\": 1, \"growth\": 1.0}, \"artists_stats\": {\"total_followed_artists\": 1, \"removed_artists\": 0, \"added_artists\": 1, \"growth\": 1.0}, \"tracks_stats\": {\"total_liked_tracks\": 1, \"removed_tracks\": 0, \"added_tracks\": 1, \"growth\": 1.0}, \"avg_albums_per_artists\": 1, \"avg_liked_tracks_per_artists\": 1}}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"period\": {\"albums_stats\": {\"total_saved_albums\": 1, \"removed_albums\": 0, \"added_albums\": 1, \"growth\": 1.0}, \"artists_stats\": {\"total_followed_artists\": 1, \"removed_artists\": 0, \"added_artists\": 1, \"growth\": 1.0}, \"tracks_stats\": {\"total_liked_tracks\": 1, \"removed_tracks\": 0, \"added_tracks\": 1, \"growth\": 1.0}, \"avg_albums_per_artists\": 1, \"avg_liked_tracks_per_artists\": 1}}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"period\": {\"albums_stats\": {\"total_saved_albums\": 1, \"removed_albums\": 0, \"added_albums\": 1, \"growth\": 1.0}, \"artists_stats\": {\"total_followed_artists\": 1, \"removed_artists\": 0, \"added_artists\": 1, \"growth\": 1.0}, \"tracks_stats\": {\"total_liked_tracks\": 1, \"removed_tracks\": 0, \"added_tracks\": 1, \"growth\": 1.0}, \"avg_albums_per_artists\": 1, \"avg_liked_tracks_per_artists\": 1}}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"period\": {\"albums_stats\": {\"total_saved_albums\": 1, \"removed_albums\": 0, \"added_albums\": 1, \"growth\": 1.0}, \"artists_stats\": {\"total_followed_artists\": 1, \"removed_artists\": 0, \"added_artists\": 1, \"growth\": 1.0}, \"tracks_stats\": {\"total_liked_tracks\": 1, \"removed_tracks\": 0, \"added_tracks\": 1, \"growth\": 1.0}, \"avg_albums_per_artists\": 1, \"avg_liked_tracks_per_artists\": 1}}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"period\": {\"albums_stats\": {\"total_saved_albums\": 1, \"removed_albums\": 0, \"added_albums\": 1, \"growth\": 1.0}, \"artists_stats\": {\"total_followed_artists\": 1, \"removed_artists\": 0, \"added_artists\": 1, \"growth\": 1.0}, \"tracks_stats\": {\"total_liked_tracks\": 1, \"removed_tracks\": 0, \"added_tracks\": 1, \"growth\": 1.0}, \"avg_albums_per_artists\": 1, \"avg_liked_tracks_per_artists\": 1}}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"period\": {\"albums_stats\": {\"total_saved_albums\": 1, \"removed_albums\": 0, \"added_albums\": 1, \"growth\": 1.0}, \"artists_stats\": {\"total_followed_artists\": 1, \"removed_artists\": 0, \"added_artists\": 1, \"growth\": 1.0}, \"tracks_stats\": {\"total_liked_tracks\": 1, \"removed_tracks\": 0, \"added_tracks\": 1, \"growth\": 1.0}, \"avg_albums_per_artists\": 1, \"avg_liked_tracks_per_artists\": 1}}"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/missing/value.json'"
+    ],
+    "output": "Saving stats file...\n",
+    "effects": [],
+    "files": {}
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"total_saved_albums\": 2, \"total_listened_albums\": 1, \"pct_listened_albums\": 0.5, \"total_removed_albums\": 0, \"pct_removed_albums\": 0.0, \"total_kept_albums\": 1, \"pct_kept_albums\": 1.0, \"last_listened_to_index\": 0}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"total_saved_albums\": 2, \"total_listened_albums\": 1, \"pct_listened_albums\": 0.5, \"total_removed_albums\": 0, \"pct_removed_albums\": 0.0, \"total_kept_albums\": 1, \"pct_kept_albums\": 1.0, \"last_listened_to_index\": 0}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"total_saved_albums\": 2, \"total_listened_albums\": 1, \"pct_listened_albums\": 0.5, \"total_removed_albums\": 0, \"pct_removed_albums\": 0.0, \"total_kept_albums\": 1, \"pct_kept_albums\": 1.0, \"last_listened_to_index\": 0}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"total_saved_albums\": 2, \"total_listened_albums\": 1, \"pct_listened_albums\": 0.5, \"total_removed_albums\": 0, \"pct_removed_albums\": 0.0, \"total_kept_albums\": 1, \"pct_kept_albums\": 1.0, \"last_listened_to_index\": 0}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"total_saved_albums\": 2, \"total_listened_albums\": 1, \"pct_listened_albums\": 0.5, \"total_removed_albums\": 0, \"pct_removed_albums\": 0.0, \"total_kept_albums\": 1, \"pct_kept_albums\": 1.0, \"last_listened_to_index\": 0}"
+    }
+  },
+  {
+    "outcome": [
+      "result",
+      null
+    ],
+    "output": "Saving stats file...\nOK!\n",
+    "effects": [],
+    "files": {
+      "value.json": "{\"total_saved_albums\": 2, \"total_listened_albums\": 1, \"pct_listened_albums\": 0.5, \"total_removed_albums\": 0, \"pct_removed_albums\": 0.0, \"total_kept_albums\": 1, \"pct_kept_albums\": 1.0, \"last_listened_to_index\": 0}"
+    }
+  },
+  {
+    "outcome": [
+      "error",
+      "FileNotFoundError",
+      "[Errno 2] No such file or directory: '<TMP>/missing/value.json'"
+    ],
+    "output": "Saving stats file...\n",
+    "effects": [],
+    "files": {}
+  }
+]

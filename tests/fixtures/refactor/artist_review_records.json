@@ -1,0 +1,5533 @@
+[
+  {
+    "kind": "track",
+    "raw": null,
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": null,
+    "outcome": null
+  },
+  {
+    "kind": "track",
+    "raw": [],
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": [],
+    "outcome": null
+  },
+  {
+    "kind": "track",
+    "raw": {},
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {},
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {},
+    "outcome": []
+  },
+  {
+    "kind": "name",
+    "raw": {},
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {},
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": null,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": null,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": null,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": null,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": null,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": 0,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": 0,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": 0,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": 0,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": 0,
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "  ",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "  ",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "  ",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "  ",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "  ",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": null,
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": null,
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": null,
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": null,
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": null,
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "  ",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "  ",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "  ",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "  ",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "  ",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": null,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": null,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": null,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": null,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": null,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": false,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": false,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": false,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": false,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": false,
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": null,
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": null,
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": null,
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": []
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": null,
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": null,
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": []
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        null
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        null
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        null
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": []
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        null
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        null
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {}
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {}
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {}
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": []
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {}
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {}
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": 0
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": 0
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": 0
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": []
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": 0
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": 0
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "other"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "other"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": null
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "other"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "other"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "other"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "other"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "Unknown artist",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "Unknown artist",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": ""
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "Unknown artist",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": ""
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "Unknown artist",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": ""
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": ""
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown artist"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": ""
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": " a",
+          "name": " X "
+        },
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": " a",
+      "primary_artist_name": " X ",
+      "artist_ids": [
+        " a",
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": " a",
+          "name": " X "
+        },
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": " a",
+      "primary_artist_name": " X ",
+      "artist_ids": [
+        " a",
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": " a",
+          "name": " X "
+        },
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      " a",
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": " a",
+          "name": " X "
+        },
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": " X "
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": " a",
+          "name": " X "
+        },
+        {
+          "id": "a"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": null,
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Unknown release",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": null,
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": null,
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": null,
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": null,
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": [],
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Unknown release",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": [],
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": [],
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": [],
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": [],
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {},
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Unknown release",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {},
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {},
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {},
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {},
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": ""
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Unknown release",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": ""
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": ""
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": ""
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": ""
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": null,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": null
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": null,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": null,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": null,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": null,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": "1",
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": null
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": "1",
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": "1",
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": "1",
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": "1",
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": true,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": true
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": true,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": true,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": true,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": true,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": false,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": false
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": false,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": false,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": false,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": false,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": -1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": -1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": -1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": -1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": -1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": -1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "single",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "single",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "EP",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "single",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "single",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "single",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "EP"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "ep",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "ep",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "EP",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "ep",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "ep",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "ep",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "EP"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "compilation",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "compilation",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Compilation",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "compilation",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "compilation",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "compilation",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Compilation"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "unknown",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "unknown",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Unknown",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "unknown",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "unknown",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "unknown",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": null,
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": null,
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Unknown",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": null,
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": null,
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": null,
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Unknown",
+      "release_date": "2000",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "",
+      "total_tracks": 10,
+      "release_date": "2000"
+    },
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 0,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 0,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 0,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 0,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 0,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 0,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 3,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 3,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 3,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 3,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 3,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 3,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 4,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 4,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 4,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 4,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 4,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 4,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": true,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": true,
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": true,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": true,
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": true,
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": true,
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": "4",
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": "4",
+      "release_date": "2000"
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "2000",
+      "total_tracks": 0,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": "4",
+      "release_date": "2000"
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": "4",
+      "release_date": "2000"
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": "4",
+      "release_date": "2000"
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": null
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": null
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "Unknown",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": null
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": null
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": null
+    },
+    "outcome": "Album"
+  },
+  {
+    "kind": "track",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": ""
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "album": "Album",
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "popularity": 1
+    }
+  },
+  {
+    "kind": "release",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": ""
+    },
+    "outcome": {
+      "spotify_id": "track",
+      "name": "Track",
+      "uri": "spotify:track:track",
+      "release_type": "Album",
+      "release_date": "Unknown",
+      "total_tracks": 10,
+      "rank": 3,
+      "primary_artist_id": "a",
+      "primary_artist_name": "A",
+      "artist_ids": [
+        "a"
+      ],
+      "first_track_checked": false,
+      "first_track_id": null,
+      "first_track_name": null,
+      "first_track_uri": null,
+      "first_track_primary_artist_id": null,
+      "first_track_primary_artist_name": null
+    }
+  },
+  {
+    "kind": "artists",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": ""
+    },
+    "outcome": [
+      "a"
+    ]
+  },
+  {
+    "kind": "name",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": ""
+    },
+    "outcome": "A"
+  },
+  {
+    "kind": "type",
+    "raw": {
+      "id": "track",
+      "uri": "spotify:track:track",
+      "name": "Track",
+      "album": {
+        "name": "Album"
+      },
+      "artists": [
+        {
+          "id": "a",
+          "name": "A"
+        }
+      ],
+      "popularity": 1,
+      "album_type": "album",
+      "total_tracks": 10,
+      "release_date": ""
+    },
+    "outcome": "Album"
+  }
+]

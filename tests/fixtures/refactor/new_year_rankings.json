@@ -1,0 +1,455 @@
+[
+  {
+    "history": [],
+    "year": 2025,
+    "outcome": {
+      "tracks": [],
+      "albums": [],
+      "artists": []
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 1
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 1
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 1
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      },
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 2
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 2
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 2
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "B",
+        "artist": "Z",
+        "album": "C",
+        "timestamp_ms": 1748772000000
+      },
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 1
+        },
+        {
+          "artist": "Z",
+          "name": "B",
+          "scrobbles": 1
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 1
+        },
+        {
+          "artist": "Z",
+          "name": "C",
+          "scrobbles": 1
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 1
+        },
+        {
+          "artist": "Z",
+          "name": "Z",
+          "scrobbles": 1
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1735685999000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [],
+      "albums": [],
+      "artists": []
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1735686000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 1
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 1
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 1
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1767221999000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 1
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 1
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 1
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1767222000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [],
+      "albums": [],
+      "artists": []
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": " ",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      },
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 1
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 1
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 1
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": " ",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      },
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 1
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 2
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 2
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": " ",
+        "timestamp_ms": 1748772000000
+      },
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 2
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 1
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 2
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": " TRACK ",
+        "artist": " ALPHA ",
+        "album": " ALBUM ",
+        "timestamp_ms": 1748772000000
+      },
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": " ALPHA ",
+          "name": " TRACK ",
+          "scrobbles": 2
+        }
+      ],
+      "albums": [
+        {
+          "artist": " ALPHA ",
+          "name": " ALBUM ",
+          "scrobbles": 2
+        }
+      ],
+      "artists": [
+        {
+          "artist": " ALPHA ",
+          "name": " ALPHA ",
+          "scrobbles": 2
+        }
+      ]
+    }
+  },
+  {
+    "history": [
+      {
+        "track": "Track",
+        "artist": "Álpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      },
+      {
+        "track": "Track",
+        "artist": "Alpha",
+        "album": "Album",
+        "timestamp_ms": 1748772000000
+      }
+    ],
+    "year": 2025,
+    "outcome": {
+      "tracks": [
+        {
+          "artist": "Alpha",
+          "name": "Track",
+          "scrobbles": 1
+        },
+        {
+          "artist": "Álpha",
+          "name": "Track",
+          "scrobbles": 1
+        }
+      ],
+      "albums": [
+        {
+          "artist": "Alpha",
+          "name": "Album",
+          "scrobbles": 1
+        },
+        {
+          "artist": "Álpha",
+          "name": "Album",
+          "scrobbles": 1
+        }
+      ],
+      "artists": [
+        {
+          "artist": "Alpha",
+          "name": "Alpha",
+          "scrobbles": 1
+        },
+        {
+          "artist": "Álpha",
+          "name": "Álpha",
+          "scrobbles": 1
+        }
+      ]
+    }
+  }
+]

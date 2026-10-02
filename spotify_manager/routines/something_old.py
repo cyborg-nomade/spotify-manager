@@ -1,21 +1,41 @@
 """Fill the Something Old slot from Last.fm Golden Oldies statistics."""
 
-import json
-from collections import defaultdict
 from collections.abc import Callable
-from dataclasses import asdict
-from dataclasses import dataclass
-from datetime import UTC
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Literal
 from typing import Protocol
 from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application import golden_selection as selections
+from spotify_manager.application.something_old_values import (
+    SomethingOldConfigError as SomethingOldConfigError,
+)
+
 # UFI
+from spotify_manager.application.something_old_values import (
+    SomethingOldError as SomethingOldError,
+)
+from spotify_manager.application.something_old_values import (
+    SomethingOldSpotifyError as SomethingOldSpotifyError,
+)
+from spotify_manager.application.something_old_values import (
+    SomethingOldSummary as SomethingOldSummary,
+)
+from spotify_manager.application.something_old_values import (
+    SummaryAction as SummaryAction,
+)
+from spotify_manager.domain import golden_markers
+from spotify_manager.domain.golden_oldies import GoldenOldieArtist as GoldenOldieArtist
+from spotify_manager.domain.golden_oldies import LastFmTrackStat as LastFmTrackStat
+from spotify_manager.domain.golden_selection import SelectedTrack as SelectedTrack
+from spotify_manager.domain.golden_selection import SelectionMode as SelectionMode
+from spotify_manager.domain.golden_selection import (
+    SpotifyArtistCandidate as SpotifyArtistCandidate,
+)
+from spotify_manager.infrastructure import golden_records
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
@@ -26,91 +46,12 @@ DEFAULT_LOG_PATH = FILES_DIR / "something_old_log.jsonl"
 MIN_ARTIST_SCROBBLES = 50
 TOP_TRACK_LIMIT = 10
 ARTIST_SEARCH_LIMIT = 10
-SelectionMode = Literal["lastfm_top_tracks", "spotify_top_tracks", "album"]
-SummaryAction = Literal["playlist not empty", "cancelled", "would add", "added"]
 ProgressCallback = Callable[[str], None]
 RetryCall = slow_listening.RetryCall
 
 
-class SomethingOldError(RuntimeError):
-    """Base error for the Something Old routine."""
-
-
-class SomethingOldConfigError(SomethingOldError):
-    """Raised when the destination playlist is not configured."""
-
-
-class SomethingOldSpotifyError(SomethingOldError):
-    """Raised when Spotify data is incomplete or ambiguous."""
-
-
 class LastFmReader(scrobble_history.LastFmReader, Protocol):
     """Last.fm methods used by the shared history refresh."""
-
-
-@dataclass(frozen=True)
-class LastFmTrackStat:
-    """All-time play count for one exact Last.fm track title."""
-
-    track: str
-    scrobbles: int
-    last_scrobbled_ms: int
-
-
-@dataclass(frozen=True)
-class GoldenOldieArtist:
-    """One artist eligible for Last.fm's Golden Oldies ranking."""
-
-    artist: str
-    scrobbles: int
-    average_scrobble_ms: int
-    first_scrobble_ms: int
-    last_scrobble_ms: int
-    top_tracks: tuple[LastFmTrackStat, ...]
-
-
-@dataclass(frozen=True)
-class SpotifyArtistCandidate:
-    """One exact-name Spotify artist search result."""
-
-    spotify_id: str
-    name: str
-    uri: str
-    popularity: int | None
-    followers: int | None
-    search_rank: int
-
-
-@dataclass(frozen=True)
-class SelectedTrack:
-    """One Spotify track selected for the destination playlist."""
-
-    spotify_id: str
-    uri: str
-    track: str
-    album: str
-    artists: tuple[str, ...]
-    source: str
-    lastfm_scrobbles: int | None = None
-
-
-@dataclass(frozen=True)
-class SomethingOldSummary:
-    """Completed Something Old decision and optional Spotify mutation."""
-
-    generated_at: datetime
-    playlist_id: str
-    playlist_length_before: int
-    playlist_length_after: int
-    dry_run: bool
-    action: SummaryAction
-    history_refresh: scrobble_history.ScrobbleHistorySummary | None
-    ranking_preview: tuple[GoldenOldieArtist, ...]
-    artist: GoldenOldieArtist | None
-    spotify_artist: SpotifyArtistCandidate | None
-    mode: SelectionMode | None
-    release: slow_listening.DiscographyRelease | None
-    tracks: tuple[SelectedTrack, ...]
 
 
 ArtistSearchChoiceReader = Callable[
@@ -129,7 +70,17 @@ AlbumChoiceReader = Callable[
 
 
 def parse_playlist_id(reference: str | None) -> str:
-    """Extract the configured Something Old, Something New playlist id."""
+    """Extract the configured Something Old, Something New playlist id.
+
+    Args:
+        reference: Original configured identity, URI or playlist URL.
+
+    Returns:
+        Original parsed playlist identity.
+
+    Raises:
+        SomethingOldConfigError: The original reference is missing or invalid.
+    """
     try:
         return blast_from_past.parse_playlist_id(
             reference,
@@ -142,88 +93,25 @@ def parse_playlist_id(reference: str | None) -> str:
 def rank_golden_oldies(
     history: tuple[blast_from_past.Scrobble, ...],
 ) -> tuple[GoldenOldieArtist, ...]:
-    """Reproduce Last.fm Stats' oldest average artist ranking."""
-    timestamps: dict[str, list[int]] = defaultdict(list)
-    track_counts: dict[str, dict[str, list[int]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
-    for scrobble in history:
-        artist = scrobble.artist.strip()
-        track = scrobble.track.strip()
-        if not artist or not track:
-            continue
-        timestamps[artist].append(scrobble.timestamp_ms)
-        track_counts[artist][track].append(scrobble.timestamp_ms)
+    """Reproduce Last.fm Stats' oldest average artist ranking.
 
-    ranking: list[GoldenOldieArtist] = []
-    for artist, played_at in timestamps.items():
-        if len(played_at) < MIN_ARTIST_SCROBBLES:
-            continue
-        top_tracks = tuple(
-            LastFmTrackStat(
-                track=track,
-                scrobbles=len(track_dates),
-                last_scrobbled_ms=max(track_dates),
-            )
-            for track, track_dates in sorted(
-                track_counts[artist].items(),
-                key=lambda item: (
-                    -len(item[1]),
-                    item[0].casefold(),
-                ),
-            )[:TOP_TRACK_LIMIT]
-        )
-        ranking.append(
-            GoldenOldieArtist(
-                artist=artist,
-                scrobbles=len(played_at),
-                average_scrobble_ms=sum(played_at) // len(played_at),
-                first_scrobble_ms=min(played_at),
-                last_scrobble_ms=max(played_at),
-                top_tracks=top_tracks,
-            )
-        )
-    return tuple(
-        sorted(
-            ranking,
-            key=lambda item: (
-                item.average_scrobble_ms,
-                item.artist.casefold(),
-            ),
-        )
-    )
+    Args:
+        history: Original complete ordered history.
+
+    Returns:
+        Eligible exact-label artists in original oldest-average order.
+    """
+    from spotify_manager.domain.golden_oldies import rank_golden_oldies as rank_history
+
+    return rank_history(history, MIN_ARTIST_SCROBBLES, TOP_TRACK_LIMIT)
 
 
 def _positive_int(raw: object) -> int | None:
-    """Return a non-negative Spotify integer when one is available."""
-    if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
-        return raw
-    return None
+    return golden_records.positive_int(raw)
 
 
 def _spotify_artist(raw: object, rank: int) -> SpotifyArtistCandidate | None:
-    """Parse one complete Spotify artist search result."""
-    if not isinstance(raw, dict):
-        return None
-    spotify_id = str(raw.get("id") or "").strip()
-    name = str(raw.get("name") or "").strip()
-    uri = str(raw.get("uri") or "").strip()
-    if not spotify_id or not name or not uri:
-        return None
-    raw_followers = raw.get("followers")
-    followers = (
-        _positive_int(raw_followers.get("total"))
-        if isinstance(raw_followers, dict)
-        else None
-    )
-    return SpotifyArtistCandidate(
-        spotify_id=spotify_id,
-        name=name,
-        uri=uri,
-        popularity=_positive_int(raw.get("popularity")),
-        followers=followers,
-        search_rank=rank,
-    )
+    return golden_records.artist_record(raw, rank)
 
 
 def resolve_spotify_artist(
@@ -232,7 +120,20 @@ def resolve_spotify_artist(
     artist_choice_reader: ArtistSearchChoiceReader | None,
     retry_call: RetryCall,
 ) -> SpotifyArtistCandidate | None:
-    """Resolve one exact normalized artist, prompting only on ambiguity."""
+    """Resolve one exact normalized artist, prompting only on ambiguity.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist_name: Original expected artist spelling.
+        artist_choice_reader: Optional original ambiguity interaction.
+        retry_call: Original read retry boundary.
+
+    Returns:
+        Original accepted mapping or cancellation.
+
+    Raises:
+        SomethingOldSpotifyError: Original search or ambiguity choice is unusable.
+    """
     response = retry_call(
         partial(
             sp.search,
@@ -243,42 +144,11 @@ def resolve_spotify_artist(
         ),
         f"searching Spotify for {artist_name}",
     )
-    if not isinstance(response, dict):
-        raise SomethingOldSpotifyError(
-            f"Spotify returned invalid artist search data for {artist_name}."
-        )
-    page = response.get("artists")
-    if not isinstance(page, dict) or not isinstance(page.get("items"), list):
-        raise SomethingOldSpotifyError(
-            f"Spotify returned invalid artist search data for {artist_name}."
-        )
-    expected = blast_from_past.normalize_name(artist_name)
-    candidates = tuple(
-        candidate
-        for rank, raw in enumerate(page["items"], start=1)
-        if (candidate := _spotify_artist(raw, rank)) is not None
-        and blast_from_past.normalize_name(candidate.name) == expected
+    return selections.resolve_artist(
+        artist_name,
+        golden_records.artist_search(response, artist_name),
+        artist_choice_reader,
     )
-    if not candidates:
-        raise SomethingOldSpotifyError(
-            f"No exact Spotify artist match was found for {artist_name}."
-        )
-    if len(candidates) == 1:
-        return candidates[0]
-    if artist_choice_reader is None:
-        raise SomethingOldSpotifyError(
-            f"Spotify returned {len(candidates)} exact artists named {artist_name}."
-        )
-    choice = artist_choice_reader(artist_name, candidates)
-    if choice == "quit":
-        return None
-    selected = next(
-        (candidate for candidate in candidates if candidate.spotify_id == choice),
-        None,
-    )
-    if selected is None:
-        raise SomethingOldSpotifyError("The selected Spotify artist is invalid.")
-    return selected
 
 
 def _selected_from_match(
@@ -287,16 +157,7 @@ def _selected_from_match(
     source: str,
     lastfm_scrobbles: int | None = None,
 ) -> SelectedTrack:
-    """Convert a strict Spotify match into one playlist selection."""
-    return SelectedTrack(
-        spotify_id=match.spotify_id,
-        uri=match.uri,
-        track=match.track,
-        album=match.album,
-        artists=match.artists,
-        source=source,
-        lastfm_scrobbles=lastfm_scrobbles,
-    )
+    return golden_markers.from_match(match, source, lastfm_scrobbles)
 
 
 def select_lastfm_top_tracks(
@@ -304,99 +165,78 @@ def select_lastfm_top_tracks(
     artist: GoldenOldieArtist,
     retry_call: RetryCall,
 ) -> tuple[SelectedTrack, ...]:
-    """Resolve the artist's ten most-scrobbled titles with strict matching."""
-    match_groups: list[tuple[blast_from_past.SpotifyTrackMatch, ...]] = []
-    for track in artist.top_tracks:
-        matches = retry_call(
-            partial(
-                blast_from_past.search_spotify_matches,
-                sp,
-                blast_from_past.Scrobble(
-                    track=track.track,
-                    artist=artist.artist,
-                    album="",
-                    timestamp_ms=track.last_scrobbled_ms,
-                ),
-            ),
-            f"matching {artist.artist} - {track.track}",
-        )
-        if not isinstance(matches, tuple):
-            raise SomethingOldSpotifyError(
-                f"Spotify returned invalid matches for {artist.artist} - {track.track}."
-            )
-        match_groups.append(matches)
+    """Resolve the artist's ranked titles before one live liked-membership read.
 
-    raw_liked_ids = retry_call(
-        partial(blast_from_past.liked_spotify_track_ids, sp, match_groups),
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Selected history artist and original ranked titles.
+        retry_call: Caller-owned read retry policy.
+
+    Returns:
+        Original ordered safe distinct markers.
+
+    Raises:
+        SomethingOldSpotifyError: Original catalog data or selection is unusable.
+    """
+    return selections.select_lastfm(
+        artist,
+        partial(_read_lastfm_matches, sp, artist, retry_call),
+        partial(_read_lastfm_liked, sp, artist, retry_call),
+        blast_from_past.ALBUM_MATCH_THRESHOLD,
+    )
+
+
+def _read_lastfm_matches(
+    sp: Spotify,
+    artist: GoldenOldieArtist,
+    retry_call: RetryCall,
+    track: LastFmTrackStat,
+) -> tuple[blast_from_past.SpotifyTrackMatch, ...]:
+    matches = retry_call(
+        partial(
+            blast_from_past.search_spotify_matches,
+            sp,
+            blast_from_past.Scrobble(
+                track=track.track,
+                artist=artist.artist,
+                album="",
+                timestamp_ms=track.last_scrobbled_ms,
+            ),
+        ),
+        f"matching {artist.artist} - {track.track}",
+    )
+    if not isinstance(matches, tuple):
+        raise SomethingOldSpotifyError(
+            f"Spotify returned invalid matches for {artist.artist} - {track.track}."
+        )
+    return matches
+
+
+def _read_lastfm_liked(
+    sp: Spotify,
+    artist: GoldenOldieArtist,
+    retry_call: RetryCall,
+    groups: list[tuple[blast_from_past.SpotifyTrackMatch, ...]],
+) -> set[str]:
+    raw = retry_call(
+        partial(blast_from_past.liked_spotify_track_ids, sp, groups),
         f"checking liked Spotify tracks for {artist.artist}",
     )
-    if not isinstance(raw_liked_ids, set):
+    if not isinstance(raw, set):
         raise SomethingOldSpotifyError(
             f"Spotify returned invalid liked-track data for {artist.artist}."
         )
-    liked_ids = cast(set[str], raw_liked_ids)
-    selected: list[SelectedTrack] = []
-    seen_ids: set[str] = set()
-    for track, matches in zip(artist.top_tracks, match_groups, strict=True):
-        match = blast_from_past.preferred_spotify_match(matches, liked_ids)
-        if match is None or match.spotify_id in seen_ids:
-            continue
-        seen_ids.add(match.spotify_id)
-        selected.append(
-            _selected_from_match(
-                match,
-                source="Last.fm top tracks",
-                lastfm_scrobbles=track.scrobbles,
-            )
-        )
-    if not selected:
-        raise SomethingOldSpotifyError(
-            f"None of {artist.artist}'s top Last.fm tracks matched Spotify safely."
-        )
-    return tuple(selected)
+    return cast(set[str], raw)
 
 
 def _track_artist_data(raw: object) -> tuple[tuple[str, str], ...]:
-    """Return ordered Spotify artist ids and names for one track."""
-    if not isinstance(raw, list):
-        return ()
-    return tuple(
-        (str(item.get("id") or ""), str(item.get("name") or ""))
-        for item in raw
-        if isinstance(item, dict) and item.get("id") and item.get("name")
-    )
+    return golden_records.track_artist_data(raw)
 
 
 def _spotify_top_track(
-    raw: object,
-    artist: SpotifyArtistCandidate,
+    raw: object, artist: SpotifyArtistCandidate
 ) -> SelectedTrack | None:
-    """Parse one Spotify top-track response associated with the artist."""
-    if not isinstance(raw, dict):
-        return None
-    spotify_id = str(raw.get("id") or "").strip()
-    uri = str(raw.get("uri") or "").strip()
-    name = str(raw.get("name") or "").strip()
-    artists = _track_artist_data(raw.get("artists"))
-    if (
-        not spotify_id
-        or not uri
-        or not name
-        or artist.spotify_id not in {spotify_id for spotify_id, _name in artists}
-    ):
-        return None
-    raw_album = raw.get("album")
-    album = (
-        str(raw_album.get("name") or "").strip() if isinstance(raw_album, dict) else ""
-    )
-    return SelectedTrack(
-        spotify_id=spotify_id,
-        uri=uri,
-        track=name,
-        album=album,
-        artists=tuple(name for _spotify_id, name in artists),
-        source="Spotify popular tracks",
-    )
+    return golden_records.popular_track(raw, artist)
 
 
 def select_spotify_top_tracks(
@@ -404,31 +244,26 @@ def select_spotify_top_tracks(
     artist: SpotifyArtistCandidate,
     retry_call: RetryCall,
 ) -> tuple[SelectedTrack, ...]:
-    """Return up to ten of Spotify's current top tracks for the artist."""
+    """Return up to ten of Spotify's current top tracks for the artist.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Original accepted artist mapping.
+        retry_call: Original read retry boundary.
+
+    Returns:
+        Original capped distinct popular markers in response order.
+
+    Raises:
+        SomethingOldSpotifyError: Original top-track data is unusable.
+    """
     response = retry_call(
         partial(sp.artist_top_tracks, artist.spotify_id),
         f"loading Spotify top tracks for {artist.name}",
     )
-    raw_tracks = response.get("tracks") if isinstance(response, dict) else None
-    if not isinstance(raw_tracks, list):
-        raise SomethingOldSpotifyError(
-            f"Spotify returned invalid top tracks for {artist.name}."
-        )
-    selected: list[SelectedTrack] = []
-    seen_ids: set[str] = set()
-    for raw in raw_tracks:
-        track = _spotify_top_track(raw, artist)
-        if track is None or track.spotify_id in seen_ids:
-            continue
-        seen_ids.add(track.spotify_id)
-        selected.append(track)
-        if len(selected) == TOP_TRACK_LIMIT:
-            break
-    if not selected:
-        raise SomethingOldSpotifyError(
-            f"Spotify returned no usable top tracks for {artist.name}."
-        )
-    return tuple(selected)
+    return selections.select_popular(
+        artist, golden_records.popular_tracks(response, artist), TOP_TRACK_LIMIT
+    )
 
 
 def select_album_tracks(
@@ -437,50 +272,52 @@ def select_album_tracks(
     spotify_artist: SpotifyArtistCandidate,
     album_choice_reader: AlbumChoiceReader,
     retry_call: RetryCall,
-) -> tuple[
-    slow_listening.DiscographyRelease | None,
-    tuple[SelectedTrack, ...],
-]:
-    """Prompt for one filtered album/EP and return its complete tracklist."""
+) -> tuple[slow_listening.DiscographyRelease | None, tuple[SelectedTrack, ...]]:
+    """Request one studio release before reading its complete ordered tracklist.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Original selected history artist.
+        spotify_artist: Original accepted mapping.
+        album_choice_reader: Caller-owned release interaction.
+        retry_call: Original read retry policy.
+
+    Returns:
+        Original release and full track selection or cancellation.
+
+    Raises:
+        SomethingOldSpotifyError: Original catalog or release choice is unusable.
+    """
+    releases = _read_studio_releases(sp, spotify_artist, retry_call)
+    return selections.select_album(
+        artist,
+        spotify_artist,
+        releases,
+        album_choice_reader,
+        partial(_read_studio_tracks, sp, retry_call),
+    )
+
+
+def _read_studio_releases(
+    sp: Spotify,
+    artist: SpotifyArtistCandidate,
+    retry_call: RetryCall,
+) -> tuple[slow_listening.DiscographyRelease, ...]:
     try:
-        releases = slow_listening.load_discography(
-            sp,
-            spotify_artist.spotify_id,
-            retry_call,
-        )
+        return slow_listening.load_discography(sp, artist.spotify_id, retry_call)
     except slow_listening.SlowListeningError as exc:
         raise SomethingOldSpotifyError(str(exc)) from exc
-    if not releases:
-        raise SomethingOldSpotifyError(
-            f"No studio albums or EPs were found for {spotify_artist.name}."
-        )
-    choice = album_choice_reader(artist, releases)
-    if choice == "quit":
-        return None, ()
-    release = next(
-        (candidate for candidate in releases if candidate.spotify_id == choice),
-        None,
-    )
-    if release is None:
-        raise SomethingOldSpotifyError("The selected album or EP is invalid.")
+
+
+def _read_studio_tracks(
+    sp: Spotify,
+    retry_call: RetryCall,
+    release: slow_listening.DiscographyRelease,
+) -> tuple[slow_listening.new_wine.ReleaseTrack, ...]:
     try:
-        release_tracks = slow_listening.load_release_tracks(sp, release, retry_call)
+        return slow_listening.load_release_tracks(sp, release, retry_call)
     except slow_listening.SlowListeningError as exc:
         raise SomethingOldSpotifyError(str(exc)) from exc
-    tracks = tuple(
-        SelectedTrack(
-            spotify_id=track.spotify_id,
-            uri=track.uri,
-            track=track.name,
-            album=release.name,
-            artists=(spotify_artist.name,),
-            source=f"{release.release_type}: {release.name}",
-        )
-        for track in release_tracks
-    )
-    if not tracks:
-        raise SomethingOldSpotifyError(f"{release.name} has no playable tracks.")
-    return release, tracks
 
 
 def _direct_retry(operation: Callable[[], object], _description: str) -> object:
@@ -523,27 +360,20 @@ def _add_tracks(
 
 
 def _append_log(summary: SomethingOldSummary, path: Path) -> None:
-    """Append the exact successful playlist mutation for later review."""
-    record = {
-        "generated_at": summary.generated_at.isoformat(),
-        "playlist_id": summary.playlist_id,
-        "playlist_length_before": summary.playlist_length_before,
-        "playlist_length_after": summary.playlist_length_after,
-        "action": summary.action,
-        "artist": asdict(summary.artist) if summary.artist else None,
-        "spotify_artist": (
-            asdict(summary.spotify_artist) if summary.spotify_artist else None
-        ),
-        "mode": summary.mode,
-        "release": asdict(summary.release) if summary.release else None,
-        "tracks": [asdict(track) for track in summary.tracks],
-    }
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as log_file:
-            log_file.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except OSError as exc:
-        raise SomethingOldError(f"Could not write Something Old log: {path}") from exc
+    from spotify_manager.infrastructure.something_old_audit import append_log
+
+    append_log(summary, path)
+
+
+def _read_golden_artist_choice(
+    reader: ArtistChoiceReader | None,
+    artist: GoldenOldieArtist,
+    _artist_name: str,
+    candidates: tuple[SpotifyArtistCandidate, ...],
+) -> str:
+    if reader is None:
+        raise SomethingOldError("No Spotify artist choice reader is available.")
+    return reader(artist, candidates)
 
 
 def run_something_old(
@@ -565,172 +395,51 @@ def run_something_old(
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall = _direct_retry,
 ) -> SomethingOldSummary:
-    """Refresh history and fill an empty Something Old playlist cautiously."""
-    generated_at = (now or datetime.now(UTC)).astimezone(UTC)
-    if progress_callback is not None:
-        progress_callback("Checking whether Something Old is empty")
-    playlist = _load_playlist_state(
-        sp,
-        playlist_id,
-        retry_call,
-        "checking whether Something Old is empty",
-    )
-    if playlist.total_items:
-        return SomethingOldSummary(
-            generated_at=generated_at,
-            playlist_id=playlist_id,
-            playlist_length_before=playlist.total_items,
-            playlist_length_after=playlist.total_items,
-            dry_run=dry_run,
-            action="playlist not empty",
-            history_refresh=None,
-            ranking_preview=(),
-            artist=None,
-            spotify_artist=None,
-            mode=None,
-            release=None,
-            tracks=(),
-        )
+    """Refresh history and fill an empty Something Old playlist cautiously.
 
-    history_refresh = scrobble_history.refresh_scrobble_history(
+    Args:
+        sp: Caller-owned Spotify client.
+        lastfm: Caller-owned history reader.
+        playlist_id: Original destination identity.
+        expected_username: Original expected Last.fm account.
+        mode_reader: Original recipe interaction.
+        album_choice_reader: Original studio-release interaction.
+        artist_choice_reader: Optional original exact-artist ambiguity interaction.
+        dry_run: Original preview behavior, including history refresh semantics.
+        export_path: Original canonical history location.
+        legacy_delta_path: Original optional history delta location.
+        backup_dir: Original history backup directory.
+        history_log_path: Original history refresh audit location.
+        log_path: Original successful selection audit location.
+        now: Original optional effective timestamp.
+        progress_callback: Original optional stage presenter.
+        retry_call: Original read retry policy.
+
+    Returns:
+        Original complete selected, cancelled or nonempty outcome.
+
+    Raises:
+        SomethingOldError: Original history, selection, authority or audit fails.
+    """
+    from spotify_manager.bootstrap.something_old_run import (
+        run_something_old as run_workflow,
+    )
+
+    return run_workflow(
+        sp,
         lastfm,
-        expected_username=expected_username,
-        export_path=export_path,
-        legacy_delta_path=legacy_delta_path,
-        backup_dir=backup_dir,
-        log_path=history_log_path,
-        dry_run=dry_run,
-        now=generated_at,
-        progress_callback=progress_callback,
-    )
-    if progress_callback is not None:
-        progress_callback("Calculating Golden Oldies average scrobble dates")
-    ranking = rank_golden_oldies(history_refresh.history)
-    if not ranking:
-        raise SomethingOldError(
-            f"No artists have at least {MIN_ARTIST_SCROBBLES} scrobbles."
-        )
-    artist = ranking[0]
-
-    def select_spotify_artist_candidate(
-        _artist_name: str,
-        candidates: tuple[SpotifyArtistCandidate, ...],
-    ) -> str:
-        if artist_choice_reader is None:
-            raise SomethingOldError("No Spotify artist choice reader is available.")
-        return artist_choice_reader(artist, candidates)
-
-    search_choice_reader = (
-        select_spotify_artist_candidate if artist_choice_reader is not None else None
-    )
-    spotify_artist = resolve_spotify_artist(
-        sp,
-        artist.artist,
-        search_choice_reader,
+        playlist_id,
+        expected_username,
+        mode_reader,
+        album_choice_reader,
+        artist_choice_reader,
+        dry_run,
+        export_path,
+        legacy_delta_path,
+        backup_dir,
+        history_log_path,
+        log_path,
+        now,
+        progress_callback,
         retry_call,
     )
-    if spotify_artist is None:
-        return SomethingOldSummary(
-            generated_at=generated_at,
-            playlist_id=playlist_id,
-            playlist_length_before=0,
-            playlist_length_after=0,
-            dry_run=dry_run,
-            action="cancelled",
-            history_refresh=history_refresh,
-            ranking_preview=ranking[:10],
-            artist=artist,
-            spotify_artist=None,
-            mode=None,
-            release=None,
-            tracks=(),
-        )
-
-    raw_mode = mode_reader(artist, spotify_artist)
-    if raw_mode == "quit":
-        return SomethingOldSummary(
-            generated_at=generated_at,
-            playlist_id=playlist_id,
-            playlist_length_before=0,
-            playlist_length_after=0,
-            dry_run=dry_run,
-            action="cancelled",
-            history_refresh=history_refresh,
-            ranking_preview=ranking[:10],
-            artist=artist,
-            spotify_artist=spotify_artist,
-            mode=None,
-            release=None,
-            tracks=(),
-        )
-    if raw_mode not in {"lastfm_top_tracks", "spotify_top_tracks", "album"}:
-        raise SomethingOldError("The Something Old selection mode is invalid.")
-    mode = cast(SelectionMode, raw_mode)
-
-    release: slow_listening.DiscographyRelease | None = None
-    if progress_callback is not None:
-        progress_callback(f"Preparing {artist.artist}'s {mode.replace('_', ' ')}")
-    if mode == "lastfm_top_tracks":
-        tracks = select_lastfm_top_tracks(sp, artist, retry_call)
-    elif mode == "spotify_top_tracks":
-        tracks = select_spotify_top_tracks(sp, spotify_artist, retry_call)
-    else:
-        release, tracks = select_album_tracks(
-            sp,
-            artist,
-            spotify_artist,
-            album_choice_reader,
-            retry_call,
-        )
-        if release is None:
-            return SomethingOldSummary(
-                generated_at=generated_at,
-                playlist_id=playlist_id,
-                playlist_length_before=0,
-                playlist_length_after=0,
-                dry_run=dry_run,
-                action="cancelled",
-                history_refresh=history_refresh,
-                ranking_preview=ranking[:10],
-                artist=artist,
-                spotify_artist=spotify_artist,
-                mode=mode,
-                release=None,
-                tracks=(),
-            )
-
-    action: SummaryAction = "would add" if dry_run else "added"
-    if not dry_run:
-        if progress_callback is not None:
-            progress_callback("Rechecking the empty playlist before adding")
-        current_playlist = _load_playlist_state(
-            sp,
-            playlist_id,
-            retry_call,
-            "rechecking Something Old before adding",
-        )
-        if current_playlist.total_items:
-            raise SomethingOldError(
-                "Something Old changed while the selection was being prepared; "
-                "nothing was added."
-            )
-        _add_tracks(sp, playlist_id, tracks)
-
-    summary = SomethingOldSummary(
-        generated_at=generated_at,
-        playlist_id=playlist_id,
-        playlist_length_before=0,
-        playlist_length_after=0 if dry_run else len(tracks),
-        dry_run=dry_run,
-        action=action,
-        history_refresh=history_refresh,
-        ranking_preview=ranking[:10],
-        artist=artist,
-        spotify_artist=spotify_artist,
-        mode=mode,
-        release=release,
-        tracks=tracks,
-    )
-    if not dry_run:
-        _append_log(summary, log_path)
-    return summary

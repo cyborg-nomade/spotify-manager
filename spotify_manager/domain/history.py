@@ -223,3 +223,28 @@ def historical_album_offset(generated_at: datetime, album_count: int) -> int:
         ZeroDivisionError: No albums are available.
     """
     return generated_at.second % album_count
+
+
+def anniversary_dates(
+    today: date, earliest_year: int, interval: int = 5
+) -> tuple[date, ...]:
+    """Select last year's date followed by equal year intervals into history.
+
+    Args:
+        today: Effective local calendar date.
+        earliest_year: Inclusive earliest history year.
+        interval: Existing anniversary spacing in years.
+
+    Returns:
+        Valid anniversary dates in newest-first order, skipping non-leap February 29.
+
+    Raises:
+        ValueError: The interval is zero.
+    """
+    dates: list[date] = []
+    for year in range(today.year - 1, earliest_year - 1, -interval):
+        try:
+            dates.append(date(year, today.month, today.day))
+        except ValueError:
+            continue
+    return tuple(dates)

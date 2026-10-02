@@ -1,0 +1,2196 @@
+{
+  "source_commit": "2fdcd9e",
+  "cases": [
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Live in Berlin",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "LIVE"
+      ],
+      "identity": [
+        "liveinberlin",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Live in Berlin",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "LIVE"
+      ],
+      "identity": [
+        "liveinberlin",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Live in Berlin",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "live release outside the top 50",
+      "tags": [
+        "LIVE"
+      ],
+      "identity": [
+        "liveinberlin",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Live in Berlin",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "live release outside the top 50",
+      "tags": [
+        "LIVE"
+      ],
+      "identity": [
+        "liveinberlin",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Deluxe)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "DELUXE"
+      ],
+      "identity": [
+        "albumdeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Deluxe)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "DELUXE"
+      ],
+      "identity": [
+        "albumdeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Deluxe)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [
+        "DELUXE"
+      ],
+      "identity": [
+        "albumdeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Deluxe)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [
+        "DELUXE"
+      ],
+      "identity": [
+        "albumdeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Remastered)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "non-deluxe reissue or remaster",
+      "tags": [],
+      "identity": [
+        "albumremastered",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Remastered)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "non-deluxe reissue or remaster",
+      "tags": [],
+      "identity": [
+        "albumremastered",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Remastered)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [],
+      "identity": [
+        "albumremastered",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Remastered)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [],
+      "identity": [
+        "albumremastered",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Greatest Hits",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "greatesthits",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Greatest Hits",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "greatesthits",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Greatest Hits",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "greatesthits",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Greatest Hits",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "greatesthits",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Original Score",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "originalscore",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Original Score",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "originalscore",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Original Score",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "originalscore",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Original Score",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "originalscore",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Live) Deluxe",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "LIVE",
+        "DELUXE"
+      ],
+      "identity": [
+        "albumlivedeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Live) Deluxe",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "LIVE",
+        "DELUXE"
+      ],
+      "identity": [
+        "albumlivedeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Live) Deluxe",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "live release outside the top 50",
+      "tags": [
+        "LIVE",
+        "DELUXE"
+      ],
+      "identity": [
+        "albumlivedeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Live) Deluxe",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "live release outside the top 50",
+      "tags": [
+        "LIVE",
+        "DELUXE"
+      ],
+      "identity": [
+        "albumlivedeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album Edition Deluxe",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "DELUXE"
+      ],
+      "identity": [
+        "albumeditiondeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album Edition Deluxe",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "DELUXE"
+      ],
+      "identity": [
+        "albumeditiondeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album Edition Deluxe",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [
+        "DELUXE"
+      ],
+      "identity": [
+        "albumeditiondeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album Edition Deluxe",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [
+        "DELUXE"
+      ],
+      "identity": [
+        "albumeditiondeluxe",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Remix",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "remix",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Remix",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "remix",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Remix",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "remix",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Remix",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "remix",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Legacy)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "non-deluxe reissue or remaster",
+      "tags": [],
+      "identity": [
+        "albumlegacy",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Legacy)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "non-deluxe reissue or remaster",
+      "tags": [],
+      "identity": [
+        "albumlegacy",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Legacy)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [],
+      "identity": [
+        "albumlegacy",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Legacy)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [],
+      "identity": [
+        "albumlegacy",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Unplugged",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "LIVE"
+      ],
+      "identity": [
+        "unplugged",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Unplugged",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [
+        "LIVE"
+      ],
+      "identity": [
+        "unplugged",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Unplugged",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "live release outside the top 50",
+      "tags": [
+        "LIVE"
+      ],
+      "identity": [
+        "unplugged",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Unplugged",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "live release outside the top 50",
+      "tags": [
+        "LIVE"
+      ],
+      "identity": [
+        "unplugged",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Live Forever",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "liveforever",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Live Forever",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "liveforever",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Live Forever",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "liveforever",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Live Forever",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "liveforever",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Collection",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "collection",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Collection",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "collection",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Collection",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "collection",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Collection",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation or other non-release-project title",
+      "tags": [],
+      "identity": [
+        "collection",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Stereo)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 20,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "non-deluxe reissue or remaster",
+      "tags": [],
+      "identity": [
+        "albumstereo",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Stereo)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 50,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "non-deluxe reissue or remaster",
+      "tags": [],
+      "identity": [
+        "albumstereo",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Stereo)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [],
+      "identity": [
+        "albumstereo",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album (Stereo)",
+        "release_type": "Album",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 999,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "deluxe edition, reissue, or remaster outside the top 50",
+      "tags": [],
+      "identity": [
+        "albumstereo",
+        "2026-08-01",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026",
+        "release_date_precision": "year",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-01-01",
+        "2026-12-31"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-02",
+        "release_date_precision": "month",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-02-01",
+        "2026-02-28"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-02",
+        "Album"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "EP",
+        "release_date": "2024-02",
+        "release_date_precision": "MONTH",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2024-02-01",
+        "2024-02-29"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2024-02",
+        "EP"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-08",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-31"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-08-01-99",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08-01-99",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-08-01-bad",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": null,
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08-01-bad",
+        "Album"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": null,
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "",
+        "Album"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "x",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": null,
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "x",
+        "Album"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-00",
+        "release_date_precision": "month",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": null,
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-00",
+        "Album"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-02-30",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": null,
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-02-30",
+        "Album"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "0",
+        "release_date_precision": "year",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": null,
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "0",
+        "Album"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-09-01",
+        "2026-09-01"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-09-01",
+        "Album"
+      ],
+      "during": false,
+      "future": true
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-08-31",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-31",
+        "2026-08-31"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08-31",
+        "Album"
+      ],
+      "during": true,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-07-31",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-07-31",
+        "2026-07-31"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-07-31",
+        "Album"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2027",
+        "release_date_precision": "year",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2027-01-01",
+        "2027-12-31"
+      ],
+      "reason": null,
+      "tags": [],
+      "identity": [
+        "album",
+        "2027",
+        "Album"
+      ],
+      "during": false,
+      "future": true
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Single",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-09-01",
+        "2026-09-01"
+      ],
+      "reason": "single is not an album or EP",
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-09-01",
+        "Single"
+      ],
+      "during": false,
+      "future": false
+    },
+    {
+      "release": {
+        "spotify_id": "id",
+        "uri": "uri",
+        "name": "Album",
+        "release_type": "Compilation",
+        "release_date": "2026-08-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      },
+      "rank": 51,
+      "interval": [
+        "2026-08-01",
+        "2026-08-01"
+      ],
+      "reason": "compilation is not an album or EP",
+      "tags": [],
+      "identity": [
+        "album",
+        "2026-08-01",
+        "Compilation"
+      ],
+      "during": true,
+      "future": false
+    }
+  ],
+  "types": [
+    {
+      "raw": null,
+      "count": 0,
+      "name": "Album",
+      "expected": "Unknown"
+    },
+    {
+      "raw": null,
+      "count": 3,
+      "name": "Album",
+      "expected": "Unknown"
+    },
+    {
+      "raw": null,
+      "count": 4,
+      "name": "Album",
+      "expected": "Unknown"
+    },
+    {
+      "raw": null,
+      "count": 1,
+      "name": "Name (E.P.)",
+      "expected": "Unknown"
+    },
+    {
+      "raw": "",
+      "count": 0,
+      "name": "Album",
+      "expected": "Unknown"
+    },
+    {
+      "raw": "",
+      "count": 3,
+      "name": "Album",
+      "expected": "Unknown"
+    },
+    {
+      "raw": "",
+      "count": 4,
+      "name": "Album",
+      "expected": "Unknown"
+    },
+    {
+      "raw": "",
+      "count": 1,
+      "name": "Name (E.P.)",
+      "expected": "Unknown"
+    },
+    {
+      "raw": "album",
+      "count": 0,
+      "name": "Album",
+      "expected": "Album"
+    },
+    {
+      "raw": "album",
+      "count": 3,
+      "name": "Album",
+      "expected": "Album"
+    },
+    {
+      "raw": "album",
+      "count": 4,
+      "name": "Album",
+      "expected": "Album"
+    },
+    {
+      "raw": "album",
+      "count": 1,
+      "name": "Name (E.P.)",
+      "expected": "Album"
+    },
+    {
+      "raw": "SINGLE",
+      "count": 0,
+      "name": "Album",
+      "expected": "Single"
+    },
+    {
+      "raw": "SINGLE",
+      "count": 3,
+      "name": "Album",
+      "expected": "Single"
+    },
+    {
+      "raw": "SINGLE",
+      "count": 4,
+      "name": "Album",
+      "expected": "EP"
+    },
+    {
+      "raw": "SINGLE",
+      "count": 1,
+      "name": "Name (E.P.)",
+      "expected": "EP"
+    },
+    {
+      "raw": "ep",
+      "count": 0,
+      "name": "Album",
+      "expected": "EP"
+    },
+    {
+      "raw": "ep",
+      "count": 3,
+      "name": "Album",
+      "expected": "EP"
+    },
+    {
+      "raw": "ep",
+      "count": 4,
+      "name": "Album",
+      "expected": "EP"
+    },
+    {
+      "raw": "ep",
+      "count": 1,
+      "name": "Name (E.P.)",
+      "expected": "EP"
+    },
+    {
+      "raw": "compilation",
+      "count": 0,
+      "name": "Album",
+      "expected": "Compilation"
+    },
+    {
+      "raw": "compilation",
+      "count": 3,
+      "name": "Album",
+      "expected": "Compilation"
+    },
+    {
+      "raw": "compilation",
+      "count": 4,
+      "name": "Album",
+      "expected": "Compilation"
+    },
+    {
+      "raw": "compilation",
+      "count": 1,
+      "name": "Name (E.P.)",
+      "expected": "Compilation"
+    },
+    {
+      "raw": "odd",
+      "count": 0,
+      "name": "Album",
+      "expected": "Odd"
+    },
+    {
+      "raw": "odd",
+      "count": 3,
+      "name": "Album",
+      "expected": "Odd"
+    },
+    {
+      "raw": "odd",
+      "count": 4,
+      "name": "Album",
+      "expected": "Odd"
+    },
+    {
+      "raw": "odd",
+      "count": 1,
+      "name": "Name (E.P.)",
+      "expected": "Odd"
+    },
+    {
+      "raw": 12,
+      "count": 0,
+      "name": "Album",
+      "expected": "12"
+    },
+    {
+      "raw": 12,
+      "count": 3,
+      "name": "Album",
+      "expected": "12"
+    },
+    {
+      "raw": 12,
+      "count": 4,
+      "name": "Album",
+      "expected": "12"
+    },
+    {
+      "raw": 12,
+      "count": 1,
+      "name": "Name (E.P.)",
+      "expected": "12"
+    }
+  ]
+}

@@ -1,0 +1,7834 @@
+{
+  "0:0:first:False:False": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t1",
+          "uri": "spotify:track:t1",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:first:False:True": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t1",
+          "uri": "spotify:track:t1",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:first:True:False": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t1",
+          "uri": "spotify:track:t1",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:first:True:True": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t1",
+          "uri": "spotify:track:t1",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:last:False:False": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "unfollow",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "top-ten window ended without any liked tracks"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:last:False:True": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "unfollow",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "top-ten window ended without any liked tracks"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:last:True:False": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "unfollow",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "top-ten window ended without any liked tracks"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:last:True:True": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "unfollow",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "top-ten window ended without any liked tracks"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:absent:False:False": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t0",
+          "uri": "spotify:track:t0",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:absent:False:True": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t0",
+          "uri": "spotify:track:t0",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:absent:True:False": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t0",
+          "uri": "spotify:track:t0",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:0:absent:True:True": {
+    "liked_total": 0,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t0",
+          "uri": "spotify:track:t0",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:first:False:False": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:first:False:True": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:first:True:False": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:first:True:True": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:last:False:False": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "unfollow",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "top-ten window ended without any liked tracks"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:last:False:True": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "unfollow",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "top-ten window ended without any liked tracks"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:last:True:False": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "unfollow",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "top-ten window ended without any liked tracks"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:last:True:True": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "unfollow",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "top-ten window ended without any liked tracks"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:absent:False:False": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:absent:False:True": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:absent:True:False": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:4:absent:True:True": {
+    "liked_total": 0,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:first:False:False": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:first:False:True": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:first:True:False": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:first:True:True": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:last:False:False": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "five liked tracks in the Spotify top ten, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "0:5:last:False:True": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "five liked tracks in the Spotify top ten, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:last:True:False": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "five liked tracks in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "0:5:last:True:True": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "five liked tracks in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:absent:False:False": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:absent:False:True": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:absent:True:False": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:5:absent:True:True": {
+    "liked_total": 0,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:first:False:False": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:first:False:True": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:first:True:False": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:first:True:True": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:last:False:False": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "five liked tracks in the Spotify top ten, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "0:6:last:False:True": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "five liked tracks in the Spotify top ten, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:last:True:False": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "five liked tracks in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "0:6:last:True:True": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "five liked tracks in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:absent:False:False": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:absent:False:True": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:absent:True:False": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "0:6:absent:True:True": {
+    "liked_total": 0,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 0,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:first:False:False": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t1",
+          "uri": "spotify:track:t1",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:first:False:True": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t1",
+          "uri": "spotify:track:t1",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:first:True:False": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t1",
+          "uri": "spotify:track:t1",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:first:True:True": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t1",
+          "uri": "spotify:track:t1",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:last:False:False": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "unlucky",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "top-ten window ended below the promotion threshold"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:last:False:True": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "unlucky",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "top-ten window ended below the promotion threshold"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:last:True:False": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "unlucky",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "top-ten window ended below the promotion threshold"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:last:True:True": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "unlucky",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "top-ten window ended below the promotion threshold"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:absent:False:False": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t0",
+          "uri": "spotify:track:t0",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:absent:False:True": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t0",
+          "uri": "spotify:track:t0",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:absent:True:False": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t0",
+          "uri": "spotify:track:t0",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:0:absent:True:True": {
+    "liked_total": 5,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t0",
+          "uri": "spotify:track:t0",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:first:False:False": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:first:False:True": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:first:True:False": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:first:True:True": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:last:False:False": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "unlucky",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "top-ten window ended below the promotion threshold"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:last:False:True": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "unlucky",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "top-ten window ended below the promotion threshold"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:last:True:False": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "unlucky",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "top-ten window ended below the promotion threshold"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:last:True:True": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "unlucky",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "top-ten window ended below the promotion threshold"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:absent:False:False": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:absent:False:True": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:absent:True:False": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:4:absent:True:True": {
+    "liked_total": 5,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t4",
+          "uri": "spotify:track:t4",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:first:False:False": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:first:False:True": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:first:True:False": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:first:True:True": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:last:False:False": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "five liked tracks in the Spotify top ten, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "5:5:last:False:True": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "five liked tracks in the Spotify top ten, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:last:True:False": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "five liked tracks in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "5:5:last:True:True": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "five liked tracks in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:absent:False:False": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:absent:False:True": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:absent:True:False": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:5:absent:True:True": {
+    "liked_total": 5,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t5",
+          "uri": "spotify:track:t5",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:first:False:False": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:first:False:True": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:first:True:False": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:first:True:True": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:last:False:False": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "five liked tracks in the Spotify top ten, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "5:6:last:False:True": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "five liked tracks in the Spotify top ten, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:last:True:False": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "five liked tracks in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "5:6:last:True:True": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "five liked tracks in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:absent:False:False": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:absent:False:True": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:absent:True:False": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "5:6:absent:True:True": {
+    "liked_total": 5,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "advance",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "t6",
+          "uri": "spotify:track:t6",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 5,
+        "reason": "next unliked primary-artist track in the Spotify top ten"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:0:first:False:False": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:0:first:False:True": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:0:first:True:False": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:0:first:True:True": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:0:last:False:False": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:0:last:False:True": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:0:last:True:False": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:0:last:True:True": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:0:absent:False:False": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:0:absent:False:True": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:0:absent:True:False": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:0:absent:True:True": {
+    "liked_total": 6,
+    "liked_top": 0,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 0,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:4:first:False:False": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:4:first:False:True": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:4:first:True:False": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:4:first:True:True": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:4:last:False:False": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:4:last:False:True": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:4:last:True:False": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:4:last:True:True": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:4:absent:False:False": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:4:absent:False:True": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:4:absent:True:False": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:4:absent:True:True": {
+    "liked_total": 6,
+    "liked_top": 4,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 4,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:5:first:False:False": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:5:first:False:True": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:5:first:True:False": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:5:first:True:True": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:5:last:False:False": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:5:last:False:True": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:5:last:True:False": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:5:last:True:True": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:5:absent:False:False": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:5:absent:False:True": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:5:absent:True:False": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:5:absent:True:True": {
+    "liked_total": 6,
+    "liked_top": 5,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 5,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:6:first:False:False": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:6:first:False:True": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:6:first:True:False": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:6:first:True:True": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "first",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "source",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:6:last:False:False": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:6:last:False:True": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:6:last:True:False": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:6:last:True:True": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "last",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "source"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:6:absent:False:False": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": false,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:6:absent:False:True": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": false,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "blocked",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": null,
+        "target_release": null,
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog, but no eligible top album marker was found"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  },
+  "6:6:absent:True:False": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": true,
+    "cached": false,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ],
+        [
+          "release-tracks",
+          "release"
+        ]
+      ]
+    }
+  },
+  "6:6:absent:True:True": {
+    "liked_total": 6,
+    "liked_top": 6,
+    "position": "absent",
+    "promotion": true,
+    "cached": true,
+    "outcome": {
+      "plan": {
+        "action": "promote",
+        "source_uris": [
+          "spotify:track:source"
+        ],
+        "target": {
+          "spotify_id": "track",
+          "uri": "spotify:track:track",
+          "name": "Track",
+          "disc_number": 1,
+          "track_number": 1,
+          "primary_artist_id": "artist",
+          "primary_artist_name": "Artist",
+          "popularity": null
+        },
+        "target_release": "Release",
+        "top_tracks": 7,
+        "top_liked_tracks": 6,
+        "total_liked_tracks": 6,
+        "reason": "six liked tracks in the primary-artist catalog"
+      },
+      "trace": [
+        [
+          "top",
+          "artist"
+        ],
+        [
+          "liked",
+          [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+            "t6"
+          ]
+        ],
+        [
+          "catalog",
+          "artist"
+        ],
+        [
+          "assessment",
+          "artist"
+        ]
+      ]
+    }
+  }
+}

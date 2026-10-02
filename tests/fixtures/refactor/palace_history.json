@@ -1,0 +1,3665 @@
+[
+  {
+    "profile": "normal",
+    "count": -1,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": -1,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": -1,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 0,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 0,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 0,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 1,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 1,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 1,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 2,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 2,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 2,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 3,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 3,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "normal",
+    "count": 3,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": -1,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 0,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          0,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": -1,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 0,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          0,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": -1,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 0,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          0,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 0,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 0,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          0,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 0,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 0,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          0,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 0,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 0,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          0,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 1,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 1,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 1,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 2,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 2,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 2,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 3,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 3,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "count": 3,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 0 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": -1,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": -1,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": -1,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 0,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 0,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 0,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 1,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 1,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 1,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 2,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 2,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 2,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 3,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 3,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "history-error",
+    "count": 3,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "history failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": -1,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": -1,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": -1,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 0,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 0,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 0,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 1,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 1,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 1,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 2,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 2,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 2,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 3,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 3,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "random-error",
+    "count": 3,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": -1,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": -1,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": -1,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 0,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 0,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 0,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 1,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 1,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 1,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 2,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 2,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 2,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryError",
+      "message": "random input failed",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 3,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 3,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "value-error",
+    "count": 3,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": -1,
+    "second": 0,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": -1,
+    "second": 1,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": -1,
+    "second": 59,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 0,
+    "second": 0,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 0,
+    "second": 1,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 0,
+    "second": 59,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 1,
+    "second": 0,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 1,
+    "second": 1,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 1,
+    "second": 59,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 2,
+    "second": 0,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 2,
+    "second": 1,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 2,
+    "second": 59,
+    "outcome": {
+      "error": "IndexError",
+      "message": "list index out of range",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 3,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 3,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "out-of-range",
+    "count": 3,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": -1,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": -1,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": -1,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 0,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 0,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 0,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 1,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 1,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 1,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 2,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Alpha",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 2,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 2,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": [
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2021-01-02",
+            "date_index": 1,
+            "albums_on_date": 2,
+            "position": 2,
+            "album": {
+              "artist": "Artist",
+              "album": "Zulu",
+              "scrobbles": 1
+            }
+          },
+          {
+            "selected_date": "2020-01-02",
+            "date_index": 0,
+            "albums_on_date": 1,
+            "position": 1,
+            "album": {
+              "artist": "Artist",
+              "album": "Release",
+              "scrobbles": 1
+            }
+          }
+        ]
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 3,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 3,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "duplicate-indexes",
+    "count": 3,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": -1,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": -1,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": -1,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          -1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 0,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 0,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 0,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 1,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 1,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 1,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          1
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 2,
+    "second": 0,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:00+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 2,
+    "second": 1,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:01+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 2,
+    "second": 59,
+    "outcome": {
+      "result": {
+        "generated": "2026-08-08 00:00:59+00:00",
+        "cutoff": "2025-12-31",
+        "available": 2,
+        "selected": []
+      },
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ],
+        [
+          "progress",
+          "Requesting five unique date indexes from Random.org"
+        ],
+        [
+          "random",
+          2,
+          2
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 3,
+    "second": 0,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 3,
+    "second": 1,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "no-indexes",
+    "count": 3,
+    "second": 59,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Only 2 album-bearing dates are available through 2025-12-31.",
+      "trace": [
+        [
+          "progress",
+          "Loading Last.fm album history"
+        ],
+        [
+          "history",
+          "history"
+        ]
+      ]
+    }
+  }
+]

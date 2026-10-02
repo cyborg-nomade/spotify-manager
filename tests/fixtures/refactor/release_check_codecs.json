@@ -1,0 +1,1383 @@
+{
+  "artists": [
+    {
+      "raw": null,
+      "expected": null
+    },
+    {
+      "raw": [],
+      "expected": null
+    },
+    {
+      "raw": {},
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": 100,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": null,
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": " ",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": " artist ",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": 100,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": null,
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": " ",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": null,
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": " ",
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": " Artist ",
+        "popularity": 50,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": 100,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": true,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": null,
+        "followers": 100,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": -1,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": null,
+        "followers": 100,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": "50",
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": null,
+        "followers": 100,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": null,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": null,
+        "followers": 100,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 0,
+        "followers": {
+          "total": 100
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 0,
+        "followers": 100,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": null
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": null,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": []
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": null,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": true
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": null,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": -1
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": null,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {
+          "total": "1"
+        }
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": null,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    },
+    {
+      "raw": {
+        "id": "artist",
+        "uri": "artist-uri",
+        "name": "Artist",
+        "popularity": 50,
+        "followers": {}
+      },
+      "expected": {
+        "spotify_id": "artist",
+        "name": "Artist",
+        "uri": "artist-uri",
+        "popularity": 50,
+        "followers": null,
+        "search_rank": 7,
+        "exact_name": true
+      }
+    }
+  ],
+  "releases": [
+    {
+      "raw": null,
+      "expected": null
+    },
+    {
+      "raw": [],
+      "expected": null
+    },
+    {
+      "raw": {},
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": null,
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": " ",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": null,
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": " ",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": null,
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": " ",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": null,
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": " ",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": " 2026 ",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": null,
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          null,
+          {
+            "id": "artist",
+            "name": " "
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": ""
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "other",
+            "name": "Other"
+          },
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "single",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "EP",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "ep",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "EP",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "compilation",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Compilation",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": null,
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Unknown",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": true,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 0,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": -1,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 0,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": "4",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 0,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": null,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 0,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 0,
+        "release_date": "2026-09-01",
+        "release_date_precision": "day"
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 0,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": null
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": "day",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    },
+    {
+      "raw": {
+        "id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "album_type": "album",
+        "total_tracks": 10,
+        "release_date": "2026-09-01",
+        "release_date_precision": " MONTH "
+      },
+      "expected": {
+        "spotify_id": "release",
+        "uri": "album-uri",
+        "name": "Album",
+        "release_type": "Album",
+        "release_date": "2026-09-01",
+        "release_date_precision": " MONTH ",
+        "total_tracks": 10,
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "raw": null,
+      "expected": null
+    },
+    {
+      "raw": [],
+      "expected": null
+    },
+    {
+      "raw": {},
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 1
+      }
+    },
+    {
+      "raw": {
+        "id": null,
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": " ",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": null,
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": " ",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": null,
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": " ",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": null,
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": null
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          null,
+          {
+            "id": "artist",
+            "name": " "
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 1
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "",
+        "disc_number": 1,
+        "track_number": 1
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": true,
+        "track_number": 1
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 1
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": -1,
+        "track_number": 1
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 1
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": "2",
+        "track_number": 1
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 1
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": null,
+        "track_number": 1
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 1
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 0,
+        "track_number": 1
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 1
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": true
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 7
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": -1
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 7
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": "2"
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 7
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": null
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 7
+      }
+    },
+    {
+      "raw": {
+        "id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "artists": [
+          {
+            "id": "artist",
+            "name": "Artist"
+          }
+        ],
+        "disc_number": 1,
+        "track_number": 0
+      },
+      "expected": {
+        "spotify_id": "track",
+        "uri": "track-uri",
+        "name": "Song",
+        "primary_artist_id": "artist",
+        "primary_artist_name": "Artist",
+        "disc_number": 1,
+        "track_number": 7
+      }
+    }
+  ],
+  "source_commit": "2fdcd9e"
+}

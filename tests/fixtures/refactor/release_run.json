@@ -1,0 +1,7655 @@
+{
+  "album": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added",
+          "reason": null,
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "preview": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        true
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        true
+      ],
+      [
+        "add:vintage",
+        "track",
+        true
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "persist"
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": true,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "would add",
+          "new_vintage_action": "would add",
+          "reason": null,
+          "dry_run": true
+        }
+      ]
+    }
+  },
+  "completed": {
+    "events": [
+      [
+        "progress",
+        1,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {},
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25",
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25",
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "permanent": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: permanently skipped"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {},
+        "skipped_artists": {
+          "artist": {
+            "artist": "Artist"
+          }
+        },
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25",
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {
+        "artist": {
+          "artist": "Artist"
+        }
+      },
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25",
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "skip_artist": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "audit:artist_permanently_skipped",
+        "run",
+        {
+          "artist": "Artist"
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {},
+        "skipped_artists": {
+          "artist": {
+            "artist": "Artist",
+            "rank": 1,
+            "scrobbles": 100,
+            "skipped_at": "2026-09-25T00:00:00+00:00"
+          }
+        },
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [
+            "artist"
+          ],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {},
+        "skipped_artists": {
+          "artist": {
+            "artist": "Artist",
+            "rank": 1,
+            "scrobbles": 100,
+            "skipped_at": "2026-09-25T00:00:00+00:00"
+          }
+        },
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {
+        "artist": {
+          "artist": "Artist",
+          "rank": 1,
+          "scrobbles": 100,
+          "skipped_at": "2026-09-25T00:00:00+00:00"
+        }
+      },
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "skip_artist_preview": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        true
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "persist"
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {},
+        "skipped_artists": {
+          "artist": {
+            "artist": "Artist",
+            "rank": 1,
+            "scrobbles": 100,
+            "skipped_at": "2026-09-25T00:00:00+00:00"
+          }
+        },
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {
+        "artist": {
+          "artist": "Artist",
+          "rank": 1,
+          "scrobbles": 100,
+          "skipped_at": "2026-09-25T00:00:00+00:00"
+        }
+      },
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": true,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "skip": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "audit:artist_skipped",
+        "run",
+        {
+          "artist": "Artist",
+          "reason": "interactive skip"
+        }
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {},
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25",
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25",
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "missing": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "audit:artist_skipped",
+        "run",
+        {
+          "artist": "Artist",
+          "reason": "no Spotify search result"
+        }
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {},
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25",
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25",
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "quit_artist": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "audit:run_paused",
+        "run",
+        {
+          "artist": "Artist"
+        }
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 0,
+      "dry_run": false,
+      "resumed": true,
+      "paused": true,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "quit_artist_preview": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        true
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 0,
+      "dry_run": true,
+      "resumed": true,
+      "paused": true,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "mapped": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added",
+          "reason": null,
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "composer": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: classical composer, skipped"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25",
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25",
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "wine_outside": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#51 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#51 Artist: already in Wine Cellar"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25",
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25",
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "wine_inside": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "artist already present",
+            "new_vintage_action": "added",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "artist already present",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "artist already present",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": null,
+          "wine_cellar_action": "artist already present",
+          "new_vintage_action": "added"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "artist already present",
+          "new_vintage_action": "added",
+          "reason": null,
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "duplicates": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "b",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": null,
+            "first_track": null,
+            "linked_future_release": null,
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable",
+            "reason": "duplicate Spotify market edition",
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "c",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": null,
+            "first_track": null,
+            "linked_future_release": null,
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable",
+            "reason": "duplicate Spotify market edition",
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "first",
+        "a"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "a",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "a",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 3
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "b": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "duplicate Spotify market edition",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          },
+          "c": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "duplicate Spotify market edition",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "a"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "b": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "duplicate Spotify market edition",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          },
+          "c": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "duplicate Spotify market edition",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          },
+          "a": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "b": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "duplicate Spotify market edition",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          },
+          "c": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "duplicate Spotify market edition",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          },
+          "a": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "b": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": "duplicate Spotify market edition",
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable"
+        },
+        "c": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": "duplicate Spotify market edition",
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable"
+        },
+        "a": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "b",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": null,
+          "first_track": null,
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "duplicate Spotify market edition",
+          "dry_run": false
+        },
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "c",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": null,
+          "first_track": null,
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "duplicate Spotify market edition",
+          "dry_run": false
+        },
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "a",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added",
+          "reason": null,
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "processed": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "original": "kept"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25",
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "original": "kept"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25",
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "pending_processed": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "match",
+        "track",
+        [
+          "future"
+        ]
+      ],
+      [
+        "match",
+        "track",
+        []
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar"
+        ],
+        true
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 21,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Single",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable",
+            "reason": "single kept pending for a future album or EP",
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#21 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "original": "kept"
+          }
+        },
+        "pending_singles": {
+          "release": {
+            "artist_key": "artist",
+            "release": {
+              "spotify_id": "release",
+              "uri": "spotify:album:release",
+              "name": "Release",
+              "release_type": "Single",
+              "release_date": "2026-09-01",
+              "release_date_precision": "day",
+              "total_tracks": 1,
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist"
+            },
+            "first_track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Song",
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist",
+              "disc_number": 1,
+              "track_number": 1
+            }
+          }
+        },
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 21
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "original": "kept"
+          }
+        },
+        "pending_singles": {
+          "release": {
+            "artist_key": "artist",
+            "release": {
+              "spotify_id": "release",
+              "uri": "spotify:album:release",
+              "name": "Release",
+              "release_type": "Single",
+              "release_date": "2026-09-01",
+              "release_date_precision": "day",
+              "total_tracks": 1,
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist"
+            },
+            "first_track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Song",
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist",
+              "disc_number": 1,
+              "track_number": 1
+            }
+          }
+        },
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 21
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "original": "kept"
+          }
+        },
+        "pending_singles": {
+          "release": {
+            "artist_key": "artist",
+            "release": {
+              "spotify_id": "release",
+              "uri": "spotify:album:release",
+              "name": "Release",
+              "release_type": "Single",
+              "release_date": "2026-09-01",
+              "release_date_precision": "day",
+              "total_tracks": 1,
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist"
+            },
+            "first_track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Song",
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist",
+              "disc_number": 1,
+              "track_number": 1
+            }
+          }
+        },
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "original": "kept"
+        }
+      },
+      "pending_singles": {
+        "release": {
+          "artist_key": "artist",
+          "release": {
+            "spotify_id": "release",
+            "uri": "spotify:album:release",
+            "name": "Release",
+            "release_type": "Single",
+            "release_date": "2026-09-01",
+            "release_date_precision": "day",
+            "total_tracks": 1,
+            "primary_artist_id": "spotify-artist",
+            "primary_artist_name": "Artist"
+          },
+          "first_track": {
+            "spotify_id": "track",
+            "uri": "spotify:track:track",
+            "name": "Song",
+            "primary_artist_id": "spotify-artist",
+            "primary_artist_name": "Artist",
+            "disc_number": 1,
+            "track_number": 1
+          }
+        }
+      },
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 21,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Single",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "single kept pending for a future album or EP",
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "pending": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "match",
+        "track",
+        [
+          "future"
+        ]
+      ],
+      [
+        "match",
+        "track",
+        []
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar"
+        ],
+        true
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 21,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Single",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable",
+            "reason": "single kept pending for a future album or EP",
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#21 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 21
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {
+          "release": {
+            "artist_key": "artist",
+            "release": {
+              "spotify_id": "release",
+              "uri": "spotify:album:release",
+              "name": "Release",
+              "release_type": "Single",
+              "release_date": "2026-09-01",
+              "release_date_precision": "day",
+              "total_tracks": 1,
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist"
+            },
+            "first_track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Song",
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist",
+              "disc_number": 1,
+              "track_number": 1
+            }
+          }
+        },
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 21
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {
+          "release": {
+            "artist_key": "artist",
+            "release": {
+              "spotify_id": "release",
+              "uri": "spotify:album:release",
+              "name": "Release",
+              "release_type": "Single",
+              "release_date": "2026-09-01",
+              "release_date_precision": "day",
+              "total_tracks": 1,
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist"
+            },
+            "first_track": {
+              "spotify_id": "track",
+              "uri": "spotify:track:track",
+              "name": "Song",
+              "primary_artist_id": "spotify-artist",
+              "primary_artist_name": "Artist",
+              "disc_number": 1,
+              "track_number": 1
+            }
+          }
+        },
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {
+        "release": {
+          "artist_key": "artist",
+          "release": {
+            "spotify_id": "release",
+            "uri": "spotify:album:release",
+            "name": "Release",
+            "release_type": "Single",
+            "release_date": "2026-09-01",
+            "release_date_precision": "day",
+            "total_tracks": 1,
+            "primary_artist_id": "spotify-artist",
+            "primary_artist_name": "Artist"
+          },
+          "first_track": {
+            "spotify_id": "track",
+            "uri": "spotify:track:track",
+            "name": "Song",
+            "primary_artist_id": "spotify-artist",
+            "primary_artist_name": "Artist",
+            "disc_number": 1,
+            "track_number": 1
+          }
+        }
+      },
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 21,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Single",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "single kept pending for a future album or EP",
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "pending_preview": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        true
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "match",
+        "track",
+        [
+          "future"
+        ]
+      ],
+      [
+        "match",
+        "track",
+        []
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar"
+        ],
+        true
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#21 Artist: complete"
+      ],
+      [
+        "persist"
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 21
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 21
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": true,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 21,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Single",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "single kept pending for a future album or EP",
+          "dry_run": true
+        }
+      ]
+    }
+  },
+  "single_top": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Single",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Single",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added",
+          "reason": null,
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "single_future": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "match",
+        "track",
+        [
+          "future"
+        ]
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 21,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Single",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": "Release",
+            "wine_cellar_action": "added",
+            "new_vintage_action": "not applicable",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#21 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 21
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 21
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "not applicable"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 21,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Single",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": "Release",
+          "wine_cellar_action": "added",
+          "new_vintage_action": "not applicable",
+          "reason": null,
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "single_current": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#21 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "match",
+        "track",
+        [
+          "future"
+        ]
+      ],
+      [
+        "match",
+        "track",
+        []
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 21,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Single",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable",
+            "reason": "containing album or EP has already been released",
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#21 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "containing album or EP has already been released",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 21
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "containing album or EP has already been released",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": "containing album or EP has already been released",
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 21,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Single",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "containing album or EP has already been released",
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "skip_release": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable",
+            "reason": "skipped by user",
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "skipped by user",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "skipped by user",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": "skipped by user",
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": "track",
+          "first_track": "Song",
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "skipped by user",
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "quit_release": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "audit:run_paused",
+        "run",
+        {
+          "artist": "Artist",
+          "release": "Release"
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": "release"
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 0,
+      "dry_run": false,
+      "resumed": true,
+      "paused": true,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "quit_release_preview": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        true
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "persist"
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 0,
+      "dry_run": true,
+      "resumed": true,
+      "paused": true,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "invalid_pending": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": "release"
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "error": "ReleaseCheckError",
+      "message": "Only an unattached single can remain pending."
+    }
+  },
+  "invalid_choice": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": "release"
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "error": "ReleaseCheckError",
+      "message": "The release review choice is invalid."
+    }
+  },
+  "empty_track": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": null,
+            "first_track": null,
+            "linked_future_release": null,
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable",
+            "reason": "release has no playable first track",
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "release has no playable first track",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": "release has no playable first track",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": "release has no playable first track",
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Release",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": null,
+          "first_track": null,
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "release has no playable first track",
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "excluded": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Greatest Hits",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": null,
+            "first_track": null,
+            "linked_future_release": null,
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable",
+            "reason": "compilation or other non-release-project title",
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Greatest Hits",
+            "reason": "compilation or other non-release-project title",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Greatest Hits",
+            "reason": "compilation or other non-release-project title",
+            "wine_cellar_action": "not applicable",
+            "new_vintage_action": "not applicable"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Greatest Hits",
+          "reason": "compilation or other non-release-project title",
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": [
+        {
+          "artist": "Artist",
+          "artist_rank": 1,
+          "artist_scrobbles": 100,
+          "spotify_artist_id": "spotify-artist",
+          "release_id": "release",
+          "release": "Greatest Hits",
+          "release_type": "Album",
+          "release_date": "2026-09-01",
+          "first_track_id": null,
+          "first_track": null,
+          "linked_future_release": null,
+          "wine_cellar_action": "not applicable",
+          "new_vintage_action": "not applicable",
+          "reason": "compilation or other non-release-project title",
+          "dry_run": false
+        }
+      ]
+    }
+  },
+  "catalog_empty": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 0
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25",
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25",
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "run_id": "run",
+      "checked_from": "2026-01-01",
+      "checked_through": "2026-09-25",
+      "artists_total": 1,
+      "artists_processed": 1,
+      "dry_run": false,
+      "resumed": true,
+      "paused": false,
+      "wine_cellar_duplicates_removed": 0,
+      "history_refresh": null,
+      "results": []
+    }
+  },
+  "failure:wine": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "wine"
+    }
+  },
+  "failure:cleanup": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "cleanup"
+    }
+  },
+  "failure:vintage": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "vintage"
+    }
+  },
+  "failure:composers": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "composers"
+    }
+  },
+  "failure:resolve": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "resolve"
+    }
+  },
+  "failure:catalog": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "catalog"
+    }
+  },
+  "failure:first": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ]
+    ],
+    "saves": [],
+    "state": {
+      "artist_mappings": {},
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      }
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "first"
+    }
+  },
+  "failure:persist": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": "release"
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "persist"
+    }
+  },
+  "failure:add:wine": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": "release"
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "add:wine"
+    }
+  },
+  "failure:add:vintage": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": "release"
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "add:vintage"
+    }
+  },
+  "failure:audit:release_checked": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {},
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": "release"
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "audit:release_checked"
+    }
+  },
+  "failure:clock": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": {
+        "run_id": "run",
+        "started_at": "2026-09-25T00:00:00+00:00",
+        "checked_from": "2026-01-01",
+        "checked_through": "2026-09-25",
+        "artists": [
+          {
+            "key": "artist",
+            "name": "Artist",
+            "scrobbles": 100,
+            "rank": 1
+          }
+        ],
+        "completed_artist_keys": [],
+        "pending_release_id": null
+      },
+      "updated_at": "2026-09-25T00:00:00+00:00"
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "clock"
+    }
+  },
+  "failure:audit:run_completed": {
+    "events": [
+      [
+        "progress",
+        0,
+        1,
+        "Loading destination playlists"
+      ],
+      [
+        "wine"
+      ],
+      [
+        "cleanup",
+        false
+      ],
+      [
+        "vintage"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "Loading classical composer playlists"
+      ],
+      [
+        "composers"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: resolving Spotify artist"
+      ],
+      [
+        "resolve",
+        "artist"
+      ],
+      [
+        "progress",
+        0,
+        1,
+        "#1 Artist: checking releases"
+      ],
+      [
+        "catalog",
+        "artist",
+        "spotify-artist",
+        "2026-01-01"
+      ],
+      [
+        "first",
+        "release"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "choice",
+        "artist",
+        "release",
+        "track",
+        [
+          "Wine Cellar",
+          "New Vintage"
+        ],
+        false
+      ],
+      [
+        "add:wine",
+        "track",
+        false
+      ],
+      [
+        "add:vintage",
+        "track",
+        false
+      ],
+      [
+        "audit:release_checked",
+        "run",
+        {
+          "result": {
+            "artist": "Artist",
+            "artist_rank": 1,
+            "artist_scrobbles": 100,
+            "spotify_artist_id": "spotify-artist",
+            "release_id": "release",
+            "release": "Release",
+            "release_type": "Album",
+            "release_date": "2026-09-01",
+            "first_track_id": "track",
+            "first_track": "Song",
+            "linked_future_release": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added",
+            "reason": null,
+            "dry_run": false
+          }
+        }
+      ],
+      [
+        "persist"
+      ],
+      [
+        "progress",
+        1,
+        1,
+        "#1 Artist: complete"
+      ],
+      [
+        "clock"
+      ],
+      [
+        "persist"
+      ],
+      [
+        "audit:run_completed",
+        "run",
+        {
+          "checked_through": "2026-09-25",
+          "artists": 1,
+          "releases": 1
+        }
+      ]
+    ],
+    "saves": [
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {},
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": "release"
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": {
+          "run_id": "run",
+          "started_at": "2026-09-25T00:00:00+00:00",
+          "checked_from": "2026-01-01",
+          "checked_through": "2026-09-25",
+          "artists": [
+            {
+              "key": "artist",
+              "name": "Artist",
+              "scrobbles": 100,
+              "rank": 1
+            }
+          ],
+          "completed_artist_keys": [],
+          "pending_release_id": null
+        },
+        "updated_at": "2026-09-25T00:00:00+00:00"
+      },
+      {
+        "artist_mappings": {
+          "artist": {
+            "spotify_id": "spotify-artist",
+            "name": "Artist",
+            "uri": "spotify:artist:spotify-artist",
+            "popularity": null,
+            "followers": null,
+            "search_rank": 1,
+            "exact_name": true
+          }
+        },
+        "skipped_artists": {},
+        "processed_releases": {
+          "release": {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "artist": "Artist",
+            "release": "Release",
+            "reason": null,
+            "wine_cellar_action": "added",
+            "new_vintage_action": "added"
+          }
+        },
+        "pending_singles": {},
+        "operator_field": {
+          "retain": "unknown"
+        },
+        "active_run": null,
+        "updated_at": "2026-09-25T00:00:00+00:00",
+        "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+        "last_checked_through": "2026-09-25"
+      }
+    ],
+    "state": {
+      "artist_mappings": {
+        "artist": {
+          "spotify_id": "spotify-artist",
+          "name": "Artist",
+          "uri": "spotify:artist:spotify-artist",
+          "popularity": null,
+          "followers": null,
+          "search_rank": 1,
+          "exact_name": true
+        }
+      },
+      "skipped_artists": {},
+      "processed_releases": {
+        "release": {
+          "checked_at": "2026-09-25T00:00:00+00:00",
+          "artist": "Artist",
+          "release": "Release",
+          "reason": null,
+          "wine_cellar_action": "added",
+          "new_vintage_action": "added"
+        }
+      },
+      "pending_singles": {},
+      "operator_field": {
+        "retain": "unknown"
+      },
+      "active_run": null,
+      "updated_at": "2026-09-25T00:00:00+00:00",
+      "last_successful_check_at": "2026-09-25T00:00:00+00:00",
+      "last_checked_through": "2026-09-25"
+    },
+    "outcome": {
+      "error": "EffectFailureError",
+      "message": "audit:run_completed"
+    }
+  }
+}

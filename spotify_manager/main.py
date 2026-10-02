@@ -31,6 +31,10 @@ from rich.text import Text
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.bootstrap.startup import (
+    hydrate_library_data as hydrate_runtime_library_data,
+)
+
 # UFI
 from spotify_manager.client import RotatingSpotify
 from spotify_manager.client import SpotifyClientConfigurationError
@@ -43,7 +47,6 @@ from spotify_manager.core.library_data import ArtifactName
 from spotify_manager.core.library_data import LibraryDataError
 from spotify_manager.core.library_data.models import validate_artifact_name
 from spotify_manager.core.library_data.runtime import get_library_data_service
-from spotify_manager.core.library_data.runtime import hydrate_runtime_library_data
 from spotify_manager.core.state.models import StateDocumentError
 from spotify_manager.core.state.models import StateError
 from spotify_manager.core.state.runtime import get_state_service

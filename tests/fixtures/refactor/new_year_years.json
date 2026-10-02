@@ -1,0 +1,2868 @@
+[
+  {
+    "year": null,
+    "preview": true,
+    "outcome": {
+      "result": {
+        "year": 2025,
+        "dry_run": true,
+        "completed": [],
+        "plan": {
+          "tracks": [
+            {
+              "artist": "Alpha",
+              "name": "One",
+              "scrobbles": 2,
+              "uri": "spotify:track:a-One"
+            },
+            {
+              "artist": "Beta",
+              "name": "Two",
+              "scrobbles": 1,
+              "uri": "spotify:track:b-Two"
+            }
+          ],
+          "albums": [
+            {
+              "artist": "Alpha",
+              "name": "First",
+              "scrobbles": 2,
+              "uri": "first-First"
+            },
+            {
+              "artist": "Beta",
+              "name": "Second",
+              "scrobbles": 1,
+              "uri": "first-Second"
+            }
+          ],
+          "artists": [
+            {
+              "artist": "Alpha",
+              "name": "Alpha",
+              "scrobbles": 2,
+              "artist_id": "artist-a",
+              "uri": "spotify:track:a-One"
+            },
+            {
+              "artist": "Beta",
+              "name": "Beta",
+              "scrobbles": 1,
+              "artist_id": "artist-b",
+              "uri": "spotify:track:b-Two"
+            }
+          ],
+          "destinations": {
+            "blast": "blast",
+            "palace": "palace",
+            "memory": "memory",
+            "queue3": "queue3"
+          },
+          "obsessions": [
+            "obsession",
+            "obsession"
+          ]
+        }
+      },
+      "trace": [
+        [
+          "parse",
+          "blast"
+        ],
+        [
+          "parse",
+          "palace"
+        ],
+        [
+          "parse",
+          "memory"
+        ],
+        [
+          "parse",
+          "queue3"
+        ],
+        [
+          "namespace",
+          "new_year",
+          {
+            "years": {}
+          }
+        ],
+        [
+          "load"
+        ],
+        [
+          "owned",
+          "queue3"
+        ],
+        [
+          "echo",
+          "Rebuilding complete Last.fm history before ranking the previous year"
+        ],
+        [
+          "history",
+          "listener",
+          true,
+          true,
+          true
+        ],
+        [
+          "playlist",
+          "obs"
+        ],
+        [
+          "echo",
+          "Top track: Alpha — One (2)"
+        ],
+        [
+          "search",
+          "Alpha",
+          "One",
+          "",
+          0
+        ],
+        [
+          "echo",
+          "Top track: Beta — Two (1)"
+        ],
+        [
+          "search",
+          "Beta",
+          "Two",
+          "",
+          0
+        ],
+        [
+          "echo",
+          "Top album: Alpha — First (2)"
+        ],
+        [
+          "album",
+          "Alpha",
+          "First"
+        ],
+        [
+          "first",
+          "First"
+        ],
+        [
+          "echo",
+          "Top album: Beta — Second (1)"
+        ],
+        [
+          "album",
+          "Beta",
+          "Second"
+        ],
+        [
+          "first",
+          "Second"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "echo",
+          "Top artist: Alpha (2)"
+        ],
+        [
+          "artist",
+          "Alpha",
+          null
+        ],
+        [
+          "search",
+          "Alpha",
+          "One",
+          "",
+          0
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "checking Memory Lane marker artist"
+        ],
+        [
+          "metadata",
+          "spotify:track:a-One"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Top artist: Beta (1)"
+        ],
+        [
+          "artist",
+          "Beta",
+          null
+        ],
+        [
+          "search",
+          "Beta",
+          "Two",
+          "",
+          0
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "checking Memory Lane marker artist"
+        ],
+        [
+          "metadata",
+          "spotify:track:b-Two"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "discoveries",
+          "queue3",
+          2026,
+          true
+        ],
+        [
+          "echo",
+          "Dry run: 2 tracks, 2 albums, 2 artists and 2 Obsessions tracks."
+        ]
+      ],
+      "state": {
+        "years": {}
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "other"
+        ]
+      }
+    }
+  },
+  {
+    "year": null,
+    "preview": false,
+    "outcome": {
+      "result": {
+        "year": 2025,
+        "completed": [
+          "top tracks",
+          "top albums",
+          "top artists",
+          "Great Discoveries",
+          "Obsessions"
+        ],
+        "plan": {
+          "tracks": [
+            {
+              "artist": "Alpha",
+              "name": "One",
+              "scrobbles": 2,
+              "uri": "spotify:track:a-One"
+            },
+            {
+              "artist": "Beta",
+              "name": "Two",
+              "scrobbles": 1,
+              "uri": "spotify:track:b-Two"
+            }
+          ],
+          "albums": [
+            {
+              "artist": "Alpha",
+              "name": "First",
+              "scrobbles": 2,
+              "uri": "first-First"
+            },
+            {
+              "artist": "Beta",
+              "name": "Second",
+              "scrobbles": 1,
+              "uri": "first-Second"
+            }
+          ],
+          "artists": [
+            {
+              "artist": "Alpha",
+              "name": "Alpha",
+              "scrobbles": 2,
+              "artist_id": "artist-a",
+              "uri": "spotify:track:a-One"
+            },
+            {
+              "artist": "Beta",
+              "name": "Beta",
+              "scrobbles": 1,
+              "artist_id": "artist-b",
+              "uri": "spotify:track:b-Two"
+            }
+          ],
+          "destinations": {
+            "blast": "blast",
+            "palace": "palace",
+            "memory": "memory",
+            "queue3": "queue3"
+          },
+          "obsessions": [
+            "obsession",
+            "obsession"
+          ]
+        },
+        "done": true
+      },
+      "trace": [
+        [
+          "parse",
+          "blast"
+        ],
+        [
+          "parse",
+          "palace"
+        ],
+        [
+          "parse",
+          "memory"
+        ],
+        [
+          "parse",
+          "queue3"
+        ],
+        [
+          "namespace",
+          "new_year",
+          {
+            "years": {}
+          }
+        ],
+        [
+          "load"
+        ],
+        [
+          "owned",
+          "queue3"
+        ],
+        [
+          "echo",
+          "Rebuilding complete Last.fm history before ranking the previous year"
+        ],
+        [
+          "history",
+          "listener",
+          true,
+          false,
+          true
+        ],
+        [
+          "playlist",
+          "obs"
+        ],
+        [
+          "echo",
+          "Top track: Alpha — One (2)"
+        ],
+        [
+          "search",
+          "Alpha",
+          "One",
+          "",
+          0
+        ],
+        [
+          "echo",
+          "Top track: Beta — Two (1)"
+        ],
+        [
+          "search",
+          "Beta",
+          "Two",
+          "",
+          0
+        ],
+        [
+          "echo",
+          "Top album: Alpha — First (2)"
+        ],
+        [
+          "album",
+          "Alpha",
+          "First"
+        ],
+        [
+          "first",
+          "First"
+        ],
+        [
+          "echo",
+          "Top album: Beta — Second (1)"
+        ],
+        [
+          "album",
+          "Beta",
+          "Second"
+        ],
+        [
+          "first",
+          "Second"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "echo",
+          "Top artist: Alpha (2)"
+        ],
+        [
+          "artist",
+          "Alpha",
+          null
+        ],
+        [
+          "search",
+          "Alpha",
+          "One",
+          "",
+          0
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "checking Memory Lane marker artist"
+        ],
+        [
+          "metadata",
+          "spotify:track:a-One"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Top artist: Beta (1)"
+        ],
+        [
+          "artist",
+          "Beta",
+          null
+        ],
+        [
+          "search",
+          "Beta",
+          "Two",
+          "",
+          0
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "checking Memory Lane marker artist"
+        ],
+        [
+          "metadata",
+          "spotify:track:b-Two"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: top tracks"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "finding or creating yearly chart"
+        ],
+        [
+          "owned",
+          "queue3"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "loading Spotify owner"
+        ],
+        [
+          "owner"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "create",
+          "owner",
+          "top 50 2025 tracks",
+          false,
+          "Most scrobbled tracks of 2025 on Last.fm."
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "playlist",
+          "chart-2"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "synchronizing the yearly chart in scrobble rank order"
+        ],
+        [
+          "put",
+          "playlists/chart-2/items",
+          {
+            "uris": [
+              "spotify:track:a-One",
+              "spotify:track:b-Two"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "adding retrospective tracks"
+        ],
+        [
+          "playlist",
+          "blast"
+        ],
+        [
+          "post",
+          "playlists/blast/items",
+          {
+            "uris": [
+              "spotify:track:a-One",
+              "spotify:track:b-Two"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: top albums"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "finding or creating yearly chart"
+        ],
+        [
+          "owned",
+          "queue3"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "loading Spotify owner"
+        ],
+        [
+          "owner"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "create",
+          "owner",
+          "top 20 2025 albums",
+          false,
+          "Most scrobbled albums of 2025 on Last.fm."
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "playlist",
+          "chart-3"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "synchronizing the yearly chart in scrobble rank order"
+        ],
+        [
+          "put",
+          "playlists/chart-3/items",
+          {
+            "uris": [
+              "first-First",
+              "first-Second"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "adding retrospective tracks"
+        ],
+        [
+          "playlist",
+          "palace"
+        ],
+        [
+          "post",
+          "playlists/palace/items",
+          {
+            "uris": [
+              "first-First",
+              "first-Second"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: top artists"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "adding retrospective tracks"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "post",
+          "playlists/memory/items",
+          {
+            "uris": [
+              "spotify:track:a-One",
+              "spotify:track:b-Two"
+            ],
+            "position": 0
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "placing yearly artists at the top of Memory Lane"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "put",
+          "playlists/memory/items",
+          {
+            "range_start": 1,
+            "insert_before": 0,
+            "range_length": 1
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "placing yearly artists at the top of Memory Lane"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "put",
+          "playlists/memory/items",
+          {
+            "range_start": 1,
+            "insert_before": 0,
+            "range_length": 1
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: Great Discoveries"
+        ],
+        [
+          "discoveries",
+          "queue3",
+          2026,
+          false
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists",
+                  "Great Discoveries"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: Obsessions"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "adding retrospective tracks"
+        ],
+        [
+          "playlist",
+          "blast"
+        ],
+        [
+          "post",
+          "playlists/blast/items",
+          {
+            "uris": [
+              "obsession"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists",
+                  "Great Discoveries",
+                  "Obsessions"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists",
+                  "Great Discoveries",
+                  "Obsessions"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                },
+                "done": true
+              }
+            }
+          }
+        ],
+        [
+          "echo",
+          "The 2025 retrospective is complete."
+        ]
+      ],
+      "state": {
+        "years": {
+          "2025": {
+            "completed": [
+              "top tracks",
+              "top albums",
+              "top artists",
+              "Great Discoveries",
+              "Obsessions"
+            ],
+            "plan": {
+              "tracks": [
+                {
+                  "artist": "Alpha",
+                  "name": "One",
+                  "scrobbles": 2,
+                  "uri": "spotify:track:a-One"
+                },
+                {
+                  "artist": "Beta",
+                  "name": "Two",
+                  "scrobbles": 1,
+                  "uri": "spotify:track:b-Two"
+                }
+              ],
+              "albums": [
+                {
+                  "artist": "Alpha",
+                  "name": "First",
+                  "scrobbles": 2,
+                  "uri": "first-First"
+                },
+                {
+                  "artist": "Beta",
+                  "name": "Second",
+                  "scrobbles": 1,
+                  "uri": "first-Second"
+                }
+              ],
+              "artists": [
+                {
+                  "artist": "Alpha",
+                  "name": "Alpha",
+                  "scrobbles": 2,
+                  "artist_id": "artist-a",
+                  "uri": "spotify:track:a-One"
+                },
+                {
+                  "artist": "Beta",
+                  "name": "Beta",
+                  "scrobbles": 1,
+                  "artist_id": "artist-b",
+                  "uri": "spotify:track:b-Two"
+                }
+              ],
+              "destinations": {
+                "blast": "blast",
+                "palace": "palace",
+                "memory": "memory",
+                "queue3": "queue3"
+              },
+              "obsessions": [
+                "obsession",
+                "obsession"
+              ]
+            },
+            "done": true
+          }
+        }
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "spotify:track:a-One",
+          "spotify:track:b-Two",
+          "other"
+        ],
+        "chart-2": [
+          "spotify:track:a-One",
+          "spotify:track:b-Two"
+        ],
+        "blast": [
+          "spotify:track:a-One",
+          "spotify:track:b-Two",
+          "obsession"
+        ],
+        "chart-3": [
+          "first-First",
+          "first-Second"
+        ],
+        "palace": [
+          "first-First",
+          "first-Second"
+        ]
+      }
+    }
+  },
+  {
+    "year": 2001,
+    "preview": true,
+    "outcome": {
+      "error": "NewYearError",
+      "message": "Choose a completed calendar year (2002 or later).",
+      "trace": [],
+      "state": {
+        "years": {}
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "other"
+        ]
+      }
+    }
+  },
+  {
+    "year": 2001,
+    "preview": false,
+    "outcome": {
+      "error": "NewYearError",
+      "message": "Choose a completed calendar year (2002 or later).",
+      "trace": [],
+      "state": {
+        "years": {}
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "other"
+        ]
+      }
+    }
+  },
+  {
+    "year": 2025,
+    "preview": true,
+    "outcome": {
+      "result": {
+        "year": 2025,
+        "dry_run": true,
+        "completed": [],
+        "plan": {
+          "tracks": [
+            {
+              "artist": "Alpha",
+              "name": "One",
+              "scrobbles": 2,
+              "uri": "spotify:track:a-One"
+            },
+            {
+              "artist": "Beta",
+              "name": "Two",
+              "scrobbles": 1,
+              "uri": "spotify:track:b-Two"
+            }
+          ],
+          "albums": [
+            {
+              "artist": "Alpha",
+              "name": "First",
+              "scrobbles": 2,
+              "uri": "first-First"
+            },
+            {
+              "artist": "Beta",
+              "name": "Second",
+              "scrobbles": 1,
+              "uri": "first-Second"
+            }
+          ],
+          "artists": [
+            {
+              "artist": "Alpha",
+              "name": "Alpha",
+              "scrobbles": 2,
+              "artist_id": "artist-a",
+              "uri": "spotify:track:a-One"
+            },
+            {
+              "artist": "Beta",
+              "name": "Beta",
+              "scrobbles": 1,
+              "artist_id": "artist-b",
+              "uri": "spotify:track:b-Two"
+            }
+          ],
+          "destinations": {
+            "blast": "blast",
+            "palace": "palace",
+            "memory": "memory",
+            "queue3": "queue3"
+          },
+          "obsessions": [
+            "obsession",
+            "obsession"
+          ]
+        }
+      },
+      "trace": [
+        [
+          "parse",
+          "blast"
+        ],
+        [
+          "parse",
+          "palace"
+        ],
+        [
+          "parse",
+          "memory"
+        ],
+        [
+          "parse",
+          "queue3"
+        ],
+        [
+          "namespace",
+          "new_year",
+          {
+            "years": {}
+          }
+        ],
+        [
+          "load"
+        ],
+        [
+          "owned",
+          "queue3"
+        ],
+        [
+          "echo",
+          "Rebuilding complete Last.fm history before ranking the previous year"
+        ],
+        [
+          "history",
+          "listener",
+          true,
+          true,
+          true
+        ],
+        [
+          "playlist",
+          "obs"
+        ],
+        [
+          "echo",
+          "Top track: Alpha — One (2)"
+        ],
+        [
+          "search",
+          "Alpha",
+          "One",
+          "",
+          0
+        ],
+        [
+          "echo",
+          "Top track: Beta — Two (1)"
+        ],
+        [
+          "search",
+          "Beta",
+          "Two",
+          "",
+          0
+        ],
+        [
+          "echo",
+          "Top album: Alpha — First (2)"
+        ],
+        [
+          "album",
+          "Alpha",
+          "First"
+        ],
+        [
+          "first",
+          "First"
+        ],
+        [
+          "echo",
+          "Top album: Beta — Second (1)"
+        ],
+        [
+          "album",
+          "Beta",
+          "Second"
+        ],
+        [
+          "first",
+          "Second"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "echo",
+          "Top artist: Alpha (2)"
+        ],
+        [
+          "artist",
+          "Alpha",
+          null
+        ],
+        [
+          "search",
+          "Alpha",
+          "One",
+          "",
+          0
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "checking Memory Lane marker artist"
+        ],
+        [
+          "metadata",
+          "spotify:track:a-One"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Top artist: Beta (1)"
+        ],
+        [
+          "artist",
+          "Beta",
+          null
+        ],
+        [
+          "search",
+          "Beta",
+          "Two",
+          "",
+          0
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "checking Memory Lane marker artist"
+        ],
+        [
+          "metadata",
+          "spotify:track:b-Two"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "discoveries",
+          "queue3",
+          2026,
+          true
+        ],
+        [
+          "echo",
+          "Dry run: 2 tracks, 2 albums, 2 artists and 2 Obsessions tracks."
+        ]
+      ],
+      "state": {
+        "years": {}
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "other"
+        ]
+      }
+    }
+  },
+  {
+    "year": 2025,
+    "preview": false,
+    "outcome": {
+      "result": {
+        "year": 2025,
+        "completed": [
+          "top tracks",
+          "top albums",
+          "top artists",
+          "Great Discoveries",
+          "Obsessions"
+        ],
+        "plan": {
+          "tracks": [
+            {
+              "artist": "Alpha",
+              "name": "One",
+              "scrobbles": 2,
+              "uri": "spotify:track:a-One"
+            },
+            {
+              "artist": "Beta",
+              "name": "Two",
+              "scrobbles": 1,
+              "uri": "spotify:track:b-Two"
+            }
+          ],
+          "albums": [
+            {
+              "artist": "Alpha",
+              "name": "First",
+              "scrobbles": 2,
+              "uri": "first-First"
+            },
+            {
+              "artist": "Beta",
+              "name": "Second",
+              "scrobbles": 1,
+              "uri": "first-Second"
+            }
+          ],
+          "artists": [
+            {
+              "artist": "Alpha",
+              "name": "Alpha",
+              "scrobbles": 2,
+              "artist_id": "artist-a",
+              "uri": "spotify:track:a-One"
+            },
+            {
+              "artist": "Beta",
+              "name": "Beta",
+              "scrobbles": 1,
+              "artist_id": "artist-b",
+              "uri": "spotify:track:b-Two"
+            }
+          ],
+          "destinations": {
+            "blast": "blast",
+            "palace": "palace",
+            "memory": "memory",
+            "queue3": "queue3"
+          },
+          "obsessions": [
+            "obsession",
+            "obsession"
+          ]
+        },
+        "done": true
+      },
+      "trace": [
+        [
+          "parse",
+          "blast"
+        ],
+        [
+          "parse",
+          "palace"
+        ],
+        [
+          "parse",
+          "memory"
+        ],
+        [
+          "parse",
+          "queue3"
+        ],
+        [
+          "namespace",
+          "new_year",
+          {
+            "years": {}
+          }
+        ],
+        [
+          "load"
+        ],
+        [
+          "owned",
+          "queue3"
+        ],
+        [
+          "echo",
+          "Rebuilding complete Last.fm history before ranking the previous year"
+        ],
+        [
+          "history",
+          "listener",
+          true,
+          false,
+          true
+        ],
+        [
+          "playlist",
+          "obs"
+        ],
+        [
+          "echo",
+          "Top track: Alpha — One (2)"
+        ],
+        [
+          "search",
+          "Alpha",
+          "One",
+          "",
+          0
+        ],
+        [
+          "echo",
+          "Top track: Beta — Two (1)"
+        ],
+        [
+          "search",
+          "Beta",
+          "Two",
+          "",
+          0
+        ],
+        [
+          "echo",
+          "Top album: Alpha — First (2)"
+        ],
+        [
+          "album",
+          "Alpha",
+          "First"
+        ],
+        [
+          "first",
+          "First"
+        ],
+        [
+          "echo",
+          "Top album: Beta — Second (1)"
+        ],
+        [
+          "album",
+          "Beta",
+          "Second"
+        ],
+        [
+          "first",
+          "Second"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "echo",
+          "Top artist: Alpha (2)"
+        ],
+        [
+          "artist",
+          "Alpha",
+          null
+        ],
+        [
+          "search",
+          "Alpha",
+          "One",
+          "",
+          0
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "checking Memory Lane marker artist"
+        ],
+        [
+          "metadata",
+          "spotify:track:a-One"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Top artist: Beta (1)"
+        ],
+        [
+          "artist",
+          "Beta",
+          null
+        ],
+        [
+          "search",
+          "Beta",
+          "Two",
+          "",
+          0
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "checking Memory Lane marker artist"
+        ],
+        [
+          "metadata",
+          "spotify:track:b-Two"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: top tracks"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "finding or creating yearly chart"
+        ],
+        [
+          "owned",
+          "queue3"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "loading Spotify owner"
+        ],
+        [
+          "owner"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "create",
+          "owner",
+          "top 50 2025 tracks",
+          false,
+          "Most scrobbled tracks of 2025 on Last.fm."
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "playlist",
+          "chart-2"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "synchronizing the yearly chart in scrobble rank order"
+        ],
+        [
+          "put",
+          "playlists/chart-2/items",
+          {
+            "uris": [
+              "spotify:track:a-One",
+              "spotify:track:b-Two"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "adding retrospective tracks"
+        ],
+        [
+          "playlist",
+          "blast"
+        ],
+        [
+          "post",
+          "playlists/blast/items",
+          {
+            "uris": [
+              "spotify:track:a-One",
+              "spotify:track:b-Two"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: top albums"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "finding or creating yearly chart"
+        ],
+        [
+          "owned",
+          "queue3"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "loading Spotify owner"
+        ],
+        [
+          "owner"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "create",
+          "owner",
+          "top 20 2025 albums",
+          false,
+          "Most scrobbled albums of 2025 on Last.fm."
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "playlist",
+          "chart-3"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "synchronizing the yearly chart in scrobble rank order"
+        ],
+        [
+          "put",
+          "playlists/chart-3/items",
+          {
+            "uris": [
+              "first-First",
+              "first-Second"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "adding retrospective tracks"
+        ],
+        [
+          "playlist",
+          "palace"
+        ],
+        [
+          "post",
+          "playlists/palace/items",
+          {
+            "uris": [
+              "first-First",
+              "first-Second"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: top artists"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "adding retrospective tracks"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "post",
+          "playlists/memory/items",
+          {
+            "uris": [
+              "spotify:track:a-One",
+              "spotify:track:b-Two"
+            ],
+            "position": 0
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "placing yearly artists at the top of Memory Lane"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "put",
+          "playlists/memory/items",
+          {
+            "range_start": 1,
+            "insert_before": 0,
+            "range_length": 1
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "placing yearly artists at the top of Memory Lane"
+        ],
+        [
+          "playlist",
+          "memory"
+        ],
+        [
+          "put",
+          "playlists/memory/items",
+          {
+            "range_start": 1,
+            "insert_before": 0,
+            "range_length": 1
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: Great Discoveries"
+        ],
+        [
+          "discoveries",
+          "queue3",
+          2026,
+          false
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists",
+                  "Great Discoveries"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "echo",
+          "Running: Obsessions"
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "retry",
+          "adding retrospective tracks"
+        ],
+        [
+          "playlist",
+          "blast"
+        ],
+        [
+          "post",
+          "playlists/blast/items",
+          {
+            "uris": [
+              "obsession"
+            ]
+          }
+        ],
+        [
+          "cancel"
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists",
+                  "Great Discoveries",
+                  "Obsessions"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        [
+          "save",
+          {
+            "years": {
+              "2025": {
+                "completed": [
+                  "top tracks",
+                  "top albums",
+                  "top artists",
+                  "Great Discoveries",
+                  "Obsessions"
+                ],
+                "plan": {
+                  "tracks": [
+                    {
+                      "artist": "Alpha",
+                      "name": "One",
+                      "scrobbles": 2,
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Two",
+                      "scrobbles": 1,
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "albums": [
+                    {
+                      "artist": "Alpha",
+                      "name": "First",
+                      "scrobbles": 2,
+                      "uri": "first-First"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Second",
+                      "scrobbles": 1,
+                      "uri": "first-Second"
+                    }
+                  ],
+                  "artists": [
+                    {
+                      "artist": "Alpha",
+                      "name": "Alpha",
+                      "scrobbles": 2,
+                      "artist_id": "artist-a",
+                      "uri": "spotify:track:a-One"
+                    },
+                    {
+                      "artist": "Beta",
+                      "name": "Beta",
+                      "scrobbles": 1,
+                      "artist_id": "artist-b",
+                      "uri": "spotify:track:b-Two"
+                    }
+                  ],
+                  "destinations": {
+                    "blast": "blast",
+                    "palace": "palace",
+                    "memory": "memory",
+                    "queue3": "queue3"
+                  },
+                  "obsessions": [
+                    "obsession",
+                    "obsession"
+                  ]
+                },
+                "done": true
+              }
+            }
+          }
+        ],
+        [
+          "echo",
+          "The 2025 retrospective is complete."
+        ]
+      ],
+      "state": {
+        "years": {
+          "2025": {
+            "completed": [
+              "top tracks",
+              "top albums",
+              "top artists",
+              "Great Discoveries",
+              "Obsessions"
+            ],
+            "plan": {
+              "tracks": [
+                {
+                  "artist": "Alpha",
+                  "name": "One",
+                  "scrobbles": 2,
+                  "uri": "spotify:track:a-One"
+                },
+                {
+                  "artist": "Beta",
+                  "name": "Two",
+                  "scrobbles": 1,
+                  "uri": "spotify:track:b-Two"
+                }
+              ],
+              "albums": [
+                {
+                  "artist": "Alpha",
+                  "name": "First",
+                  "scrobbles": 2,
+                  "uri": "first-First"
+                },
+                {
+                  "artist": "Beta",
+                  "name": "Second",
+                  "scrobbles": 1,
+                  "uri": "first-Second"
+                }
+              ],
+              "artists": [
+                {
+                  "artist": "Alpha",
+                  "name": "Alpha",
+                  "scrobbles": 2,
+                  "artist_id": "artist-a",
+                  "uri": "spotify:track:a-One"
+                },
+                {
+                  "artist": "Beta",
+                  "name": "Beta",
+                  "scrobbles": 1,
+                  "artist_id": "artist-b",
+                  "uri": "spotify:track:b-Two"
+                }
+              ],
+              "destinations": {
+                "blast": "blast",
+                "palace": "palace",
+                "memory": "memory",
+                "queue3": "queue3"
+              },
+              "obsessions": [
+                "obsession",
+                "obsession"
+              ]
+            },
+            "done": true
+          }
+        }
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "spotify:track:a-One",
+          "spotify:track:b-Two",
+          "other"
+        ],
+        "chart-2": [
+          "spotify:track:a-One",
+          "spotify:track:b-Two"
+        ],
+        "blast": [
+          "spotify:track:a-One",
+          "spotify:track:b-Two",
+          "obsession"
+        ],
+        "chart-3": [
+          "first-First",
+          "first-Second"
+        ],
+        "palace": [
+          "first-First",
+          "first-Second"
+        ]
+      }
+    }
+  },
+  {
+    "year": 2026,
+    "preview": true,
+    "outcome": {
+      "error": "NewYearError",
+      "message": "Choose a completed calendar year (2002 or later).",
+      "trace": [],
+      "state": {
+        "years": {}
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "other"
+        ]
+      }
+    }
+  },
+  {
+    "year": 2026,
+    "preview": false,
+    "outcome": {
+      "error": "NewYearError",
+      "message": "Choose a completed calendar year (2002 or later).",
+      "trace": [],
+      "state": {
+        "years": {}
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "other"
+        ]
+      }
+    }
+  },
+  {
+    "year": 2027,
+    "preview": true,
+    "outcome": {
+      "error": "NewYearError",
+      "message": "Choose a completed calendar year (2002 or later).",
+      "trace": [],
+      "state": {
+        "years": {}
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "other"
+        ]
+      }
+    }
+  },
+  {
+    "year": 2027,
+    "preview": false,
+    "outcome": {
+      "error": "NewYearError",
+      "message": "Choose a completed calendar year (2002 or later).",
+      "trace": [],
+      "state": {
+        "years": {}
+      },
+      "contents": {
+        "obs": [
+          "obsession",
+          "obsession"
+        ],
+        "memory": [
+          "other"
+        ]
+      }
+    }
+  }
+]

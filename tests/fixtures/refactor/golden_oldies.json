@@ -1,0 +1,240 @@
+{
+  "empty": [],
+  "minimum": [
+    {
+      "artist": "Fifty",
+      "scrobbles": 71,
+      "average_scrobble_ms": 84,
+      "first_scrobble_ms": 49,
+      "last_scrobble_ms": 119,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 71,
+          "last_scrobbled_ms": 119
+        }
+      ]
+    }
+  ],
+  "exact-case": [
+    {
+      "artist": "Artist",
+      "scrobbles": 60,
+      "average_scrobble_ms": 29,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 59,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 60,
+          "last_scrobbled_ms": 59
+        }
+      ]
+    },
+    {
+      "artist": "ARTIST",
+      "scrobbles": 60,
+      "average_scrobble_ms": 29,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 59,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 60,
+          "last_scrobbled_ms": 59
+        }
+      ]
+    }
+  ],
+  "accent": [
+    {
+      "artist": "Beyonce",
+      "scrobbles": 60,
+      "average_scrobble_ms": 29,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 59,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 60,
+          "last_scrobbled_ms": 59
+        }
+      ]
+    },
+    {
+      "artist": "Beyoncé",
+      "scrobbles": 60,
+      "average_scrobble_ms": 29,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 59,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 60,
+          "last_scrobbled_ms": 59
+        }
+      ]
+    }
+  ],
+  "trimmed": [
+    {
+      "artist": "Artist",
+      "scrobbles": 120,
+      "average_scrobble_ms": 59,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 119,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 120,
+          "last_scrobbled_ms": 119
+        }
+      ]
+    }
+  ],
+  "invalid-labels": [],
+  "tracks": [
+    {
+      "artist": "Artist",
+      "scrobbles": 120,
+      "average_scrobble_ms": 59,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 119,
+      "top_tracks": [
+        {
+          "track": "Track 0",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 108
+        },
+        {
+          "track": "Track 1",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 109
+        },
+        {
+          "track": "Track 10",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 118
+        },
+        {
+          "track": "Track 11",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 119
+        },
+        {
+          "track": "Track 2",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 110
+        },
+        {
+          "track": "Track 3",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 111
+        },
+        {
+          "track": "Track 4",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 112
+        },
+        {
+          "track": "Track 5",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 113
+        },
+        {
+          "track": "Track 6",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 114
+        },
+        {
+          "track": "Track 7",
+          "scrobbles": 10,
+          "last_scrobbled_ms": 115
+        }
+      ]
+    }
+  ],
+  "title-case": [
+    {
+      "artist": "Artist",
+      "scrobbles": 120,
+      "average_scrobble_ms": 59,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 119,
+      "top_tracks": [
+        {
+          "track": "TRACK",
+          "scrobbles": 60,
+          "last_scrobbled_ms": 118
+        },
+        {
+          "track": "Track",
+          "scrobbles": 60,
+          "last_scrobbled_ms": 119
+        }
+      ]
+    }
+  ],
+  "floor": [
+    {
+      "artist": "Alpha",
+      "scrobbles": 60,
+      "average_scrobble_ms": 0,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 1,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 60,
+          "last_scrobbled_ms": 1
+        }
+      ]
+    },
+    {
+      "artist": "Zulu",
+      "scrobbles": 60,
+      "average_scrobble_ms": 0,
+      "first_scrobble_ms": 0,
+      "last_scrobble_ms": 1,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 60,
+          "last_scrobbled_ms": 1
+        }
+      ]
+    }
+  ],
+  "negative": [
+    {
+      "artist": "Artist",
+      "scrobbles": 120,
+      "average_scrobble_ms": -60,
+      "first_scrobble_ms": -119,
+      "last_scrobble_ms": 0,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 120,
+          "last_scrobbled_ms": 0
+        }
+      ]
+    }
+  ],
+  "descending": [
+    {
+      "artist": "Artist",
+      "scrobbles": 120,
+      "average_scrobble_ms": 60,
+      "first_scrobble_ms": 1,
+      "last_scrobble_ms": 120,
+      "top_tracks": [
+        {
+          "track": "Track",
+          "scrobbles": 120,
+          "last_scrobbled_ms": 120
+        }
+      ]
+    }
+  ]
+}

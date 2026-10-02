@@ -1,0 +1,1037 @@
+[
+  {
+    "kind": "album",
+    "payload": null,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned invalid search data for Release."
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {},
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned invalid search data for Release."
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {}
+    },
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned invalid search data for Release."
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": []
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": null
+          },
+          {
+            "id": "two",
+            "uri": "album:two",
+            "name": " Release ",
+            "artists": null
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": []
+          },
+          {
+            "id": "two",
+            "uri": "album:two",
+            "name": " Release ",
+            "artists": []
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              null,
+              {}
+            ]
+          },
+          {
+            "id": "two",
+            "uri": "album:two",
+            "name": " Release ",
+            "artists": [
+              null,
+              {}
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Other"
+              }
+            ]
+          },
+          {
+            "id": "two",
+            "uri": "album:two",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Other"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": " ARTIST "
+              }
+            ]
+          },
+          {
+            "id": "two",
+            "uri": "album:two",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": " ARTIST "
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "uri": "album:one",
+        "artist": " ARTIST ",
+        "album": "Release",
+        "saved": false,
+        "similarity": 1.0
+      }
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          null,
+          {},
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Other"
+              },
+              {
+                "name": "Artist"
+              }
+            ]
+          },
+          {
+            "id": "two",
+            "uri": "album:two",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Other"
+              },
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "uri": "album:one",
+        "artist": "Other",
+        "album": "Release",
+        "saved": false,
+        "similarity": 1.0
+      }
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": null,
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "",
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "  ",
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": false,
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": 5,
+            "uri": "album:one",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "5",
+        "uri": "album:one",
+        "artist": "Artist",
+        "album": "Release",
+        "saved": false,
+        "similarity": 1.0
+      }
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": null,
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": "",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": "  ",
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": false,
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": 5,
+            "name": " Release ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "uri": "5",
+        "artist": "Artist",
+        "album": "Release",
+        "saved": false,
+        "similarity": 1.0
+      }
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": null,
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": "",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": "  ",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": false,
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "one",
+            "uri": "album:one",
+            "name": 5,
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "album",
+    "payload": {
+      "albums": {
+        "items": [
+          {
+            "id": "wrong",
+            "uri": "album:wrong",
+            "name": "Unrelated Album",
+            "artists": [
+              {
+                "name": "Artist"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "outcome": {
+      "result": null
+    }
+  },
+  {
+    "kind": "track",
+    "payload": null,
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned invalid tracks for Artist - Release."
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {},
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned invalid tracks for Artist - Release."
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": null
+    },
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "Spotify returned invalid tracks for Artist - Release."
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": []
+    },
+    "outcome": {
+      "error": "PalaceOfMemoryDataError",
+      "message": "No playable first track found for Artist - Release."
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": null,
+          "uri": "track:one",
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "",
+          "uri": "track:one",
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "  ",
+          "uri": "track:one",
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": false,
+          "uri": "track:one",
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": 5,
+          "uri": "track:one",
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "5",
+        "uri": "track:one",
+        "name": "One"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": null,
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": "",
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": "  ",
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": false,
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": 5,
+          "name": " One "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "uri": "5",
+        "name": "One"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": null
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": ""
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": "  "
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": false
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "two",
+        "uri": "track:two",
+        "name": "Two"
+      }
+    }
+  },
+  {
+    "kind": "track",
+    "payload": {
+      "items": [
+        null,
+        {},
+        {
+          "id": "one",
+          "uri": "track:one",
+          "name": 5
+        },
+        {
+          "id": "two",
+          "uri": "track:two",
+          "name": " Two "
+        }
+      ]
+    },
+    "outcome": {
+      "result": {
+        "spotify_id": "one",
+        "uri": "track:one",
+        "name": "5"
+      }
+    }
+  }
+]

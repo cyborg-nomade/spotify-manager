@@ -1,0 +1,2479 @@
+[
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned no job id.",
+      "cause": null
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned no job id.",
+      "cause": null
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "sleep",
+        60
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Last.fm scrobble history is blocked by unrelated; waiting.\nStarted Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "existing"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/existing",
+        {}
+      ]
+    ],
+    "output": "Reconnected to existing Last.fm scrobble history job existing.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/existing",
+        {}
+      ],
+      [
+        "sleep",
+        60
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Last.fm scrobble history is blocked by update_scrobble_history; waiting.\nStarted Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "job"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false&full_rebuild=true",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Started Last.fm scrobble history as job.\n"
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned an invalid job status.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned unknown status ''.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history:  - detail\n"
+  },
+  {
+    "outcome": {
+      "result": "paused"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: paused - detail\n"
+  },
+  {
+    "outcome": {
+      "result": "paused"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: cancelled - detail\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history ended as failed: detail",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: failed - detail\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned unknown status 'unknown'.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: unknown - detail\n"
+  },
+  {
+    "outcome": {
+      "error": "JobLostError",
+      "message": "Lost Last.fm scrobble history after a Space restart.",
+      "cause": "ApiError"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\n"
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: completed - \n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned unknown status ''.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history:  - \n"
+  },
+  {
+    "outcome": {
+      "result": "deadline"
+    },
+    "events": [
+      [
+        "POST",
+        "/commands/update-scrobble-history-jobs/job/cancel",
+        {
+          "retry_transient": false,
+          "deadline": "2026-09-24T00:03:00+00:00"
+        }
+      ]
+    ],
+    "output": "Cancelling Last.fm scrobble history at the maintenance deadline.\n"
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\n"
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\n"
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\n"
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\n"
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\n"
+  },
+  {
+    "outcome": {
+      "result": "completed"
+    },
+    "events": [
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Last.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned no job id.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned no job id.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: paused - detail\nLast.fm scrobble history paused cleanly; remaining jobs will resume tomorrow.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: cancelled - detail\nLast.fm scrobble history paused cleanly; remaining jobs will resume tomorrow.\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history ended as failed: detail",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: failed - detail\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned unknown status 'unknown'.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: unknown - detail\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history handle was lost; resuming from its checkpoint.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "sleep",
+        60
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nLast.fm scrobble history is blocked by unrelated; waiting.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/existing",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nReconnected to existing Last.fm scrobble history job existing.\nLast.fm scrobble history: completed - \nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - \nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - \nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - \nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Last.fm scrobble history returned unknown status ''.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/existing",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nReconnected to existing Last.fm scrobble history job existing.\nLast.fm scrobble history:  - \n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history-jobs/job/cancel",
+        {
+          "retry_transient": false,
+          "deadline": "2026-09-24T00:03:00+00:00"
+        }
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nCancelling Last.fm scrobble history at the maintenance deadline.\nMaintenance window closed; progress was saved.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/update-scrobble-history?dry_run=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "sleep",
+        20
+      ],
+      [
+        "GET",
+        "/commands/update-scrobble-history-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/albums?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/tracks?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ],
+      [
+        "POST",
+        "/commands/refresh-library-mirrors/artists?full_rebuild=false",
+        {
+          "retry_transient": true
+        }
+      ],
+      [
+        "GET",
+        "/commands/library-analysis-jobs/job",
+        {}
+      ]
+    ],
+    "output": "Nightly refresh deadline: 2026-09-24T05:00:00+02:00 (Europe/Berlin)\nSpace is awake and healthy.\nRefresh mode: incremental.\nStarted Last.fm scrobble history as job.\nLast.fm scrobble history: running - work\nLast.fm scrobble history: completed - work\nCompleted Last.fm scrobble history (1/4).\nStarted Spotify albums mirror as job.\nSpotify albums mirror: completed - work\nCompleted Spotify albums mirror (2/4).\nStarted Spotify tracks mirror as job.\nSpotify tracks mirror: completed - work\nCompleted Spotify tracks mirror (3/4).\nStarted Spotify artists mirror as job.\nSpotify artists mirror: completed - work\nCompleted Spotify artists mirror (4/4).\nAll nightly library refreshes completed.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "The durable library-data status is incomplete.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "The durable library-data status is incomplete.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "result": 0
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/two-jobs",
+        {}
+      ]
+    ],
+    "output": "Automation authentication, shared state, and all four artifacts are healthy.\nNo active jobs across 2 routine endpoints.\n"
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "The durable library-data status is incomplete.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "error": "AttributeError",
+      "message": "'NoneType' object has no attribute 'get'",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "error": "AutomationError",
+      "message": "Active jobs at /commands/one-jobs; wait before deploying.",
+      "cause": null
+    },
+    "events": [
+      [
+        "GET",
+        "/health",
+        {}
+      ],
+      [
+        "GET",
+        "/auth/check",
+        {}
+      ],
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ],
+      [
+        "GET",
+        "/state/summary",
+        {}
+      ],
+      [
+        "GET",
+        "/openapi.json",
+        {}
+      ],
+      [
+        "GET",
+        "/commands/one-jobs",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": false
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": false
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": false
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": false
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": false
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": false
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": false
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  },
+  {
+    "outcome": {
+      "result": true
+    },
+    "events": [
+      [
+        "GET",
+        "/library-mirrors/status",
+        {}
+      ]
+    ],
+    "output": ""
+  }
+]

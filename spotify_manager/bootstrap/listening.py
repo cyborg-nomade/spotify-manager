@@ -11,6 +11,7 @@ from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.music import AlbumCatalog
 from spotify_manager.application.ports.music import PlaylistAccess
 from spotify_manager.application.ports.music import TrackMembership
+from spotify_manager.application.requeue_result import RequeueForADreamSummary
 from spotify_manager.infrastructure.legacy.history import ExportListeningHistory
 from spotify_manager.infrastructure.legacy.spotify import RequeuePlaylistAccess
 from spotify_manager.infrastructure.legacy.spotify import SpotifyAlbumCatalog
@@ -45,7 +46,7 @@ def requeue_playlist(client: Spotify, retry: RetryCall) -> PlaylistAccess:
 
 def requeue_audit(
     path: Path,
-) -> AuditWriter[requeue_for_a_dream.RequeueForADreamSummary]:
+) -> AuditWriter[RequeueForADreamSummary]:
     """Bind the existing JSONL writer without changing record bytes or timing.
 
     Args:
@@ -57,9 +58,7 @@ def requeue_audit(
     return partial(_write_requeue_audit, path)
 
 
-def _write_requeue_audit(
-    path: Path, summary: requeue_for_a_dream.RequeueForADreamSummary
-) -> None:
+def _write_requeue_audit(path: Path, summary: RequeueForADreamSummary) -> None:
     requeue_for_a_dream._append_log(summary, path)
 
 

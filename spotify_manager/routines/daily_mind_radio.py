@@ -1,13 +1,20 @@
 """Build the daily mind radio playlist from anniversary scrobbles."""
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
 from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.historical_resolution import direct_call
+from spotify_manager.application.historical_values import (
+    DailyMindRadioBatch as DailyMindRadioBatch,
+)
+from spotify_manager.application.historical_values import (
+    DailyMindRadioSpotifySummary as DailyMindRadioSpotifySummary,
+)
+from spotify_manager.domain import history as history_policy
 from spotify_manager.routines import blast_from_past
 
 
@@ -15,46 +22,19 @@ ANNIVERSARY_INTERVAL_YEARS = 5
 RandomTimestampReader = Callable[[], datetime]
 
 
-@dataclass(frozen=True)
-class DailyMindRadioBatch:
-    """Anniversary dates and the scrobbles selected from them."""
-
-    generated_at: datetime | None
-    target_dates: tuple[date, ...]
-    missing_dates: tuple[date, ...]
-    selections: tuple[blast_from_past.ScrobbleSelection, ...]
-
-
-@dataclass(frozen=True)
-class DailyMindRadioSpotifySummary:
-    """Completed Daily Mind Radio playlist update."""
-
-    playlist_id: str
-    batch: DailyMindRadioBatch
-    playlist_length_before: int | None
-    playlist_length_after: int | None
-    results: tuple[blast_from_past.SpotifySelectionResult, ...]
-
-    @property
-    def added(self) -> int:
-        """Return the number of tracks added in this run."""
-        return sum(result.action == "added" for result in self.results)
-
-
 def anniversary_dates(today: date, earliest_year: int) -> tuple[date, ...]:
-    """Return last year's date followed by five-year steps into the past."""
-    dates: list[date] = []
-    for year in range(
-        today.year - 1,
-        earliest_year - 1,
-        -ANNIVERSARY_INTERVAL_YEARS,
-    ):
-        try:
-            dates.append(date(year, today.month, today.day))
-        except ValueError:
-            # February 29 has no same-day counterpart in non-leap years.
-            continue
-    return tuple(dates)
+    """Return last year's date followed by five-year steps into the past.
+
+    Args:
+        today: Effective local calendar date.
+        earliest_year: Inclusive earliest year in the export.
+
+    Returns:
+        Newest-first anniversary dates, skipping invalid February 29 dates.
+    """
+    return history_policy.anniversary_dates(
+        today, earliest_year, ANNIVERSARY_INTERVAL_YEARS
+    )
 
 
 def select_daily_mind_radio(
@@ -65,62 +45,24 @@ def select_daily_mind_radio(
     ),
     progress_callback: blast_from_past.ProgressCallback | None = None,
 ) -> DailyMindRadioBatch:
-    """Select one scrobble from each populated anniversary date."""
-    if progress_callback is not None:
-        progress_callback("Loading Last.fm scrobbles")
-    scrobbles_by_date = blast_from_past.load_scrobbles_by_date(path)
-    if not scrobbles_by_date:
-        raise blast_from_past.LastFmExportError(
-            "The Last.fm export does not contain any scrobbles."
-        )
+    """Select one scrobble from each populated anniversary date.
 
-    current_date = today or datetime.now(blast_from_past.SCROBBLE_TIMEZONE).date()
-    target_dates = anniversary_dates(
-        current_date,
-        earliest_year=min(scrobble_date.year for scrobble_date in scrobbles_by_date),
-    )
-    populated_dates = tuple(
-        target_date
-        for target_date in target_dates
-        if scrobbles_by_date.get(target_date)
-    )
-    missing_dates = tuple(
-        target_date
-        for target_date in target_dates
-        if not scrobbles_by_date.get(target_date)
-    )
-    if not populated_dates:
-        return DailyMindRadioBatch(
-            generated_at=None,
-            target_dates=target_dates,
-            missing_dates=missing_dates,
-            selections=(),
-        )
+    Args:
+        path: Existing Last.fm history export.
+        today: Optional effective local calendar date.
+        random_timestamp_reader: Read one timestamp for all populated targets.
+        progress_callback: Optional existing progress presenter.
 
-    if progress_callback is not None:
-        progress_callback("Requesting a selection timestamp from Random.org")
-    generated_at = random_timestamp_reader()
+    Returns:
+        All targets, missing targets and selected plays with original date indexes.
 
-    if progress_callback is not None:
-        progress_callback("Applying Last.fm pagination rules")
-    target_indexes = {
-        target_date: index for index, target_date in enumerate(target_dates)
-    }
-    selections = tuple(
-        blast_from_past.select_scrobble(
-            selected_date=selected_date,
-            date_index=target_indexes[selected_date],
-            scrobbles=scrobbles_by_date[selected_date],
-            generated_at=generated_at,
-        )
-        for selected_date in populated_dates
-    )
-    return DailyMindRadioBatch(
-        generated_at=generated_at,
-        target_dates=target_dates,
-        missing_dates=missing_dates,
-        selections=selections,
-    )
+    Raises:
+        LastFmExportError: History has no date buckets or cannot be read.
+        RandomOrgError: The random source fails.
+    """
+    from spotify_manager.bootstrap.historical_playlists import select_radio
+
+    return select_radio(path, today, random_timestamp_reader, progress_callback)
 
 
 def add_daily_mind_radio_to_spotify(
@@ -132,64 +74,40 @@ def add_daily_mind_radio_to_spotify(
         blast_from_past.fetch_random_timestamp
     ),
     progress_callback: blast_from_past.ProgressCallback | None = None,
-    retry_call: blast_from_past.RetryCall = blast_from_past._direct_retry,
+    retry_call: blast_from_past.RetryCall = direct_call,
     cancel_check: blast_from_past.CancelCheck | None = None,
     dry_run: bool = False,
 ) -> DailyMindRadioSpotifySummary:
-    """Select anniversary scrobbles and append their Spotify matches."""
-    blast_from_past.check_cancel(cancel_check)
-    batch = select_daily_mind_radio(
-        path=path,
-        today=today,
-        random_timestamp_reader=random_timestamp_reader,
-        progress_callback=progress_callback,
-    )
-    blast_from_past.check_cancel(cancel_check)
-    if not batch.selections:
-        return DailyMindRadioSpotifySummary(
-            playlist_id=playlist_id,
-            batch=batch,
-            playlist_length_before=None,
-            playlist_length_after=None,
-            results=(),
-        )
+    """Select anniversary scrobbles and append their Spotify matches.
 
-    if progress_callback is not None:
-        progress_callback("Loading the Spotify playlist")
-    playlist = blast_from_past.load_playlist_state(
+    Args:
+        sp: Caller-owned Spotify client.
+        playlist_id: Destination playlist.
+        path: Existing Last.fm history export.
+        today: Optional effective local calendar date.
+        random_timestamp_reader: Existing shared timestamp source.
+        progress_callback: Optional progress presenter.
+        retry_call: Original retry policy.
+        cancel_check: Optional cancellation predicate.
+        dry_run: Suppress remote writes while retaining resolution decisions.
+
+    Returns:
+        Original summary, with absent playlist lengths for empty selections.
+
+    Raises:
+        BlastFromPastError: Selection or Spotify observations fail.
+        BlastFromPastCancelledError: Cancellation is requested.
+    """
+    from spotify_manager.bootstrap.historical_playlists import add_radio
+
+    return add_radio(
         sp,
         playlist_id,
-        retry_call,
-        cancel_check,
-    )
-    resolution = blast_from_past.resolve_spotify_selections(
-        sp,
-        batch.selections,
-        playlist,
+        path,
+        today,
+        random_timestamp_reader,
         progress_callback,
         retry_call,
         cancel_check,
-    )
-
-    if resolution.pending_matches and not dry_run:
-        if progress_callback is not None:
-            progress_callback(
-                f"Adding {len(resolution.pending_matches)} tracks to Spotify"
-            )
-        blast_from_past.add_spotify_matches(
-            sp,
-            playlist_id,
-            list(resolution.pending_matches),
-            retry_call,
-            cancel_check,
-        )
-
-    return DailyMindRadioSpotifySummary(
-        playlist_id=playlist_id,
-        batch=batch,
-        playlist_length_before=playlist.total_items,
-        playlist_length_after=(
-            playlist.total_items + (0 if dry_run else len(resolution.pending_matches))
-        ),
-        results=resolution.results,
+        dry_run,
     )

@@ -1,0 +1,16 @@
+[
+  {"operation": "spotify.albums", "phase": "call", "value": {"args": [["future", "absent"]], "kwargs": {}}},
+  {"operation": "spotify.albums", "phase": "accepted", "value": {"albums": [{"artists": [{"id": "primary", "name": "Primary Artist"}, {"id": "guest", "name": "Guest Artist"}], "id": "future", "name": "Tomorrow's Record", "release_date": "2026-08-01", "release_date_precision": "day", "uri": "spotify:album:future"}, null]}},
+  {"operation": "spotify.current_user_following_artists", "phase": "call", "value": {"args": [["primary", "guest"]], "kwargs": {}}},
+  {"operation": "spotify.current_user_following_artists", "phase": "accepted", "value": [true, false]},
+  {"operation": "echo", "phase": "message", "value": "Would follow credited artist: Guest Artist"},
+  {"operation": "echo", "phase": "message", "value": "Multiple credited artists (2): Tomorrow's Record - Primary Artist, Guest Artist"},
+  {"operation": "spotify.current_user_saved_albums_contains", "phase": "call", "value": {"args": [["future"]], "kwargs": {}}},
+  {"operation": "spotify.current_user_saved_albums_contains", "phase": "accepted", "value": [false]},
+  {"operation": "echo", "phase": "message", "value": "Would restore future release (2026-08-01): Tomorrow's Record - Primary Artist"},
+  {"operation": "echo", "phase": "message", "value": "Album unavailable from Spotify: Unavailable - Unknown"},
+  {"operation": "echo", "phase": "message", "value": "Dry run complete. Processed: 2. Unavailable: 1. Multi-artist albums: 1. Artists checked: 2. Artists followed: 1. Future releases: 1. Restored: 1."},
+  {"operation": "run", "phase": "result", "value": {"albums_restored": 1, "artists_checked": 2, "artists_followed": 1, "future_releases": 1, "multi_artist_albums": 1, "processed": 2, "unavailable": 1}},
+  {"operation": "remote", "phase": "snapshot", "value": {"followed": ["primary"], "saved": []}},
+  {"operation": "files", "phase": "snapshot", "value": {"albums.json": [], "artists.json": [], "removed.jsonl": [{"album": "Tomorrow's Record", "artist": "Primary Artist", "spotify_id": "future"}, {"album": "Unavailable", "artist": "Unknown", "spotify_id": "absent"}], "stats.json": {"2026.09.24": {"albums_stats": {"added_albums": 0, "growth": 0.0, "removed_albums": 0, "total_saved_albums": 0}, "artists_stats": {"added_artists": 0, "growth": 0.0, "removed_artists": 0, "total_followed_artists": 1}, "avg_albums_per_artists": 0, "avg_liked_tracks_per_artists": 10, "tracks_stats": {"added_tracks": 0, "growth": 0.0, "removed_tracks": 0, "total_liked_tracks": 10}}}}}
+]

@@ -1,0 +1,2843 @@
+[
+  {
+    "outcomes": [
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ],
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ],
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "Could not read files from HF Space 'repo': scripted upload interruption. Confirm `hf auth login` and your access to the Space.",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.b64.part-zz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.part-aa": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "Could not read files from HF Space 'repo': scripted upload interruption. Confirm `hf auth login` and your access to the Space.",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.b64.part-zz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.part-aa": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "HF upload to 'repo' failed: scripted upload interruption. The local fallback parts are current, so the command can be retried.",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "HF upload to 'repo' failed: scripted upload interruption. The local fallback parts are current, so the command can be retried.",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ],
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "HF accepted the commit but did not return a commit URL.",
+          "cause": null
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ],
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "HF accepted the commit but did not return a commit URL.",
+          "cause": null
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ],
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "HF accepted the commit but did not return a commit URL.",
+          "cause": null
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ],
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "HF accepted the commit but did not return a commit URL.",
+          "cause": null
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ],
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "Could not update local Last.fm fallback parts: scripted upload interruption",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.b64.part-zz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.part-aa": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "Could not update local Last.fm fallback parts: scripted upload interruption",
+          "cause": "OSError"
+        },
+        {
+          ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.b64.part-zz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.part-aa": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "Could not update local Last.fm fallback parts: scripted upload interruption",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.b64.part-zz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.part-aa": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "Could not update local Last.fm fallback parts: scripted upload interruption",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-zz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.part-aa": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "Could not update local Last.fm fallback parts: scripted upload interruption",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603",
+          "lastfmstats-man-et-arms.json.gz.b64.part-zz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.part-aa": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "LibraryFilesUploadError",
+          "message": "Could not update local Last.fm fallback parts: scripted upload interruption",
+          "cause": "OSError"
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603",
+          "lastfmstats-man-et-arms.json.gz.part-aa": "b80cd861051aa5903ae63197c8a1e586800bfb3c45b8e3ab44e5892aa93f5975"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "OSError",
+          "message": "scripted upload interruption",
+          "cause": null
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  },
+  {
+    "outcomes": [
+      [
+        {
+          "error": "OSError",
+          "message": "scripted upload interruption",
+          "cause": null
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ],
+      [
+        {
+          "commit_url": "https://example.test/commit",
+          "uploaded_files": 3,
+          "deleted_stale_parts": 1,
+          "upload_size_bytes": 18
+        },
+        {
+          "YourLibrary.json": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc",
+          "lastfmstats-man-et-arms.json.gz.b64.part-aa": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506",
+          "lastfmstats-man-et-arms.json.gz.b64.part-ab": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        }
+      ]
+    ],
+    "events": [
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.b64.part-zz",
+        false
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz.part-aa",
+        false
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "list",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main"
+        }
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "aa"
+      ],
+      [
+        "write",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "ab"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-aa"
+      ],
+      [
+        "replace",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        "lastfmstats-man-et-arms.json.gz.b64.part-ab"
+      ],
+      [
+        "stale",
+        "lastfmstats-man-et-arms.json.gz",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-aa.tmp",
+        true
+      ],
+      [
+        "cleanup",
+        ".lastfmstats-man-et-arms.json.gz.b64.part-ab.tmp",
+        true
+      ],
+      [
+        "commit",
+        {
+          "repo_id": "repo",
+          "repo_type": "space",
+          "revision": "main",
+          "commit_message": "Update library exports: YourLibrary.json"
+        },
+        [
+          {
+            "add": "spotify_manager/files/YourLibrary.json",
+            "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+            "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+          },
+          {
+            "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+            "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+          },
+          {
+            "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+          }
+        ]
+      ]
+    ],
+    "accepted": [
+      [
+        {
+          "add": "spotify_manager/files/YourLibrary.json",
+          "sha256": "93405e6231f93dba5109db7518e2e65f9ca614264c652e33cc2a7095e487d8fc"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-aa",
+          "sha256": "961b6dd3ede3cb8ecbaacbd68de040cd78eb2ed5889130cceb4c49268ea4d506"
+        },
+        {
+          "add": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-ab",
+          "sha256": "fb8e20fc2e4c3f248c60c39bd652f3c1347298bb977b8b4d5903b85055620603"
+        },
+        {
+          "delete": "spotify_manager/files/lastfmstats-man-et-arms.json.gz.b64.part-zz"
+        }
+      ]
+    ]
+  }
+]

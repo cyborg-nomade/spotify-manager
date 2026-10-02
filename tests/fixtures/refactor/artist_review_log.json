@@ -1,0 +1,207 @@
+[
+  {
+    "text": null,
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "\n \n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "not json\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "{}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "null\n",
+    "outcome": {
+      "error": "AttributeError",
+      "message": "'NoneType' object has no attribute 'get'"
+    }
+  },
+  {
+    "text": "[]\n",
+    "outcome": {
+      "error": "AttributeError",
+      "message": "'list' object has no attribute 'get'"
+    }
+  },
+  {
+    "text": "0\n",
+    "outcome": {
+      "error": "AttributeError",
+      "message": "'int' object has no attribute 'get'"
+    }
+  },
+  {
+    "text": "{\"event\": \"unfollow_planned\", \"artist_id\": \" a \", \"extra\": true}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {
+          "a": {
+            "event": "unfollow_planned",
+            "artist_id": " a ",
+            "extra": true
+          }
+        },
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "{\"event\": \"queue_move_planned\", \"artist_id\": \"a\", \"target\": \"two\"}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {
+          "a": {
+            "event": "queue_move_planned",
+            "artist_id": "a",
+            "target": "two"
+          }
+        }
+      }
+    }
+  },
+  {
+    "text": "{\"event\": \"artist_completed\", \"artist_id\": \"a\"}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [
+          "a"
+        ],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "{\"event\": \"ignored\", \"artist_id\": \"a\"}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "{\"event\": \"unfollow_planned\", \"artist_id\": \"\"}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "{\"event\": \"unfollow_planned\", \"artist_id\": 0}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "{\"event\": \"unfollow_planned\", \"artist_id\": \" a \", \"extra\": true}\n{\"event\": \"queue_move_planned\", \"artist_id\": \"a\", \"target\": \"two\"}\n{\"event\": \"artist_completed\", \"artist_id\": \"a\"}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [
+          "a"
+        ],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "{\"event\": \"artist_completed\", \"artist_id\": \"a\"}\n{\"event\": \"unfollow_planned\", \"artist_id\": \" a \", \"extra\": true}\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [
+          "a"
+        ],
+        "pending_unfollows": {
+          "a": {
+            "event": "unfollow_planned",
+            "artist_id": " a ",
+            "extra": true
+          }
+        },
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "text": "not json\n{\"event\": \"queue_move_planned\", \"artist_id\": \"a\", \"target\": \"two\"}\ntorn{\n",
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {
+          "a": {
+            "event": "queue_move_planned",
+            "artist_id": "a",
+            "target": "two"
+          }
+        }
+      }
+    }
+  }
+]

@@ -1,498 +1,310 @@
-"""Run the four durable library refreshes through the deployed web API."""
+"""Compatibility entry point for the standard-library nightly refresh workflow."""
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 import time
-from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
-from datetime import time as datetime_time
-from datetime import timedelta
-from typing import Any
-from urllib.error import HTTPError
-from urllib.error import URLError
-from urllib.parse import urljoin
-from urllib.request import Request
-from urllib.request import urlopen
+from functools import partial
+from pathlib import Path
+from typing import cast
+from urllib.request import urlopen as urlopen
 from zoneinfo import ZoneInfo
+
+
+# Actions runs this file directly without installing the application package.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from spotify_manager.application import automation_run as workflow
+from spotify_manager.application.automation_values import (
+    ACTIVE_STATUSES as ACTIVE_STATUSES,
+)
+from spotify_manager.application.automation_values import (
+    BLOCKED_RETRY_SECONDS as BLOCKED_RETRY_SECONDS,
+)
+from spotify_manager.application.automation_values import (
+    DURABLE_ARTIFACT_FILENAMES as DURABLE_ARTIFACT_FILENAMES,
+)
+from spotify_manager.application.automation_values import (
+    FULL_REBUILD_JOBS as FULL_REBUILD_JOBS,
+)
+from spotify_manager.application.automation_values import JOBS as JOBS
+from spotify_manager.application.automation_values import (
+    MANUAL_MAX_RUNTIME as MANUAL_MAX_RUNTIME,
+)
+from spotify_manager.application.automation_values import POLL_SECONDS as POLL_SECONDS
+from spotify_manager.application.automation_values import (
+    REQUEST_RETRY_SECONDS as REQUEST_RETRY_SECONDS,
+)
+from spotify_manager.application.automation_values import (
+    TRANSIENT_HTTP_STATUSES as TRANSIENT_HTTP_STATUSES,
+)
+from spotify_manager.application.automation_values import ApiError as ApiError
+from spotify_manager.application.automation_values import (
+    AutomationError as AutomationError,
+)
+from spotify_manager.application.automation_values import (
+    DeadlineReachedError as DeadlineReachedError,
+)
+from spotify_manager.application.automation_values import JobLostError as JobLostError
+from spotify_manager.application.automation_values import JobSpec as JobSpec
+from spotify_manager.application.automation_values import refresh_jobs as refresh_jobs
+from spotify_manager.domain import automation_calendar as calendar
+from spotify_manager.infrastructure.automation_http import OpenResponse
+from spotify_manager.infrastructure.automation_http import SpaceHttpClient
+from spotify_manager.infrastructure.automation_records import artifact_updates
+from spotify_manager.infrastructure.automation_records import decode_response
 
 
 DEFAULT_SPACE_URL = "https://cyborg-nomade-spotify-manager.hf.space"
 BERLIN = ZoneInfo("Europe/Berlin")
-ACTIVE_STATUSES = {"queued", "running", "waiting", "cancelling"}
-TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
-POLL_SECONDS = 20
-BLOCKED_RETRY_SECONDS = 60
-REQUEST_RETRY_SECONDS = 20
-MANUAL_MAX_RUNTIME = timedelta(hours=5)
-DURABLE_ARTIFACT_FILENAMES = frozenset(
-    {
-        "albums_total_new.json",
-        "liked_tracks_total.json",
-        "artists_total.json",
-        "lastfmstats-man-et-arms.json",
-    }
-)
 
 
-class AutomationError(RuntimeError):
-    """Raised when the nightly refresh cannot finish safely."""
+class SpaceClient(SpaceHttpClient):
+    """Retain the original script's transport, clock and credential entry points."""
+
+    def __init__(
+        self, space_url: str, hf_token: str, automation_token: str, deadline: datetime
+    ) -> None:
+        """Bind original script seams to the explicit urllib adapter.
+
+        Args:
+            space_url: Original Space URL.
+            hf_token: Original private Space access token.
+            automation_token: Original automation credential.
+            deadline: Original maintenance boundary.
+        """
+        super().__init__(
+            space_url,
+            hf_token,
+            automation_token,
+            deadline,
+            cast(OpenResponse, urlopen),
+            _now,
+            time.sleep,
+            _emit,
+        )
 
 
-class DeadlineReachedError(AutomationError):
-    """Raised when the nightly maintenance window closes."""
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
-class JobLostError(AutomationError):
-    """Raised when a Space restart discards an in-memory job handle."""
+def _emit(message: str) -> None:
+    print(message, flush=True)
 
 
-class ApiError(AutomationError):
-    """Represent one non-transient response from the Space API."""
-
-    def __init__(self, status: int, payload: object) -> None:
-        """Retain the HTTP status and decoded FastAPI response."""
-        super().__init__(f"Space API returned HTTP {status}: {payload}")
-        self.status = status
-        self.payload = payload
-
-
-@dataclass(frozen=True)
-class JobSpec:
-    """One scheduled API job and its polling routes."""
-
-    label: str
-    command: str
-    start_path: str
-    status_path: str
-    cancel_path: str
-
-
-def refresh_jobs(
-    *, full_rebuild: bool, scrobble_rebuild: bool = False
-) -> tuple[JobSpec, ...]:
-    """Build the four API jobs for an incremental or full refresh night."""
-    rebuild = str(full_rebuild).lower()
-    return (
-        JobSpec(
-            label="Last.fm scrobble history",
-            command="update_scrobble_history",
-            start_path=(
-                "/commands/update-scrobble-history?dry_run=false"
-                + ("&full_rebuild=true" if scrobble_rebuild else "")
-            ),
-            status_path="/commands/update-scrobble-history-jobs/{job_id}",
-            cancel_path="/commands/update-scrobble-history-jobs/{job_id}/cancel",
-        ),
-        *(
-            JobSpec(
-                label=f"Spotify {resource} mirror",
-                command=f"refresh_library_mirror_{resource}",
-                start_path=(
-                    f"/commands/refresh-library-mirrors/{resource}"
-                    f"?full_rebuild={rebuild}"
-                ),
-                status_path="/commands/library-analysis-jobs/{job_id}",
-                cancel_path="/commands/library-analysis-jobs/{job_id}/cancel",
-            )
-            for resource in ("albums", "tracks", "artists")
-        ),
-    )
-
-
-JOBS = refresh_jobs(full_rebuild=False)
-FULL_REBUILD_JOBS = refresh_jobs(full_rebuild=True)
+def _decode_response(raw: bytes) -> object:
+    return decode_response(raw)
 
 
 def scrobble_rebuild_due(now: datetime) -> bool:
-    """Select January 1 and the first Sunday of each Berlin calendar month."""
-    local = now.astimezone(BERLIN)
-    return (local.month == 1 and local.day == 1) or (
-        local.weekday() == 6 and local.day <= 7
-    )
+    """Select original Berlin monthly and New Year rebuild dates.
+
+    Args:
+        now: Original caller-owned instant.
+
+    Returns:
+        Original history rebuild qualification.
+    """
+    return calendar.scrobble_rebuild_due(now, BERLIN)
 
 
 def maintenance_deadline(now: datetime) -> datetime:
-    """Return 05:00 Berlin for a scheduled run, or five hours for a manual run."""
-    local_now = now.astimezone(BERLIN)
-    if local_now.hour < 5:
-        deadline_date = local_now.date()
-    elif local_now.hour >= 22:
-        deadline_date = (local_now + timedelta(days=1)).date()
-    else:
-        return now + MANUAL_MAX_RUNTIME
-    local_deadline = datetime.combine(
-        deadline_date,
-        datetime_time(hour=5),
-        tzinfo=BERLIN,
-    )
-    return local_deadline.astimezone(UTC)
+    """Retain the original scheduled or manual run deadline.
+
+    Args:
+        now: Original caller-owned instant.
+
+    Returns:
+        Original UTC maintenance boundary.
+    """
+    return calendar.maintenance_deadline(now, BERLIN)
 
 
 def scheduled_window_is_open(now: datetime) -> bool:
-    """Return whether a delayed scheduled run is still inside 22:00-05:00."""
-    local_hour = now.astimezone(BERLIN).hour
-    return local_hour >= 22 or local_hour < 5
+    """Retain the original Berlin maintenance-window check.
+
+    Args:
+        now: Original caller-owned instant.
+
+    Returns:
+        Original scheduled-run qualification.
+    """
+    return calendar.scheduled_window_is_open(now, BERLIN)
 
 
 def maintenance_window_start(now: datetime) -> datetime:
-    """Return the opening 22:00 boundary for the active Berlin window."""
-    local_now = now.astimezone(BERLIN)
-    window_date = (
-        local_now.date() - timedelta(days=1) if local_now.hour < 5 else local_now.date()
-    )
-    local_start = datetime.combine(
-        window_date,
-        datetime_time(hour=22),
-        tzinfo=BERLIN,
-    )
-    return local_start.astimezone(UTC)
+    """Retain the original Berlin freshness boundary.
+
+    Args:
+        now: Original caller-owned instant.
+
+    Returns:
+        Original UTC window opening.
+    """
+    return calendar.maintenance_window_start(now, BERLIN)
 
 
 def required_environment() -> tuple[str, str, str]:
-    """Return validated connection settings without ever printing secrets."""
+    """Read original connection settings with unchanged missing-secret diagnostics.
+
+    Returns:
+        Original normalized URL and credentials.
+
+    Raises:
+        AutomationError: Original required credentials are absent.
+    """
     space_url = os.environ.get("SPACE_URL", DEFAULT_SPACE_URL).rstrip("/") + "/"
     hf_token = os.environ.get("HF_SPACE_TOKEN", "").strip()
     automation_token = os.environ.get("AUTOMATION_TOKEN", "").strip()
-    missing = [
-        name
-        for name, value in (
-            ("HF_SPACE_TOKEN", hf_token),
-            ("AUTOMATION_TOKEN", automation_token),
-        )
-        if not value
-    ]
+    missing = []
+    for name, value in (
+        ("HF_SPACE_TOKEN", hf_token),
+        ("AUTOMATION_TOKEN", automation_token),
+    ):
+        if not value:
+            missing.append(name)
     if missing:
         raise AutomationError("Missing workflow secrets: " + ", ".join(missing))
     return space_url, hf_token, automation_token
 
 
-def _decode_response(raw: bytes) -> Any:
-    if not raw:
-        return {}
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise AutomationError("Space returned a non-JSON response.") from exc
+def conflict_detail(error: ApiError) -> dict[str, object]:
+    """Retain the original tolerant conflict detail view.
+
+    Args:
+        error: Original HTTP response failure.
+
+    Returns:
+        Original nested detail object.
+    """
+    return workflow.conflict_detail(error)
 
 
-class SpaceClient:
-    """Small authenticated HTTP client with bounded transient retries."""
+def start_job(client: workflow.SpaceAccess, spec: JobSpec) -> str:
+    """Retain the original start and reconnect entry point.
 
-    def __init__(
-        self,
-        space_url: str,
-        hf_token: str,
-        automation_token: str,
-        deadline: datetime,
-    ) -> None:
-        """Configure the Space endpoint, credentials, and hard deadline."""
-        self.space_url = space_url
-        self.deadline = deadline
-        self.headers = {
-            "Authorization": f"Bearer {hf_token}",
-            "X-Automation-Token": automation_token,
-            "User-Agent": "spotify-manager-nightly-refresh/1",
-        }
+    Args:
+        client: Original caller-owned API client.
+        spec: Original job manifest entry.
 
-    def remaining_seconds(self) -> float:
-        """Return seconds left in the maintenance window."""
-        return (self.deadline - datetime.now(UTC)).total_seconds()
+    Returns:
+        Original accepted or reconnected identity.
 
-    def sleep(self, seconds: int) -> None:
-        """Sleep without crossing the configured maintenance deadline."""
-        remaining = self.remaining_seconds()
-        if remaining <= 0:
-            raise DeadlineReachedError("The 05:00 Berlin maintenance deadline arrived.")
-        time.sleep(min(seconds, remaining))
-
-    def request(
-        self,
-        method: str,
-        path: str,
-        *,
-        retry_transient: bool = True,
-        deadline: datetime | None = None,
-    ) -> Any:
-        """Issue one JSON request, retrying wake-up and gateway failures."""
-        request_deadline = deadline or self.deadline
-        while datetime.now(UTC) < request_deadline:
-            request = Request(
-                urljoin(self.space_url, path.lstrip("/")),
-                method=method,
-                headers=self.headers,
-                data=b"" if method == "POST" else None,
-            )
-            try:
-                with urlopen(request, timeout=60) as response:
-                    try:
-                        return _decode_response(response.read())
-                    except AutomationError as exc:
-                        raise AutomationError(
-                            f"Space returned non-JSON HTTP {response.status} for {path}; "
-                            "check HF_SPACE_TOKEN access to the private Space."
-                        ) from exc
-            except HTTPError as exc:
-                try:
-                    payload = _decode_response(exc.read())
-                except AutomationError:
-                    payload = {
-                        "detail": "Non-JSON response from the Space gateway; "
-                        "check HF_SPACE_TOKEN access to the private Space."
-                    }
-                if retry_transient and exc.code in TRANSIENT_HTTP_STATUSES:
-                    print(f"Space returned HTTP {exc.code}; retrying.", flush=True)
-                    self.sleep(REQUEST_RETRY_SECONDS)
-                    continue
-                raise ApiError(exc.code, payload) from exc
-            except (TimeoutError, URLError) as exc:
-                if not retry_transient:
-                    raise AutomationError(f"Could not reach the Space: {exc}") from exc
-                print("Space connection interrupted; retrying.", flush=True)
-                self.sleep(REQUEST_RETRY_SECONDS)
-        raise DeadlineReachedError(
-            "The maintenance deadline arrived during an API call."
-        )
+    Raises:
+        AutomationError: Original start or conflict handling fails.
+    """
+    return workflow.start_job(client, spec, _emit)
 
 
-def conflict_detail(error: ApiError) -> dict[str, Any]:
-    """Normalize FastAPI's nested HTTP 409 detail object."""
-    if not isinstance(error.payload, dict):
-        return {}
-    detail = error.payload.get("detail")
-    return detail if isinstance(detail, dict) else {}
+def cancel_job(client: workflow.SpaceAccess, spec: JobSpec, job_id: str) -> None:
+    """Retain the original graceful cancellation entry point.
+
+    Args:
+        client: Original caller-owned API client.
+        spec: Original cancellation route.
+        job_id: Original active identity.
+
+    Raises:
+        AutomationError: Original cancellation fails outside tolerated statuses.
+    """
+    workflow.cancel_job(client, spec, job_id, _now, _emit)
 
 
-def start_job(client: SpaceClient, spec: JobSpec) -> str:
-    """Start or reconnect to one job, waiting out unrelated playlist work."""
-    while True:
-        try:
-            payload = client.request(
-                "POST",
-                spec.start_path,
-                retry_transient=True,
-            )
-        except ApiError as exc:
-            if exc.status != 409:
-                raise
-            detail = conflict_detail(exc)
-            job_id = str(detail.get("job_id") or "")
-            blocker = str(detail.get("command") or "")
-            compatible = True
-            if (
-                job_id
-                and (not blocker or blocker == spec.command)
-                and spec.command == "update_scrobble_history"
-                and "full_rebuild=true" in spec.start_path
-            ):
-                running = client.request("GET", spec.status_path.format(job_id=job_id))
-                compatible = bool(
-                    running.get("history_full_rebuild")
-                ) and not running.get("dry_run")
-            if job_id and compatible and (not blocker or blocker == spec.command):
-                print(f"Reconnected to existing {spec.label} job {job_id}.", flush=True)
-                return job_id
-            print(
-                f"{spec.label} is blocked by {blocker or 'another active job'}; "
-                "waiting.",
-                flush=True,
-            )
-            client.sleep(BLOCKED_RETRY_SECONDS)
-            continue
-        if not isinstance(payload, dict) or not payload.get("job_id"):
-            raise AutomationError(f"{spec.label} returned no job id.")
-        job_id = str(payload["job_id"])
-        print(f"Started {spec.label} as {job_id}.", flush=True)
-        return job_id
+def poll_job(client: workflow.SpaceAccess, spec: JobSpec, job_id: str) -> str:
+    """Retain the original status, restart and deadline entry point.
+
+    Args:
+        client: Original caller-owned API client.
+        spec: Original polling route.
+        job_id: Original active identity.
+
+    Returns:
+        Original terminal outcome.
+
+    Raises:
+        AutomationError: Original polling or cancellation fails.
+    """
+    return workflow.poll_job(client, spec, job_id, partial(cancel_job, client), _emit)
 
 
-def cancel_job(client: SpaceClient, spec: JobSpec, job_id: str) -> None:
-    """Ask the Space to stop one active job at its next durable boundary."""
-    print(f"Cancelling {spec.label} at the maintenance deadline.", flush=True)
-    grace_deadline = datetime.now(UTC) + timedelta(minutes=3)
-    try:
-        client.request(
-            "POST",
-            spec.cancel_path.format(job_id=job_id),
-            retry_transient=False,
-            deadline=grace_deadline,
-        )
-    except ApiError as exc:
-        if exc.status not in {404, 409}:
-            raise
+def run_job(client: workflow.SpaceAccess, spec: JobSpec) -> str:
+    """Retain original public start/poll seams and checkpoint resume behavior.
 
+    Args:
+        client: Original caller-owned API client.
+        spec: Original job manifest entry.
 
-def poll_job(client: SpaceClient, spec: JobSpec, job_id: str) -> str:
-    """Poll one job until completion, pause, failure, restart, or deadline."""
-    previous: tuple[str, str] | None = None
-    while True:
-        if client.remaining_seconds() <= 0:
-            cancel_job(client, spec, job_id)
-            return "deadline"
-        try:
-            payload = client.request(
-                "GET",
-                spec.status_path.format(job_id=job_id),
-            )
-        except ApiError as exc:
-            if exc.status == 404:
-                raise JobLostError(f"Lost {spec.label} after a Space restart.") from exc
-            raise
-        if not isinstance(payload, dict):
-            raise AutomationError(f"{spec.label} returned an invalid job status.")
-        status = str(payload.get("status") or "")
-        detail = str(payload.get("detail") or "")
-        current = (status, detail)
-        if current != previous:
-            print(f"{spec.label}: {status} - {detail}", flush=True)
-            previous = current
-        if status == "completed":
-            return status
-        if status == "paused":
-            return status
-        if status == "cancelled":
-            return "paused"
-        if status == "failed":
-            raise AutomationError(f"{spec.label} ended as {status}: {detail}")
-        if status not in ACTIVE_STATUSES:
-            raise AutomationError(f"{spec.label} returned unknown status {status!r}.")
-        client.sleep(POLL_SECONDS)
-
-
-def run_job(client: SpaceClient, spec: JobSpec) -> str:
-    """Run one resumable job, restarting its API handle after Space restarts."""
-    while True:
-        job_id = start_job(client, spec)
-        try:
-            return poll_job(client, spec, job_id)
-        except JobLostError:
-            print(
-                f"{spec.label} handle was lost; resuming from its checkpoint.",
-                flush=True,
-            )
+    Returns:
+        Original terminal outcome.
+    """
+    return workflow.run_job(
+        client, spec, partial(start_job, client), partial(poll_job, client), _emit
+    )
 
 
 def run_nightly_refresh(
-    client: SpaceClient,
+    client: workflow.SpaceAccess,
     jobs: tuple[JobSpec, ...] = JOBS,
     *,
     freshness_threshold: datetime | None = None,
 ) -> int:
-    """Run all refreshes serially within the maintenance window."""
-    print(
-        "Nightly refresh deadline: "
-        f"{client.deadline.astimezone(BERLIN).isoformat()} (Europe/Berlin)",
-        flush=True,
-    )
-    client.request("GET", "/health")
-    print("Space is awake and healthy.", flush=True)
-    if freshness_threshold is not None and durable_artifacts_are_fresh(
+    """Retain the original serial coordinator and public run-job seam.
+
+    Args:
+        client: Original caller-owned API client.
+        jobs: Original ordered manifest.
+        freshness_threshold: Original optional duplicate-trigger boundary.
+
+    Returns:
+        Original successful exit for completion, safe pause or deadline.
+    """
+    return workflow.nightly_refresh(
         client,
+        jobs,
         freshness_threshold,
-    ):
-        print(
-            "All four durable artifacts were already refreshed during this "
-            "maintenance window; skipping the duplicate trigger.",
-            flush=True,
-        )
-        return 0
-    mode = "full rebuild" if jobs == FULL_REBUILD_JOBS else "incremental"
-    print(f"Refresh mode: {mode}.", flush=True)
-    for index, spec in enumerate(jobs):
-        result = run_job(client, spec)
-        if result == "paused":
-            print(
-                f"{spec.label} paused cleanly; remaining jobs will resume tomorrow.",
-                flush=True,
-            )
-            return 0
-        if result == "deadline":
-            print("Maintenance window closed; progress was saved.", flush=True)
-            return 0
-        print(f"Completed {spec.label} ({index + 1}/{len(jobs)}).", flush=True)
-    print("All nightly library refreshes completed.", flush=True)
-    return 0
+        BERLIN,
+        partial(durable_artifacts_are_fresh, client),
+        partial(run_job, client),
+        _emit,
+    )
 
 
 def durable_artifacts_are_fresh(
-    client: SpaceClient,
-    threshold: datetime,
+    client: workflow.SpaceAccess, threshold: datetime
 ) -> bool:
-    """Return whether every durable artifact changed after the window opened."""
-    payload = client.request("GET", "/library-mirrors/status")
-    files = payload.get("files") if isinstance(payload, dict) else None
-    if not isinstance(files, list):
-        return False
-    updated: dict[str, datetime] = {}
-    for item in files:
-        if not isinstance(item, dict) or not item.get("exists"):
-            continue
-        filename = str(item.get("filename") or "")
-        raw_updated_at = item.get("updated_at")
-        if filename not in DURABLE_ARTIFACT_FILENAMES or not isinstance(
-            raw_updated_at,
-            str,
-        ):
-            continue
-        try:
-            timestamp = datetime.fromisoformat(raw_updated_at)
-        except ValueError:
-            continue
-        if timestamp.tzinfo is not None:
-            updated[filename] = timestamp.astimezone(UTC)
-    return DURABLE_ARTIFACT_FILENAMES <= updated.keys() and all(
-        updated[filename] >= threshold for filename in DURABLE_ARTIFACT_FILENAMES
-    )
+    """Retain original decoded artifact observations and freshness decision.
+
+    Args:
+        client: Original caller-owned API client.
+        threshold: Original inclusive window opening.
+
+    Returns:
+        Original all-artifacts qualification.
+    """
+    return workflow.durable_artifacts_are_fresh(client, threshold, artifact_updates)
 
 
-def run_connection_check(client: SpaceClient) -> int:
-    """Verify authentication and durable artifacts without starting jobs."""
-    client.request("GET", "/health")
-    auth = client.request("GET", "/auth/check")
-    if not isinstance(auth, dict) or auth.get("status") != "ok":
-        raise AutomationError("The Space automation token was not accepted.")
-    status = client.request("GET", "/library-mirrors/status")
-    files = status.get("files") if isinstance(status, dict) else None
-    if not isinstance(files, list) or len(files) != len(JOBS):
-        raise AutomationError("The durable library-data status is incomplete.")
-    missing = [
-        str(item.get("filename") or "unknown")
-        for item in files
-        if not isinstance(item, dict) or not item.get("exists")
-    ]
-    if missing:
-        raise AutomationError("Durable artifacts are missing: " + ", ".join(missing))
-    state = client.request("GET", "/state/summary")
-    if not isinstance(state, dict) or not state.get("revision"):
-        raise AutomationError("The shared state dataset is unavailable.")
-    schema = client.request("GET", "/openapi.json")
-    paths = schema.get("paths") if isinstance(schema, dict) else None
-    if not isinstance(paths, dict):
-        raise AutomationError("Could not inspect active-job endpoints.")
-    job_paths = sorted(
-        path for path in paths if path.endswith("-jobs") and "{" not in path
-    )
-    if not job_paths:
-        raise AutomationError("No active-job endpoints were found.")
-    for path in job_paths:
-        jobs = client.request("GET", path)
-        if not isinstance(jobs, list):
-            raise AutomationError(f"Invalid active-job response from {path}.")
-        if jobs:
-            raise AutomationError(f"Active jobs at {path}; wait before deploying.")
-    print(
-        "Automation authentication, shared state, and all four artifacts are healthy."
-    )
-    print(f"No active jobs across {len(job_paths)} routine endpoints.")
-    return 0
+def run_connection_check(client: workflow.SpaceAccess) -> int:
+    """Retain original safe authentication, durable-state and active-job checks.
+
+    Args:
+        client: Original caller-owned API client.
+
+    Returns:
+        Original successful exit.
+
+    Raises:
+        AutomationError: An original prerequisite or active-job check fails.
+    """
+    return workflow.connection_check(client, _emit)
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Build the authenticated client from Actions secrets and run it."""
+def _arguments(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--check-only",
@@ -509,7 +321,30 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Skip safely if GitHub starts the run outside the maintenance window.",
     )
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
+
+
+def _refresh(
+    client: workflow.SpaceAccess, args: argparse.Namespace, now: datetime
+) -> int:
+    rebuild = scrobble_rebuild_due(now)
+    jobs = refresh_jobs(full_rebuild=args.full_rebuild, scrobble_rebuild=rebuild)
+    threshold = maintenance_window_start(now) if args.scheduled else None
+    return run_nightly_refresh(
+        client, jobs, freshness_threshold=None if rebuild else threshold
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Build the authenticated client from Actions secrets and run it.
+
+    Args:
+        argv: Original command-line arguments, or the process argument list.
+
+    Returns:
+        Original main result.
+    """
+    args = _arguments(argv)
     try:
         space_url, hf_token, automation_token = required_environment()
         now = datetime.now(UTC)
@@ -528,16 +363,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.check_only:
             return run_connection_check(client)
-        scrobble_rebuild = scrobble_rebuild_due(now)
-        jobs = refresh_jobs(
-            full_rebuild=args.full_rebuild, scrobble_rebuild=scrobble_rebuild
-        )
-        freshness_threshold = maintenance_window_start(now) if args.scheduled else None
-        return run_nightly_refresh(
-            client,
-            jobs,
-            freshness_threshold=None if scrobble_rebuild else freshness_threshold,
-        )
+        return _refresh(client, args, now)
     except AutomationError as exc:
         print(f"::error::{exc}", file=sys.stderr, flush=True)
         return 1

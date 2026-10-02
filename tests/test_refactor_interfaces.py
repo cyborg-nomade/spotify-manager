@@ -78,3 +78,37 @@ def test_interface_checker_rejects_public_schema_drift(tmp_path: Path) -> None:
     (candidate / "openapi.json").write_text('{"contract": false}')
     with pytest.raises(AssertionError, match="openapi.json"):
         compare_interfaces(candidate, baseline)
+
+
+def test_interface_checker_accepts_route_location_movement(tmp_path: Path) -> None:
+    """Keep route identity contracts while ignoring non-public source line evidence.
+
+    Args:
+        tmp_path: Directory for isolated original and candidate inventories.
+    """
+    candidate, baseline = _captures(tmp_path, ENDPOINT_PAYLOAD)
+    original = '[{"path":"/health","handler":"api.health","source_line":12}]'
+    (baseline / "routes.json").write_text(original)
+    (candidate / "routes.json").write_text(original.replace("12", "800"))
+    assert compare_interfaces(candidate, baseline) == 3
+
+
+@pytest.mark.parametrize(
+    "before,after", [("/health", "/changed"), ("api.health", "api.other")]
+)
+def test_interface_checker_rejects_route_identity_changes(
+    tmp_path: Path, before: str, after: str
+) -> None:
+    """Reject changed route paths or callable identities even when source lines move.
+
+    Args:
+        tmp_path: Directory for isolated captures.
+        before: Original route contract token.
+        after: Deliberate public contract change.
+    """
+    candidate, baseline = _captures(tmp_path, ENDPOINT_PAYLOAD)
+    original = '[{"path":"/health","handler":"api.health","source_line":12}]'
+    (baseline / "routes.json").write_text(original)
+    (candidate / "routes.json").write_text(original.replace(before, after))
+    with pytest.raises(AssertionError, match="routes.json"):
+        compare_interfaces(candidate, baseline)

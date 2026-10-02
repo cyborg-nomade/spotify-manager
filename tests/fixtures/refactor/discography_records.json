@@ -1,0 +1,1079 @@
+[
+  {
+    "raw": null,
+    "result": null
+  },
+  {
+    "raw": [],
+    "result": null
+  },
+  {
+    "raw": {},
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "studio",
+      "uri": "spotify:album:studio",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "studio",
+      "uri": "spotify:album:studio",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": null,
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": 5,
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "5",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": " ",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": null,
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Other",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": false
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Other",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": false
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": " ",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "",
+      "name": "Studio",
+      "release_type": "Other",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": false
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": null,
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "record",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "record",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "record",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "record",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": " ",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Live!",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Live!",
+      "release_type": "Live",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "live",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": false
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Best Of",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Best Of",
+      "release_type": "Compilation",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "best of",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": false
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Unknown EP",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Unknown EP",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "unknown ep",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "single",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "EP",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "ep",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "EP",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "compilation",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Compilation",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": false
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "OTHER",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": " album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ],
+      "album_group": "compilation"
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ],
+      "album_group": " compilation"
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": true,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": true,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": false,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 0,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": "5",
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 0,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 0,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 0,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": -1,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 0,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 4,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 4,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": null
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": []
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "other"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        null,
+        {
+          "id": "artist",
+          "name": 5
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": null,
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "Unknown",
+      "chronology_date": "Unknown",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "Unknown",
+      "chronology_date": "Unknown",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": "unknown",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "unknown",
+      "chronology_date": "unknown",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": " 2021",
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": " 2021",
+      "chronology_date": " 2021",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_date": 5,
+      "album_type": "album",
+      "total_tracks": 10,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "record",
+      "uri": "spotify:album:record",
+      "name": "Studio",
+      "release_type": "Album",
+      "release_date": "5",
+      "chronology_date": "5",
+      "total_tracks": 10,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  },
+  {
+    "raw": {
+      "id": "single",
+      "uri": "spotify:album:single",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "single",
+      "total_tracks": true,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "single",
+      "uri": "spotify:album:single",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "single",
+      "total_tracks": "5",
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "single",
+      "uri": "spotify:album:single",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "single",
+      "total_tracks": 3,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": null
+  },
+  {
+    "raw": {
+      "id": "single",
+      "uri": "spotify:album:single",
+      "name": "Studio",
+      "release_date": "2020",
+      "album_type": "single",
+      "total_tracks": 4,
+      "artists": [
+        {
+          "id": "artist",
+          "name": "Artist"
+        }
+      ]
+    },
+    "result": {
+      "spotify_id": "single",
+      "uri": "spotify:album:single",
+      "name": "Studio",
+      "release_type": "EP",
+      "release_date": "2020",
+      "chronology_date": "2020",
+      "total_tracks": 4,
+      "identity": "studio",
+      "saved": false,
+      "plain": true,
+      "edition_rank": 0,
+      "default": true
+    }
+  }
+]

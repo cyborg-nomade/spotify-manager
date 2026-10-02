@@ -103,6 +103,26 @@ def is_non_studio_title(name: str) -> bool:
     return any(pattern.search(name) for pattern in NON_STUDIO_PATTERNS)
 
 
+def studio_release_type(raw_type: str, total_tracks: int, name: str) -> str | None:
+    """Retain original studio album and EP qualification after boundary parsing.
+
+    Args:
+        raw_type: Original casefolded, untrimmed catalog type.
+        total_tracks: Original tolerant positive track count.
+        name: Original complete display title.
+
+    Returns:
+        Album or EP qualification, or none for an excluded catalog type.
+    """
+    if raw_type == "album":
+        return "Album"
+    if raw_type in {"single", "ep"} and (
+        raw_type == "ep" or total_tracks >= 4 or EP_MARKER.search(name)
+    ):
+        return "EP"
+    return None
+
+
 def studio_date_key(value: str) -> DateKey:
     """Order valid partial dates at the start of their year or month.
 

@@ -1,0 +1,1033 @@
+[
+  {
+    "profile": "normal",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "decorated",
+          "uri": "spotify:album:decorated",
+          "name": "Original (Deluxe Edition)",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2011",
+          "total_tracks": 10,
+          "identity": "original",
+          "saved": true,
+          "plain": false,
+          "edition_rank": 1,
+          "default": true
+        },
+        {
+          "spotify_id": "comp",
+          "uri": "spotify:album:comp",
+          "name": "Best Of",
+          "release_type": "Compilation",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "best of",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": false
+        },
+        {
+          "spotify_id": "live",
+          "uri": "spotify:album:live",
+          "name": "Live!",
+          "release_type": "Live",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "live",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": false
+        }
+      ],
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ],
+        [
+          "retry",
+          "checking 4 saved discography releases"
+        ],
+        [
+          "saved",
+          [
+            "plain",
+            "decorated",
+            "live",
+            "comp"
+          ]
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty",
+    "outcome": {
+      "result": [],
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "invalid",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "Spotify returned invalid artist releases.",
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "bad-items",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "Spotify returned invalid artist releases.",
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "empty-next",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "Spotify returned an empty artist release page.",
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "bad-status",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "Spotify returned invalid saved-album statuses.",
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ],
+        [
+          "retry",
+          "checking 4 saved discography releases"
+        ],
+        [
+          "saved",
+          [
+            "plain",
+            "decorated",
+            "live",
+            "comp"
+          ]
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "short-status",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "Spotify returned invalid saved-album statuses.",
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ],
+        [
+          "retry",
+          "checking 4 saved discography releases"
+        ],
+        [
+          "saved",
+          [
+            "plain",
+            "decorated",
+            "live",
+            "comp"
+          ]
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "large",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "id-0",
+          "uri": "spotify:album:id-0",
+          "name": "Release 0",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 0",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-1",
+          "uri": "spotify:album:id-1",
+          "name": "Release 1",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 1",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-10",
+          "uri": "spotify:album:id-10",
+          "name": "Release 10",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 10",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-11",
+          "uri": "spotify:album:id-11",
+          "name": "Release 11",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 11",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-12",
+          "uri": "spotify:album:id-12",
+          "name": "Release 12",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 12",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-13",
+          "uri": "spotify:album:id-13",
+          "name": "Release 13",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 13",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-14",
+          "uri": "spotify:album:id-14",
+          "name": "Release 14",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 14",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-15",
+          "uri": "spotify:album:id-15",
+          "name": "Release 15",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 15",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-16",
+          "uri": "spotify:album:id-16",
+          "name": "Release 16",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 16",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-17",
+          "uri": "spotify:album:id-17",
+          "name": "Release 17",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 17",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-18",
+          "uri": "spotify:album:id-18",
+          "name": "Release 18",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 18",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-19",
+          "uri": "spotify:album:id-19",
+          "name": "Release 19",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 19",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-2",
+          "uri": "spotify:album:id-2",
+          "name": "Release 2",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 2",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-20",
+          "uri": "spotify:album:id-20",
+          "name": "Release 20",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 20",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-21",
+          "uri": "spotify:album:id-21",
+          "name": "Release 21",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 21",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-22",
+          "uri": "spotify:album:id-22",
+          "name": "Release 22",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 22",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-23",
+          "uri": "spotify:album:id-23",
+          "name": "Release 23",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 23",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-24",
+          "uri": "spotify:album:id-24",
+          "name": "Release 24",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 24",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-25",
+          "uri": "spotify:album:id-25",
+          "name": "Release 25",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 25",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-26",
+          "uri": "spotify:album:id-26",
+          "name": "Release 26",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 26",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-27",
+          "uri": "spotify:album:id-27",
+          "name": "Release 27",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 27",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-28",
+          "uri": "spotify:album:id-28",
+          "name": "Release 28",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 28",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-29",
+          "uri": "spotify:album:id-29",
+          "name": "Release 29",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 29",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-3",
+          "uri": "spotify:album:id-3",
+          "name": "Release 3",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 3",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-30",
+          "uri": "spotify:album:id-30",
+          "name": "Release 30",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 30",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-31",
+          "uri": "spotify:album:id-31",
+          "name": "Release 31",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 31",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-32",
+          "uri": "spotify:album:id-32",
+          "name": "Release 32",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 32",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-33",
+          "uri": "spotify:album:id-33",
+          "name": "Release 33",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 33",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-34",
+          "uri": "spotify:album:id-34",
+          "name": "Release 34",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 34",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-35",
+          "uri": "spotify:album:id-35",
+          "name": "Release 35",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 35",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-36",
+          "uri": "spotify:album:id-36",
+          "name": "Release 36",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 36",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-37",
+          "uri": "spotify:album:id-37",
+          "name": "Release 37",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 37",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-38",
+          "uri": "spotify:album:id-38",
+          "name": "Release 38",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 38",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-39",
+          "uri": "spotify:album:id-39",
+          "name": "Release 39",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 39",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-4",
+          "uri": "spotify:album:id-4",
+          "name": "Release 4",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 4",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-40",
+          "uri": "spotify:album:id-40",
+          "name": "Release 40",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 40",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-41",
+          "uri": "spotify:album:id-41",
+          "name": "Release 41",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 41",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-42",
+          "uri": "spotify:album:id-42",
+          "name": "Release 42",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 42",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-5",
+          "uri": "spotify:album:id-5",
+          "name": "Release 5",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 5",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-6",
+          "uri": "spotify:album:id-6",
+          "name": "Release 6",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 6",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-7",
+          "uri": "spotify:album:id-7",
+          "name": "Release 7",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 7",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-8",
+          "uri": "spotify:album:id-8",
+          "name": "Release 8",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 8",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "id-9",
+          "uri": "spotify:album:id-9",
+          "name": "Release 9",
+          "release_type": "Album",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "release 9",
+          "saved": false,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        }
+      ],
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ],
+        [
+          "retry",
+          "loading discography releases for artist at offset 10"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          10
+        ],
+        [
+          "retry",
+          "loading discography releases for artist at offset 20"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          20
+        ],
+        [
+          "retry",
+          "loading discography releases for artist at offset 30"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          30
+        ],
+        [
+          "retry",
+          "loading discography releases for artist at offset 40"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          40
+        ],
+        [
+          "retry",
+          "checking 20 saved discography releases"
+        ],
+        [
+          "saved",
+          [
+            "id-0",
+            "id-1",
+            "id-2",
+            "id-3",
+            "id-4",
+            "id-5",
+            "id-6",
+            "id-7",
+            "id-8",
+            "id-9",
+            "id-10",
+            "id-11",
+            "id-12",
+            "id-13",
+            "id-14",
+            "id-15",
+            "id-16",
+            "id-17",
+            "id-18",
+            "id-19"
+          ]
+        ],
+        [
+          "retry",
+          "checking 20 saved discography releases"
+        ],
+        [
+          "saved",
+          [
+            "id-20",
+            "id-21",
+            "id-22",
+            "id-23",
+            "id-24",
+            "id-25",
+            "id-26",
+            "id-27",
+            "id-28",
+            "id-29",
+            "id-30",
+            "id-31",
+            "id-32",
+            "id-33",
+            "id-34",
+            "id-35",
+            "id-36",
+            "id-37",
+            "id-38",
+            "id-39"
+          ]
+        ],
+        [
+          "retry",
+          "checking 3 saved discography releases"
+        ],
+        [
+          "saved",
+          [
+            "id-40",
+            "id-41",
+            "id-42"
+          ]
+        ]
+      ]
+    }
+  },
+  {
+    "profile": "truthy",
+    "outcome": {
+      "result": [
+        {
+          "spotify_id": "plain",
+          "uri": "spotify:album:plain",
+          "name": "Original",
+          "release_type": "Album",
+          "release_date": "2011",
+          "chronology_date": "2011",
+          "total_tracks": 10,
+          "identity": "original",
+          "saved": true,
+          "plain": true,
+          "edition_rank": 0,
+          "default": true
+        },
+        {
+          "spotify_id": "comp",
+          "uri": "spotify:album:comp",
+          "name": "Best Of",
+          "release_type": "Compilation",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "best of",
+          "saved": true,
+          "plain": true,
+          "edition_rank": 0,
+          "default": false
+        },
+        {
+          "spotify_id": "live",
+          "uri": "spotify:album:live",
+          "name": "Live!",
+          "release_type": "Live",
+          "release_date": "2020",
+          "chronology_date": "2020",
+          "total_tracks": 10,
+          "identity": "live",
+          "saved": true,
+          "plain": true,
+          "edition_rank": 0,
+          "default": false
+        }
+      ],
+      "trace": [
+        [
+          "retry",
+          "loading discography releases for artist at offset 0"
+        ],
+        [
+          "page",
+          "artist",
+          "album,single,compilation",
+          10,
+          0
+        ],
+        [
+          "retry",
+          "checking 4 saved discography releases"
+        ],
+        [
+          "saved",
+          [
+            "plain",
+            "decorated",
+            "live",
+            "comp"
+          ]
+        ]
+      ]
+    }
+  }
+]

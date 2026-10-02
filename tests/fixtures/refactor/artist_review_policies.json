@@ -1,0 +1,1563 @@
+[
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 9
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 9
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 9
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 9
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": null
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": null
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": null
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": null
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": null
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 10
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": null
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": -2
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": -2
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": -2
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": -2
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": -2
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": -2
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": -2
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": -2
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": -2
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": -2
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": -2
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": -2
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 0
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 0
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 0
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 0
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 0
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 0
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 0
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 0
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 0
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 0
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 0
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": 0
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": true
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": true
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": true
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "Other",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": true
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": true
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": true
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": " Track ",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": true
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "TRACK",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": true
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": true
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": true
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Á",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": true
+      },
+      {
+        "spotify_id": "a-second-track",
+        "name": "a",
+        "uri": "spotify:track:a-second-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a-second",
+        "primary_artist_name": "A-SECOND",
+        "artist_ids": [
+          "a-second"
+        ],
+        "popularity": true
+      }
+    ]
+  },
+  {
+    "kind": "choices",
+    "items": [],
+    "outcome": []
+  },
+  {
+    "kind": "choices",
+    "items": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      }
+    ],
+    "outcome": [
+      {
+        "spotify_id": "a-track",
+        "name": "Track",
+        "uri": "spotify:track:a-track",
+        "album": "Album",
+        "rank": 1,
+        "primary_artist_id": "a",
+        "primary_artist_name": "A",
+        "artist_ids": [
+          "a"
+        ],
+        "popularity": 10
+      }
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "Unknown",
+    "outcome": [
+      1,
+      9999,
+      12,
+      31
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "2000",
+    "outcome": [
+      0,
+      2000,
+      1,
+      1
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "2000-02",
+    "outcome": [
+      0,
+      2000,
+      2,
+      1
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "2000-02-29",
+    "outcome": [
+      0,
+      2000,
+      2,
+      29
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "2001-02-29",
+    "outcome": [
+      1,
+      9999,
+      12,
+      31
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "bad",
+    "outcome": [
+      1,
+      9999,
+      12,
+      31
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "",
+    "outcome": [
+      1,
+      9999,
+      12,
+      31
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "2000-1-2-3",
+    "outcome": [
+      0,
+      2000,
+      1,
+      2
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "0000",
+    "outcome": [
+      1,
+      9999,
+      12,
+      31
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "9999",
+    "outcome": [
+      0,
+      9999,
+      1,
+      1
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "2000-13",
+    "outcome": [
+      1,
+      9999,
+      12,
+      31
+    ]
+  },
+  {
+    "kind": "date",
+    "value": "2000--1",
+    "outcome": [
+      1,
+      9999,
+      12,
+      31
+    ]
+  },
+  {
+    "kind": "tier",
+    "value": -1,
+    "outcome": "one"
+  },
+  {
+    "kind": "tier",
+    "value": 0,
+    "outcome": "one"
+  },
+  {
+    "kind": "tier",
+    "value": 1,
+    "outcome": "one"
+  },
+  {
+    "kind": "tier",
+    "value": 5,
+    "outcome": "one"
+  },
+  {
+    "kind": "tier",
+    "value": 6,
+    "outcome": "two"
+  },
+  {
+    "kind": "tier",
+    "value": 17,
+    "outcome": "two"
+  },
+  {
+    "kind": "tier",
+    "value": 18,
+    "outcome": "three"
+  },
+  {
+    "kind": "tier",
+    "value": 999,
+    "outcome": "three"
+  },
+  {
+    "kind": "references",
+    "values": [
+      null,
+      null,
+      null
+    ],
+    "outcome": {
+      "error": "ArtistReviewConfigError",
+      "message": "Missing queue playlist setting(s): the_queue_playlist, the_queue_2_playlist, the_queue_3_playlist"
+    }
+  },
+  {
+    "kind": "references",
+    "values": [
+      "",
+      "two",
+      "three"
+    ],
+    "outcome": {
+      "error": "ArtistReviewConfigError",
+      "message": "Missing queue playlist setting(s): the_queue_playlist"
+    }
+  },
+  {
+    "kind": "references",
+    "values": [
+      "one",
+      null,
+      "three"
+    ],
+    "outcome": {
+      "error": "ArtistReviewConfigError",
+      "message": "Missing queue playlist setting(s): the_queue_2_playlist"
+    }
+  },
+  {
+    "kind": "references",
+    "values": [
+      "one",
+      "two",
+      null
+    ],
+    "outcome": {
+      "error": "ArtistReviewConfigError",
+      "message": "Missing queue playlist setting(s): the_queue_3_playlist"
+    }
+  },
+  {
+    "kind": "references",
+    "values": [
+      "one",
+      "two",
+      "three"
+    ],
+    "outcome": {
+      "value": {
+        "queue_1": "one",
+        "queue_2": "two",
+        "queue_3": "three"
+      }
+    }
+  },
+  {
+    "kind": "references",
+    "values": [
+      "spotify:playlist:One",
+      "https://open.spotify.com/playlist/Two?si=x",
+      " Three "
+    ],
+    "outcome": {
+      "value": {
+        "queue_1": "One",
+        "queue_2": "Two",
+        "queue_3": "Three"
+      }
+    }
+  },
+  {
+    "kind": "references",
+    "values": [
+      "bad id",
+      "two",
+      "three"
+    ],
+    "outcome": {
+      "error": "ArtistReviewConfigError",
+      "message": "Invalid Spotify playlist reference: bad id"
+    }
+  },
+  {
+    "kind": "normalize",
+    "value": " A ",
+    "outcome": "a"
+  },
+  {
+    "kind": "normalize",
+    "value": "Á",
+    "outcome": "á"
+  },
+  {
+    "kind": "normalize",
+    "value": "a",
+    "outcome": "a"
+  },
+  {
+    "kind": "normalize",
+    "value": "",
+    "outcome": ""
+  },
+  {
+    "kind": "normalize",
+    "value": "Straße",
+    "outcome": "strasse"
+  },
+  {
+    "kind": "eligible",
+    "first": null,
+    "value": "a",
+    "outcome": false
+  },
+  {
+    "kind": "eligible",
+    "first": "a-first",
+    "value": "a",
+    "outcome": true
+  },
+  {
+    "kind": "eligible",
+    "first": null,
+    "value": "other",
+    "outcome": false
+  },
+  {
+    "kind": "eligible",
+    "first": "a-first",
+    "value": "other",
+    "outcome": false
+  },
+  {
+    "kind": "log-int",
+    "value": null,
+    "outcome": 0
+  },
+  {
+    "kind": "log-int",
+    "value": true,
+    "outcome": 0
+  },
+  {
+    "kind": "log-int",
+    "value": false,
+    "outcome": 0
+  },
+  {
+    "kind": "log-int",
+    "value": 0,
+    "outcome": 0
+  },
+  {
+    "kind": "log-int",
+    "value": -1,
+    "outcome": -1
+  },
+  {
+    "kind": "log-int",
+    "value": "3",
+    "outcome": 3
+  },
+  {
+    "kind": "log-int",
+    "value": " 4 ",
+    "outcome": 4
+  },
+  {
+    "kind": "log-int",
+    "value": "bad",
+    "outcome": 0
+  },
+  {
+    "kind": "log-int",
+    "value": [],
+    "outcome": 0
+  },
+  {
+    "kind": "log-int",
+    "value": {},
+    "outcome": 0
+  },
+  {
+    "kind": "query",
+    "value": " A ",
+    "outcome": "artist:\"A\""
+  },
+  {
+    "kind": "query",
+    "value": "A\"B",
+    "outcome": "artist:\"A B\""
+  },
+  {
+    "kind": "query",
+    "value": "",
+    "outcome": "artist:\"\""
+  },
+  {
+    "kind": "query",
+    "value": "\"Quoted\"",
+    "outcome": "artist:\"Quoted\""
+  },
+  {
+    "kind": "type",
+    "value": "album",
+    "count": 3,
+    "outcome": "Album"
+  },
+  {
+    "kind": "type",
+    "value": "album",
+    "count": 4,
+    "outcome": "Album"
+  },
+  {
+    "kind": "type",
+    "value": "album",
+    "count": true,
+    "outcome": "Album"
+  },
+  {
+    "kind": "type",
+    "value": "album",
+    "count": -1,
+    "outcome": "Album"
+  },
+  {
+    "kind": "type",
+    "value": "compilation",
+    "count": 3,
+    "outcome": "Compilation"
+  },
+  {
+    "kind": "type",
+    "value": "compilation",
+    "count": 4,
+    "outcome": "Compilation"
+  },
+  {
+    "kind": "type",
+    "value": "compilation",
+    "count": true,
+    "outcome": "Compilation"
+  },
+  {
+    "kind": "type",
+    "value": "compilation",
+    "count": -1,
+    "outcome": "Compilation"
+  },
+  {
+    "kind": "type",
+    "value": "ep",
+    "count": 3,
+    "outcome": "EP"
+  },
+  {
+    "kind": "type",
+    "value": "ep",
+    "count": 4,
+    "outcome": "EP"
+  },
+  {
+    "kind": "type",
+    "value": "ep",
+    "count": true,
+    "outcome": "EP"
+  },
+  {
+    "kind": "type",
+    "value": "ep",
+    "count": -1,
+    "outcome": "EP"
+  },
+  {
+    "kind": "type",
+    "value": "single",
+    "count": 3,
+    "outcome": "Single"
+  },
+  {
+    "kind": "type",
+    "value": "single",
+    "count": 4,
+    "outcome": "EP"
+  },
+  {
+    "kind": "type",
+    "value": "single",
+    "count": true,
+    "outcome": "Single"
+  },
+  {
+    "kind": "type",
+    "value": "single",
+    "count": -1,
+    "outcome": "Single"
+  },
+  {
+    "kind": "type",
+    "value": "unknown",
+    "count": 3,
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "type",
+    "value": "unknown",
+    "count": 4,
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "type",
+    "value": "unknown",
+    "count": true,
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "type",
+    "value": "unknown",
+    "count": -1,
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "type",
+    "value": "",
+    "count": 3,
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "type",
+    "value": "",
+    "count": 4,
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "type",
+    "value": "",
+    "count": true,
+    "outcome": "Unknown"
+  },
+  {
+    "kind": "type",
+    "value": "",
+    "count": -1,
+    "outcome": "Unknown"
+  }
+]
