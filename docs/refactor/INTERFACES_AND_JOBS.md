@@ -131,6 +131,22 @@ complete; do not deploy or merge before user approval.
 
 ## Implementation sequence
 
+The next verified increment extracts all 18 remaining HTTP worker entry points
+into explicit feature contexts under `interfaces/http/workers/`. Their callbacks
+are ordinary methods, their dependencies are supplied by the facade, and setup,
+execution, outcome presentation and cleanup are separate stages. The original
+last-resort exception boundaries and callback setup/restoration order remain.
+Choice consumption retains the original lock and delegates only its 0.5-second
+polling loop to the application helper; cancellation exceptions still originate
+at the feature's safe boundary. Bounded playlist retries also have named methods.
+
+The 1,524 focused API, worker, web and lifecycle tests pass. The 17 isolated shared
+lifecycle tests provide 100% statement and branch coverage. Strict typing and
+Ruff pass for the new worker/retry/core modules, and all 11 original public
+artifacts still match. This is an incremental check; feature handler logic,
+remaining CLI extraction and the complete final coverage/local review gates
+remain pending before the single Item 7 PR.
+
 1. Characterize existing starts, asymmetric conflicts, command/ID guards,
    queued snapshots, worker launch arguments and failure boundaries. Freeze
    original observations before changing production handlers.

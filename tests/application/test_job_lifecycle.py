@@ -8,8 +8,71 @@ import pytest
 
 from spotify_manager.application.job_lifecycle import JobIdentity
 from spotify_manager.application.job_lifecycle import append_log
+from spotify_manager.application.job_lifecycle import await_submission
 from spotify_manager.application.job_lifecycle import first_active_job
 from spotify_manager.application.job_lifecycle import retain_logs
+
+
+@dataclass
+class SubmissionProbe:
+    """Record event waits and consumption without threads or real delays.
+
+    Args:
+        values: Ordered submissions, including missing or empty values.
+        observations: Original wait and consumption order.
+        index: Next scripted observation.
+    """
+
+    values: tuple[str | None, ...]
+    observations: list[str] = field(default_factory=list)
+    index: int = 0
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Record the polling wait.
+
+        Args:
+            timeout: Original polling delay.
+
+        Returns:
+            False, demonstrating that consumption still follows an unset signal.
+        """
+        self.observations.append(f"wait:{timeout}")
+        return False
+
+    def consume(self) -> str | None:
+        """Consume the next scripted value.
+
+        Returns:
+            Original submission, including an empty string or no submission.
+        """
+        self.observations.append("consume")
+        value = self.values[self.index]
+        self.index += 1
+        return value
+
+
+def cancelled_submission() -> str | None:
+    """Signal a safe cancellation boundary.
+
+    Raises:
+        RuntimeError: The original job was cancelled.
+    """
+    raise RuntimeError("cancelled")
+
+
+def test_submission_waits_before_each_consumption_and_accepts_empty_text() -> None:
+    """Keep timeout polling, consumption order and empty submission acceptance."""
+    probe = SubmissionProbe((None, ""))
+    assert await_submission(probe, probe.consume) == ""
+    assert probe.observations == ["wait:0.5", "consume", "wait:0.5", "consume"]
+
+
+def test_submission_propagates_cancellation_after_the_original_wait() -> None:
+    """Leave cancellation and pending-view cleanup with the owning adapter."""
+    probe = SubmissionProbe(())
+    with pytest.raises(RuntimeError, match="cancelled"):
+        await_submission(probe, cancelled_submission)
+    assert probe.observations == ["wait:0.5"]
 
 
 @dataclass

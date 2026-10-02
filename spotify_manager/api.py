@@ -20,7 +20,7 @@ from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC
 from datetime import datetime
-from datetime import timedelta
+from datetime import timedelta as timedelta
 from functools import lru_cache
 from pathlib import Path
 from threading import Event
@@ -56,7 +56,7 @@ from spotify_manager.bootstrap.startup import (
 # UFI
 from spotify_manager.client import get_spotipy_client
 from spotify_manager.client.lastfm import LastFmClient
-from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.client.lastfm import LastFmError as LastFmError
 from spotify_manager.core.library_data import LibraryDataError
 from spotify_manager.core.library_data.runtime import get_library_data_service
 from spotify_manager.core.state.editor import state_editor_schema
@@ -260,6 +260,7 @@ from spotify_manager.interfaces.http.models.wine import (
 from spotify_manager.interfaces.http.models.wine import (
     NewWineTrackResult as NewWineTrackResult,
 )
+from spotify_manager.interfaces.http.playlist_retry import PlaylistRetry
 from spotify_manager.interfaces.http.presenters.discography import (
     discography_artist_result as _discography_artist_result,
 )
@@ -354,6 +355,65 @@ from spotify_manager.interfaces.http.routers.something_old import (
 )
 from spotify_manager.interfaces.http.routers.state import router as _state_router
 from spotify_manager.interfaces.http.routers.wine import router as _wine_router
+from spotify_manager.interfaces.http.workers.blast import BlastWorker
+from spotify_manager.interfaces.http.workers.blast_artist import BlastArtistWorker
+from spotify_manager.interfaces.http.workers.daily_mind_radio import (
+    DailyMindRadioWorker,
+)
+from spotify_manager.interfaces.http.workers.discography import DiscographyWorker
+from spotify_manager.interfaces.http.workers.errors import (
+    _DiscographyJobCancelledError as _DiscographyJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _NewKidsJobCancelledError as _NewKidsJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _NewWineJobCancelledError as _NewWineJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _PalaceOfMemoryJobCancelledError as _PalaceOfMemoryJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _Queue3JobCancelledError as _Queue3JobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _QueueJobCancelledError as _QueueJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _ReleaseCheckJobCancelledError as _ReleaseCheckJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _RequeueForADreamJobCancelledError as _RequeueForADreamJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _SauvignonJobCancelledError as _SauvignonJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _SlowListeningJobCancelledError as _SlowListeningJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.errors import (
+    _SomethingOldJobCancelledError as _SomethingOldJobCancelledError,
+)
+from spotify_manager.interfaces.http.workers.found_art import FoundArtWorker
+from spotify_manager.interfaces.http.workers.new_kids import NewKidsWorker
+from spotify_manager.interfaces.http.workers.new_wine import NewWineWorker
+from spotify_manager.interfaces.http.workers.new_year import NewYearWorker
+from spotify_manager.interfaces.http.workers.palace_of_memory import (
+    PalaceOfMemoryWorker,
+)
+from spotify_manager.interfaces.http.workers.queue_3 import Queue3Worker
+from spotify_manager.interfaces.http.workers.queue_fill import QueueFillWorker
+from spotify_manager.interfaces.http.workers.queue_flush import QueueFlushWorker
+from spotify_manager.interfaces.http.workers.release_check import ReleaseCheckWorker
+from spotify_manager.interfaces.http.workers.requeue_for_a_dream import (
+    RequeueForADreamWorker,
+)
+from spotify_manager.interfaces.http.workers.sauvignon import SauvignonWorker
+from spotify_manager.interfaces.http.workers.scrobble_history import (
+    ScrobbleHistoryWorker,
+)
+from spotify_manager.interfaces.http.workers.slow_listening import SlowListeningWorker
+from spotify_manager.interfaces.http.workers.something_old import SomethingOldWorker
 from spotify_manager.loaders_savers import load_your_library_file
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import ArtistLibraryStats
@@ -374,8 +434,8 @@ from spotify_manager.processors.total_albums_processor import update_total_album
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import blast_from_past_artists
-from spotify_manager.routines import composer_playlists
-from spotify_manager.routines import daily_mind_radio
+from spotify_manager.routines import composer_playlists as composer_playlists
+from spotify_manager.routines import daily_mind_radio as daily_mind_radio
 from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
 from spotify_manager.routines import genre_reveal
@@ -429,50 +489,6 @@ STATE_NAMESPACE_DEFINITIONS: dict[
     "review_artists": (review_artists._default_state, review_artists.validate_state),
     "slow_listening": (slow_listening._default_state, slow_listening.validate_state),
 }
-
-
-class _NewWineJobCancelledError(RuntimeError):
-    """Stop one web flush while preserving the routine's durable state."""
-
-
-class _NewKidsJobCancelledError(RuntimeError):
-    """Stop one New Kids web job while preserving durable progress."""
-
-
-class _Queue3JobCancelledError(RuntimeError):
-    """Stop one Queue 3 web job while preserving durable progress."""
-
-
-class _QueueJobCancelledError(RuntimeError):
-    """Stop one Queue web job while preserving completed work."""
-
-
-class _SauvignonJobCancelledError(RuntimeError):
-    """Stop one Sauvignon recommendation job at a safe boundary."""
-
-
-class _SlowListeningJobCancelledError(RuntimeError):
-    """Stop one Slow Listening web flush at an interaction boundary."""
-
-
-class _SomethingOldJobCancelledError(RuntimeError):
-    """Stop one Something Old web job at an interaction or retry boundary."""
-
-
-class _ReleaseCheckJobCancelledError(RuntimeError):
-    """Stop one release-check job at an interaction or retry boundary."""
-
-
-class _DiscographyJobCancelledError(RuntimeError):
-    """Stop one discography job at an interaction or retry boundary."""
-
-
-class _RequeueForADreamJobCancelledError(RuntimeError):
-    """Stop one Requeue for a Dream job at an API or retry boundary."""
-
-
-class _PalaceOfMemoryJobCancelledError(RuntimeError):
-    """Stop one Palace of Memory job at an API or retry boundary."""
 
 
 _analysis_jobs: dict[str, _AnalysisJob] = {}
@@ -830,34 +846,10 @@ def start_analysis_job(
 
 
 def _playlist_job_retry(
-    job: _BlastJob,
-    echo: Callable[[str], None],
+    job: _BlastJob, echo: Callable[[str], None]
 ) -> blast_from_past.RetryCall:
     """Build a bounded Spotify retry policy with interruptible waits."""
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise blast_from_past.BlastFromPastCancelledError(
-                "Playlist routine cancelled."
-            )
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        blast_from_past.check_cancel(job.cancel_event.is_set)
-        result = review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-        blast_from_past.check_cancel(job.cancel_event.is_set)
-        return result
-
-    return retry_call
+    return PlaylistRetry(job, echo).call
 
 
 def _run_blast_job(
@@ -869,359 +861,62 @@ def _run_blast_job(
     dry_run: bool,
 ) -> None:
     """Execute one web playlist job and retain progress, logs, and results."""
-    job = get_blast_job(job_id)
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Playlist routine started"
-        _append_blast_log_locked(
-            job,
-            "A blast from the past started" + (" in dry-run mode." if dry_run else "."),
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        summary = blast_from_past.add_blast_from_past_to_spotify(
-            spotify,
-            playlist_id,
-            count=count,
-            max_playlist_length=max_playlist_length,
-            progress_callback=echo,
-            retry_call=_playlist_job_retry(job, echo),
-            cancel_check=job.cancel_event.is_set,
-            dry_run=dry_run,
-        )
-    except blast_from_past.BlastFromPastCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = "A blast from the past was cancelled."
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = review_album_limits.format_transient_spotify_failure(
-                exc
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except (blast_from_past.BlastFromPastError, SpotifyException) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Playlist routine failed: {exc}")
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected blast-from-the-past error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected playlist error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        selections = [_blast_selection_result(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "completed"
-            job.result.requested_count = summary.requested_count
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.added = summary.added
-            job.result.selections = selections
-            if summary.batch is not None:
-                job.result.random_org_timestamp = summary.batch.generated_at.isoformat()
-            verb = "Would add" if dry_run else "Added"
-            job.result.detail = (
-                f"{verb} {summary.added} of {summary.requested_count} selections; "
-                f"playlist {summary.playlist_length_before} -> "
-                f"{summary.playlist_length_after}."
-            )
-            for selection in selections:
-                target = selection.spotify_match or "no qualifying Spotify match"
-                liked_label = " liked" if selection.liked else ""
-                _append_blast_log_locked(
-                    job,
-                    f"{selection.selected_date}: {selection.lastfm_scrobble} -> "
-                    f"{target} ({selection.action}{liked_label}).",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    BlastWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        count=count,
+        max_playlist_length=max_playlist_length,
+        dry_run=dry_run,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _blast_selection_result=_blast_selection_result,
+        _playlist_job_retry=_playlist_job_retry,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_blast_artist_job(
-    job_id: str,
-    spotify: Spotify,
-    playlist_id: str,
-    count: int,
-    dry_run: bool,
+    job_id: str, spotify: Spotify, playlist_id: str, count: int, dry_run: bool
 ) -> None:
     """Execute one alphabetic dormant-artist playlist update."""
-    job = get_blast_job(job_id, command="blast_from_the_past_artists")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Reading recently dormant Last.fm artists"
-        _append_blast_log_locked(
-            job,
-            "Dormant-artist recovery started"
-            + (" in dry-run mode." if dry_run else "."),
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        summary = blast_from_past_artists.add_dormant_artists_to_blast_from_past(
-            spotify,
-            playlist_id,
-            count=count,
-            echo=echo,
-            progress_callback=lambda _done, _total, message: echo(message),
-            retry_call=_playlist_job_retry(job, echo),
-            cancel_check=job.cancel_event.is_set,
-            dry_run=dry_run,
-        )
-    except blast_from_past.BlastFromPastCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = "Dormant-artist recovery was cancelled."
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = review_album_limits.format_transient_spotify_failure(
-                exc
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except (
-        blast_from_past.BlastFromPastError,
-        new_kids.NewKidsError,
-        SpotifyException,
-    ) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Dormant-artist recovery failed: {exc}")
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected dormant-artist recovery error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected dormant-artist error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [
-            DormantArtistResultEntry(
-                artist=result.artist,
-                scrobbles=result.scrobbles,
-                spotify_artist=result.spotify_artist,
-                track=result.track,
-                popularity=result.popularity,
-                action=result.action,
-            )
-            for result in summary.results
-        ]
-        with _blast_jobs_lock:
-            job.result.status = "completed"
-            job.result.requested_count = summary.requested_count
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.added = summary.added
-            job.result.candidate_count = summary.candidate_count
-            job.result.dormant_artist_years = list(summary.history_years)
-            job.result.dormant_artist_current_year = summary.current_year
-            job.result.dormant_artist_represented = summary.represented_count
-            job.result.dormant_artist_results = results
-            verb = "Would add" if dry_run else "Added"
-            job.result.detail = (
-                f"{verb} {summary.added} of {summary.requested_count} dormant "
-                f"artists; playlist {summary.playlist_length_before} -> "
-                f"{summary.playlist_length_after}."
-            )
-            for result in results:
-                target = (
-                    f"{result.spotify_artist} - {result.track}"
-                    if result.track
-                    else result.action
-                )
-                _append_blast_log_locked(
-                    job,
-                    f"{result.artist} ({result.scrobbles} scrobbles) -> {target}.",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    BlastArtistWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        count=count,
+        dry_run=dry_run,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _playlist_job_retry=_playlist_job_retry,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_daily_mind_radio_job(
-    job_id: str,
-    spotify: Spotify,
-    playlist_id: str,
-    dry_run: bool,
+    job_id: str, spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> None:
     """Execute one Daily Mind Radio web job and retain its complete trace."""
-    job = get_blast_job(job_id, command="daily_mind_radio")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Playlist routine started"
-        _append_blast_log_locked(
-            job,
-            "Daily Mind Radio started" + (" in dry-run mode." if dry_run else "."),
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
-            spotify,
-            playlist_id,
-            progress_callback=echo,
-            retry_call=_playlist_job_retry(job, echo),
-            cancel_check=job.cancel_event.is_set,
-            dry_run=dry_run,
-        )
-    except blast_from_past.BlastFromPastCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = "Daily Mind Radio was cancelled."
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = review_album_limits.format_transient_spotify_failure(
-                exc
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except (blast_from_past.BlastFromPastError, SpotifyException) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Playlist routine failed: {exc}")
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Daily Mind Radio error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected playlist error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        selections = [_blast_selection_result(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "completed"
-            job.result.requested_count = len(summary.batch.selections)
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.added = summary.added
-            job.result.target_dates = [
-                target_date.isoformat() for target_date in summary.batch.target_dates
-            ]
-            job.result.missing_dates = [
-                missing_date.isoformat() for missing_date in summary.batch.missing_dates
-            ]
-            job.result.selections = selections
-            if summary.batch.generated_at is not None:
-                job.result.random_org_timestamp = summary.batch.generated_at.isoformat()
-            if summary.playlist_length_before is None:
-                job.result.detail = (
-                    "No anniversary dates had scrobbles; nothing was added."
-                )
-            else:
-                verb = "Would add" if dry_run else "Added"
-                job.result.detail = (
-                    f"{verb} {summary.added} of {len(summary.batch.selections)} "
-                    f"populated dates; playlist {summary.playlist_length_before} -> "
-                    f"{summary.playlist_length_after}."
-                )
-            for selection in selections:
-                target = selection.spotify_match or "no qualifying Spotify match"
-                liked_label = " liked" if selection.liked else ""
-                _append_blast_log_locked(
-                    job,
-                    f"{selection.selected_date}: {selection.lastfm_scrobble} -> "
-                    f"{target} ({selection.action}{liked_label}).",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    DailyMindRadioWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        dry_run=dry_run,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _blast_selection_result=_blast_selection_result,
+        _playlist_job_retry=_playlist_job_retry,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_found_art_job(
@@ -1233,83 +928,22 @@ def _run_found_art_job(
     count: int,
 ) -> None:
     """Execute one Found Art web job and retain its complete trace."""
-    job = get_blast_job(job_id, command="found_art")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Found Art started"
-        _append_blast_log_locked(job, "Found Art started.")
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-    lastfm = LastFmClient(
-        api_key,
-        username,
-        event_callback=echo,
-    )
-
-    try:
-        summary = found_art.run_found_art(
-            spotify,
-            lastfm,
-            playlist_id,
-            count=count,
-            progress_callback=echo,
-        )
-    except (found_art.FoundArtError, LastFmError, SpotifyException) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Found Art failed: {exc}")
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Found Art error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected Found Art error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [_found_art_selection_result(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "completed"
-            job.result.requested_count = summary.requested_count
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.added = summary.added
-            job.result.week_start = summary.week_start.isoformat()
-            job.result.history_tracks = summary.history_tracks
-            job.result.history_scrobbles = summary.history_scrobbles
-            job.result.live_scrobbles_added = summary.live_scrobbles_added
-            job.result.candidate_count = summary.candidate_count
-            job.result.found_art_results = results
-            job.result.detail = (
-                f"Added {summary.added} of {summary.requested_count} "
-                f"recommendations; playlist {summary.playlist_length_before} -> "
-                f"{summary.playlist_length_after}."
-            )
-            for result in results:
-                target = result.spotify_match or "no unliked qualifying match"
-                _append_blast_log_locked(
-                    job,
-                    f"{result.artist} - {result.track} -> {target} ({result.action}).",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    FoundArtWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        api_key=api_key,
+        username=username,
+        count=count,
+        create_lastfm=LastFmClient,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _found_art_selection_result=_found_art_selection_result,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_sauvignon_job(
@@ -1324,212 +958,25 @@ def _run_sauvignon_job(
     dry_run: bool,
 ) -> None:
     """Run reconnectable Last.fm album discovery for Sauvignon."""
-    job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Sauvignon album discovery started"
-        dry_run_suffix = " in dry-run mode" if dry_run else ""
-        _append_blast_log_locked(
-            job,
-            f"Sauvignon album discovery started{dry_run_suffix}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    last_progress: str | None = None
-
-    def progress_callback(progress_status: str) -> None:
-        nonlocal last_progress
-        if job.cancel_event.is_set():
-            raise _SauvignonJobCancelledError
-        with _blast_jobs_lock:
-            job.result.detail = progress_status
-            if progress_status != last_progress:
-                _append_blast_log_locked(job, progress_status)
-                last_progress = progress_status
-
-    def choice_reader(
-        recommendation: sauvignon.AlbumRecommendation,
-        options: tuple[sauvignon.SpotifyAlbumOption, ...],
-    ) -> str:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _SauvignonJobCancelledError
-            job.submitted_choice = None
-            job.choice_event.clear()
-            job.result.sauvignon_pending_choice = SauvignonPendingChoice(
-                artist=recommendation.artist,
-                album=recommendation.album,
-                score=recommendation.score,
-                best_match=recommendation.best_match,
-                base_rank=recommendation.base_rank,
-                weekly_rank=recommendation.weekly_rank,
-                supporting_tracks=list(recommendation.supporting_tracks),
-                options=[
-                    SauvignonAlbumOption(
-                        spotify_id=option.spotify_id,
-                        artist=option.artist,
-                        album=option.album,
-                        release_type=option.release_type,
-                        release_date=option.release_date,
-                        total_tracks=option.total_tracks,
-                    )
-                    for option in options
-                ],
-            )
-            job.result.status = "waiting"
-            job.result.detail = (
-                f"Choose the Spotify edition for {recommendation.artist} - "
-                f"{recommendation.album}"
-            )
-            _append_blast_log_locked(job, job.result.detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _SauvignonJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                job.submitted_choice = None
-                job.choice_event.clear()
-                job.result.sauvignon_pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying Sauvignon album choice"
-                _append_blast_log_locked(job, f"Album choice received: {choice}.")
-                return choice
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _SauvignonJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        if job.cancel_event.is_set():
-            raise _SauvignonJobCancelledError
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-    lastfm = LastFmClient(api_key, username, event_callback=echo)
-
-    try:
-        summary = sauvignon.fill_sauvignon_from_lastfm(
-            spotify,
-            lastfm,
-            playlist_id,
-            choice_reader,
-            count=count,
-            max_playlist_length=max_playlist_length,
-            seed_count=seed_count,
-            dry_run=dry_run,
-            echo=echo,
-            progress_callback=progress_callback,
-            retry_call=retry_call,
-        )
-    except _SauvignonJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = (
-                "Sauvignon discovery stopped. Cached calls and completed additions "
-                "remain saved."
-                if not dry_run
-                else "Sauvignon discovery dry run stopped."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc)
-                + ". Cached calls and completed additions remain saved."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except (
-        sauvignon.SauvignonError,
-        found_art.FoundArtError,
-        LastFmError,
-        SpotifyException,
-    ) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Sauvignon discovery failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Sauvignon discovery error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected Sauvignon discovery error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [_sauvignon_selection_result(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "paused" if summary.paused else "completed"
-            job.result.requested_count = summary.requested_count
-            job.result.week_start = summary.week_start.isoformat()
-            job.result.history_scrobbles = summary.history_scrobbles
-            job.result.sauvignon_history_albums = summary.history_albums
-            job.result.live_scrobbles_added = summary.live_scrobbles_added
-            job.result.sauvignon_seed_count = summary.seed_count
-            job.result.sauvignon_track_candidate_count = summary.track_candidate_count
-            job.result.sauvignon_album_candidate_count = summary.album_candidate_count
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.added = summary.selected
-            job.result.dry_run = summary.dry_run
-            job.result.sauvignon_results = results
-            verb = "Would add" if summary.dry_run else "Added"
-            job.result.detail = (
-                f"{verb} {summary.selected} of {summary.requested_count} album "
-                f"recommendations; playlist {summary.playlist_length_before} -> "
-                f"{summary.playlist_length_after}."
-            )
-            for result in results:
-                target = result.spotify_album or "no selected Spotify edition"
-                _append_blast_log_locked(
-                    job,
-                    f"{result.artist} - {result.album} -> {target} ({result.action}).",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.sauvignon_pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    SauvignonWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        api_key=api_key,
+        username=username,
+        count=count,
+        max_playlist_length=max_playlist_length,
+        seed_count=seed_count,
+        dry_run=dry_run,
+        create_lastfm=LastFmClient,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _sauvignon_selection_result=_sauvignon_selection_result,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_queue_fill_job(
@@ -1544,354 +991,44 @@ def _run_queue_fill_job(
     dry_run: bool,
 ) -> None:
     """Run reconnectable Last.fm artist discovery for The Queue."""
-    job = get_blast_job(job_id, command="fill_queue_from_lastfm")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Queue artist discovery started"
-        _append_blast_log_locked(
-            job,
-            f"Queue artist discovery started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    last_progress: str | None = None
-
-    def progress_callback(completed: int, total: int, progress_status: str) -> None:
-        nonlocal last_progress
-        if job.cancel_event.is_set():
-            raise _QueueJobCancelledError
-        with _blast_jobs_lock:
-            job.result.processed = completed
-            job.result.total = total or None
-            job.result.detail = progress_status
-            if progress_status != last_progress:
-                _append_blast_log_locked(job, progress_status)
-                last_progress = progress_status
-
-    def choice_reader(
-        recommendation: the_queue.ArtistRecommendation,
-        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
-    ) -> str:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _QueueJobCancelledError
-            job.submitted_choice = None
-            job.choice_event.clear()
-            job.result.queue_pending_choice = QueuePendingChoice(
-                artist=recommendation.artist,
-                base_rank=recommendation.base_rank,
-                score=recommendation.score,
-                supporting_seeds=list(recommendation.supporting_seeds),
-                candidates=[
-                    QueueArtistOption(
-                        spotify_id=candidate.spotify_id,
-                        name=candidate.name,
-                        popularity=candidate.popularity,
-                        followers=candidate.followers,
-                        exact_name=candidate.exact_name,
-                    )
-                    for candidate in candidates
-                ],
-            )
-            job.result.status = "waiting"
-            job.result.detail = f"Map Last.fm artist {recommendation.artist}"
-            _append_blast_log_locked(job, job.result.detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _QueueJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                job.submitted_choice = None
-                job.choice_event.clear()
-                job.result.queue_pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying Queue artist mapping"
-                _append_blast_log_locked(
-                    job,
-                    f"Artist mapping choice received: {choice}.",
-                )
-                return choice
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _QueueJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-    lastfm = LastFmClient(api_key, username, event_callback=echo)
-
-    try:
-        summary = the_queue.fill_queue_from_lastfm(
-            spotify,
-            lastfm,
-            playlists,
-            choice_reader,
-            count=count,
-            max_playlist_length=max_playlist_length,
-            seed_count=seed_count,
-            dry_run=dry_run,
-            echo=echo,
-            progress_callback=progress_callback,
-            retry_call=retry_call,
-        )
-    except _QueueJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = (
-                "Queue fill stopped. Cached calls and completed additions remain saved."
-                if not dry_run
-                else "Queue fill dry run stopped."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc)
-                + ". Cached calls and completed additions remain saved."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except (
-        the_queue.QueueError,
-        release_check.ReleaseCheckError,
-        LastFmError,
-        SpotifyException,
-    ) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Queue fill failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Queue fill error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected Queue fill error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [_queue_fill_result_entry(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "paused" if summary.paused else "completed"
-            job.result.requested_count = summary.requested_count
-            job.result.week_start = summary.week_start.isoformat()
-            job.result.history_scrobbles = summary.history_scrobbles
-            job.result.queue_history_artists = summary.history_artists
-            job.result.live_scrobbles_added = summary.live_scrobbles_added
-            job.result.queue_seed_count = summary.seed_count
-            job.result.candidate_count = summary.candidate_count
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.added = summary.selected
-            job.result.queue_fill_results = results
-            job.result.detail = (
-                "Queue fill paused; rerun to continue."
-                if summary.paused
-                else f"Selected {summary.selected} of "
-                f"{summary.requested_count} artists; "
-                f"Queue {summary.playlist_length_before} -> "
-                f"{summary.playlist_length_after}."
-            )
-            for result in results:
-                target = result.spotify_artist or "no Spotify mapping"
-                if result.track:
-                    target += f" - {result.track}"
-                _append_blast_log_locked(
-                    job,
-                    f"{result.lastfm_artist} -> {target} ({result.action}).",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.queue_pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    QueueFillWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlists=playlists,
+        api_key=api_key,
+        username=username,
+        count=count,
+        max_playlist_length=max_playlist_length,
+        seed_count=seed_count,
+        dry_run=dry_run,
+        create_lastfm=LastFmClient,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _queue_fill_result_entry=_queue_fill_result_entry,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_queue_flush_job(
-    job_id: str,
-    spotify: Spotify,
-    playlists: the_queue.QueuePlaylists,
-    dry_run: bool,
+    job_id: str, spotify: Spotify, playlists: the_queue.QueuePlaylists, dry_run: bool
 ) -> None:
     """Run the first-ten-artist Queue flush as a reconnectable web job."""
-    job = get_blast_job(job_id, command="flush_queue")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Queue flush started"
-        _append_blast_log_locked(
-            job,
-            f"Queue flush started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    last_progress: str | None = None
-
-    def progress_callback(completed: int, total: int, progress_status: str) -> None:
-        nonlocal last_progress
-        if job.cancel_event.is_set():
-            raise _QueueJobCancelledError
-        with _blast_jobs_lock:
-            job.result.processed = completed
-            job.result.total = total
-            job.result.detail = progress_status
-            if progress_status != last_progress:
-                _append_blast_log_locked(job, progress_status)
-                last_progress = progress_status
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _QueueJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        summary = the_queue.flush_queue(
-            spotify,
-            playlists,
-            dry_run=dry_run,
-            echo=echo,
-            progress_callback=progress_callback,
-            retry_call=retry_call,
-        )
-    except _QueueJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = (
-                "Queue flush stopped. Progress was saved."
-                if not dry_run
-                else "Queue flush dry run stopped."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc)
-                + ". Progress was saved."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except (the_queue.QueueError, SpotifyException) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Queue flush failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Queue flush error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected Queue flush error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [_queue_flush_result_entry(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "completed"
-            job.result.run_id = summary.run_id
-            job.result.processed = summary.processed
-            job.result.total = summary.total
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.queue_resumed = summary.resumed
-            job.result.queue_flush_results = results
-            job.result.detail = (
-                f"Processed {summary.processed} of {summary.total} artists; "
-                f"Queue {summary.playlist_length_before} -> "
-                f"{summary.playlist_length_after}."
-            )
-            for result in results:
-                target = result.target_track or "no replacement"
-                if result.target_release:
-                    target = f"{result.target_release} - {target}"
-                _append_blast_log_locked(
-                    job,
-                    f"{result.artist}: {result.source_track} -> {target} "
-                    f"({result.action}; top {result.top_liked_tracks}/"
-                    f"{result.top_tracks}; total {result.total_liked_tracks}).",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    QueueFlushWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlists=playlists,
+        dry_run=dry_run,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _queue_flush_result_entry=_queue_flush_result_entry,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_new_kids_job(
@@ -1906,291 +1043,28 @@ def _run_new_kids_job(
     command: Literal["flush_new_kids", "flush_queue_2"] = "flush_new_kids",
 ) -> None:
     """Execute one interactive album-discovery flush as a reconnectable job."""
-    label = "Queue 2" if command == "flush_queue_2" else "New Kids"
-    job = get_blast_job(job_id, command=command)
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = f"{label} flush started"
-        _append_blast_log_locked(
-            job,
-            f"{label} flush started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def progress_callback(completed: int, total: int, progress_status: str) -> None:
-        if job.cancel_event.is_set():
-            raise _NewKidsJobCancelledError
-        with _blast_jobs_lock:
-            job.result.processed = completed
-            job.result.total = total
-            job.result.detail = progress_status
-
-    def choice_reader(
-        artist: str,
-        candidates: tuple[new_kids.ChoiceCandidate, ...],
-    ) -> str:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _NewKidsJobCancelledError
-            job.submitted_choice = None
-            job.choice_event.clear()
-            job.result.new_kids_pending_choice = NewKidsPendingChoice(
-                artist=artist,
-                releases=[
-                    NewKidsReleaseOption(
-                        spotify_id=candidate.spotify_id,
-                        name=candidate.name,
-                        release_type=(
-                            "Composer works playlist"
-                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
-                            else candidate.release_type
-                        ),
-                        release_date=(
-                            "Stored Spotify order"
-                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
-                            else candidate.release_date
-                        ),
-                        total_tracks=candidate.total_tracks,
-                        popularity=(
-                            None
-                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
-                            else candidate.popularity
-                        ),
-                        top_track_rank=(
-                            None
-                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
-                            else candidate.top_track_rank
-                        ),
-                        saved=(
-                            False
-                            if isinstance(candidate, composer_playlists.OwnedPlaylist)
-                            else candidate.saved
-                        ),
-                    )
-                    for candidate in candidates
-                ],
-            )
-            job.result.status = "waiting"
-            job.result.detail = f"Choose the next release for {artist}"
-            _append_blast_log_locked(job, job.result.detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _NewKidsJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                job.submitted_choice = None
-                job.choice_event.clear()
-                job.result.new_kids_pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying release choice"
-                _append_blast_log_locked(job, f"Release choice received: {choice}.")
-                return choice
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _NewKidsJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        while True:
-            try:
-                result = review_album_limits.retry_spotify_server_errors(
-                    operation,
-                    description,
-                    echo=echo,
-                    sleep=interruptible_sleep,
-                    retry_delay_seconds=10,
-                    max_attempts=3,
-                )
-            except review_album_limits.SpotifyRateLimitError as exc:
-                delay = max(
-                    1,
-                    exc.retry_after_seconds or DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS,
-                )
-                retry_at = datetime.now(UTC) + timedelta(seconds=delay)
-                message = (
-                    f"Spotify rate limit reached while {description}. "
-                    "Retrying automatically "
-                    f"{review_album_limits.format_retry_delay(delay)}."
-                )
-                with _blast_jobs_lock:
-                    job.result.status = "running"
-                    job.result.retry_at = retry_at.isoformat()
-                    job.result.detail = message
-                    _append_blast_log_locked(job, message)
-                interruptible_sleep(delay)
-                with _blast_jobs_lock:
-                    job.result.retry_at = None
-                    job.result.detail = f"Retrying {description}."
-                    _append_blast_log_locked(job, job.result.detail)
-                continue
-            with _blast_jobs_lock:
-                job.result.retry_at = None
-            return result
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        configuration = Settings()
-        lastfm_api_key, lastfm_username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key,
-            configuration.lastfm_username,
-        )
-        lastfm = LastFmClient(
-            lastfm_api_key,
-            lastfm_username,
-            event_callback=echo,
-        )
-        routine = (
-            new_kids.flush_queue_2
-            if command == "flush_queue_2"
-            else new_kids.flush_new_kids
-        )
-        summary = routine(
-            spotify,
-            new_kids_playlist_id,
-            queue_2_playlist_id,
-            great_discoveries_playlist_id,
-            unlucky_ones_playlist_id,
-            newfoundland_playlist_id,
-            choice_reader=choice_reader,
-            dry_run=dry_run,
-            echo=echo,
-            progress_callback=progress_callback,
-            retry_call=retry_call,
-            lastfm=lastfm,
-            lastfm_username=lastfm_username,
-        )
-    except _NewKidsJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.new_kids_pending_choice = None
-            job.result.retry_at = None
-            job.result.detail = (
-                f"{label} flush stopped. Progress was saved."
-                if not dry_run
-                else f"{label} dry run stopped."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.new_kids_pending_choice = None
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.new_kids_pending_choice = None
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc)
-                + ". Progress was saved."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.new_kids_pending_choice = None
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except (
-        new_kids.NewKidsError,
-        found_art.FoundArtConfigError,
-        scrobble_history.ScrobbleHistoryError,
-        LastFmError,
-        SpotifyException,
-    ) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.new_kids_pending_choice = None
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"{label} flush failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected %s flush error", label)
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.new_kids_pending_choice = None
-            job.result.detail = f"Unexpected {label} error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [_new_kids_track_result(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "paused" if summary.paused else "completed"
-            job.result.processed = len(summary.results)
-            if job.result.total is None:
-                job.result.total = len(summary.results)
-            if isinstance(summary, new_kids.Queue2Summary):
-                job.result.playlist_length_before = summary.queue_length_before
-                job.result.playlist_length_after = summary.queue_length_after
-            else:
-                job.result.playlist_length_before = summary.playlist_length_before
-                job.result.playlist_length_after = summary.playlist_length_after
-            job.result.advanced = sum(
-                result.action in {"advance", "next release"}
-                for result in summary.results
-            )
-            job.result.skipped = sum(
-                result.action == "skip" for result in summary.results
-            )
-            job.result.new_kids_results = results
-            job.result.new_kids_prefill = [
-                _new_kids_fill_result(result) for result in summary.prefill
-            ]
-            job.result.new_kids_postfill = (
-                []
-                if isinstance(summary, new_kids.Queue2Summary)
-                else [_new_kids_fill_result(result) for result in summary.postfill]
-            )
-            job.result.new_kids_pending_choice = None
-            job.result.new_kids_resumed = summary.resumed
-            job.result.new_kids_paused = summary.paused
-            if summary.paused:
-                job.result.detail = f"{label} flush paused. Progress was saved."
-            elif isinstance(summary, new_kids.Queue2Summary):
-                job.result.detail = (
-                    f"{len(summary.results)} decisions; New Kids "
-                    f"{summary.new_kids_length_before} -> "
-                    f"{summary.new_kids_length_after}; Queue 2 "
-                    f"{summary.queue_length_before} -> "
-                    f"{summary.queue_length_after}; {len(summary.prefill)} "
-                    "transfers."
-                )
-            else:
-                transfers = len(summary.prefill) + len(summary.postfill)
-                job.result.detail = (
-                    f"{len(summary.results)} decisions; New Kids "
-                    f"{summary.playlist_length_before} -> "
-                    f"{summary.playlist_length_after}; {transfers} Queue 2 "
-                    "transfers."
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.new_kids_pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    NewKidsWorker(
+        job_id=job_id,
+        spotify=spotify,
+        new_kids_playlist_id=new_kids_playlist_id,
+        queue_2_playlist_id=queue_2_playlist_id,
+        great_discoveries_playlist_id=great_discoveries_playlist_id,
+        unlucky_ones_playlist_id=unlucky_ones_playlist_id,
+        newfoundland_playlist_id=newfoundland_playlist_id,
+        dry_run=dry_run,
+        command=command,
+        rate_limit_delay=DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS,
+        create_lastfm=LastFmClient,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        configuration=Settings,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _new_kids_fill_result=_new_kids_fill_result,
+        _new_kids_track_result=_new_kids_track_result,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _apply_queue_3_annual_summary(
@@ -2255,194 +1129,22 @@ def _run_queue_3_job(
     annual_only: bool = False,
 ) -> None:
     """Execute one Queue 3 operation as a reconnectable web job."""
-    job = get_blast_job(job_id, command="flush_queue_3")
-    operation_name = "Previous-year Queue 3 import" if annual_only else "Queue 3 flush"
-    summary: queue_3.AnnualImportSummary | queue_3.FlushSummary
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = f"{operation_name} started"
-        _append_blast_log_locked(
-            job,
-            f"{operation_name} started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def progress_callback(completed: int, total: int, progress_status: str) -> None:
-        if job.cancel_event.is_set():
-            raise _Queue3JobCancelledError
-        with _blast_jobs_lock:
-            job.result.processed = completed
-            job.result.total = total
-            job.result.detail = progress_status
-
-    def wait_for_choice(detail: str) -> str:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _Queue3JobCancelledError
-            job.submitted_choice = None
-            job.choice_event.clear()
-            job.result.status = "waiting"
-            job.result.detail = detail
-            _append_blast_log_locked(job, detail)
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _Queue3JobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                job.submitted_choice = None
-                job.choice_event.clear()
-                job.result.queue_3_pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying Queue 3 choice"
-                _append_blast_log_locked(job, f"Queue 3 choice received: {choice}.")
-                return choice
-
-    def transition_reader(
-        source: new_wine.PlaylistTrack,
-        current: slow_listening.DiscographyRelease,
-        following: slow_listening.DiscographyRelease,
-    ) -> str:
-        with _blast_jobs_lock:
-            job.result.queue_3_pending_choice = Queue3PendingChoice(
-                kind="release",
-                artist=source.primary_artist_name,
-                source_track=source.name,
-                current_release=_queue_3_release_option(current),
-                next_release=_queue_3_release_option(following),
-            )
-        return wait_for_choice(
-            f"Confirm the next release for {source.primary_artist_name}"
-        )
-
-    def composer_playlist_reader(
-        artist: str,
-        candidates: tuple[queue_3.OwnedPlaylist, ...],
-    ) -> str:
-        with _blast_jobs_lock:
-            job.result.queue_3_pending_choice = Queue3PendingChoice(
-                kind="composer_playlist",
-                artist=artist,
-                playlists=[
-                    Queue3ComposerPlaylistOption(
-                        spotify_id=candidate.spotify_id,
-                        name=candidate.name,
-                        total_tracks=candidate.total_tracks,
-                    )
-                    for candidate in candidates
-                ],
-            )
-        return wait_for_choice(f"Choose the composer playlist for {artist}")
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _Queue3JobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        if annual_only:
-            summary = queue_3.import_previous_year_discoveries(
-                spotify,
-                playlist_id,
-                dry_run=dry_run,
-                echo=echo,
-                progress_callback=progress_callback,
-                retry_call=retry_call,
-            )
-        else:
-            summary = queue_3.flush_queue_3(
-                spotify,
-                playlist_id,
-                transition_reader,
-                composer_playlist_reader=composer_playlist_reader,
-                dry_run=dry_run,
-                echo=echo,
-                progress_callback=progress_callback,
-                retry_call=retry_call,
-            )
-    except _Queue3JobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            if annual_only:
-                job.result.detail = "Previous-year Queue 3 import stopped."
-            elif dry_run:
-                job.result.detail = "Queue 3 dry run stopped."
-            else:
-                job.result.detail = "Queue 3 flush stopped. Progress was saved."
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc)
-                + ". Progress was saved."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except RequestException:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = SPOTIFY_CONNECTION_FAILURE_DETAIL
-            _append_blast_log_locked(job, job.result.detail)
-    except (queue_3.Queue3Error, SpotifyException) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"{operation_name} failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected %s error", operation_name)
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected {operation_name} error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        with _blast_jobs_lock:
-            if isinstance(summary, queue_3.AnnualImportSummary):
-                _apply_queue_3_annual_summary(job, summary)
-            else:
-                _apply_queue_3_flush_summary(job, summary)
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.queue_3_pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    Queue3Worker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        dry_run=dry_run,
+        annual_only=annual_only,
+        connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        _apply_queue_3_annual_summary=_apply_queue_3_annual_summary,
+        _apply_queue_3_flush_summary=_apply_queue_3_flush_summary,
+        lock=_blast_jobs_lock,
+        _queue_3_release_option=_queue_3_release_option,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_new_wine_job(
@@ -2456,508 +1158,42 @@ def _run_new_wine_job(
     choose_album_endpoints: bool = False,
 ) -> None:
     """Execute one interactive New Wine flush as a reconnectable web job."""
-    job = get_blast_job(job_id, command="flush_new_wine")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "New Wine flush started"
-        _append_blast_log_locked(
-            job,
-            f"New Wine flush started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def progress_callback(completed: int, total: int, progress_status: str) -> None:
-        if job.cancel_event.is_set():
-            raise _NewWineJobCancelledError
-        with _blast_jobs_lock:
-            job.result.processed = completed
-            job.result.total = total
-            job.result.detail = progress_status
-
-    def choice_reader(
-        source: new_wine.PlaylistTrack,
-        candidates: tuple[new_wine.ReleaseCandidate, ...],
-    ) -> str:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _NewWineJobCancelledError
-            job.submitted_choice = None
-            job.choice_event.clear()
-            job.result.pending_choice = NewWinePendingChoice(
-                artist=source.primary_artist_name,
-                source_track=source.name,
-                terminal_release=source.release.release_type in {"Album", "EP"},
-                releases=[
-                    NewWineReleaseOption(
-                        spotify_id=candidate.spotify_id,
-                        name=candidate.name,
-                        release_type=candidate.release_type,
-                        release_date=candidate.release_date,
-                        total_tracks=candidate.total_tracks,
-                        primary_artist_name=candidate.primary_artist_name,
-                    )
-                    for candidate in candidates
-                ],
-            )
-            job.result.status = "waiting"
-            job.result.detail = (
-                f"Choose a release for {source.primary_artist_name} after {source.name}"
-            )
-            _append_blast_log_locked(job, job.result.detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _NewWineJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                job.submitted_choice = None
-                job.choice_event.clear()
-                job.result.pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying release choice"
-                _append_blast_log_locked(job, f"Release choice received: {choice}.")
-                return choice
-
-    def endpoint_choice_reader(
-        source: new_wine.PlaylistTrack,
-        tracks: tuple[new_wine.ReleaseTrack, ...],
-        current_index: int,
-    ) -> str:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _NewWineJobCancelledError
-            job.submitted_choice = None
-            job.choice_event.clear()
-            job.result.pending_choice = NewWinePendingChoice(
-                kind="album_endpoint",
-                artist=source.primary_artist_name,
-                source_track=source.name,
-                release=source.release.name,
-                track_position=current_index + 1,
-                total_tracks=len(tracks),
-            )
-            job.result.status = "waiting"
-            job.result.detail = (
-                f"Is {source.name} the last canonical track of {source.release.name}?"
-            )
-            _append_blast_log_locked(job, job.result.detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _NewWineJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                job.submitted_choice = None
-                job.choice_event.clear()
-                job.result.pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying album endpoint choice"
-                _append_blast_log_locked(job, f"Endpoint choice received: {choice}.")
-                return choice
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _NewWineJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        while True:
-            try:
-                result = review_album_limits.retry_spotify_server_errors(
-                    operation,
-                    description,
-                    echo=echo,
-                    sleep=interruptible_sleep,
-                    retry_delay_seconds=10,
-                    max_attempts=3,
-                )
-            except review_album_limits.SpotifyRateLimitError as exc:
-                delay = max(
-                    1,
-                    exc.retry_after_seconds or DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS,
-                )
-                retry_at = datetime.now(UTC) + timedelta(seconds=delay)
-                message = (
-                    f"Spotify rate limit reached while {description}. "
-                    "Retrying automatically "
-                    f"{review_album_limits.format_retry_delay(delay)}."
-                )
-                with _blast_jobs_lock:
-                    job.result.status = "running"
-                    job.result.retry_at = retry_at.isoformat()
-                    job.result.detail = message
-                    _append_blast_log_locked(job, message)
-                interruptible_sleep(delay)
-                with _blast_jobs_lock:
-                    job.result.retry_at = None
-                    job.result.detail = f"Retrying {description}."
-                    _append_blast_log_locked(job, job.result.detail)
-                continue
-            with _blast_jobs_lock:
-                job.result.retry_at = None
-            return result
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        summary = new_wine.flush_new_wine(
-            spotify,
-            new_wine_playlist_id,
-            sauvignon_playlist_id,
-            choice_reader=choice_reader,
-            endpoint_choice_reader=endpoint_choice_reader,
-            choose_album_endpoints=choose_album_endpoints,
-            wine_cellar_playlist_id=wine_cellar_playlist_id,
-            no_discovery=no_discovery,
-            dry_run=dry_run,
-            echo=echo,
-            progress_callback=progress_callback,
-            retry_call=retry_call,
-        )
-    except _NewWineJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.pending_choice = None
-            job.result.retry_at = None
-            job.result.detail = (
-                "New Wine flush stopped. Progress was saved."
-                if not dry_run
-                else "New Wine dry run stopped."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.pending_choice = None
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.pending_choice = None
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + ". "
-                "Progress was saved."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except (new_wine.NewWineError, SpotifyException) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.pending_choice = None
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"New Wine flush failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected New Wine flush error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.pending_choice = None
-            job.result.detail = f"Unexpected New Wine error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [_new_wine_track_result(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "paused" if summary.paused else "completed"
-            job.result.processed = summary.processed
-            job.result.total = summary.total
-            job.result.advanced = summary.advanced
-            job.result.dropped = summary.dropped
-            job.result.sent_to_sauvignon = summary.sent_to_sauvignon
-            job.result.completed_singles = summary.completed_singles
-            job.result.skipped = summary.skipped
-            job.result.albums_unsaved = summary.albums_unsaved
-            job.result.new_wine_results = results
-            job.result.new_wine_refill = _new_wine_refill_result(summary.refill)
-            job.result.pending_choice = None
-            if summary.paused:
-                job.result.detail = "New Wine flush paused. Progress was saved."
-            else:
-                unsave_label = "to unsave" if dry_run else "unsaved"
-                job.result.detail = (
-                    f"{summary.processed}/{summary.total} processed; "
-                    f"{summary.advanced} advanced, {summary.dropped} dropped, "
-                    f"{summary.sent_to_sauvignon} sent to Sauvignon, "
-                    f"{summary.albums_unsaved} albums {unsave_label}."
-                )
-                if summary.refill is not None:
-                    job.result.detail += (
-                        f" New Wine {summary.refill.before} -> "
-                        f"{summary.refill.after}; {summary.refill.added} pulled "
-                        "from Wine Cellar."
-                    )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    NewWineWorker(
+        job_id=job_id,
+        spotify=spotify,
+        new_wine_playlist_id=new_wine_playlist_id,
+        sauvignon_playlist_id=sauvignon_playlist_id,
+        wine_cellar_playlist_id=wine_cellar_playlist_id,
+        dry_run=dry_run,
+        no_discovery=no_discovery,
+        choose_album_endpoints=choose_album_endpoints,
+        rate_limit_delay=DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _new_wine_refill_result=_new_wine_refill_result,
+        _new_wine_track_result=_new_wine_track_result,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_slow_listening_job(
-    job_id: str,
-    spotify: Spotify,
-    playlist_id: str,
-    dry_run: bool,
+    job_id: str, spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> None:
     """Execute an interactive Slow Listening flush as a reconnectable job."""
-    job = get_blast_job(job_id, command="flush_slow_listening")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Slow Listening flush started"
-        _append_blast_log_locked(
-            job,
-            f"Slow Listening flush started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def progress_callback(completed: int, total: int, progress_status: str) -> None:
-        if job.cancel_event.is_set():
-            raise _SlowListeningJobCancelledError
-        with _blast_jobs_lock:
-            job.result.processed = completed
-            job.result.total = total
-            job.result.detail = progress_status
-
-    def wait_for_submission(
-        pending: SlowListeningPendingChoice,
-        detail: str,
-    ) -> tuple[str, tuple[str, ...] | None]:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _SlowListeningJobCancelledError
-            job.submitted_choice = None
-            job.submitted_order = None
-            job.choice_event.clear()
-            job.result.slow_listening_pending_choice = pending
-            job.result.status = "waiting"
-            job.result.detail = detail
-            _append_blast_log_locked(job, detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _SlowListeningJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                order = job.submitted_order
-                job.submitted_choice = None
-                job.submitted_order = None
-                job.choice_event.clear()
-                job.result.slow_listening_pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying Slow Listening choice"
-                _append_blast_log_locked(
-                    job,
-                    f"Slow Listening choice received: {choice}.",
-                )
-                return choice, order
-
-    def action_reader(
-        source: new_wine.PlaylistTrack,
-        target: new_wine.ReleaseTrack,
-        target_release: slow_listening.DiscographyRelease,
-    ) -> str:
-        choice, _order = wait_for_submission(
-            SlowListeningPendingChoice(
-                kind="track",
-                artist=source.primary_artist_name,
-                source_track=source.name,
-                source_release=source.release.name,
-                target_track=target.name,
-                target_release=target_release.name,
-            ),
-            (
-                f"Add {target.name} ({target_release.name}) after "
-                f"{source.primary_artist_name} - {source.name}?"
-            ),
-        )
-        return choice
-
-    def order_reader(
-        release_date: str,
-        candidates: tuple[slow_listening.DiscographyRelease, ...],
-    ) -> tuple[str, ...]:
-        artist = candidates[0].primary_artist_name if candidates else "Artist"
-        choice, order = wait_for_submission(
-            SlowListeningPendingChoice(
-                kind="release_order",
-                artist=artist,
-                release_date=release_date,
-                releases=[
-                    SlowListeningReleaseOption(
-                        spotify_id=candidate.spotify_id,
-                        name=candidate.name,
-                        release_type=candidate.release_type,
-                        release_date=candidate.release_date,
-                        total_tracks=candidate.total_tracks,
-                        saved=candidate.saved,
-                        plain=candidate.plain,
-                    )
-                    for candidate in candidates
-                ],
-            ),
-            f"Order {artist}'s releases dated {release_date}.",
-        )
-        if choice != "order" or order is None:
-            raise slow_listening.SlowListeningError(
-                "Slow Listening release order was not submitted."
-            )
-        return order
-
-    def completion_notifier(source: new_wine.PlaylistTrack) -> None:
-        choice, _order = wait_for_submission(
-            SlowListeningPendingChoice(
-                kind="completion",
-                artist=source.primary_artist_name,
-                source_track=source.name,
-                source_release=source.release.name,
-            ),
-            (
-                f"{source.primary_artist_name} completed Slow Listening. "
-                "Add a replacement artist, then continue."
-            ),
-        )
-        if choice != "continue":
-            raise slow_listening.SlowListeningError(
-                "Slow Listening completion was not acknowledged."
-            )
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _SlowListeningJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        summary = slow_listening.flush_slow_listening(
-            spotify,
-            playlist_id,
-            order_reader=order_reader,
-            completion_notifier=completion_notifier,
-            action_reader=action_reader,
-            dry_run=dry_run,
-            echo=echo,
-            progress_callback=progress_callback,
-            retry_call=retry_call,
-        )
-    except _SlowListeningJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.slow_listening_pending_choice = None
-            job.result.detail = (
-                "Slow Listening flush stopped. Progress was saved."
-                if not dry_run
-                else "Slow Listening dry run stopped."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.slow_listening_pending_choice = None
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.slow_listening_pending_choice = None
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + ". "
-                "Progress was saved."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except (slow_listening.SlowListeningError, SpotifyException) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.slow_listening_pending_choice = None
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Slow Listening flush failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Slow Listening flush error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.slow_listening_pending_choice = None
-            job.result.detail = f"Unexpected Slow Listening error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [_slow_listening_track_result(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "paused" if summary.paused else "completed"
-            job.result.processed = summary.processed
-            job.result.total = summary.total
-            job.result.advanced = summary.advanced
-            job.result.completed_artists = summary.completed_artists
-            job.result.skipped = summary.skipped
-            job.result.slow_listening_results = results
-            job.result.slow_listening_pending_choice = None
-            if summary.paused:
-                job.result.detail = "Slow Listening flush paused. Progress was saved."
-            else:
-                job.result.detail = (
-                    f"{summary.processed}/{summary.total} processed; "
-                    f"{summary.advanced} advanced, "
-                    f"{summary.completed_artists} artists completed, "
-                    f"{summary.skipped} skipped."
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.slow_listening_pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    SlowListeningWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        dry_run=dry_run,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _slow_listening_track_result=_slow_listening_track_result,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _something_old_date(timestamp_ms: int) -> str:
@@ -2981,300 +1217,22 @@ def _run_something_old_job(
     dry_run: bool,
 ) -> None:
     """Execute Something Old as a reconnectable interactive web job."""
-    job = get_blast_job(job_id, command="something_old")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Something Old started"
-        _append_blast_log_locked(
-            job,
-            f"Something Old started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def wait_for_submission(
-        pending: SomethingOldPendingChoice,
-        detail: str,
-    ) -> str:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _SomethingOldJobCancelledError
-            job.submitted_choice = None
-            job.choice_event.clear()
-            job.result.something_old_pending_choice = pending
-            job.result.status = "waiting"
-            job.result.detail = detail
-            _append_blast_log_locked(job, detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _SomethingOldJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                job.submitted_choice = None
-                job.choice_event.clear()
-                job.result.something_old_pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying Something Old choice"
-                _append_blast_log_locked(
-                    job,
-                    f"Something Old choice received: {choice}.",
-                )
-                return choice
-
-    def artist_choice_reader(
-        artist: something_old.GoldenOldieArtist,
-        candidates: tuple[something_old.SpotifyArtistCandidate, ...],
-    ) -> str:
-        average_date = _something_old_date(artist.average_scrobble_ms)
-        with _blast_jobs_lock:
-            job.result.something_old_artist = artist.artist
-            job.result.something_old_average_scrobble_date = average_date
-        return wait_for_submission(
-            SomethingOldPendingChoice(
-                kind="artist",
-                artist=artist.artist,
-                scrobbles=artist.scrobbles,
-                average_scrobble_date=average_date,
-                artist_candidates=[
-                    SomethingOldArtistOption(
-                        spotify_id=candidate.spotify_id,
-                        name=candidate.name,
-                        popularity=candidate.popularity,
-                        followers=candidate.followers,
-                    )
-                    for candidate in candidates
-                ],
-            ),
-            f"Choose the exact Spotify artist for {artist.artist}.",
-        )
-
-    def mode_reader(
-        artist: something_old.GoldenOldieArtist,
-        spotify_artist: something_old.SpotifyArtistCandidate,
-    ) -> str:
-        with _blast_jobs_lock:
-            job.result.something_old_artist = artist.artist
-            job.result.something_old_average_scrobble_date = _something_old_date(
-                artist.average_scrobble_ms
-            )
-            job.result.something_old_spotify_artist = spotify_artist.name
-        return wait_for_submission(
-            SomethingOldPendingChoice(
-                kind="mode",
-                artist=artist.artist,
-                scrobbles=artist.scrobbles,
-                average_scrobble_date=_something_old_date(artist.average_scrobble_ms),
-                spotify_artist=spotify_artist.name,
-            ),
-            f"Choose what to add for {artist.artist}.",
-        )
-
-    def album_choice_reader(
-        artist: something_old.GoldenOldieArtist,
-        releases: tuple[slow_listening.DiscographyRelease, ...],
-    ) -> str:
-        return wait_for_submission(
-            SomethingOldPendingChoice(
-                kind="album",
-                artist=artist.artist,
-                scrobbles=artist.scrobbles,
-                average_scrobble_date=_something_old_date(artist.average_scrobble_ms),
-                spotify_artist=job.result.something_old_spotify_artist,
-                releases=[
-                    SomethingOldReleaseOption(
-                        spotify_id=release.spotify_id,
-                        name=release.name,
-                        release_type=release.release_type,
-                        release_date=release.chronology_date,
-                        total_tracks=release.total_tracks,
-                        saved=release.saved,
-                        plain=release.plain,
-                    )
-                    for release in releases
-                ],
-            ),
-            f"Choose one album or EP by {artist.artist}.",
-        )
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _SomethingOldJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    lastfm = LastFmClient(
-        api_key,
-        username,
-        event_callback=echo,
-    )
-    try:
-        summary = something_old.run_something_old(
-            spotify,
-            lastfm,
-            playlist_id,
-            expected_username=username,
-            mode_reader=mode_reader,
-            album_choice_reader=album_choice_reader,
-            artist_choice_reader=artist_choice_reader,
-            dry_run=dry_run,
-            progress_callback=echo,
-            retry_call=retry_call,
-        )
-    except _SomethingOldJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.something_old_pending_choice = None
-            job.result.detail = "Something Old stopped. Spotify was unchanged."
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.something_old_pending_choice = None
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.something_old_pending_choice = None
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + "."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except SpotifyException as exc:
-        with _blast_jobs_lock:
-            if exc.http_status == 429:
-                retry_after = review_album_limits.get_retry_after_seconds(exc)
-                retry_at = (
-                    datetime.now(UTC) + timedelta(seconds=retry_after)
-                    if retry_after is not None
-                    else None
-                )
-                job.result.status = "paused"
-                job.result.retry_at = retry_at.isoformat() if retry_at else None
-                job.result.detail = (
-                    "Spotify rate limit reached. "
-                    f"{review_album_limits.format_retry_after(retry_after)}."
-                )
-            else:
-                job.result.status = "failed"
-                job.result.detail = str(exc)
-            job.result.something_old_pending_choice = None
-            _append_blast_log_locked(job, job.result.detail)
-    except (
-        something_old.SomethingOldError,
-        scrobble_history.ScrobbleHistoryError,
-        LastFmError,
-    ) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.something_old_pending_choice = None
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Something Old failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Something Old error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.something_old_pending_choice = None
-            job.result.detail = f"Unexpected Something Old error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        ranking = [
-            SomethingOldRankingEntry(
-                artist=entry.artist,
-                scrobbles=entry.scrobbles,
-                average_scrobble_date=_something_old_date(entry.average_scrobble_ms),
-            )
-            for entry in summary.ranking_preview
-        ]
-        tracks = [_something_old_track_result(track) for track in summary.tracks]
-        with _blast_jobs_lock:
-            job.result.status = (
-                "cancelled" if summary.action == "cancelled" else "completed"
-            )
-            job.result.something_old_action = summary.action
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.added = len(tracks) if summary.action == "added" else 0
-            job.result.something_old_ranking = ranking
-            job.result.something_old_tracks = tracks
-            job.result.something_old_pending_choice = None
-            if summary.history_refresh is not None:
-                job.result.live_scrobbles_added = (
-                    summary.history_refresh.live_scrobbles_added
-                )
-                job.result.history_scrobbles = summary.history_refresh.total_scrobbles
-            if summary.artist is not None:
-                job.result.something_old_artist = summary.artist.artist
-                job.result.something_old_average_scrobble_date = _something_old_date(
-                    summary.artist.average_scrobble_ms
-                )
-            if summary.spotify_artist is not None:
-                job.result.something_old_spotify_artist = summary.spotify_artist.name
-            job.result.something_old_mode = summary.mode
-            job.result.something_old_release = (
-                summary.release.name if summary.release is not None else None
-            )
-            if summary.action == "playlist not empty":
-                job.result.detail = (
-                    f"Something Old already contains {summary.playlist_length_before} "
-                    "item(s); nothing was changed."
-                )
-            elif summary.action == "cancelled":
-                job.result.detail = "Something Old was cancelled."
-            elif summary.action == "would add":
-                job.result.detail = (
-                    f"Dry run: would add {len(tracks)} track(s) for "
-                    f"{job.result.something_old_artist}."
-                )
-            else:
-                job.result.detail = (
-                    f"Added {len(tracks)} track(s) for "
-                    f"{job.result.something_old_artist}."
-                )
-            for track in tracks:
-                _append_blast_log_locked(
-                    job,
-                    f"Selected {', '.join(track.artists)} - {track.track} "
-                    f"({track.album or 'no album'}).",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.something_old_pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    SomethingOldWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        api_key=api_key,
+        username=username,
+        dry_run=dry_run,
+        create_lastfm=LastFmClient,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _something_old_date=_something_old_date,
+        _something_old_track_result=_something_old_track_result,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_release_check_job(
@@ -3286,247 +1244,22 @@ def _run_release_check_job(
     dry_run: bool,
 ) -> None:
     """Execute one reconnectable, interactive new-release check."""
-    job = get_blast_job(job_id, command="check_new_releases")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "New-release check started"
-        _append_blast_log_locked(
-            job,
-            f"New-release check started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def wait_for_submission(
-        pending: ReleaseCheckPendingChoice,
-        detail: str,
-    ) -> str:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _ReleaseCheckJobCancelledError
-            job.submitted_choice = None
-            job.choice_event.clear()
-            job.result.release_check_pending_choice = pending
-            job.result.status = "waiting"
-            job.result.detail = detail
-            _append_blast_log_locked(job, detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _ReleaseCheckJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                job.submitted_choice = None
-                job.choice_event.clear()
-                job.result.release_check_pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying release-check choice"
-                if choice.startswith(release_check.CHOICE_SEARCH_PREFIX):
-                    logged_choice = "custom artist search"
-                else:
-                    logged_choice = choice
-                _append_blast_log_locked(
-                    job,
-                    f"Release-check choice received: {logged_choice}.",
-                )
-                return choice
-
-    def artist_choice_reader(
-        artist: release_check.RankedArtist,
-        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
-    ) -> str:
-        return wait_for_submission(
-            ReleaseCheckPendingChoice(
-                kind="artist",
-                artist=artist.name,
-                artist_rank=artist.rank,
-                artist_scrobbles=artist.scrobbles,
-                artist_candidates=[
-                    ReleaseCheckArtistOption(
-                        spotify_id=candidate.spotify_id,
-                        name=candidate.name,
-                        popularity=candidate.popularity,
-                        followers=candidate.followers,
-                        exact_name=candidate.exact_name,
-                    )
-                    for candidate in candidates
-                ],
-            ),
-            f"Choose the Spotify artist for #{artist.rank} {artist.name}.",
-        )
-
-    def release_choice_reader(
-        artist: release_check.RankedArtist,
-        release: release_check.ReleaseCandidate,
-        track: release_check.ReleaseTrack,
-        destinations: tuple[str, ...],
-        unattached_single: bool,
-    ) -> str:
-        return wait_for_submission(
-            ReleaseCheckPendingChoice(
-                kind="release",
-                artist=artist.name,
-                artist_rank=artist.rank,
-                artist_scrobbles=artist.scrobbles,
-                release=release.name,
-                release_type=release.release_type,
-                release_date=release.release_date,
-                first_track=track.name,
-                destinations=list(destinations),
-                tags=list(release_check.release_tags(release)),
-                unattached_single=unattached_single,
-            ),
-            (
-                f"Review {release.release_type.casefold()} {release.name} "
-                f"by {artist.name}."
-            ),
-        )
-
-    def update_progress(completed: int, total: int, detail: str) -> None:
-        with _blast_jobs_lock:
-            job.result.processed = completed
-            job.result.total = total
-            job.result.detail = detail
-            _append_blast_log_locked(job, detail)
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _ReleaseCheckJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    lastfm = LastFmClient(api_key, username, event_callback=echo)
-    try:
-        summary = release_check.run_release_check(
-            spotify,
-            lastfm,
-            playlists,
-            expected_username=username,
-            artist_choice_reader=artist_choice_reader,
-            release_choice_reader=release_choice_reader,
-            dry_run=dry_run,
-            state_path=RELEASE_CHECK_STATE_PATH,
-            state_service=get_state_service(),
-            progress_callback=update_progress,
-            retry_call=retry_call,
-        )
-    except _ReleaseCheckJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = (
-                "New-release check stopped. Durable progress was preserved."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + "."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except SpotifyException as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Spotify request failed: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    except (
-        release_check.ReleaseCheckError,
-        scrobble_history.ScrobbleHistoryError,
-        LastFmError,
-        RequestException,
-        StateError,
-    ) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"New-release check failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected new-release check error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected new-release check error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        results = [_release_check_result(result) for result in summary.results]
-        with _blast_jobs_lock:
-            job.result.status = "paused" if summary.paused else "completed"
-            job.result.run_id = summary.run_id
-            job.result.processed = summary.artists_processed
-            job.result.total = summary.artists_total
-            job.result.release_check_checked_from = summary.checked_from.isoformat()
-            job.result.release_check_checked_through = (
-                summary.checked_through.isoformat()
-            )
-            job.result.release_check_resumed = summary.resumed
-            job.result.release_check_paused = summary.paused
-            job.result.release_check_wine_cellar_duplicates_removed = (
-                summary.wine_cellar_duplicates_removed
-            )
-            job.result.release_check_wine_cellar_added = summary.wine_cellar_added
-            job.result.release_check_new_vintage_added = summary.new_vintage_added
-            job.result.release_check_results = results
-            if summary.history_refresh is not None:
-                job.result.live_scrobbles_added = (
-                    summary.history_refresh.live_scrobbles_added
-                )
-                job.result.history_scrobbles = summary.history_refresh.total_scrobbles
-            if summary.paused:
-                job.result.detail = (
-                    "New-release check paused. Rerun it to resume from the "
-                    "durable checkpoint."
-                )
-            else:
-                verb = "Would add" if dry_run else "Added"
-                cleanup = "would normalize" if dry_run else "normalized"
-                job.result.detail = (
-                    f"{summary.artists_processed}/{summary.artists_total} artists "
-                    f"checked. {verb} {summary.wine_cellar_added} to Wine Cellar "
-                    f"and {summary.new_vintage_added} to New Vintage; "
-                    f"{summary.wine_cellar_duplicates_removed} duplicate Wine "
-                    f"Cellar track(s) {cleanup}."
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.release_check_pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    ReleaseCheckWorker(
+        RELEASE_CHECK_STATE_PATH=RELEASE_CHECK_STATE_PATH,
+        job_id=job_id,
+        spotify=spotify,
+        playlists=playlists,
+        api_key=api_key,
+        username=username,
+        dry_run=dry_run,
+        create_lastfm=LastFmClient,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _release_check_result=_release_check_result,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_discography_job(
@@ -3537,427 +1270,36 @@ def _run_discography_job(
     dry_run: bool,
 ) -> None:
     """Execute one reload-safe interactive discography planning job."""
-    job = get_blast_job(job_id, command="plan_discographies")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Discography planning started"
-        _append_blast_log_locked(
-            job,
-            f"Discography planning started{' in dry-run mode' if dry_run else ''}.",
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def wait_for_submission(
-        pending: DiscographyPendingChoice,
-        detail: str,
-    ) -> tuple[str, tuple[str, ...]]:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _DiscographyJobCancelledError
-            job.submitted_choice = None
-            job.submitted_order = None
-            job.choice_event.clear()
-            job.result.discography_pending_choice = pending
-            job.result.status = "waiting"
-            job.result.detail = detail
-            _append_blast_log_locked(job, detail)
-
-        while True:
-            job.choice_event.wait(0.5)
-            with _blast_jobs_lock:
-                if job.cancel_event.is_set():
-                    raise _DiscographyJobCancelledError
-                choice = job.submitted_choice
-                if choice is None:
-                    continue
-                release_ids = job.submitted_order or ()
-                job.submitted_choice = None
-                job.submitted_order = None
-                job.choice_event.clear()
-                job.result.discography_pending_choice = None
-                job.result.status = "running"
-                job.result.detail = "Applying discography choice"
-                _append_blast_log_locked(
-                    job,
-                    f"Discography choice received: {choice}.",
-                )
-                return choice, release_ids
-
-    def release_selector(
-        artist: discography.QueueArtist,
-        releases: tuple[discography.CatalogRelease, ...],
-    ) -> tuple[str, ...]:
-        choice, release_ids = wait_for_submission(
-            DiscographyPendingChoice(
-                kind="releases",
-                artist=artist.name,
-                queue=discography.QUEUE_LABELS[artist.queue],
-                releases=[
-                    DiscographyReleaseOption(
-                        spotify_id=release.spotify_id,
-                        name=release.name,
-                        release_type=release.release_type,
-                        release_date=release.chronology_date,
-                        total_tracks=release.total_tracks,
-                        saved=release.saved,
-                        default=release.default,
-                    )
-                    for release in releases
-                ],
-                default_release_ids=[
-                    release.spotify_id for release in releases if release.default
-                ],
-            ),
-            f"Choose the releases to count for {artist.name}.",
-        )
-        if choice == "quit":
-            raise _DiscographyJobCancelledError
-        if choice == "none":
-            return ()
-        return release_ids
-
-    def historical_artist_choice_reader(
-        artist_name: str,
-        candidates: tuple[something_old.SpotifyArtistCandidate, ...],
-    ) -> str:
-        choice, _release_ids = wait_for_submission(
-            DiscographyPendingChoice(
-                kind="artist",
-                artist=artist_name,
-                queue=discography.QUEUE_LABELS["memory_lane"],
-                artist_candidates=[
-                    SomethingOldArtistOption(
-                        spotify_id=candidate.spotify_id,
-                        name=candidate.name,
-                        popularity=candidate.popularity,
-                        followers=candidate.followers,
-                    )
-                    for candidate in candidates
-                ],
-            ),
-            f"Choose the exact Spotify artist for {artist_name}.",
-        )
-        return choice
-
-    def progress(detail: str) -> None:
-        with _blast_jobs_lock:
-            if job.cancel_event.is_set():
-                raise _DiscographyJobCancelledError
-            job.result.detail = detail
-            _append_blast_log_locked(job, detail)
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _DiscographyJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        plan = discography.build_discography_plan(
-            spotify,
-            playlist_ids,
-            release_selector,
-            queue_3_playlist_id=queue_3_playlist_id,
-            historical_artist_choice_reader=historical_artist_choice_reader,
-            retry_call=retry_call,
-            progress_callback=progress,
-        )
-        with _blast_jobs_lock:
-            job.result.discography_start_queue = discography.QUEUE_LABELS[
-                plan.start_queue
-            ]
-            job.result.discography_next_queue = discography.QUEUE_LABELS[
-                plan.next_queue
-            ]
-            job.result.discography_total_releases = plan.total_releases
-            job.result.discography_days = plan.days
-            job.result.discography_open_slots = plan.open_slots
-            job.result.discography_results = [
-                _discography_artist_result(selection) for selection in plan.artists
-            ]
-
-        if not plan.artists:
-            with _blast_jobs_lock:
-                job.result.status = "completed"
-                job.result.detail = "No artists with selected releases were found."
-                _append_blast_log_locked(job, job.result.detail)
-        elif dry_run:
-            with _blast_jobs_lock:
-                job.result.status = "completed"
-                job.result.detail = (
-                    f"Dry run complete: {plan.total_releases} releases over "
-                    f"{plan.days:g} days. Playlists and state were unchanged."
-                )
-                _append_blast_log_locked(job, job.result.detail)
-        else:
-            choice, _release_ids = wait_for_submission(
-                DiscographyPendingChoice(kind="confirm"),
-                (
-                    "Confirm removal from the source queues and Queue 3 "
-                    "where applicable."
-                ),
-            )
-            if choice == "quit":
-                raise _DiscographyJobCancelledError
-            if choice == "keep":
-                with _blast_jobs_lock:
-                    job.result.status = "completed"
-                    job.result.detail = (
-                        "Discography plan complete; playlist markers and state "
-                        "were kept unchanged."
-                    )
-                    _append_blast_log_locked(job, job.result.detail)
-            else:
-                summary = discography.apply_discography_plan(
-                    spotify,
-                    plan,
-                    retry_call=retry_call,
-                    progress_callback=progress,
-                )
-                with _blast_jobs_lock:
-                    job.result.status = "completed"
-                    job.result.discography_removed_artists = summary.removed_artists
-                    job.result.discography_removed_markers = summary.removed_markers
-                    job.result.detail = (
-                        f"Removed {summary.removed_artists} artists and "
-                        f"{summary.removed_markers} marker tracks. The next run "
-                        f"starts with {discography.QUEUE_LABELS[summary.next_queue]}."
-                    )
-                    _append_blast_log_locked(job, job.result.detail)
-    except _DiscographyJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = "Discography planning stopped; nothing else changed."
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + "."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except SpotifyException as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Spotify request failed: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    except (discography.DiscographyError, RequestException) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Discography planning failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected discography planning error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected discography planning error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.discography_pending_choice = None
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    DiscographyWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_ids=playlist_ids,
+        queue_3_playlist_id=queue_3_playlist_id,
+        dry_run=dry_run,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _discography_artist_result=_discography_artist_result,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_requeue_for_a_dream_job(
-    job_id: str,
-    spotify: Spotify,
-    playlist_id: str,
-    dry_run: bool,
+    job_id: str, spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> None:
     """Execute one reconnectable Requeue for a Dream transition."""
-    job = get_blast_job(job_id, command="flush_requeue_for_a_dream")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Requeue for a Dream started"
-        _append_blast_log_locked(
-            job,
-            (
-                "Requeue for a Dream started in dry-run mode."
-                if dry_run
-                else "Requeue for a Dream started."
-            ),
-        )
-
-    def echo(message: str) -> None:
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _RequeueForADreamJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        if job.cancel_event.is_set():
-            raise _RequeueForADreamJobCancelledError
-        result = review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-        if job.cancel_event.is_set():
-            raise _RequeueForADreamJobCancelledError
-        return result
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    try:
-        summary = requeue_for_a_dream.flush_requeue_for_a_dream(
-            spotify,
-            playlist_id,
-            dry_run=dry_run,
-            echo=echo,
-            progress_callback=echo,
-            retry_call=retry_call,
-        )
-    except _RequeueForADreamJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = (
-                "Requeue for a Dream stopped safely. Rerun it to continue."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + "."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except SpotifyException as exc:
-        with _blast_jobs_lock:
-            if exc.http_status == 429:
-                retry_after = review_album_limits.get_retry_after_seconds(exc)
-                retry_at = (
-                    datetime.now(UTC) + timedelta(seconds=retry_after)
-                    if retry_after is not None
-                    else None
-                )
-                job.result.status = "paused"
-                job.result.retry_at = retry_at.isoformat() if retry_at else None
-                job.result.detail = (
-                    "Spotify rate limit reached. "
-                    f"{review_album_limits.format_retry_after(retry_after)}."
-                )
-            else:
-                job.result.status = "failed"
-                job.result.detail = str(exc)
-            _append_blast_log_locked(job, job.result.detail)
-    except requeue_for_a_dream.RequeueForADreamError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Requeue for a Dream failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Requeue for a Dream error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected Requeue for a Dream error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        with _blast_jobs_lock:
-            job.result.status = "completed"
-            job.result.requeue_action = summary.action
-            job.result.requeue_artist = summary.artist
-            job.result.requeue_source_track = summary.source_track
-            job.result.requeue_source_release = summary.source_release
-            job.result.requeue_target_track = summary.target_track
-            job.result.requeue_target_release = summary.target_release
-            job.result.requeue_target_release_type = summary.target_release_type
-            job.result.requeue_target_release_date = summary.target_release_date
-            job.result.requeue_target_already_present = summary.target_already_present
-            job.result.playlist_length_before = summary.playlist_length_before
-            job.result.playlist_length_after = summary.playlist_length_after
-            job.result.added = int(
-                summary.action == "advance" and not summary.target_already_present
-            )
-            if summary.action == "advance":
-                verb = "would advance" if dry_run else "advanced"
-                job.result.detail = (
-                    f"{verb.capitalize()} {summary.artist} from "
-                    f"{summary.source_release} to {summary.target_release}."
-                )
-            elif summary.action == "drop":
-                verb = "would drop" if dry_run else "dropped"
-                job.result.detail = (
-                    f"{verb.capitalize()} {summary.artist} after the final "
-                    "eligible release."
-                )
-            elif summary.action == "empty":
-                job.result.detail = "Requeue for a Dream is empty."
-            else:
-                job.result.detail = (
-                    f"Skipped {summary.artist or 'the playlist head'}: "
-                    f"{summary.reason or 'no safe transition was found'}."
-                )
-            if summary.target_track:
-                _append_blast_log_locked(
-                    job,
-                    f"Next track: {summary.target_track} ({summary.target_release}).",
-                )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    RequeueForADreamWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        dry_run=dry_run,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_palace_of_memory_job(
@@ -3969,298 +1311,38 @@ def _run_palace_of_memory_job(
     cursor_position: int | None,
 ) -> None:
     """Execute one reconnectable Palace fill or cursor adjustment."""
-    job = get_blast_job(job_id, command="fill_palace_of_memory")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = (
-            "Setting Palace alphabetical cursor"
-            if cursor_position is not None
-            else "Palace of Memory started"
-        )
-        _append_blast_log_locked(job, job.result.detail)
-
-    def echo(message: str) -> None:
-        if job.cancel_event.is_set():
-            raise _PalaceOfMemoryJobCancelledError
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    def interruptible_sleep(seconds: float) -> None:
-        if job.cancel_event.wait(seconds):
-            raise _PalaceOfMemoryJobCancelledError
-
-    def retry_call(
-        operation: Callable[[], object],
-        description: str,
-    ) -> object:
-        if job.cancel_event.is_set():
-            raise _PalaceOfMemoryJobCancelledError
-        result = review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=echo,
-            sleep=interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-        if job.cancel_event.is_set():
-            raise _PalaceOfMemoryJobCancelledError
-        return result
-
-    spotify_event_setter = getattr(spotify, "set_event_callback", None)
-    previous_spotify_event_callback = None
-    if callable(spotify_event_setter):
-        previous_spotify_event_callback = spotify_event_setter(echo)
-
-    cursor_update: palace_of_memory.AlphabeticalCursorUpdate | None = None
-    summary: palace_of_memory.PalaceOfMemorySummary | None = None
-    try:
-        if cursor_position is not None:
-            cursor_update = palace_of_memory.set_alphabetical_cursor(
-                spotify,
-                cursor_position,
-                progress_callback=echo,
-                retry_call=retry_call,
-            )
-        else:
-            if playlist_id is None:
-                raise palace_of_memory.PalaceOfMemoryConfigError(
-                    "Palace of Memory playlist is required."
-                )
-            summary = palace_of_memory.fill_palace_of_memory(
-                spotify,
-                playlist_id,
-                dry_run=dry_run,
-                alphabetical_start=alphabetical_start,
-                echo=echo,
-                progress_callback=echo,
-                retry_call=retry_call,
-            )
-    except _PalaceOfMemoryJobCancelledError:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = "Palace of Memory stopped safely. Rerun it to continue."
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyRateLimitError as exc:
-        retry_at = None
-        if exc.retry_after_seconds is not None:
-            retry_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.retry_at = retry_at.isoformat() if retry_at else None
-            job.result.detail = (
-                "Spotify rate limit reached. "
-                f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except review_album_limits.SpotifyTransientServerError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "paused"
-            job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + "."
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    except SpotifyException as exc:
-        with _blast_jobs_lock:
-            if exc.http_status == 429:
-                retry_after = review_album_limits.get_retry_after_seconds(exc)
-                retry_at = (
-                    datetime.now(UTC) + timedelta(seconds=retry_after)
-                    if retry_after is not None
-                    else None
-                )
-                job.result.status = "paused"
-                job.result.retry_at = retry_at.isoformat() if retry_at else None
-                job.result.detail = (
-                    "Spotify rate limit reached. "
-                    f"{review_album_limits.format_retry_after(retry_after)}."
-                )
-            else:
-                job.result.status = "failed"
-                job.result.detail = str(exc)
-            _append_blast_log_locked(job, job.result.detail)
-    except palace_of_memory.PalaceOfMemoryError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Palace of Memory failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected Palace of Memory error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected Palace of Memory error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        with _blast_jobs_lock:
-            job.result.status = "completed"
-            if cursor_update is not None:
-                refresh = cursor_update.album_refresh
-                job.result.palace_alphabetical_start_index = cursor_update.next_index
-                job.result.palace_alphabetical_next_index = cursor_update.next_index
-                job.result.palace_next_album_artist = cursor_update.next_album.artist
-                job.result.palace_next_album = cursor_update.next_album.album
-                job.result.detail = (
-                    f"Alphabetical cursor set to {cursor_update.next_index + 1}: "
-                    f"{cursor_update.next_album.artist} - "
-                    f"{cursor_update.next_album.album}."
-                )
-            elif summary is not None:
-                refresh = summary.album_refresh
-                job.result.random_org_timestamp = summary.generated_at.isoformat()
-                job.result.palace_cutoff_date = summary.cutoff_date.isoformat()
-                job.result.palace_available_dates = summary.available_dates
-                job.result.palace_alphabetical_start_index = (
-                    summary.alphabetical_start_index
-                )
-                job.result.palace_alphabetical_next_index = (
-                    summary.alphabetical_next_index
-                )
-                job.result.palace_alphabetical_cursor_overridden = (
-                    summary.alphabetical_cursor_overridden
-                )
-                job.result.playlist_length_before = summary.playlist_length_before
-                job.result.playlist_length_after = summary.playlist_length_after
-                job.result.added = summary.added
-                job.result.palace_results = [
-                    PalaceAlbumSelectionResult(
-                        source=result.source,
-                        selected_date=(
-                            result.selected_date.isoformat()
-                            if result.selected_date is not None
-                            else None
-                        ),
-                        history_position=result.history_position,
-                        albums_on_date=result.albums_on_date,
-                        artist=result.artist,
-                        album=result.album,
-                        spotify_album=(
-                            result.spotify_album.album
-                            if result.spotify_album is not None
-                            else None
-                        ),
-                        first_track=(
-                            result.first_track.name
-                            if result.first_track is not None
-                            else None
-                        ),
-                        action=result.action,
-                    )
-                    for result in summary.results
-                ]
-                verb = "Would add" if dry_run else "Added"
-                job.result.detail = (
-                    f"{verb} {summary.added} first track(s) to Palace of Memory."
-                )
-                for result in job.result.palace_results:
-                    _append_blast_log_locked(
-                        job,
-                        f"{result.source.title()}: {result.artist} - "
-                        f"{result.album} -> {result.first_track or 'no match'} "
-                        f"({result.action}).",
-                    )
-            else:  # pragma: no cover - defensive worker invariant
-                raise AssertionError("Palace worker completed without a result")
-
-            job.result.palace_album_refresh = PalaceAlbumRefreshResult(
-                previous=refresh.previous,
-                current=refresh.current,
-                added=refresh.added,
-                removed=refresh.removed,
-                skipped=refresh.skipped,
-                persisted=refresh.persisted,
-                backup_path=refresh.backup_path,
-            )
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        if callable(spotify_event_setter):
-            spotify_event_setter(previous_spotify_event_callback)
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    PalaceOfMemoryWorker(
+        job_id=job_id,
+        spotify=spotify,
+        playlist_id=playlist_id,
+        dry_run=dry_run,
+        alphabetical_start=alphabetical_start,
+        cursor_position=cursor_position,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def _run_scrobble_history_job(
-    job_id: str,
-    api_key: str,
-    username: str,
-    dry_run: bool,
-    full_rebuild: bool = False,
+    job_id: str, api_key: str, username: str, dry_run: bool, full_rebuild: bool = False
 ) -> None:
     """Refresh the shared Last.fm record as a reconnectable web job."""
-    job = get_blast_job(job_id, command="update_scrobble_history")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-        job.result.detail = "Last.fm scrobble history update started"
-        _append_blast_log_locked(
-            job,
-            (
-                "Last.fm scrobble history update started in dry-run mode."
-                if dry_run
-                else "Last.fm scrobble history update started."
-            ),
-        )
-
-    def echo(message: str) -> None:
-        scrobble_history.check_cancel(job.cancel_event.is_set)
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    lastfm = LastFmClient(
-        api_key,
-        username,
-        event_callback=echo,
-    )
-    try:
-        summary = scrobble_history.refresh_scrobble_history(
-            lastfm,
-            expected_username=username,
-            dry_run=dry_run,
-            full_rebuild=full_rebuild,
-            progress_callback=echo,
-            cancel_check=job.cancel_event.is_set,
-        )
-    except scrobble_history.ScrobbleHistoryCancelledError as exc:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, job.result.detail)
-    except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, f"Scrobble history update failed: {exc}")
-    except Exception as exc:  # pragma: no cover - last-resort worker boundary
-        _analysis_logger.exception("Unexpected scrobble history update error")
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = f"Unexpected scrobble history update error: {exc}"
-            _append_blast_log_locked(job, job.result.detail)
-    else:
-        with _blast_jobs_lock:
-            job.result.status = "completed"
-            job.result.history_export_scrobbles = summary.export_scrobbles
-            job.result.history_legacy_scrobbles_added = summary.legacy_scrobbles_added
-            job.result.live_scrobbles_added = summary.live_scrobbles_added
-            job.result.history_scrobbles = summary.total_scrobbles
-            job.result.history_persisted = summary.persisted
-            job.result.history_backup_path = (
-                str(summary.backup_path) if summary.backup_path else None
-            )
-            if summary.dry_run:
-                job.result.detail = (
-                    "Dry run complete; the canonical Last.fm history was unchanged."
-                )
-            elif summary.persisted:
-                job.result.detail = "Last.fm scrobble history updated safely."
-            else:
-                job.result.detail = "Last.fm scrobble history was already current."
-            _append_blast_log_locked(job, job.result.detail)
-    finally:
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    ScrobbleHistoryWorker(
+        job_id=job_id,
+        api_key=api_key,
+        username=username,
+        dry_run=dry_run,
+        full_rebuild=full_rebuild,
+        create_lastfm=LastFmClient,
+        logger=_analysis_logger,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def start_blast_job(
@@ -6890,50 +3972,19 @@ def _run_new_year_job(
     job_id: str, spotify: Spotify, year: int | None, dry_run: bool
 ) -> None:
     """Run the annual workflow through the shared routine and job registry."""
-    job = get_blast_job(job_id, command="new_year")
-    with _blast_jobs_lock:
-        job.result.status = "running"
-        job.result.started_at = datetime.now(UTC).isoformat()
-
-    def echo(message: str) -> None:
-        scrobble_history.check_cancel(job.cancel_event.is_set)
-        with _blast_jobs_lock:
-            job.result.detail = message
-            _append_blast_log_locked(job, message)
-
-    try:
-        configuration = Settings()
-        key, username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key, configuration.lastfm_username
-        )
-        result = new_year.run_new_year(
-            spotify,
-            LastFmClient(key, username, event_callback=echo),
-            configuration,
-            year=year,
-            dry_run=dry_run,
-            echo=echo,
-            cancel_check=job.cancel_event.is_set,
-            retry_call=_playlist_job_retry(job, echo),
-        )
-        with _blast_jobs_lock:
-            job.result.new_year_result = result
-            job.result.status = "completed"
-    except (
-        scrobble_history.ScrobbleHistoryCancelledError,
-        blast_from_past.BlastFromPastCancelledError,
-    ) as exc:
-        with _blast_jobs_lock:
-            job.result.status = "cancelled"
-            job.result.detail = str(exc)
-    except Exception as exc:
-        with _blast_jobs_lock:
-            job.result.status = "failed"
-            job.result.detail = str(exc)
-            _append_blast_log_locked(job, str(exc))
-    finally:
-        with _blast_jobs_lock:
-            job.result.completed_at = datetime.now(UTC).isoformat()
+    NewYearWorker(
+        job_id=job_id,
+        spotify=spotify,
+        year=year,
+        dry_run=dry_run,
+        create_lastfm=LastFmClient,
+        configuration=Settings,
+        append=_append_blast_log_locked,
+        lock=_blast_jobs_lock,
+        _playlist_job_retry=_playlist_job_retry,
+        clock=datetime,
+        lookup=get_blast_job,
+    ).run()
 
 
 def cmd_new_year(

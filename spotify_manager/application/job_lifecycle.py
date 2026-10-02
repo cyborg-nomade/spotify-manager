@@ -39,6 +39,41 @@ class JobIdentity(Protocol):
         ...
 
 
+class WaitSignal(Protocol):
+    """Expose the caller-owned submission signal without a thread dependency."""
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Wait for the original signal or polling timeout.
+
+        Args:
+            timeout: Maximum wait in seconds.
+
+        Returns:
+            Whether the signal is set after the wait.
+        """
+        ...
+
+
+def await_submission[T](signal: WaitSignal, consume: Callable[[], T | None]) -> T:
+    """Poll and consume an interaction at the original locked safe boundary.
+
+    Args:
+        signal: Existing job-owned event, including its original clearing semantics.
+        consume: Adapter callback acquiring its lock and checking cancellation.
+
+    Returns:
+        First accepted submission, including an empty string or empty tuple.
+
+    Raises:
+        RuntimeError: The owning adapter signals cancellation during consumption.
+    """
+    while True:
+        signal.wait(0.5)
+        submission = consume()
+        if submission is not None:
+            return submission
+
+
 def first_active_job(
     jobs: Iterable[JobIdentity], command: str | None = None
 ) -> JobIdentity | None:
