@@ -50,6 +50,8 @@ from spotify_manager.core.library_data.runtime import get_library_data_service
 from spotify_manager.core.state.models import StateDocumentError
 from spotify_manager.core.state.models import StateError
 from spotify_manager.core.state.runtime import get_state_service
+from spotify_manager.interfaces.cli.history import HistoryCommand
+from spotify_manager.interfaces.cli.history import present_history_summary
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
 from spotify_manager.processors.library_lookups import AmbiguousArtistError
@@ -1319,25 +1321,13 @@ def print_scrobble_history_summary(
     console: Console,
     summary: scrobble_history.ScrobbleHistorySummary,
 ) -> None:
-    """Render one compact Last.fm history refresh summary."""
-    table = Table(title="Last.fm scrobble history")
-    table.add_column("Source")
-    table.add_column("Scrobbles", justify="right")
-    table.add_row("Existing export", f"{summary.export_scrobbles:,}")
-    table.add_row("Legacy Found Art delta", f"+{summary.legacy_scrobbles_added:,}")
-    table.add_row("Live Last.fm API", f"+{summary.live_scrobbles_added:,}")
-    table.add_row("Merged total", f"{summary.total_scrobbles:,}", style="bold")
-    console.print(table)
-    if summary.dry_run:
-        console.print("Dry run: the canonical history was not changed.", style="cyan")
-    elif summary.persisted:
-        console.print(
-            f"Saved atomically after backup: {summary.backup_path}",
-            style="bold green",
-            markup=False,
-        )
-    else:
-        console.print("The canonical history was already current.", style="green")
+    """Render one compact Last.fm history refresh summary.
+
+    Args:
+        console: Original command-owned terminal console.
+        summary: Accepted history outcome to present without changing its values.
+    """
+    present_history_summary(console, summary)
 
 
 def _scrobble_date(timestamp_ms: int) -> str:
@@ -1892,35 +1882,14 @@ def update_scrobble_history_command(
     ),
 ) -> None:
     """Update the canonical Last.fm export used by every history routine."""
-    console = Console()
-    configuration = Settings()
-    try:
-        api_key, username = found_art.validate_lastfm_configuration(
-            configuration.lastfm_api_key,
-            configuration.lastfm_username,
-        )
-    except found_art.FoundArtConfigError as exc:
-        console.print(str(exc), style="bold red", markup=False)
-        raise typer.Exit(code=1) from exc
-
-    lastfm_client = LastFmClient(
-        api_key,
-        username,
-        event_callback=lambda message: console.print(message, style="yellow"),
-    )
-    try:
-        with console.status("Refreshing Last.fm scrobble history") as status:
-            summary = scrobble_history.refresh_scrobble_history(
-                lastfm_client,
-                expected_username=username,
-                dry_run=dry_run,
-                full_rebuild=full_rebuild,
-                progress_callback=status.update,
-            )
-    except (scrobble_history.ScrobbleHistoryError, LastFmError) as exc:
-        console.print(str(exc), style="bold red", markup=False)
-        raise typer.Exit(code=1) from exc
-    print_scrobble_history_summary(console, summary)
+    HistoryCommand(
+        console=Console(),
+        configuration=Settings(),
+        validate=found_art.validate_lastfm_configuration,
+        create_client=LastFmClient,
+        refresh=scrobble_history.refresh_scrobble_history,
+        present=print_scrobble_history_summary,
+    ).run(full_rebuild, dry_run)
 
 
 @app.command(name="something-old")

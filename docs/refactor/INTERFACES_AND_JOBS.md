@@ -96,6 +96,22 @@ Other feature routers follow the same facade entry pattern. Their worker/CLI
 implementation extraction is still in progress; do not assume all logic has
 already moved out of `api.py` and `main.py`.
 
+## History CLI increment
+
+The `update-scrobble-history` command now delegates to a feature-owned
+`interfaces/cli/history.py` adapter with explicit configuration, reader factory,
+refresh and presenter dependencies. Its ordinary `echo` method replaces the
+event lambda. The public command keeps its original Typer signature, flags, help
+text, console/settings creation order and facade override seams.
+
+The summary renderer preserves original table rows, formatting and persistence
+messages. Configuration errors still precede client construction; construction
+errors remain outside the guarded refresh boundary. Two added tests exercise
+construction-time event routing and uncaught construction failure. With the
+original CLI tests, 99 tests pass and cover the new module's statements and
+branches at 100%. Strict typing passes and all 11 frozen public artifacts still
+match. Other CLI command/prompt/rendering families remain in progress.
+
 ## Implementation sequence
 
 1. Characterize existing starts, asymmetric conflicts, command/ID guards,
