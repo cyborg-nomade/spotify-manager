@@ -1,0 +1,802 @@
+[
+  {
+    "extra": null,
+    "failure": null,
+    "outcome": {
+      "result": {
+        "queues": {
+          "newfoundland": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "newfoundland"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "newfoundland"
+            }
+          ],
+          "memory_lane": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "memory_lane"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "memory_lane"
+            }
+          ],
+          "requeue": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "requeue"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "requeue"
+            }
+          ]
+        },
+        "markers": {
+          "a": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "first",
+                "third"
+              ]
+            }
+          ],
+          "b": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "second"
+              ]
+            }
+          ]
+        }
+      },
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": null,
+    "failure": "nf",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": null,
+    "failure": "ml",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": null,
+    "failure": "rq",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": null,
+    "failure": "extra",
+    "outcome": {
+      "result": {
+        "queues": {
+          "newfoundland": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "newfoundland"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "newfoundland"
+            }
+          ],
+          "memory_lane": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "memory_lane"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "memory_lane"
+            }
+          ],
+          "requeue": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "requeue"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "requeue"
+            }
+          ]
+        },
+        "markers": {
+          "a": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "first",
+                "third"
+              ]
+            }
+          ],
+          "b": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "second"
+              ]
+            }
+          ]
+        }
+      },
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "extra",
+    "failure": null,
+    "outcome": {
+      "result": {
+        "queues": {
+          "newfoundland": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "newfoundland"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "newfoundland"
+            }
+          ],
+          "memory_lane": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "memory_lane"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "memory_lane"
+            }
+          ],
+          "requeue": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "requeue"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "requeue"
+            }
+          ]
+        },
+        "markers": {
+          "a": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "queue_3",
+              "playlist_id": "extra",
+              "uris": [
+                "first",
+                "third"
+              ]
+            }
+          ],
+          "b": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "queue_3",
+              "playlist_id": "extra",
+              "uris": [
+                "second"
+              ]
+            }
+          ]
+        }
+      },
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ],
+        [
+          "playlist",
+          "extra"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "extra",
+    "failure": "nf",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "extra",
+    "failure": "ml",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "extra",
+    "failure": "rq",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "extra",
+    "failure": "extra",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ],
+        [
+          "playlist",
+          "extra"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "",
+    "failure": null,
+    "outcome": {
+      "result": {
+        "queues": {
+          "newfoundland": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "newfoundland"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "newfoundland"
+            }
+          ],
+          "memory_lane": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "memory_lane"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "memory_lane"
+            }
+          ],
+          "requeue": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "requeue"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "requeue"
+            }
+          ]
+        },
+        "markers": {
+          "a": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "queue_3",
+              "playlist_id": "",
+              "uris": [
+                "first",
+                "third"
+              ]
+            }
+          ],
+          "b": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "queue_3",
+              "playlist_id": "",
+              "uris": [
+                "second"
+              ]
+            }
+          ]
+        }
+      },
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ],
+        [
+          "playlist",
+          ""
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "",
+    "failure": "nf",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "",
+    "failure": "ml",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "",
+    "failure": "rq",
+    "outcome": {
+      "error": "DiscographyError",
+      "message": "playlist failed",
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ]
+      ]
+    }
+  },
+  {
+    "extra": "",
+    "failure": "extra",
+    "outcome": {
+      "result": {
+        "queues": {
+          "newfoundland": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "newfoundland"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "newfoundland"
+            }
+          ],
+          "memory_lane": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "memory_lane"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "memory_lane"
+            }
+          ],
+          "requeue": [
+            {
+              "spotify_id": "a",
+              "name": "Alpha",
+              "queue": "requeue"
+            },
+            {
+              "spotify_id": "b",
+              "name": "Beta",
+              "queue": "requeue"
+            }
+          ]
+        },
+        "markers": {
+          "a": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "first",
+                "third"
+              ]
+            },
+            {
+              "queue": "queue_3",
+              "playlist_id": "",
+              "uris": [
+                "first",
+                "third"
+              ]
+            }
+          ],
+          "b": [
+            {
+              "queue": "newfoundland",
+              "playlist_id": "nf",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "memory_lane",
+              "playlist_id": "ml",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "requeue",
+              "playlist_id": "rq",
+              "uris": [
+                "second"
+              ]
+            },
+            {
+              "queue": "queue_3",
+              "playlist_id": "",
+              "uris": [
+                "second"
+              ]
+            }
+          ]
+        }
+      },
+      "trace": [
+        [
+          "playlist",
+          "nf"
+        ],
+        [
+          "playlist",
+          "ml"
+        ],
+        [
+          "playlist",
+          "rq"
+        ],
+        [
+          "playlist",
+          ""
+        ]
+      ]
+    }
+  }
+]

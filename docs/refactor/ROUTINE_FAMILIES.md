@@ -1219,3 +1219,32 @@ passes 5,226 tests with seed 20261026 (94.66% statements, 87.14% branches).
 
 Discography, New Year, library/legacy and operational integration remain before
 the final Item 6 ownership audit and complete pull request.
+
+### Discography checkpoint
+
+Discography now has pure owners for independent queue-priority rotations, catalog
+and marker qualification, edition chronology, historical artist rankings and
+release-index expressions. Named application stages own ordered queue gathering,
+complete paged catalog/saved-membership reads, lazy historical fallback, interactive
+selection, round-week packing and confirmed execution. Shared studio parsing has
+an infrastructure owner; Discography no longer imports Slow Listening's private
+business helpers. State and audit files retain their original outer semantics.
+
+Immutable original evidence covers 53 complete planning observations, 60 confirmed
+execution/failure/replay observations, 44 raw catalog records, nine complete
+catalog read profiles, 24 history/random selections, 15 source queue reads and
+seven display-spelling rankings. Injected plans and execution preserve every
+captured outcome and trace. Empty catalog/choice cache hits remain authoritative;
+Memory Lane fallback stays lazy. Silent default counts qualify packing before
+interaction, with no new constraint on the chosen count. Queue 3 removal still
+requires Newfoundland markers. Every artist audit precedes the single final
+priority checkpoint, including the original checkpoint on an empty plan.
+
+Isolated gates pass 835 domain and 1,832 application tests at 100% statement and
+branch coverage. New catalog/state/studio record boundaries reach 100% in 104
+focused tests. Ruff, formatting, package mypy, strict new boundary/test typing and
+structure checks pass. All 11 frozen public artifacts match. The full randomized
+suite passes 5,523 tests with seed 20261027 (94.89% statements, 87.84% branches).
+
+New Year, library/legacy and operational integration remain before Item 6 is
+complete and its pull request is opened.

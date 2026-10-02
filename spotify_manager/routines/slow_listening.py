@@ -39,6 +39,7 @@ from spotify_manager.domain import releases as release_policy
 from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRelease
 from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.slow_listening import track_index
+from spotify_manager.infrastructure import studio_records
 from spotify_manager.routines import new_wine
 
 
@@ -98,31 +99,11 @@ def parse_playlist_id(reference: str | None) -> str:
 
 
 def _positive_int(raw: object, fallback: int = 0) -> int:
-    """Parse a positive integer returned by Spotify."""
-    if isinstance(raw, int) and not isinstance(raw, bool):
-        return raw if raw > 0 else fallback
-    if isinstance(raw, str):
-        try:
-            parsed = int(raw.strip())
-        except ValueError:
-            return fallback
-        return parsed if parsed > 0 else fallback
-    return fallback
+    return studio_records.positive_int(raw, fallback)
 
 
 def _artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
-    """Return Spotify artist ids and names in credit order."""
-    if not isinstance(raw, list):
-        return ()
-    artists: list[tuple[str, str]] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        spotify_id = str(item.get("id") or "").strip()
-        name = str(item.get("name") or "").strip()
-        if spotify_id:
-            artists.append((spotify_id, name or spotify_id))
-    return tuple(artists)
+    return studio_records.artist_pairs(raw)
 
 
 def _edition_details(name: str) -> tuple[str, int]:
@@ -154,46 +135,7 @@ def _release_candidate(
     raw: object,
     artist_id: str,
 ) -> DiscographyRelease | None:
-    """Parse one primary-artist studio album or EP candidate."""
-    if not isinstance(raw, dict):
-        return None
-    artists = _artist_pairs(raw.get("artists"))
-    if not artists or artists[0][0] != artist_id:
-        return None
-    spotify_id = str(raw.get("id") or "").strip()
-    uri = str(raw.get("uri") or "").strip()
-    name = str(raw.get("name") or spotify_id).strip()
-    if not spotify_id or not uri or not name or _is_non_studio_title(name):
-        return None
-
-    total_tracks = _positive_int(raw.get("total_tracks"))
-    raw_type = str(raw.get("album_type") or "").casefold()
-    if raw_type == "album":
-        release_type = "Album"
-    elif raw_type in {"single", "ep"} and (
-        raw_type == "ep" or total_tracks >= 4 or EP_MARKER.search(name)
-    ):
-        release_type = "EP"
-    else:
-        return None
-
-    release_date = str(raw.get("release_date") or "Unknown")
-    _base, edition_rank = _edition_details(name)
-    return DiscographyRelease(
-        spotify_id=spotify_id,
-        uri=uri,
-        name=name,
-        release_type=release_type,
-        release_date=release_date,
-        chronology_date=release_date,
-        total_tracks=total_tracks,
-        primary_artist_id=artists[0][0],
-        primary_artist_name=artists[0][1],
-        identity=release_identity(name),
-        saved=False,
-        plain=edition_rank == 0,
-        edition_rank=edition_rank,
-    )
+    return studio_records.studio_release(raw, artist_id)
 
 
 def _release_date_key(value: str) -> tuple[int, int, int, str]:

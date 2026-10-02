@@ -1,0 +1,105 @@
+[
+  {
+    "names": [],
+    "result": []
+  },
+  {
+    "names": [
+      " "
+    ],
+    "result": []
+  },
+  {
+    "names": [
+      "Alpha",
+      "ALPHA",
+      "Álpha",
+      "Beta"
+    ],
+    "result": [
+      {
+        "name": "ALPHA",
+        "scrobbles": 3
+      },
+      {
+        "name": "Beta",
+        "scrobbles": 1
+      }
+    ]
+  },
+  {
+    "names": [
+      "Zulu",
+      "Alpha",
+      "ALPHA",
+      "Beta",
+      "BETA"
+    ],
+    "result": [
+      {
+        "name": "ALPHA",
+        "scrobbles": 2
+      },
+      {
+        "name": "BETA",
+        "scrobbles": 2
+      },
+      {
+        "name": "Zulu",
+        "scrobbles": 1
+      }
+    ]
+  },
+  {
+    "names": [
+      " Alpha ",
+      "alpha",
+      "Alpha",
+      "Beta"
+    ],
+    "result": [
+      {
+        "name": "Alpha",
+        "scrobbles": 3
+      },
+      {
+        "name": "Beta",
+        "scrobbles": 1
+      }
+    ]
+  },
+  {
+    "names": [
+      "Z",
+      "z",
+      "Z",
+      "Beta",
+      "Beta"
+    ],
+    "result": [
+      {
+        "name": "Z",
+        "scrobbles": 3
+      },
+      {
+        "name": "Beta",
+        "scrobbles": 2
+      }
+    ]
+  },
+  {
+    "names": [
+      "!",
+      "?",
+      "Björk",
+      "Bjork",
+      "BJORK"
+    ],
+    "result": [
+      {
+        "name": "BJORK",
+        "scrobbles": 3
+      }
+    ]
+  }
+]

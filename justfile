@@ -113,6 +113,12 @@ test-application:
         --cov=spotify_manager.application.palace_history \
         --cov=spotify_manager.application.palace_mirror \
         --cov=spotify_manager.application.palace_cursor \
+        --cov=spotify_manager.application.discography_values \
+        --cov=spotify_manager.application.discography_planning \
+        --cov=spotify_manager.application.discography_execution \
+        --cov=spotify_manager.application.discography_history \
+        --cov=spotify_manager.application.discography_catalog \
+        --cov=spotify_manager.application.discography_queues \
         --cov=spotify_manager.application.queue_values \
         --cov=spotify_manager.application.genre_progress \
         --cov=spotify_manager.application.genre_values \
