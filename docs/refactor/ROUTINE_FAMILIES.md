@@ -1499,3 +1499,14 @@ transport, awaited orchestration and measured concurrency are items 8–10.
 Preserved legacy recovery and malformed-input limitations remain characterized;
 this item does not silently repair them. After PR review and local testing, the
 approved workflow requires deployment verification before merge and cleanup.
+
+### Release preflight: Python 3.13 annotation compatibility
+
+The first authenticated Actions preflight found an eager-annotation import error
+in `HttpResponse.__enter__` on Python 3.13. Syntax parsing and the Python 3.14
+import smoke check could not expose that runtime difference. The transport module
+now explicitly defers annotations, preserving its signatures and runtime behavior.
+An actual Python 3.13 execution of the standalone automation client passes;
+all 248 focused automation, injected-workflow and HTTP contract tests still pass,
+along with strict typing and Ruff. The Actions preflight is repeated before
+deployment. No Space update occurred during the failed check.
