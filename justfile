@@ -129,6 +129,15 @@ test-application:
         --cov=spotify_manager.application.new_year_charts \
         --cov=spotify_manager.application.new_year_membership \
         --cov=spotify_manager.application.new_year_retry \
+        --cov=spotify_manager.application.artist_review_values \
+        --cov=spotify_manager.application.artist_review_effects \
+        --cov=spotify_manager.application.artist_review_session \
+        --cov=spotify_manager.application.artist_review_recovery \
+        --cov=spotify_manager.application.artist_review_decisions \
+        --cov=spotify_manager.application.artist_review_run \
+        --cov=spotify_manager.application.artist_review_catalog \
+        --cov=spotify_manager.application.artist_review_membership \
+        --cov=spotify_manager.application.artist_review_state \
         --cov=spotify_manager.application.queue_values \
         --cov=spotify_manager.application.genre_progress \
         --cov=spotify_manager.application.genre_values \

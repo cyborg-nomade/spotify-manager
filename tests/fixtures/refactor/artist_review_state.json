@@ -1,0 +1,353 @@
+[
+  {
+    "raw": null,
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": [],
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {},
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      },
+      "validated": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "raw": {
+      "version": true,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      },
+      "validated": {
+        "version": true,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": {},
+      "retained": {
+        "unknown": true
+      }
+    },
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      },
+      "validated": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {},
+        "pending_queue_moves": {},
+        "retained": {
+          "unknown": true
+        }
+      }
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [
+        " a ",
+        "a",
+        "a"
+      ],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [
+          " a ",
+          "a"
+        ],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      },
+      "validated": {
+        "version": 1,
+        "completed_artist_ids": [
+          " a ",
+          "a",
+          "a"
+        ],
+        "pending_unfollows": {},
+        "pending_queue_moves": {}
+      }
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": {
+        "a": {},
+        "b": false,
+        "3": {
+          "raw": null
+        }
+      },
+      "pending_queue_moves": {
+        "a": {
+          "unknown": true
+        },
+        "b": []
+      }
+    },
+    "outcome": {
+      "state": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {
+          "a": {},
+          "3": {
+            "raw": null
+          }
+        },
+        "pending_queue_moves": {
+          "a": {
+            "unknown": true
+          }
+        }
+      },
+      "validated": {
+        "version": 1,
+        "completed_artist_ids": [],
+        "pending_unfollows": {
+          "a": {},
+          "b": false,
+          "3": {
+            "raw": null
+          }
+        },
+        "pending_queue_moves": {
+          "a": {
+            "unknown": true
+          },
+          "b": []
+        }
+      }
+    }
+  },
+  {
+    "raw": {
+      "version": null,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 0,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 2,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": "1",
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": null,
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": {},
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [
+        1
+      ],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [
+        null
+      ],
+      "pending_unfollows": {},
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": null,
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": [],
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": false,
+      "pending_queue_moves": {}
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": null
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": []
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  },
+  {
+    "raw": {
+      "version": 1,
+      "completed_artist_ids": [],
+      "pending_unfollows": {},
+      "pending_queue_moves": false
+    },
+    "outcome": {
+      "error": "ArtistReviewError",
+      "message": "Artist-review state is invalid."
+    }
+  }
+]

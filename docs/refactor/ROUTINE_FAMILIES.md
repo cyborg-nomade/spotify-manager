@@ -1274,3 +1274,34 @@ seed 20261028.
 
 Library/legacy and operational integration remain before the final Item 6
 ownership audit and complete pull request.
+
+### Followed-artist review checkpoint
+
+Artist review now separates queue precedence, tied-track selection, chronology,
+release classification and exact search filters from its ordered coordinator.
+Named application stages own opening, lazy queue membership, zero-liked decisions,
+track/release interaction, journaled unfollows, promotions and completion. Catalog
+gathering checkpoints each original metadata unit; tolerant Spotify/cache codecs,
+audit bytes, atomic files and shallow state reconstruction have outer owners.
+Review and recovery share a named statistics-period policy instead of a routine
+business dependency. Public constructors, signatures and SDK expressions remain
+at the original compatibility seams.
+
+Immutable original observations cover 172 complete runs and recoveries, 160
+catalog/cache/membership sequences, 94 policy examples, 219 raw catalog records,
+22 shallow checkpoints and 17 legacy audit histories. Independently injected
+execution matches every complete outcome and effect prefix. Existing queue tiers
+remain sticky; only queue-one promotion moves an artist. Recovery precedes new
+catalog work, audit precedes progress, empty cache hits remain authoritative and
+raw discography qualification remains delayed until scanning ends. Native errors
+on valid non-object audit lines and retained temporary files after replacement
+failure remain unchanged.
+
+Isolated gates pass 951 domain and 2,715 application tests with 100% statement and
+branch coverage. New catalog, state and file boundaries also reach 100% in focused
+tests. Ruff, formatting, package mypy, strict new boundary/test typing and structure
+checks pass. All 11 frozen public artifacts match. The complete randomized suite
+passes 6,795 tests with seed 20261029 (95.34% statements, 89.43% branches).
+
+Library analysis, remaining legacy processors/loaders and operational integration
+remain before the final Item 6 ownership audit and complete pull request.

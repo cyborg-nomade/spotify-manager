@@ -13,8 +13,10 @@ from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.library_statistics import (
+    period_report as select_period_report,
+)
 from spotify_manager.application.library_statistics import report_with_recovered_counts
-from spotify_manager.application.library_statistics import reset_period
 from spotify_manager.application.recovery_values import RecoveryState as RecoveryState
 from spotify_manager.application.recovery_values import (
     RecoverySummary as RecoverySummary,
@@ -328,10 +330,7 @@ def period_report(stats_history: dict[str, StatsReport]) -> tuple[str, StatsRepo
     Raises:
         StopIteration: No report exists to seed the new period.
     """
-    key = current_stats_history_key()
-    if key in stats_history:
-        return key, stats_history[key]
-    return key, reset_period(next(reversed(stats_history.values())))
+    return select_period_report(stats_history, current_stats_history_key())
 
 
 def sync_stats_history_counts(

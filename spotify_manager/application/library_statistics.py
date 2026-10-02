@@ -127,3 +127,57 @@ def report_with_recovered_counts(
     albums = _album_totals(report.albums_stats, total_albums)
     artists = _artist_totals(report.artists_stats, total_artists)
     return _with_ratios(report, albums, artists, max(1, artists.total_followed_artists))
+
+
+def period_report(history: dict[str, StatsReport], key: str) -> tuple[str, StatsReport]:
+    """Select an existing period or reset the last insertion-ordered report.
+
+    Args:
+        history: Original complete insertion-ordered report history.
+        key: Original period identity supplied by the outer clock boundary.
+
+    Returns:
+        Original effective key and existing or reset report.
+
+    Raises:
+        StopIteration: No report exists to seed a missing period.
+    """
+    if key in history:
+        return key, history[key]
+    return key, reset_period(next(reversed(history.values())))
+
+
+def report_with_unfollowed_artists(
+    report: StatsReport, total: int, removed: int
+) -> StatsReport:
+    """Retain original post-unfollow deltas and the clamped ratio denominator.
+
+    Args:
+        report: Original current-period report.
+        total: Original current followed-artist count after the accepted batch.
+        removed: Original accepted unfollow batch size.
+
+    Returns:
+        Original copied artist counters and integer library ratios.
+    """
+    previous = (
+        report.artists_stats.total_followed_artists
+        - report.artists_stats.added_artists
+        + report.artists_stats.removed_artists
+    )
+    artists = report.artists_stats.model_copy(
+        update={
+            "total_followed_artists": total,
+            "removed_artists": report.artists_stats.removed_artists + removed,
+            "growth": calculate_growth(total, previous),
+        }
+    )
+    return report.model_copy(
+        update={
+            "artists_stats": artists,
+            "avg_albums_per_artists": report.albums_stats.total_saved_albums
+            // max(1, total),
+            "avg_liked_tracks_per_artists": report.tracks_stats.total_liked_tracks
+            // max(1, total),
+        }
+    )

@@ -2,8 +2,12 @@
 
 import pytest
 
+from spotify_manager.application.library_statistics import period_report
 from spotify_manager.application.library_statistics import report_with_followed_artist
 from spotify_manager.application.library_statistics import report_with_recovered_counts
+from spotify_manager.application.library_statistics import (
+    report_with_unfollowed_artists,
+)
 from spotify_manager.application.library_statistics import reset_period
 from spotify_manager.models.stats import AlbumsStats
 from spotify_manager.models.stats import ArtistsStats
@@ -107,3 +111,38 @@ def test_review_retains_zero_denominator_error_instead_of_recovery_clamp() -> No
     """The two legacy arithmetic paths intentionally keep different edge behavior."""
     with pytest.raises(ZeroDivisionError):
         report_with_followed_artist(_report(-1), False)
+
+
+def test_period_selection_keeps_existing_identity_and_resets_last_inserted() -> None:
+    """Retain current report identity and insertion-order seeding for a new period."""
+    first = _report(9)
+    last = _report(10)
+    history = {"first": first, "last": last}
+    assert period_report(history, "first") == ("first", first)
+    key, new = period_report(history, "new")
+    assert key == "new"
+    assert new == reset_period(last)
+    assert history == {"first": first, "last": last}
+    with pytest.raises(StopIteration):
+        period_report({}, "new")
+
+
+@pytest.mark.parametrize("total,removed", [(0, 10), (9, 1), (13, 0)])
+def test_unfollow_statistics_preserve_period_arithmetic(
+    total: int, removed: int
+) -> None:
+    """Retain deltas, growth and original clamped integer ratios without mutation.
+
+    Args:
+        total: Original remaining followed-artist count.
+        removed: Original accepted batch count.
+    """
+    source = _report()
+    result = report_with_unfollowed_artists(source, total, removed)
+    assert result.artists_stats.total_followed_artists == total
+    assert result.artists_stats.removed_artists == 2 + removed
+    assert result.artists_stats.added_artists == 4
+    assert result.artists_stats.growth == pytest.approx((total - 8) / 8 * 100)
+    assert result.avg_albums_per_artists == 20 // max(1, total)
+    assert result.avg_liked_tracks_per_artists == 100 // max(1, total)
+    assert source == _report()
