@@ -52,7 +52,49 @@ progress, unknown or smaller totals, cancellation detail, empty messages, retry
 resume/cancellation, optional rate-limit timestamps, outcome logs, SDK hook
 binding/restoration and concurrent callback/signal ownership. The 28 tests provide
 100% statement and branch coverage of the new worker. Frozen interface artifacts
-still match. Other worker families, routers and CLI adapters remain pending.
+still match. Other worker families and CLI adapters remain pending. Router
+registration is separated in the next increment below.
+
+## HTTP router increment
+
+The 115 original API registrations are now declared in 24 feature router
+factories under `interfaces/http/routers/`. `api.py` supplies its original public
+handler functions explicitly and includes the routers in their original encounter
+order. Factories own fresh routers; no handler is generated or rebound through
+copied globals. Existing dependency signatures, response models, status codes,
+handler names and documentation remain unchanged.
+
+The locked FastAPI represents included routers as lazy route contexts. The audit
+capture now observes their effective metadata, retaining nested prefixes,
+methods, hidden routes and declared response/status information. Tests check
+direct, included and nested registrations, so router extraction cannot make the
+audit silently omit public endpoints. The original baseline is unchanged and
+the complete comparison still verifies all 11 public artifacts.
+
+The existing 1,507 job/API/web tests pass after registration moves. Three direct
+audit tests also pass; router factories and audit tests pass strict typing. The
+remaining HTTP handler logic, worker families and CLI extraction are pending.
+
+## Following a frontend request
+
+Route declarations now provide the first backend entry point when searching for
+a URL used in `frontend/index.html`. They name the existing facade handler,
+whose signature still owns the framework's validation and dependency overrides.
+For a library-analysis start and its later polling:
+
+| Step | Location to follow |
+| --- | --- |
+| Frontend request and polling | `spotify_manager/frontend/index.html` |
+| URL, HTTP method, accepted status and response model | `interfaces/http/routers/analysis.py` |
+| Public handlers, reservation and scheduler target | `api.py`: `cmd_analyse_library_*`, `start_analysis_job`, `_run_analysis_job` |
+| Job-owned progress, cancellation/retry callbacks and outcome presentation | `interfaces/http/analysis_worker.py` |
+| Existing use-case composition and compatibility seams | `routines/analyse_library.py`, `bootstrap/library_analysis.py` |
+| Typed use-case stages and pure business rules | `application/library_analysis_*.py`, `domain/library_analysis*.py` |
+| External implementations and return views | `infrastructure/library_analysis_*.py`, `interfaces/http/models/analysis.py` |
+
+Other feature routers follow the same facade entry pattern. Their worker/CLI
+implementation extraction is still in progress; do not assume all logic has
+already moved out of `api.py` and `main.py`.
 
 ## Implementation sequence
 

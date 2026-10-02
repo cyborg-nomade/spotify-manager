@@ -36,7 +36,6 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Query
 from fastapi import Request
-from fastapi import status
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
 from requests.exceptions import RequestException
@@ -309,6 +308,52 @@ from spotify_manager.interfaces.http.presenters.wine import (
 from spotify_manager.interfaces.http.presenters.wine import (
     new_wine_track_result as _new_wine_track_result,
 )
+from spotify_manager.interfaces.http.routers.analysis import router as _analysis_router
+from spotify_manager.interfaces.http.routers.daily_mind_radio import (
+    router as _daily_mind_radio_router,
+)
+from spotify_manager.interfaces.http.routers.discography import (
+    router as _discography_router,
+)
+from spotify_manager.interfaces.http.routers.discovery import (
+    router as _discovery_router,
+)
+from spotify_manager.interfaces.http.routers.dormant import router as _dormant_router
+from spotify_manager.interfaces.http.routers.found_art import (
+    router as _found_art_router,
+)
+from spotify_manager.interfaces.http.routers.health import router as _health_router
+from spotify_manager.interfaces.http.routers.historical import (
+    router as _historical_router,
+)
+from spotify_manager.interfaces.http.routers.history import router as _history_router
+from spotify_manager.interfaces.http.routers.library_commands import (
+    router as _library_commands_router,
+)
+from spotify_manager.interfaces.http.routers.lookups import router as _lookups_router
+from spotify_manager.interfaces.http.routers.new_year import router as _new_year_router
+from spotify_manager.interfaces.http.routers.palace import router as _palace_router
+from spotify_manager.interfaces.http.routers.queue_2 import router as _queue_2_router
+from spotify_manager.interfaces.http.routers.queue_3 import router as _queue_3_router
+from spotify_manager.interfaces.http.routers.queue_fill import (
+    router as _queue_fill_router,
+)
+from spotify_manager.interfaces.http.routers.queue_flush import (
+    router as _queue_flush_router,
+)
+from spotify_manager.interfaces.http.routers.releases import router as _releases_router
+from spotify_manager.interfaces.http.routers.requeue import router as _requeue_router
+from spotify_manager.interfaces.http.routers.sauvignon import (
+    router as _sauvignon_router,
+)
+from spotify_manager.interfaces.http.routers.slow_listening import (
+    router as _slow_listening_router,
+)
+from spotify_manager.interfaces.http.routers.something_old import (
+    router as _something_old_router,
+)
+from spotify_manager.interfaces.http.routers.state import router as _state_router
+from spotify_manager.interfaces.http.routers.wine import router as _wine_router
 from spotify_manager.loaders_savers import load_your_library_file
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import ArtistLibraryStats
@@ -5019,19 +5064,16 @@ def _spotify_lookup_failed(request: Request, exc: SpotifyException) -> JSONRespo
     )
 
 
-@app.get("/health")
 def health() -> dict[str, str]:
     """Liveness probe."""
     return {"status": "ok"}
 
 
-@app.get("/auth/check")
 def auth_check() -> dict[str, str]:
     """Side-effect-free password check protected by the deployment middleware."""
     return {"status": "ok"}
 
 
-@app.get("/state/summary", response_model=SharedStateSummary)
 def shared_state_summary() -> SharedStateSummary:
     """Return state freshness without transferring the complete document."""
     try:
@@ -5050,7 +5092,6 @@ def shared_state_summary() -> SharedStateSummary:
     )
 
 
-@app.get("/state", response_model=SharedStateSnapshot)
 def shared_state() -> SharedStateSnapshot:
     """Return the complete shared application state and revision guard."""
     try:
@@ -5065,7 +5106,6 @@ def shared_state() -> SharedStateSnapshot:
     )
 
 
-@app.get("/state/schema")
 def shared_state_editor_schema() -> dict[str, Any]:
     """Return backend-owned controls and constraints for manual state edits."""
     schema = state_editor_schema()
@@ -5077,10 +5117,6 @@ def shared_state_editor_schema() -> dict[str, Any]:
     return schema
 
 
-@app.put(
-    "/state/namespaces/{namespace}",
-    response_model=SharedStateSnapshot,
-)
 def replace_shared_state_namespace(
     namespace: str,
     request: SharedStateNamespaceReplaceRequest,
@@ -5118,7 +5154,6 @@ def replace_shared_state_namespace(
     )
 
 
-@app.put("/state", response_model=SharedStateSnapshot)
 def replace_shared_state(request: SharedStateReplaceRequest) -> SharedStateSnapshot:
     """Manually replace shared state only when the viewed revision is current."""
     try:
@@ -5139,7 +5174,6 @@ def replace_shared_state(request: SharedStateReplaceRequest) -> SharedStateSnaps
     )
 
 
-@app.get("/state/export")
 def export_shared_state() -> Response:
     """Download the current shared state as a JSON snapshot."""
     try:
@@ -5166,7 +5200,6 @@ def export_shared_state() -> Response:
     )
 
 
-@app.post("/library/refresh", response_model=CommandResult)
 def refresh_library() -> CommandResult:
     """Drop the cached library so the next request re-reads YourLibrary.json."""
     get_library.cache_clear()
@@ -5176,7 +5209,6 @@ def refresh_library() -> CommandResult:
 # --------------------------------------------------------------------------- #
 # Live Spotify lookups
 # --------------------------------------------------------------------------- #
-@app.get("/artists/stats", response_model=ArtistLibraryStats)
 def artist_stats(
     client: ClientDep,
     reference: Annotated[str | None, Query()] = None,
@@ -5210,7 +5242,6 @@ def artist_stats(
         ) from exc
 
 
-@app.get("/albums/evaluation", response_model=AlbumEvaluation)
 def album_evaluation(
     client: ClientDep,
     reference: Annotated[str | None, Query()] = None,
@@ -5248,7 +5279,6 @@ def album_evaluation(
         ) from exc
 
 
-@app.get("/tracks/scrobbles", response_model=TrackScrobbleStatus)
 def track_scrobble_status(
     client: ClientDep,
     reference: Annotated[str | None, Query()] = None,
@@ -5288,7 +5318,6 @@ def track_scrobble_status(
 # --------------------------------------------------------------------------- #
 # Mirrored CLI commands
 # --------------------------------------------------------------------------- #
-@app.post("/commands/monthly-routines", response_model=CommandResult)
 def cmd_monthly_routines(client: ClientDep) -> CommandResult:
     """Run the full monthly routine (compare, convert, monthly)."""
     compare_your_library_and_all_albums()
@@ -5297,7 +5326,6 @@ def cmd_monthly_routines(client: ClientDep) -> CommandResult:
     return CommandResult(command="monthly_routines")
 
 
-@app.post("/commands/update-total-albums", response_model=CommandResult)
 def cmd_update_total_albums(
     client: ClientDep, just_update: bool = False
 ) -> CommandResult:
@@ -5308,45 +5336,35 @@ def cmd_update_total_albums(
     )
 
 
-@app.post("/commands/restore-your-library", response_model=CommandResult)
 def cmd_restore_your_library(client: ClientDep) -> CommandResult:
     """Restore artists and tracks from the YourLibrary file."""
     restore_your_library_from_file(client)
     return CommandResult(command="restore_your_library")
 
 
-@app.post("/commands/compare-lib-files", response_model=CommandResult)
 def cmd_compare_lib_files() -> CommandResult:
     """Create the comparison between YourLibrary and the total-albums file."""
     compare_your_library_and_all_albums()
     return CommandResult(command="compare_lib_files")
 
 
-@app.post("/commands/analyse-comp", response_model=CommandResult)
 def cmd_analyse_comp(client: ClientDep) -> CommandResult:
     """Analyse the saved comparison file against the live library."""
     analyse_comparison(client)
     return CommandResult(command="analyse_comp")
 
 
-@app.post("/commands/convert-lib", response_model=CommandResult)
 def cmd_convert_lib(client: ClientDep) -> CommandResult:
     """Convert the YourLibrary file into the total-albums file."""
     convert_your_library_file(client)
     return CommandResult(command="convert_lib")
 
 
-@app.get("/commands/count-artists", response_model=CountResult)
 def cmd_count_artists() -> CountResult:
     """Count the artists in the YourLibrary file."""
     return CountResult(count=count_artists_in_library())
 
 
-@app.post(
-    "/commands/blast-from-the-past",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_blast_from_the_past(
     client: InteractiveClientDep,
     count: Annotated[int | None, Query(ge=1)] = None,
@@ -5375,19 +5393,11 @@ def cmd_blast_from_the_past(
     )
 
 
-@app.get(
-    "/commands/blast-from-the-past-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_blast_jobs() -> list[BlastJobResult]:
     """Return active playlist jobs so the web UI can reconnect after reload."""
     return _active_playlist_jobs("blast_from_the_past")
 
 
-@app.get(
-    "/commands/blast-from-the-past-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_blast_job(job_id: str) -> BlastJobResult:
     """Return current progress for one playlist job."""
     job = get_blast_job(job_id, command="blast_from_the_past")
@@ -5395,10 +5405,6 @@ def cmd_blast_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/blast-from-the-past-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_blast_job(job_id: str) -> BlastJobResult:
     """Stop a Blast job at the next bounded network-operation boundary."""
     return _cancel_simple_playlist_job(
@@ -5408,11 +5414,6 @@ def cmd_cancel_blast_job(job_id: str) -> BlastJobResult:
     )
 
 
-@app.post(
-    "/commands/blast-from-the-past-artists",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_blast_from_the_past_artists(
     client: InteractiveClientDep,
     count: Annotated[int, Query(ge=1)] = blast_from_past_artists.DEFAULT_COUNT,
@@ -5428,19 +5429,11 @@ def cmd_blast_from_the_past_artists(
     return start_blast_artist_job(client, playlist_id, count, dry_run)
 
 
-@app.get(
-    "/commands/blast-from-the-past-artists-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_blast_artist_jobs() -> list[BlastJobResult]:
     """Return the active dormant-artist job for browser reconnection."""
     return _active_playlist_jobs("blast_from_the_past_artists")
 
 
-@app.get(
-    "/commands/blast-from-the-past-artists-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_blast_artist_job(job_id: str) -> BlastJobResult:
     """Return current progress for one dormant-artist job."""
     job = get_blast_job(job_id, command="blast_from_the_past_artists")
@@ -5448,10 +5441,6 @@ def cmd_blast_artist_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/blast-from-the-past-artists-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_blast_artist_job(job_id: str) -> BlastJobResult:
     """Cancel dormant-artist recovery at the next safe boundary."""
     return _cancel_simple_playlist_job(
@@ -5461,11 +5450,6 @@ def cmd_cancel_blast_artist_job(job_id: str) -> BlastJobResult:
     )
 
 
-@app.post(
-    "/commands/daily-mind-radio",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_daily_mind_radio(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -5481,19 +5465,11 @@ def cmd_daily_mind_radio(
     return start_daily_mind_radio_job(client, playlist_id, dry_run)
 
 
-@app.get(
-    "/commands/daily-mind-radio-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_daily_mind_radio_jobs() -> list[BlastJobResult]:
     """Return active Daily Mind Radio jobs for web reload reconnection."""
     return _active_playlist_jobs("daily_mind_radio")
 
 
-@app.get(
-    "/commands/daily-mind-radio-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     """Return current progress for one Daily Mind Radio job."""
     job = get_blast_job(job_id, command="daily_mind_radio")
@@ -5501,10 +5477,6 @@ def cmd_daily_mind_radio_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/daily-mind-radio-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     """Stop Daily Mind Radio at the next bounded network-operation boundary."""
     return _cancel_simple_playlist_job(
@@ -5514,11 +5486,6 @@ def cmd_cancel_daily_mind_radio_job(job_id: str) -> BlastJobResult:
     )
 
 
-@app.post(
-    "/commands/found-art",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_found_art(
     client: ClientDep,
     count: Annotated[int, Query(ge=1)] = found_art.DEFAULT_COUNT,
@@ -5544,19 +5511,11 @@ def cmd_found_art(
     )
 
 
-@app.get(
-    "/commands/found-art-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_found_art_jobs() -> list[BlastJobResult]:
     """Return active Found Art jobs for web reload reconnection."""
     return _active_playlist_jobs("found_art")
 
 
-@app.get(
-    "/commands/found-art-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_found_art_job(job_id: str) -> BlastJobResult:
     """Return current progress for one Found Art job."""
     job = get_blast_job(job_id, command="found_art")
@@ -5564,11 +5523,6 @@ def cmd_found_art_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/fill-sauvignon-from-lastfm",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_fill_sauvignon_from_lastfm(
     client: InteractiveClientDep,
     count: Annotated[int | None, Query(ge=1)] = None,
@@ -5610,19 +5564,11 @@ def cmd_fill_sauvignon_from_lastfm(
     )
 
 
-@app.get(
-    "/commands/fill-sauvignon-from-lastfm-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_sauvignon_jobs() -> list[BlastJobResult]:
     """Return active Sauvignon jobs so the UI can reconnect after reload."""
     return _active_playlist_jobs("fill_sauvignon_from_lastfm")
 
 
-@app.get(
-    "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_sauvignon_job(job_id: str) -> BlastJobResult:
     """Return Sauvignon progress and any pending album-edition choice."""
     job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
@@ -5630,10 +5576,6 @@ def cmd_sauvignon_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_sauvignon_album(
     job_id: str,
     request: SauvignonChoiceRequest,
@@ -5662,10 +5604,6 @@ def cmd_choose_sauvignon_album(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/fill-sauvignon-from-lastfm-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_sauvignon_job(job_id: str) -> BlastJobResult:
     """Stop Sauvignon discovery at its next safe boundary."""
     job = get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
@@ -5699,11 +5637,6 @@ def _configured_queue_playlists() -> the_queue.QueuePlaylists:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post(
-    "/commands/fill-queue-from-lastfm",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_fill_queue_from_lastfm(
     client: InteractiveClientDep,
     count: Annotated[int | None, Query(ge=1)] = None,
@@ -5743,19 +5676,11 @@ def cmd_fill_queue_from_lastfm(
     )
 
 
-@app.get(
-    "/commands/fill-queue-from-lastfm-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_queue_fill_jobs() -> list[BlastJobResult]:
     """Return active Queue fill jobs so the UI can reconnect after reload."""
     return _active_playlist_jobs("fill_queue_from_lastfm")
 
 
-@app.get(
-    "/commands/fill-queue-from-lastfm-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_queue_fill_job(job_id: str) -> BlastJobResult:
     """Return Queue fill progress and any pending artist mapping."""
     job = get_blast_job(job_id, command="fill_queue_from_lastfm")
@@ -5763,10 +5688,6 @@ def cmd_queue_fill_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/fill-queue-from-lastfm-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_queue_artist(
     job_id: str,
     request: QueueChoiceRequest,
@@ -5818,20 +5739,11 @@ def _cancel_queue_job(job_id: str, command: str, label: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/fill-queue-from-lastfm-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_queue_fill_job(job_id: str) -> BlastJobResult:
     """Stop Queue artist discovery at its next safe boundary."""
     return _cancel_queue_job(job_id, "fill_queue_from_lastfm", "Queue fill")
 
 
-@app.post(
-    "/commands/flush-queue",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_flush_queue(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -5844,19 +5756,11 @@ def cmd_flush_queue(
     )
 
 
-@app.get(
-    "/commands/flush-queue-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_queue_flush_jobs() -> list[BlastJobResult]:
     """Return active Queue flush jobs for page reload reconnection."""
     return _active_playlist_jobs("flush_queue")
 
 
-@app.get(
-    "/commands/flush-queue-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_queue_flush_job(job_id: str) -> BlastJobResult:
     """Return current Queue flush progress and result details."""
     job = get_blast_job(job_id, command="flush_queue")
@@ -5864,20 +5768,11 @@ def cmd_queue_flush_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-queue-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_queue_flush_job(job_id: str) -> BlastJobResult:
     """Stop a Queue flush while preserving its durable checkpoint."""
     return _cancel_queue_job(job_id, "flush_queue", "Queue flush")
 
 
-@app.post(
-    "/commands/flush-new-kids",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_flush_new_kids(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -5922,19 +5817,11 @@ def _configured_album_discovery_playlists() -> tuple[str, str, str, str, str]:
     )
 
 
-@app.get(
-    "/commands/flush-new-kids-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_new_kids_jobs() -> list[BlastJobResult]:
     """Return active New Kids jobs so the web UI can reconnect after reload."""
     return _active_playlist_jobs("flush_new_kids")
 
 
-@app.get(
-    "/commands/flush-new-kids-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_new_kids_job(job_id: str) -> BlastJobResult:
     """Return current progress and any pending New Kids choice."""
     job = get_blast_job(job_id, command="flush_new_kids")
@@ -5942,10 +5829,6 @@ def cmd_new_kids_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-new-kids-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_new_kids_release(
     job_id: str,
     request: NewKidsChoiceRequest,
@@ -5977,10 +5860,6 @@ def cmd_choose_new_kids_release(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-new-kids-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_new_kids_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next New Kids processing boundary."""
     job = get_blast_job(job_id, command="flush_new_kids")
@@ -5996,11 +5875,6 @@ def cmd_cancel_new_kids_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-queue-2",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_flush_queue_2(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6010,19 +5884,11 @@ def cmd_flush_queue_2(
     return start_queue_2_job(client, *playlist_ids, dry_run=dry_run)
 
 
-@app.get(
-    "/commands/flush-queue-2-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_queue_2_jobs() -> list[BlastJobResult]:
     """Return active Queue 2 jobs so the web UI can reconnect after reload."""
     return _active_playlist_jobs("flush_queue_2")
 
 
-@app.get(
-    "/commands/flush-queue-2-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_queue_2_job(job_id: str) -> BlastJobResult:
     """Return current progress and any pending Queue 2 choice."""
     job = get_blast_job(job_id, command="flush_queue_2")
@@ -6030,10 +5896,6 @@ def cmd_queue_2_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-queue-2-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_queue_2_release(
     job_id: str,
     request: NewKidsChoiceRequest,
@@ -6065,10 +5927,6 @@ def cmd_choose_queue_2_release(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-queue-2-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_queue_2_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next Queue 2 processing boundary."""
     job = get_blast_job(job_id, command="flush_queue_2")
@@ -6084,11 +5942,6 @@ def cmd_cancel_queue_2_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-queue-3",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_flush_queue_3(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6102,11 +5955,6 @@ def cmd_flush_queue_3(
     return start_queue_3_job(client, playlist_id, dry_run=dry_run)
 
 
-@app.post(
-    "/commands/import-queue-3-previous-year",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_import_queue_3_previous_year(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6125,19 +5973,11 @@ def cmd_import_queue_3_previous_year(
     )
 
 
-@app.get(
-    "/commands/flush-queue-3-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_queue_3_jobs() -> list[BlastJobResult]:
     """Return active Queue 3 jobs so the web UI can reconnect after reload."""
     return _active_playlist_jobs("flush_queue_3")
 
 
-@app.get(
-    "/commands/flush-queue-3-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_queue_3_job(job_id: str) -> BlastJobResult:
     """Return current progress and any pending Queue 3 choice."""
     job = get_blast_job(job_id, command="flush_queue_3")
@@ -6145,10 +5985,6 @@ def cmd_queue_3_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-queue-3-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_queue_3(
     job_id: str,
     request: Queue3ChoiceRequest,
@@ -6182,10 +6018,6 @@ def cmd_choose_queue_3(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-queue-3-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_queue_3_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next Queue 3 processing boundary."""
     job = get_blast_job(job_id, command="flush_queue_3")
@@ -6201,11 +6033,6 @@ def cmd_cancel_queue_3_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-new-wine",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_flush_new_wine(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6240,19 +6067,11 @@ def cmd_flush_new_wine(
     )
 
 
-@app.get(
-    "/commands/flush-new-wine-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_new_wine_jobs() -> list[BlastJobResult]:
     """Return active New Wine jobs so the web UI can reconnect after reload."""
     return _active_playlist_jobs("flush_new_wine")
 
 
-@app.get(
-    "/commands/flush-new-wine-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_new_wine_job(job_id: str) -> BlastJobResult:
     """Return current progress and any pending choice for one New Wine job."""
     job = get_blast_job(job_id, command="flush_new_wine")
@@ -6260,10 +6079,6 @@ def cmd_new_wine_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-new-wine-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_new_wine_release(
     job_id: str,
     request: NewWineChoiceRequest,
@@ -6306,10 +6121,6 @@ def cmd_choose_new_wine_release(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-new-wine-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_new_wine_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next New Wine processing boundary."""
     job = get_blast_job(job_id, command="flush_new_wine")
@@ -6325,11 +6136,6 @@ def cmd_cancel_new_wine_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-slow-listening",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_flush_slow_listening(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6349,19 +6155,11 @@ def cmd_flush_slow_listening(
     )
 
 
-@app.get(
-    "/commands/flush-slow-listening-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_slow_listening_jobs() -> list[BlastJobResult]:
     """Return active Slow Listening jobs for page-reload reconnection."""
     return _active_playlist_jobs("flush_slow_listening")
 
 
-@app.get(
-    "/commands/flush-slow-listening-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_slow_listening_job(job_id: str) -> BlastJobResult:
     """Return current progress and the pending Slow Listening choice."""
     job = get_blast_job(job_id, command="flush_slow_listening")
@@ -6369,10 +6167,6 @@ def cmd_slow_listening_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-slow-listening-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_slow_listening_track(
     job_id: str,
     request: SlowListeningChoiceRequest,
@@ -6426,10 +6220,6 @@ def cmd_choose_slow_listening_track(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-slow-listening-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_slow_listening_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next Slow Listening boundary."""
     job = get_blast_job(job_id, command="flush_slow_listening")
@@ -6448,11 +6238,6 @@ def cmd_cancel_slow_listening_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/something-old",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_something_old(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6481,19 +6266,11 @@ def cmd_something_old(
     )
 
 
-@app.get(
-    "/commands/something-old-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_something_old_jobs() -> list[BlastJobResult]:
     """Return active Something Old jobs for page-reload reconnection."""
     return _active_playlist_jobs("something_old")
 
 
-@app.get(
-    "/commands/something-old-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_something_old_job(job_id: str) -> BlastJobResult:
     """Return current Something Old progress and any pending choice."""
     job = get_blast_job(job_id, command="something_old")
@@ -6501,10 +6278,6 @@ def cmd_something_old_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/something-old-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_something_old(
     job_id: str,
     request: SomethingOldChoiceRequest,
@@ -6550,10 +6323,6 @@ def cmd_choose_something_old(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/something-old-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_something_old_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next Something Old boundary."""
     job = get_blast_job(job_id, command="something_old")
@@ -6572,11 +6341,6 @@ def cmd_cancel_something_old_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/check-new-releases",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_check_new_releases(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6606,10 +6370,6 @@ def cmd_check_new_releases(
     )
 
 
-@app.get(
-    "/commands/check-new-releases-state",
-    response_model=ReleaseCheckStateSnapshot,
-)
 def cmd_release_check_state(
     known_fingerprint: str | None = None,
 ) -> ReleaseCheckStateSnapshot:
@@ -6620,10 +6380,6 @@ def cmd_release_check_state(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.put(
-    "/commands/check-new-releases-state",
-    response_model=ReleaseCheckStateSnapshot,
-)
 def cmd_restore_release_check_state(
     request: ReleaseCheckStateRestoreRequest,
 ) -> ReleaseCheckStateSnapshot:
@@ -6670,19 +6426,11 @@ def cmd_restore_release_check_state(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get(
-    "/commands/check-new-releases-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_release_check_jobs() -> list[BlastJobResult]:
     """Return active release checks for page-reload reconnection."""
     return _active_playlist_jobs("check_new_releases")
 
 
-@app.get(
-    "/commands/check-new-releases-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_release_check_job(job_id: str) -> BlastJobResult:
     """Return release-check progress and any pending interaction."""
     job = get_blast_job(job_id, command="check_new_releases")
@@ -6690,10 +6438,6 @@ def cmd_release_check_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/check-new-releases-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_release_check(
     job_id: str,
     request: ReleaseCheckChoiceRequest,
@@ -6748,10 +6492,6 @@ def cmd_choose_release_check(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/check-new-releases-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_release_check_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next release-check boundary."""
     job = get_blast_job(job_id, command="check_new_releases")
@@ -6770,11 +6510,6 @@ def cmd_cancel_release_check_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/plan-discographies",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_plan_discographies(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6801,19 +6536,11 @@ def cmd_plan_discographies(
     )
 
 
-@app.get(
-    "/commands/plan-discographies-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_discography_jobs() -> list[BlastJobResult]:
     """Return active discography jobs for page-reload reconnection."""
     return _active_playlist_jobs("plan_discographies")
 
 
-@app.get(
-    "/commands/plan-discographies-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_discography_job(job_id: str) -> BlastJobResult:
     """Return discography progress and its current interaction."""
     job = get_blast_job(job_id, command="plan_discographies")
@@ -6821,10 +6548,6 @@ def cmd_discography_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/plan-discographies-jobs/{job_id}/choice",
-    response_model=BlastJobResult,
-)
 def cmd_choose_discography(
     job_id: str,
     request: DiscographyChoiceRequest,
@@ -6880,10 +6603,6 @@ def cmd_choose_discography(
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/plan-discographies-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_discography_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next discography boundary."""
     job = get_blast_job(job_id, command="plan_discographies")
@@ -6902,11 +6621,6 @@ def cmd_cancel_discography_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-requeue-for-a-dream",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_flush_requeue_for_a_dream(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -6926,19 +6640,11 @@ def cmd_flush_requeue_for_a_dream(
     )
 
 
-@app.get(
-    "/commands/flush-requeue-for-a-dream-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_requeue_for_a_dream_jobs() -> list[BlastJobResult]:
     """Return active Requeue for a Dream jobs after a page reload."""
     return _active_playlist_jobs("flush_requeue_for_a_dream")
 
 
-@app.get(
-    "/commands/flush-requeue-for-a-dream-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
     """Return the current state and logs for one Requeue transition."""
     job = get_blast_job(job_id, command="flush_requeue_for_a_dream")
@@ -6946,10 +6652,6 @@ def cmd_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/flush-requeue-for-a-dream-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
     """Request a clean stop at the next API or retry boundary."""
     job = get_blast_job(job_id, command="flush_requeue_for_a_dream")
@@ -6966,11 +6668,6 @@ def cmd_cancel_requeue_for_a_dream_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/fill-palace-of-memory",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_fill_palace_of_memory(
     client: InteractiveClientDep,
     dry_run: bool = True,
@@ -7013,19 +6710,11 @@ def cmd_fill_palace_of_memory(
     )
 
 
-@app.get(
-    "/commands/fill-palace-of-memory-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_palace_of_memory_jobs() -> list[BlastJobResult]:
     """Return active Palace jobs after a page reload."""
     return _active_playlist_jobs("fill_palace_of_memory")
 
 
-@app.get(
-    "/commands/fill-palace-of-memory-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_palace_of_memory_job(job_id: str) -> BlastJobResult:
     """Return current Palace progress, results, and logs."""
     job = get_blast_job(job_id, command="fill_palace_of_memory")
@@ -7033,10 +6722,6 @@ def cmd_palace_of_memory_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/fill-palace-of-memory-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_palace_of_memory_job(job_id: str) -> BlastJobResult:
     """Request a clean Palace stop at the next API or retry boundary."""
     job = get_blast_job(job_id, command="fill_palace_of_memory")
@@ -7053,11 +6738,6 @@ def cmd_cancel_palace_of_memory_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/update-scrobble-history",
-    response_model=BlastJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_update_scrobble_history(
     dry_run: bool = True,
     full_rebuild: bool = False,
@@ -7097,10 +6777,6 @@ def _server_file_status(path: Path) -> ServerFileStatus:
     )
 
 
-@app.get(
-    "/library-mirrors/status",
-    response_model=LibraryMirrorFilesStatus,
-)
 def library_mirror_files_status() -> LibraryMirrorFilesStatus:
     """Return durable update metadata for all canonical data files."""
     try:
@@ -7125,19 +6801,11 @@ def library_mirror_files_status() -> LibraryMirrorFilesStatus:
     )
 
 
-@app.get(
-    "/commands/update-scrobble-history-jobs",
-    response_model=list[BlastJobResult],
-)
 def cmd_active_scrobble_history_jobs() -> list[BlastJobResult]:
     """Return active history refreshes for page-reload reconnection."""
     return _active_playlist_jobs("update_scrobble_history")
 
 
-@app.get(
-    "/commands/update-scrobble-history-jobs/{job_id}",
-    response_model=BlastJobResult,
-)
 def cmd_scrobble_history_job(job_id: str) -> BlastJobResult:
     """Return the current state and logs for one history refresh."""
     job = get_blast_job(job_id, command="update_scrobble_history")
@@ -7145,10 +6813,6 @@ def cmd_scrobble_history_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post(
-    "/commands/update-scrobble-history-jobs/{job_id}/cancel",
-    response_model=BlastJobResult,
-)
 def cmd_cancel_scrobble_history_job(job_id: str) -> BlastJobResult:
     """Request a clean history stop before its next persistence boundary."""
     return _cancel_simple_playlist_job(
@@ -7158,31 +6822,16 @@ def cmd_cancel_scrobble_history_job(job_id: str) -> BlastJobResult:
     )
 
 
-@app.post(
-    "/commands/analyse-library-async",
-    response_model=AnalysisJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_analyse_library_async() -> AnalysisJobResult:
     """Start an export-only ``*_async`` library analysis."""
     return start_analysis_job("async")
 
 
-@app.post(
-    "/commands/analyse-library-sync",
-    response_model=AnalysisJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_analyse_library_sync(client: AnalysisClientDep) -> AnalysisJobResult:
     """Start a live-only ``*_sync`` library analysis."""
     return start_analysis_job("sync", client)
 
 
-@app.post(
-    "/commands/refresh-library-mirrors",
-    response_model=AnalysisJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_refresh_library_mirrors(
     client: AnalysisClientDep,
     full_rebuild: bool = False,
@@ -7191,11 +6840,6 @@ def cmd_refresh_library_mirrors(
     return start_analysis_job("mirrors", client, full_rebuild=full_rebuild)
 
 
-@app.post(
-    "/commands/refresh-library-mirrors/{resource}",
-    response_model=AnalysisJobResult,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def cmd_refresh_library_mirror_resource(
     resource: library_analysis.ResourceName,
     client: AnalysisClientDep,
@@ -7210,19 +6854,11 @@ def cmd_refresh_library_mirror_resource(
     )
 
 
-@app.get(
-    "/commands/library-analysis-jobs",
-    response_model=list[AnalysisJobResult],
-)
 def cmd_active_library_analysis_jobs() -> list[AnalysisJobResult]:
     """Return active analyses so the web UI can reconnect after a reload."""
     return _active_analysis_jobs()
 
 
-@app.get(
-    "/commands/library-analysis-jobs/{job_id}",
-    response_model=AnalysisJobResult,
-)
 def cmd_library_analysis_job(job_id: str) -> AnalysisJobResult:
     """Return current progress for one library analysis job."""
     job = get_analysis_job(job_id)
@@ -7230,10 +6866,6 @@ def cmd_library_analysis_job(job_id: str) -> AnalysisJobResult:
         return _job_snapshot(job)
 
 
-@app.post(
-    "/commands/library-analysis-jobs/{job_id}/cancel",
-    response_model=AnalysisJobResult,
-)
 def cmd_cancel_library_analysis_job(job_id: str) -> AnalysisJobResult:
     """Request a clean stop at the next durable analysis boundary."""
     job = get_analysis_job(job_id)
@@ -7304,7 +6936,6 @@ def _run_new_year_job(
             job.result.completed_at = datetime.now(UTC).isoformat()
 
 
-@app.post("/commands/new-year", response_model=BlastJobResult, status_code=202)
 def cmd_new_year(
     client: ClientDep, dry_run: bool = True, year: int | None = None
 ) -> BlastJobResult:
@@ -7326,13 +6957,11 @@ def cmd_new_year(
     return snapshot
 
 
-@app.get("/commands/new-year-jobs", response_model=list[BlastJobResult])
 def cmd_active_new_year_jobs() -> list[BlastJobResult]:
     """Reconnect to an active annual workflow after browser reload."""
     return _active_playlist_jobs("new_year")
 
 
-@app.get("/commands/new-year-jobs/{job_id}", response_model=BlastJobResult)
 def cmd_new_year_job(job_id: str) -> BlastJobResult:
     """Return annual progress, rankings, and logs."""
     job = get_blast_job(job_id, command="new_year")
@@ -7340,7 +6969,6 @@ def cmd_new_year_job(job_id: str) -> BlastJobResult:
         return _blast_job_snapshot(job)
 
 
-@app.post("/commands/new-year-jobs/{job_id}/cancel", response_model=BlastJobResult)
 def cmd_cancel_new_year_job(job_id: str) -> BlastJobResult:
     """Cancel at the next boundary, retaining completed annual steps."""
     return _cancel_simple_playlist_job(
@@ -7358,3 +6986,204 @@ def _active_playlist_jobs(command: str) -> list[BlastJobResult]:
 def _active_analysis_jobs() -> list[AnalysisJobResult]:
     with _analysis_jobs_lock:
         return active_analysis_snapshots(_analysis_jobs.values(), _job_snapshot)
+
+
+app.include_router(_health_router(health, auth_check))
+app.include_router(
+    _state_router(
+        shared_state_summary,
+        shared_state,
+        shared_state_editor_schema,
+        replace_shared_state_namespace,
+        replace_shared_state,
+        export_shared_state,
+    )
+)
+app.include_router(
+    _lookups_router(
+        refresh_library, artist_stats, album_evaluation, track_scrobble_status
+    )
+)
+app.include_router(
+    _library_commands_router(
+        cmd_monthly_routines,
+        cmd_update_total_albums,
+        cmd_restore_your_library,
+        cmd_compare_lib_files,
+        cmd_analyse_comp,
+        cmd_convert_lib,
+        cmd_count_artists,
+    )
+)
+app.include_router(
+    _historical_router(
+        cmd_blast_from_the_past,
+        cmd_active_blast_jobs,
+        cmd_blast_job,
+        cmd_cancel_blast_job,
+    )
+)
+app.include_router(
+    _dormant_router(
+        cmd_blast_from_the_past_artists,
+        cmd_active_blast_artist_jobs,
+        cmd_blast_artist_job,
+        cmd_cancel_blast_artist_job,
+    )
+)
+app.include_router(
+    _daily_mind_radio_router(
+        cmd_daily_mind_radio,
+        cmd_active_daily_mind_radio_jobs,
+        cmd_daily_mind_radio_job,
+        cmd_cancel_daily_mind_radio_job,
+    )
+)
+app.include_router(
+    _found_art_router(cmd_found_art, cmd_active_found_art_jobs, cmd_found_art_job)
+)
+app.include_router(
+    _sauvignon_router(
+        cmd_fill_sauvignon_from_lastfm,
+        cmd_active_sauvignon_jobs,
+        cmd_sauvignon_job,
+        cmd_choose_sauvignon_album,
+        cmd_cancel_sauvignon_job,
+    )
+)
+app.include_router(
+    _queue_fill_router(
+        cmd_fill_queue_from_lastfm,
+        cmd_active_queue_fill_jobs,
+        cmd_queue_fill_job,
+        cmd_choose_queue_artist,
+        cmd_cancel_queue_fill_job,
+    )
+)
+app.include_router(
+    _queue_flush_router(
+        cmd_flush_queue,
+        cmd_active_queue_flush_jobs,
+        cmd_queue_flush_job,
+        cmd_cancel_queue_flush_job,
+    )
+)
+app.include_router(
+    _discovery_router(
+        cmd_flush_new_kids,
+        cmd_active_new_kids_jobs,
+        cmd_new_kids_job,
+        cmd_choose_new_kids_release,
+        cmd_cancel_new_kids_job,
+    )
+)
+app.include_router(
+    _queue_2_router(
+        cmd_flush_queue_2,
+        cmd_active_queue_2_jobs,
+        cmd_queue_2_job,
+        cmd_choose_queue_2_release,
+        cmd_cancel_queue_2_job,
+    )
+)
+app.include_router(
+    _queue_3_router(
+        cmd_flush_queue_3,
+        cmd_import_queue_3_previous_year,
+        cmd_active_queue_3_jobs,
+        cmd_queue_3_job,
+        cmd_choose_queue_3,
+        cmd_cancel_queue_3_job,
+    )
+)
+app.include_router(
+    _wine_router(
+        cmd_flush_new_wine,
+        cmd_active_new_wine_jobs,
+        cmd_new_wine_job,
+        cmd_choose_new_wine_release,
+        cmd_cancel_new_wine_job,
+    )
+)
+app.include_router(
+    _slow_listening_router(
+        cmd_flush_slow_listening,
+        cmd_active_slow_listening_jobs,
+        cmd_slow_listening_job,
+        cmd_choose_slow_listening_track,
+        cmd_cancel_slow_listening_job,
+    )
+)
+app.include_router(
+    _something_old_router(
+        cmd_something_old,
+        cmd_active_something_old_jobs,
+        cmd_something_old_job,
+        cmd_choose_something_old,
+        cmd_cancel_something_old_job,
+    )
+)
+app.include_router(
+    _releases_router(
+        cmd_check_new_releases,
+        cmd_release_check_state,
+        cmd_restore_release_check_state,
+        cmd_active_release_check_jobs,
+        cmd_release_check_job,
+        cmd_choose_release_check,
+        cmd_cancel_release_check_job,
+    )
+)
+app.include_router(
+    _discography_router(
+        cmd_plan_discographies,
+        cmd_active_discography_jobs,
+        cmd_discography_job,
+        cmd_choose_discography,
+        cmd_cancel_discography_job,
+    )
+)
+app.include_router(
+    _requeue_router(
+        cmd_flush_requeue_for_a_dream,
+        cmd_active_requeue_for_a_dream_jobs,
+        cmd_requeue_for_a_dream_job,
+        cmd_cancel_requeue_for_a_dream_job,
+    )
+)
+app.include_router(
+    _palace_router(
+        cmd_fill_palace_of_memory,
+        cmd_active_palace_of_memory_jobs,
+        cmd_palace_of_memory_job,
+        cmd_cancel_palace_of_memory_job,
+    )
+)
+app.include_router(
+    _history_router(
+        cmd_update_scrobble_history,
+        library_mirror_files_status,
+        cmd_active_scrobble_history_jobs,
+        cmd_scrobble_history_job,
+        cmd_cancel_scrobble_history_job,
+    )
+)
+app.include_router(
+    _analysis_router(
+        cmd_analyse_library_async,
+        cmd_analyse_library_sync,
+        cmd_refresh_library_mirrors,
+        cmd_refresh_library_mirror_resource,
+        cmd_active_library_analysis_jobs,
+        cmd_library_analysis_job,
+        cmd_cancel_library_analysis_job,
+    )
+)
+app.include_router(
+    _new_year_router(
+        cmd_new_year,
+        cmd_active_new_year_jobs,
+        cmd_new_year_job,
+        cmd_cancel_new_year_job,
+    )
+)

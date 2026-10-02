@@ -95,6 +95,8 @@ fixtures to remain useful throughout the migration.
   Analysis callbacks are extracted and directly covered, including concurrent
   sink/signal ownership and the unchanged SDK hook restoration convention.
 - [ ] Extract feature HTTP routers and CLI commands/renderers/prompts.
+  Original API registration is separated into 24 explicit feature factories;
+  handler logic and CLI extraction remain in progress.
 - [ ] Verify full coverage, strict typing, frozen public artifacts, dependency
   boundaries and local frontend/job behavior on the complete Item 7 branch.
 - [ ] Obtain Item 7 PR approval before deployment or merge.
