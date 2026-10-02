@@ -12,7 +12,7 @@ The full milestone remains one PR under the approved roadmap.
 | Release progression | Implemented and verified | Composer matching/observations, Slow Listening, New Wine, New Kids/Queue 2, Queue 3 and shared Requeue catalog integration. |
 | History and discovery | Implemented and verified | History, radio, discovery, releases, The Queue and genre workflows. |
 | Deep listening and retrospectives | Implemented and verified | Something Old, Palace of Memory, Discography and New Year. |
-| Library and legacy workflows | In progress | Analysis and artist review are complete; conversion, monthly workflows, counts and remaining loaders/processors are pending. |
+| Library and legacy workflows | In progress | Analysis, artist review, conversion, monthly workflows, counts and JSON loaders are complete; remaining lookup processors are pending. |
 | Operational integration | Pending | Uploads, authentication/settings, automation and startup. |
 
 ## Foundation responsibilities
@@ -1365,3 +1365,50 @@ Verification:
 
 Conversion, monthly workflows, counts, remaining legacy processors/loaders and
 operational integration still precede the final Item 6 ownership audit and PR.
+
+### Legacy conversion and monthly workflow checkpoint
+
+Export comparison, confirmed conversion, artist/track restoration, monthly
+execution and raw artist counting now have explicit application owners. The
+original public processor and routine functions delegate to named stages;
+caller-owned SDK expressions and positional compatibility seams remain at their
+original locations. Environment-backed legacy settings are constructed in the
+outer composition module.
+
+Pure policies own duplicate-preserving differences, first/last cursor selection,
+permissive monthly slicing, playlist batches and original listening proportions.
+The application retains live singleton checks, removal-before-addition order,
+mutable control entries, partial fallback authority, track sorting/validation
+order and separately observed playlist clocks. An injected reporting scope
+retains legacy ordinary-error behavior without adding broad exception handlers.
+A monthly stage's false return is still ignored by its original outer routine.
+
+JSON codecs now live in infrastructure. File facades retain their path constants
+and caller-visible seams. Original reads preserve open/print/validation order;
+writes preserve default encoding, compact Unicode JSON, target truncation before
+serialization, retained temporary files after failed replacement and managed
+publication only after accepted atomic replacement. Cache root values remain
+unchecked rather than gaining stricter validation.
+
+Immutable original evidence covers **276 complete and repeated workflows** and
+**112 file boundary cases**. Independently assembled application dependencies and
+public composition agree with every original observation, including accepted
+Spotify mutations followed by failure and rerun. The complete suite also caught
+and protected the original positional album-enrichment callback seam.
+
+Verification:
+
+- Full randomized suite: **7,941 tests pass**, seed `20261031`; separate coverage
+  is **95.83% statements** (25,402 / 26,507) and **90.75% branches**
+  (5,089 / 5,608).
+- Isolated gates: **991 domain tests** and **3,206 application tests**, with
+  **100% statement and branch coverage** for configured targets, including all
+  five new legacy application modules.
+- Focused original workflow, policy and file cases cover all statements and
+  branches in the new legacy codecs and reporting boundary.
+- Package mypy passes for **410 source files**. New modules and test support pass
+  strict typing; Ruff, formatting, short-function and flat-structure checks pass.
+- All **11 frozen public artifacts** match. The baseline remains unchanged.
+
+Remaining lookup processors and operational integration precede the final Item 6
+ownership audit and complete pull request.

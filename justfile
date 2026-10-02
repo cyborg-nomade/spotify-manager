@@ -138,6 +138,11 @@ test-application:
         --cov=spotify_manager.application.artist_review_catalog \
         --cov=spotify_manager.application.artist_review_membership \
         --cov=spotify_manager.application.artist_review_state \
+        --cov=spotify_manager.application.legacy_library_control \
+        --cov=spotify_manager.application.legacy_library_conversion \
+        --cov=spotify_manager.application.legacy_library_effects \
+        --cov=spotify_manager.application.legacy_library_monthly \
+        --cov=spotify_manager.application.legacy_library_refresh \
         --cov=spotify_manager.application.library_analysis_artists \
         --cov=spotify_manager.application.library_analysis_checkpoint \
         --cov=spotify_manager.application.library_analysis_effects \

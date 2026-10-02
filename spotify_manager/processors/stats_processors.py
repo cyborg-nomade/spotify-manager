@@ -1,7 +1,7 @@
-"""Data processors for stats."""
+"""Compatibility entry points for original legacy listening statistics."""
 
-# UFI
-from spotify_manager.loaders_savers import save_stats_file
+from spotify_manager.application import legacy_library_control as workflow
+from spotify_manager.loaders_savers import save_stats_file as save_stats_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
@@ -10,33 +10,33 @@ from spotify_manager.models.stats import StatsFileItem
 def calculate_stats(
     control_file: list[ControlFileItem], total_album_list: list[SimplifiedAlbum]
 ) -> StatsFileItem:
-    """Calculate stats."""
-    print("Calculating stats...")
-    total_saved_albums = len(total_album_list)
-    total_listened_albums = len(control_file)
-    total_removed_albums = len(
-        [item for item in control_file if item.result == "remove"]
-    )
-    total_kept_albums = total_listened_albums - total_removed_albums
-    return StatsFileItem(
-        total_saved_albums=total_saved_albums,
-        total_listened_albums=total_listened_albums,
-        pct_listened_albums=total_listened_albums / total_saved_albums,
-        total_removed_albums=total_removed_albums,
-        pct_removed_albums=total_removed_albums / total_listened_albums,
-        total_kept_albums=total_kept_albums,
-        pct_kept_albums=total_kept_albums / total_listened_albums,
-        last_listened_to_index=total_listened_albums - 1,
-    )
+    """Calculate original counts and ratios without zero-denominator guards.
+
+    Args:
+        control_file: Original control decisions.
+        total_album_list: Original saved-album authority.
+
+    Returns:
+        Original statistics model.
+
+    Raises:
+        ZeroDivisionError: An original denominator is zero.
+    """
+    return workflow.calculate(control_file, total_album_list, print)
 
 
 def update_stats(
     control_file: list[ControlFileItem], total_album_list: list[SimplifiedAlbum]
 ) -> bool:
-    """Update stats file."""
-    print("Updating stats...")
-    stats = calculate_stats(control_file, total_album_list)
-    print(f"These are your current stats: \n{stats.model_dump()}")
-    save_stats_file(stats)
-    print("Stats updated!")
-    return True
+    """Display and publish original statistics in the original order.
+
+    Args:
+        control_file: Original control decisions.
+        total_album_list: Original saved-album authority.
+
+    Returns:
+        True after accepted publication.
+    """
+    return workflow.update_statistics(
+        control_file, total_album_list, calculate_stats, save_stats_file, print
+    )
