@@ -6,17 +6,14 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.palace_run import Palace
-from spotify_manager.application.palace_values import PalaceOfMemorySummary
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.palace_run import LegacyPalace
 from spotify_manager.routines import palace_of_memory as legacy
 
 
-def fill_palace(
+def palace(
     spotify: Spotify,
     playlist_id: str,
-    dry_run: bool,
-    alphabetical_start: str | None,
     today: date | None,
     albums_path: Path,
     scrobbles_path: Path,
@@ -29,14 +26,12 @@ def fill_palace(
     retry_call: legacy.RetryCall | None,
     progress_callback: legacy.ProgressCallback | None,
     echo: legacy.Echo,
-) -> PalaceOfMemorySummary:
-    """Bind original live preflight, cursor authority, catalog, retries and presenters.
+) -> Palace:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         spotify: Original caller-owned client.
         playlist_id: Original destination identity.
-        dry_run: Original preview behavior.
-        alphabetical_start: Original optional manual reference.
         today: Original optional effective date.
         albums_path: Original canonical mirror location.
         scrobbles_path: Original history location.
@@ -51,9 +46,11 @@ def fill_palace(
         echo: Original accepted-append presenter.
 
     Returns:
-        Original complete selected and classified outcome.
+        The configured application dependencies or workflow.
     """
-    retry = retry_call or legacy._direct_retry
+    from spotify_manager.routines.palace_of_memory import _direct_retry
+
+    retry = retry_call or _direct_retry
     edge = LegacyPalace(
         spotify,
         playlist_id,
@@ -70,8 +67,4 @@ def fill_palace(
         progress_callback,
         echo,
     )
-    return Palace(edge, legacy.ALPHABETICAL_COUNT, legacy.ALBUM_MATCH_THRESHOLD).run(
-        playlist_id,
-        dry_run,
-        alphabetical_start,
-    )
+    return Palace(edge, legacy.ALPHABETICAL_COUNT, legacy.ALBUM_MATCH_THRESHOLD)

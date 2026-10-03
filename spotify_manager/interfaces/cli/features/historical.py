@@ -13,11 +13,15 @@ from rich.text import Text
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import blast_from_past_artists
-from spotify_manager.routines import daily_mind_radio
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import (
+    blast_from_past_artists as blast_from_past_artists,
+)
+from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 from spotify_manager.settings import Settings
 
 

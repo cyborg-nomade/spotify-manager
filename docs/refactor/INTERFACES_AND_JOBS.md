@@ -1,8 +1,11 @@
 # Item 7: feature interfaces and shared job mechanics
 
-**Status:** implemented and ready for PR review on
-`codex/refactor-07-interfaces-and-jobs`, starting from the deployed Item 6 merge
-`93a36aa`. Deployment and merge require Item 7 PR approval.
+**Status:** Item 7 approved, deployed and merged in PR #66. The approved source
+`982abe4` was deployed to Space revision `702365bae980a4a7f0036f36bb24a7f4239d5cfc`
+and merged as `7fe292c`. Before/after production checks passed with no active jobs
+or durable state/data revision changes. Item 7a's
+[direct request and return paths](CALL_PATH_SIMPLIFICATION.md) refine the invocation
+wiring described here; shared job mechanics remain unchanged.
 
 The design and compatibility trade-offs are in
 [ADR 002](../adr/002-threaded-interface-jobs.md). Business rules and use cases

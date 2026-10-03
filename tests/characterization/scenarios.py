@@ -13,6 +13,8 @@ from types import ModuleType
 import pytest
 
 from spotify_manager import loaders_savers
+from spotify_manager.bootstrap import library_analysis as analysis_composition
+from spotify_manager.interfaces.operations import analyse_library as analysis_operations
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.processors import library_lookups
 from spotify_manager.routines import analyse_library
@@ -38,6 +40,8 @@ from tests.routines import test_slow_listening as slow_fakes
 from tests.routines import test_the_queue as queue_fakes
 from tests.routines.test_upload_library_files import FakeHfApi
 from tests.routines.test_upload_library_files import write_json
+from tests.support.analysis_dependencies import observed_analysis_files
+from tests.support.analysis_dependencies import observed_analysis_publication
 from tests.support.effects import Trace
 
 
@@ -543,6 +547,18 @@ def analysis(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
         albums=[analysis_fakes.album("a")],
         tracks=[analysis_fakes.track(str(index)) for index in range(11)],
         artists=[analysis_fakes.artist("artist")],
+    )
+    patch.setattr(analysis_operations, "analysis_storage", observed_analysis_files)
+    patch.setattr(
+        analysis_operations, "analysis_publication", observed_analysis_publication
+    )
+    patch.setattr(analyse_library, "analysis_storage", observed_analysis_files)
+    patch.setattr(
+        analyse_library, "analysis_publication", observed_analysis_publication
+    )
+    patch.setattr(analysis_composition, "analysis_files", observed_analysis_files)
+    patch.setattr(
+        analysis_composition, "analysis_publication", observed_analysis_publication
     )
     patch.setattr(analyse_library, "new_run_id", _fixed_run_id)
     _watch_analysis(patch, trace, spotify)

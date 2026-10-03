@@ -6,12 +6,14 @@ from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from pathlib import Path
 from typing import cast
 
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.infrastructure.legacy.recommendations import (
+    LegacyRecommendationRun,
+)
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import found_art
 from tests.routines.test_found_art import FakeLastFm
@@ -53,13 +55,8 @@ class RunSteps:
 
     def history(
         self,
-        lastfm: found_art.LastFmReader,
-        *,
-        export_path: Path,
-        recent_path: Path,
-        dry_run: bool,
         now: datetime,
-        progress_callback: found_art.ProgressCallback | None,
+        dry_run: bool,
     ) -> tuple[list[blast.Scrobble], int]:
         """Accept the original history refresh before any playlist read.
 
@@ -79,7 +76,7 @@ class RunSteps:
         self._step("history")
         return [blast.Scrobble("Seed", "Artist", "Album", 1000)], 3
 
-    def read(self, sp: Spotify, playlist_id: str) -> blast.PlaylistState:
+    def read(self) -> blast.PlaylistState:
         """Observe the destination after history refresh.
 
         Args:
@@ -95,7 +92,6 @@ class RunSteps:
     def seeds(
         self,
         history: Iterable[found_art.TrackHistory],
-        *,
         seed_count: int,
         week_start: date,
     ) -> tuple[found_art.FoundArtSeed, ...]:
@@ -116,16 +112,11 @@ class RunSteps:
 
     def gather(
         self,
-        lastfm: found_art.LastFmReader,
         seeds: tuple[found_art.FoundArtSeed, ...],
         heard_keys: set[found_art.TrackKey],
-        *,
-        cache_path: Path,
-        log_path: Path,
         week_start: date,
         candidate_pool_size: int,
         now: datetime,
-        progress_callback: found_art.ProgressCallback | None,
     ) -> tuple[found_art.FoundArtCandidate, ...]:
         """Observe neighborhoods and cache handling in both real and preview runs.
 
@@ -151,13 +142,10 @@ class RunSteps:
 
     def resolve(
         self,
-        sp: Spotify,
         candidates: tuple[found_art.FoundArtCandidate, ...],
         playlist: blast.PlaylistState,
-        *,
         count: int,
         dry_run: bool,
-        progress_callback: found_art.ProgressCallback | None,
     ) -> tuple[
         tuple[found_art.FoundArtResult, ...], tuple[blast.SpotifyTrackMatch, ...]
     ]:
@@ -179,9 +167,7 @@ class RunSteps:
         action: found_art.FoundArtAction = "would add" if dry_run else "added"
         return (found_art.FoundArtResult(candidates[0], MATCH, action),), (MATCH,)
 
-    def append(
-        self, sp: Spotify, playlist_id: str, matches: list[blast.SpotifyTrackMatch]
-    ) -> None:
+    def append(self, matches: list[blast.SpotifyTrackMatch]) -> None:
         """Record remote acceptance before the audit boundary.
 
         Args:
@@ -192,7 +178,7 @@ class RunSteps:
         assert matches == [MATCH]
         self._step("append")
 
-    def audit(self, summary: found_art.FoundArtSummary, path: Path) -> None:
+    def audit(self, summary: found_art.FoundArtSummary) -> None:
         """Record the audit after accepted appends or preview selection.
 
         Args:
@@ -204,13 +190,13 @@ class RunSteps:
 
 
 def _install(steps: RunSteps, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(found_art, "refresh_scrobble_history", steps.history)
-    monkeypatch.setattr(blast, "load_playlist_state", steps.read)
-    monkeypatch.setattr(found_art, "select_seed_tracks", steps.seeds)
-    monkeypatch.setattr(found_art, "gather_candidates", steps.gather)
-    monkeypatch.setattr(found_art, "resolve_spotify_candidates", steps.resolve)
-    monkeypatch.setattr(blast, "add_spotify_matches", steps.append)
-    monkeypatch.setattr(found_art, "append_found_art_log", steps.audit)
+    monkeypatch.setattr(LegacyRecommendationRun, "refresh", steps.history)
+    monkeypatch.setattr(LegacyRecommendationRun, "read", steps.read)
+    monkeypatch.setattr(LegacyRecommendationRun, "seeds", steps.seeds)
+    monkeypatch.setattr(LegacyRecommendationRun, "gather", steps.gather)
+    monkeypatch.setattr(LegacyRecommendationRun, "resolve", steps.resolve)
+    monkeypatch.setattr(LegacyRecommendationRun, "append", steps.append)
+    monkeypatch.setattr(LegacyRecommendationRun, "audit", steps.audit)
 
 
 def _run(

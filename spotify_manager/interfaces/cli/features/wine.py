@@ -21,8 +21,10 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.application.new_wine_values import CellarRefillResult
 from spotify_manager.application.new_wine_values import FlushResult
 from spotify_manager.interfaces.cli.presentation import progress_description
-from spotify_manager.routines import new_wine
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import new_wine as new_wine
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 from spotify_manager.settings import Settings
 
 

@@ -39,9 +39,11 @@ def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAl
     Returns:
         Published models or the original partially modified fallback authority.
     """
-    return workflow.refresh(
-        composition.album_refresh(sp), just_update, print, LegacyFailure
+    from spotify_manager.interfaces.operations.legacy_library import (
+        update_total_album_list as operation,
     )
+
+    return operation(sp, just_update)
 
 
 def get_months_items(

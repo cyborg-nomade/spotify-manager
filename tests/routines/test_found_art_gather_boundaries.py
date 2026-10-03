@@ -1,5 +1,6 @@
 """Original recommendation cache and aggregation observation boundaries."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -11,6 +12,7 @@ import pytest
 
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
+from spotify_manager.infrastructure import recommendations_data as data
 from spotify_manager.routines import found_art
 from tests.routines.test_found_art import seed
 
@@ -53,7 +55,9 @@ class GatherSteps:
         self.cache = {"version": 1, "entries": {}}
         return self.cache
 
-    def previous(self, path: Path) -> set[tuple[str, str]]:
+    def previous(
+        self, path: Path, key_of: Callable[[str, str], tuple[str, str]]
+    ) -> set[tuple[str, str]]:
         """Read previously added exclusions before any seed observations.
 
         Args:
@@ -66,7 +70,7 @@ class GatherSteps:
         return set()
 
     def lookup(
-        self, entry: object, *, week_start: date
+        self, entry: object, week_start: date, calendar: Callable[[datetime], date]
     ) -> tuple[LastFmSimilarTrack, ...] | None:
         """Observe a cache lookup.
 
@@ -124,10 +128,10 @@ class GatherSteps:
 
 
 def _install(steps: GatherSteps, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(found_art, "_load_similar_cache", steps.load)
-    monkeypatch.setattr(found_art, "previously_added_track_keys", steps.previous)
-    monkeypatch.setattr(found_art, "_cached_similar_tracks", steps.lookup)
-    monkeypatch.setattr(found_art, "_save_similar_cache", steps.save)
+    monkeypatch.setattr(data, "load_cache", steps.load)
+    monkeypatch.setattr(data, "previously_added_keys", steps.previous)
+    monkeypatch.setattr(data, "cached_neighbors", steps.lookup)
+    monkeypatch.setattr(data, "save_cache", steps.save)
 
 
 def _gather(

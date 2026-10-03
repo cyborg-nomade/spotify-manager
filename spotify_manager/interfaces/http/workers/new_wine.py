@@ -22,8 +22,10 @@ from spotify_manager.interfaces.http.models.wine import NewWineRefillResult
 from spotify_manager.interfaces.http.models.wine import NewWineReleaseOption
 from spotify_manager.interfaces.http.models.wine import NewWineTrackResult
 from spotify_manager.interfaces.http.workers.errors import _NewWineJobCancelledError
-from spotify_manager.routines import new_wine
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import new_wine as new_wine
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)

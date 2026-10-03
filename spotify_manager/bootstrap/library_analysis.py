@@ -2,7 +2,10 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC
+from datetime import datetime
 from functools import partial
+from pathlib import Path
 from time import sleep as default_sleep
 from typing import cast
 
@@ -19,11 +22,15 @@ from spotify_manager.application.library_analysis_values import Echo
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import ProgressCallback
 from spotify_manager.application.library_analysis_values import Sleep
+from spotify_manager.application.library_analysis_values import resource_config
+from spotify_manager.bootstrap.library_data import publish_managed_path
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.domain.library_analysis_values import RetryWait
 from spotify_manager.infrastructure import library_analysis_backups as backups
 from spotify_manager.infrastructure import library_analysis_files as files
-from spotify_manager.routines import analyse_library as legacy
+from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
+from spotify_manager.infrastructure.library_models import album_from_saved_item
+from spotify_manager.infrastructure.library_records import current_stats_history_key
 
 
 @dataclass(frozen=True)
@@ -66,18 +73,17 @@ class AnalysisResources:
         Returns:
             Original accepted response.
         """
-        return legacy.spotify_call(
-            operation,
-            description,
+        retry = LibraryRetry(
             self.paths,
-            cast(dict[str, object], self.checkpoint),
+            self.checkpoint,
+            analysis_files(),
             self.echo,
             self.retry_wait,
             self.sleep,
             self.retry_base_seconds,
             self.retry_max_seconds,
-            max_attempts,
         )
+        return retry.call(operation, description, max_attempts)
 
     def offset(self, resource: ResourceName, initial: bool) -> OffsetRead:
         """Select the original method at its original durable scan boundary.
@@ -89,10 +95,13 @@ class AnalysisResources:
         Returns:
             Original selected caller-owned method.
         """
+        from spotify_manager.routines.analyse_library import _initial_offset_reader
+        from spotify_manager.routines.analyse_library import _reconcile_offset_reader
+
         spotify = cast(Spotify, self.spotify)
         if initial:
-            return cast(OffsetRead, legacy._initial_offset_reader(spotify, resource))
-        return cast(OffsetRead, legacy._reconcile_offset_reader(spotify, resource))
+            return cast(OffsetRead, _initial_offset_reader(spotify, resource))
+        return cast(OffsetRead, _reconcile_offset_reader(spotify, resource))
 
     def artists(self, after: str | None) -> object:
         """Read the original cursor scan with immediate endpoint fallback.
@@ -103,7 +112,9 @@ class AnalysisResources:
         Returns:
             Original unvalidated cursor page.
         """
-        return legacy.fetch_followed_artists_page(cast(Spotify, self.spotify), after)
+        from spotify_manager.routines.analyse_library import fetch_followed_artists_page
+
+        return fetch_followed_artists_page(cast(Spotify, self.spotify), after)
 
     def reconcile_artists(self, after: str | None) -> object:
         """Read the original reconciliation cursor page.
@@ -114,7 +125,9 @@ class AnalysisResources:
         Returns:
             Original unvalidated cursor page.
         """
-        return legacy._reconcile_artist_page(cast(Spotify, self.spotify), after)
+        from spotify_manager.routines.analyse_library import _reconcile_artist_page
+
+        return _reconcile_artist_page(cast(Spotify, self.spotify), after)
 
     def following(self, identities: list[str]) -> object:
         """Read original complete live follow verification facts.
@@ -125,7 +138,9 @@ class AnalysisResources:
         Returns:
             Original unvalidated follow statuses.
         """
-        return legacy._following_artists(cast(Spotify, self.spotify), identities)
+        from spotify_manager.routines.analyse_library import _following_artists
+
+        return _following_artists(cast(Spotify, self.spotify), identities)
 
 
 def analysis_files() -> AnalysisFiles:
@@ -135,20 +150,23 @@ def analysis_files() -> AnalysisFiles:
         Invocation dependencies preserving caller substitutions.
     """
     return AnalysisFiles(
-        legacy.load_json,
-        legacy.write_json_atomic,
-        legacy.load_model_list,
-        legacy.load_models_jsonl,
-        legacy.write_models,
-        legacy.append_models_jsonl,
-        legacy.append_event,
-        legacy.load_your_library,
-        legacy.utc_now,
-        legacy.new_run_id,
-        legacy.export_fingerprint,
+        files.load_json,
+        files.write_json_atomic,
+        partial(files.load_model_list, read=files.load_json),
+        files.load_models_jsonl,
+        partial(files.write_models, write=files.write_json_atomic, publish=_publish),
+        files.append_models_jsonl,
+        partial(files.append_event, _utc_now),
+        partial(files.load_your_library, read=files.load_json),
+        _utc_now,
+        _run_id,
+        files.export_fingerprint,
         files.reset_staging,
         files.remove,
-        legacy.latest_export_artists,
+        partial(
+            files.latest_export_artists,
+            load=partial(files.load_your_library, read=files.load_json),
+        ),
     )
 
 
@@ -159,14 +177,14 @@ def analysis_publication() -> AnalysisPublication:
         Complete ordered publication boundaries for an analysis invocation.
     """
     return AnalysisPublication(
-        legacy.create_backup_manifest,
-        legacy.create_live_mirror_backup_manifest,
+        partial(backups.create_backup_manifest, files=analysis_files()),
+        partial(backups.create_live_mirror_backup_manifest, files=analysis_files()),
         partial(backups.create_resource_backup, files=analysis_files()),
-        legacy.pre_analysis_stats_history,
-        legacy.current_stats_history_key,
+        partial(backups.pre_analysis_stats_history, files=analysis_files()),
+        current_stats_history_key,
         backups.manifest_summaries,
         backups.resource_manifest_summary,
-        legacy._live_resource_config,
+        resource_config,
     )
 
 
@@ -214,11 +232,11 @@ def analysis_session(
         resources.artists,
         resources.reconcile_artists,
         resources.following,
-        legacy.album_from_saved_item,
-        legacy.track_from_saved_item,
-        legacy.artist_from_api_item,
-        legacy.page_items,
-        legacy.followed_artist_page_items,
+        album_from_saved_item,
+        files.track_from_saved_item,
+        files.artist_from_api_item,
+        files.page_items,
+        files.followed_artist_page_items,
     )
     return AnalysisSession(
         paths,
@@ -230,3 +248,15 @@ def analysis_session(
         progress,
         cancel_check,
     )
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _run_id() -> str:
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+
+
+def _publish(path: Path, source: str) -> None:
+    publish_managed_path(path, source=source)

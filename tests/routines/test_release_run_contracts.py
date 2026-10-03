@@ -2,9 +2,11 @@
 
 import json
 from dataclasses import asdict
+from dataclasses import dataclass
 from datetime import datetime
 from datetime import tzinfo
 from functools import partial
+from functools import partialmethod
 from pathlib import Path
 from typing import Self
 from typing import cast
@@ -22,6 +24,8 @@ from spotify_manager.domain.release_check_values import PlaylistSnapshot
 from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.domain.release_check_values import ReleaseCandidate
 from spotify_manager.domain.release_check_values import ReleaseTrack
+from spotify_manager.infrastructure.legacy.release_run import LegacyReleaseRun
+from spotify_manager.interfaces.operations import release_check as release_operations
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import release_check as legacy
 from tests.support.release_run import PROFILES
@@ -68,10 +72,33 @@ class FixedClock(datetime):
         return cls(2026, 9, 25, tzinfo=STAMP.tzinfo).astimezone(tz)
 
 
-def _open(
-    context: OpenedReleaseRun, *args: object
-) -> tuple[OpenedReleaseRun, RoutineState]:
-    return context, cast(RoutineState, object())
+@dataclass(frozen=True)
+class OpenedStage:
+    """Supply the existing observed startup result without new effects.
+
+    Args:
+        context: Original fixture startup result.
+        state_access: Original caller-owned state boundary placeholder.
+    """
+
+    context: OpenedReleaseRun
+    state_access: RoutineState
+
+    def run(self, dry_run: bool) -> OpenedReleaseRun:
+        """Return the same original opening result.
+
+        Args:
+            dry_run: Original preview flag.
+
+        Returns:
+            Original fixture startup result.
+        """
+        return self.context
+
+
+def _open(context: OpenedReleaseRun, *args: object) -> tuple[OpenedStage, OpenedStage]:
+    stage = OpenedStage(context, cast(RoutineState, object()))
+    return stage, stage
 
 
 def _wine(effects: Effects, *args: object) -> PlaylistSnapshot:
@@ -166,9 +193,7 @@ def _persist(effects: Effects, access: object, state: dict[str, object]) -> None
 def _bind(
     patch: pytest.MonkeyPatch, context: OpenedReleaseRun, effects: Effects
 ) -> None:
-    from spotify_manager.bootstrap import release_opening
-
-    patch.setattr(release_opening, "open_release_run", partial(_open, context))
+    patch.setattr(release_operations, "release_opening", partial(_open, context))
     patch.setattr(legacy, "_playlist_snapshot", partial(_wine, effects))
     patch.setattr(legacy, "_deduplicate_wine_cellar", partial(_cleanup, effects))
     patch.setattr(legacy, "_playlist_membership", partial(_vintage, effects))
@@ -177,10 +202,10 @@ def _bind(
     )
     patch.setattr(legacy, "_mapped_artist", effects.decode_mapping)
     patch.setattr(legacy, "_pending_single", effects.decode_pending)
-    patch.setattr(legacy, "resolve_spotify_artist", partial(_resolve, effects))
+    patch.setattr(LegacyReleaseRun, "resolve", partialmethod(_resolve_artist, effects))
     patch.setattr(legacy, "load_recent_catalog", partial(_catalog, effects))
     patch.setattr(legacy, "load_release_tracks", partial(_tracks, effects))
-    patch.setattr(legacy, "matching_future_release", partial(_match, effects))
+    patch.setattr(LegacyReleaseRun, "match", partialmethod(_match_record, effects))
     patch.setattr(legacy, "_add_to_playlist", partial(_add, effects))
     patch.setattr(legacy, "append_event", partial(_audit, effects))
     patch.setattr(legacy, "_persist_state", partial(_persist, effects))
@@ -263,3 +288,21 @@ def test_release_runner_original_failure_prefix(
         monkeypatch: Isolated external boundaries.
     """
     assert observe("album", failure, monkeypatch) == _fixture()["failure:" + failure]
+
+
+def _resolve_artist(
+    resources: LegacyReleaseRun,
+    effects: Effects,
+    artist: RankedArtist,
+) -> SpotifyArtistCandidate | str | None:
+    return effects.resolve(artist)
+
+
+def _match_record(
+    resources: LegacyReleaseRun,
+    effects: Effects,
+    track: ReleaseTrack,
+    records: tuple[ReleaseCandidate, ...],
+    cache: dict[str, tuple[ReleaseTrack, ...]],
+) -> ReleaseCandidate | None:
+    return effects.match(track, records, cache)

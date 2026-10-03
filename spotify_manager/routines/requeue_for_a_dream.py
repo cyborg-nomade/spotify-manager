@@ -11,7 +11,6 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.music import NamedTrack
-from spotify_manager.application.requeue import flush_requeue
 from spotify_manager.application.requeue_result import (
     RequeueForADreamChangedError as RequeueForADreamChangedError,
 )
@@ -152,9 +151,16 @@ def flush_requeue_for_a_dream(
         RequeueForADreamError: A read, head check, or audit fails.
         RuntimeError: The caller interrupts execution through its retry callback.
     """
-    from spotify_manager.bootstrap.requeue import requeue_dependencies
-
-    dependencies = requeue_dependencies(
-        spotify, retry_call or _direct_retry, echo, progress_callback, log_path, _clock
+    from spotify_manager.interfaces.operations.requeue_for_a_dream import (
+        flush_requeue_for_a_dream as operation,
     )
-    return flush_requeue(dependencies, playlist_id, dry_run=dry_run)
+
+    return operation(
+        spotify,
+        playlist_id,
+        dry_run=dry_run,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        log_path=log_path,
+    )

@@ -1,8 +1,8 @@
 # Architecture Specification
 
-**Status:** implemented, production-deployed modular monolith
+**Status:** modular monolith; refactor Items 1–7 deployed, Item 7a prepared for review.
 
-**Baseline:** `master` at `a70412e` (2026-09-23)
+**Baseline:** Item 7 merge `7fe292c` (2026-10-03); Item 7a on `codex/refactor-07a-direct-use-cases`.
 
 **Scope:** current code, interfaces, persistence contracts, and known backlog
 
@@ -26,7 +26,7 @@ flowchart LR
     U[Operator] --> CLI[Typer CLI]
     U --> WEB[Static web cockpit]
     WEB --> API[FastAPI + threaded jobs]
-    CLI --> R[Domain routines]
+    CLI --> R[Application workflows and domain policies]
     API --> R
     R <--> SP[Spotify Web API]
     R <--> LF[Last.fm API]
@@ -47,24 +47,33 @@ datasets as production, so their durable state is shared.
 
 | Location | Current responsibility |
 | --- | --- |
-| `spotify_manager/main.py` | Typer commands, Rich rendering, CLI prompts, retries, and routine wiring. |
-| `spotify_manager/api.py` | FastAPI models/routes, in-memory job registry, worker threads, polling, choices, cancellation, and API error translation. |
+| `spotify_manager/main.py` | Stable Typer signatures, supported overrides and explicit feature composition. |
+| `spotify_manager/api.py` | Stable FastAPI signatures, supported overrides and feature router/handler/worker composition. |
 | `spotify_manager/web.py` | Password middleware, static frontend routes, and Genre Reveal web endpoints. |
 | `spotify_manager/frontend/` | Dependency-free HTML/CSS/JavaScript cockpit and preserved Genre Reveal page. |
-| `spotify_manager/routines/` | Business rules, planning, Spotify mutation order, resumability, and audit events. |
+| `spotify_manager/interfaces/` | Feature delivery, shared invocation functions, worker-owned interactions and interface presenters. |
+| `spotify_manager/application/` | Named use cases, observation/effect sequencing, accepted checkpoints and recovery. |
+| `spotify_manager/domain/` | Pure listening and selection policies. |
+| `spotify_manager/bootstrap/` | Explicit concrete dependency construction at the original resource scope. |
+| `spotify_manager/routines/` | Public compatibility entries and concrete SDK/file/validation helpers with retained contracts. |
 | `spotify_manager/client/` | Rotating Spotipy client and read-only Last.fm client. |
 | `spotify_manager/core/state/` | Central state document, namespace service, validation, optimistic concurrency, editing, and export. |
 | `spotify_manager/core/library_data/` | Canonical artifact manifest, integrity checks, hydrate/publish service, and conflict handling. |
-| `spotify_manager/infrastructure/` | Local JSON and Hugging Face adapters for the two core persistence services. |
-| `spotify_manager/processors/` | Shared library lookups, transformations, statistics, and legacy reconciliation. |
+| `spotify_manager/infrastructure/` | Concrete Spotify/history/catalog/file adapters plus local JSON and Hugging Face persistence. |
+| `spotify_manager/processors/` | Compatibility imports and original concrete lookup/maintenance SDK leaves. |
 | `spotify_manager/models/` | Pydantic models for mirrors, exports, lookups, and statistics. |
 | `spotify_manager/loaders_savers/` | Canonical and legacy JSON loading/saving compatibility functions. |
 | `spotify_manager/utils/` | Sorting, normalized comparisons, and growth calculations. |
 | `spotify_manager/files/` | Hydrated mirrors, source exports, caches, staging, backups, and JSONL audit logs. |
 
-The interface modules call routines; they should not reproduce listening rules.
-Routines accept callbacks for progress, retry policy, and user choices so CLI
-and API behavior share the same mutation logic.
+Feature adapters call shared invocation functions, which construct dependencies
+and call named application use cases. Domain policies choose outcomes; interface
+presenters render returned values. Public routine/processor forwarding entries
+remain available to external callers and are skipped by normal CLI/HTTP execution.
+The [family request and return map](refactor/CALL_PATH_SIMPLIFICATION.md) and
+[named retained helpers](refactor/RETAINED_LEGACY_HELPERS.md) explain these paths.
+Native async transport remains the next roadmap item; frontend source
+restructuring is a separate future refactor.
 
 ### Routine modules
 

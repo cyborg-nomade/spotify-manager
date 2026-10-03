@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
@@ -10,24 +11,17 @@ from spotipy import Spotify
 
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.state import RoutineState
-from spotify_manager.application.queue_3_composers import ComposerReader
 from spotify_manager.application.queue_3_execution import Queue3Execution
-from spotify_manager.application.queue_3_execution import Queue3LiveQueue
 from spotify_manager.application.queue_3_import import AnnualDiscoveryImport
-from spotify_manager.application.queue_3_import_review import AnnualImportReview
 from spotify_manager.application.queue_3_planner import Queue3Planner
 from spotify_manager.application.queue_3_planner import TransitionReader
 from spotify_manager.application.queue_3_planner import stable_release_order
-from spotify_manager.application.queue_3_review import Queue3Observations
-from spotify_manager.application.queue_3_review import Queue3Review
-from spotify_manager.application.queue_3_run import Queue3Run
-from spotify_manager.application.queue_3_run import run_summary
-from spotify_manager.application.queue_3_values import AnnualImportSummary
-from spotify_manager.application.queue_3_values import FlushSummary
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
 from spotify_manager.bootstrap.new_kids import library_reconciliation
 from spotify_manager.core.state.service import StateService
+from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
+from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.infrastructure.legacy.queue_3 import LegacyAnnualImport
 from spotify_manager.infrastructure.legacy.queue_3 import LegacyQueue3Catalog
 from spotify_manager.interfaces.presenters.queue_3 import Queue3Presenter
@@ -71,55 +65,6 @@ def annual_import(
 
 def _direct_call(operation: Callable[[], object], _description: str) -> object:
     return operation()
-
-
-def run_import(
-    client: Spotify,
-    playlist_id: str,
-    *,
-    active_year: int | None,
-    dry_run: bool,
-    echo: Callable[[str], None],
-    progress_callback: Callable[[int, int, str], None] | None,
-    retry_call: RetryCall | None,
-    state_path: Path,
-    state_service: StateService | None,
-    log_path: Path,
-) -> AnnualImportSummary:
-    """Prepare the standalone annual import in its original observation order.
-
-    Args:
-        client: Caller-owned Spotify client.
-        playlist_id: Configured Queue 3 destination.
-        active_year: Explicit checkpoint year, or the current UTC year.
-        dry_run: Whether to clone state and suppress writes.
-        echo: Existing output sink.
-        progress_callback: Optional progress sink.
-        retry_call: Optional retry and cancellation boundary.
-        state_path: Existing legacy namespace path.
-        state_service: Optional shared state service.
-        log_path: Original audit destination.
-
-    Returns:
-        The unchanged public annual import summary.
-
-    Raises:
-        Queue3Error: Playlist observation, import or state handling fails.
-    """
-    retry = retry_call or _direct_call
-    year = active_year or legacy.datetime.now(UTC).year
-    presentation = Queue3Presenter(echo, progress_callback)
-    presentation.loading(year - 1)
-    owned = legacy.load_owned_playlists(client, retry, playlist_id)
-    access = LegacyAnnualImport(client, retry, log_path)
-    current = list(access.read(playlist_id))
-    state_access = legacy._state_access(state_path, state_service)
-    persisted = state_access.load()
-    state = json.loads(json.dumps(persisted)) if dry_run else persisted
-    importer = annual_import(client, retry, log_path, state_access, echo)
-    return AnnualImportReview(importer, presentation).run(
-        playlist_id, current, state, owned, year, dry_run
-    )
 
 
 def review_planner(
@@ -190,85 +135,63 @@ def review_execution(
     )
 
 
-def run_flush(
+@dataclass(frozen=True)
+class AnnualInputs:
+    """Hold observed Queue 3 state and the configured annual import stage.
+
+    Args:
+        owned: Owned playlist observations excluding the review destination.
+        access: Caller-owned playlist observation and audit integration.
+        current: Original complete live destination markers.
+        state_access: Caller-owned checkpoint authority.
+        state: Loaded namespace or preview clone.
+        importer: Configured annual discovery application workflow.
+    """
+
+    owned: tuple[OwnedPlaylist, ...]
+    access: LegacyAnnualImport
+    current: list[PlaylistTrack]
+    state_access: RoutineState
+    state: dict[str, object]
+    importer: AnnualDiscoveryImport
+
+
+def annual_inputs(
     client: Spotify,
     playlist_id: str,
-    transition_reader: TransitionReader,
-    *,
-    composer_playlist_reader: ComposerReader | None,
-    active_year: int | None,
+    retry: RetryCall,
     dry_run: bool,
-    echo: Callable[[str], None],
-    progress_callback: Callable[[int, int, str], None] | None,
-    retry_call: RetryCall | None,
     state_path: Path,
     state_service: StateService | None,
     log_path: Path,
-    albums_path: Path,
-    removed_albums_log_path: Path,
-) -> FlushSummary:
-    """Prepare annual import and Queue 3 review in their original observation order.
+    echo: Callable[[str], None],
+) -> AnnualInputs:
+    """Observe playlist and state inputs in the original annual import order.
 
     Args:
-        client: Caller-owned Spotify client.
-        playlist_id: Configured Queue 3 destination.
-        transition_reader: Original release-boundary decision callback.
-        composer_playlist_reader: Optional original works-playlist selection callback.
-        active_year: Explicit checkpoint year, or the current UTC year.
-        dry_run: Whether state is cloned and durable writes suppressed.
-        echo: Existing output sink.
-        progress_callback: Optional entry progress sink.
-        retry_call: Optional retry and cancellation boundary.
-        state_path: Original legacy namespace path.
-        state_service: Optional shared state service.
-        log_path: Original Queue 3 audit destination.
-        albums_path: Original local album mirror.
-        removed_albums_log_path: Original removed-album recovery log.
+        client: Caller-owned synchronous Spotify client.
+        playlist_id: Queue 3 destination.
+        retry: Existing retry boundary.
+        dry_run: Whether to clone mutable progress.
+        state_path: Existing namespace location.
+        state_service: Optional shared state authority.
+        log_path: Original audit destination.
+        echo: Original output sink.
 
     Returns:
-        Original public Queue 3 summary.
+        Observed annual import inputs with original resource ownership.
 
     Raises:
-        Queue3Error: Configuration, state, planning or execution fails.
+        Queue3Error: Playlist or namespace observations fail.
     """
-    retry = retry_call or _direct_call
-    year = active_year or legacy.datetime.now(UTC).year
-    owned = legacy.load_owned_playlists(client, retry, playlist_id)
+    from spotify_manager.routines.queue_3 import _state_access
+    from spotify_manager.routines.queue_3 import load_owned_playlists
+
+    owned = load_owned_playlists(client, retry, playlist_id)
     access = LegacyAnnualImport(client, retry, log_path)
     current = list(access.read(playlist_id))
-    state_access = legacy._state_access(state_path, state_service)
+    state_access = _state_access(state_path, state_service)
     persisted = state_access.load()
     state = json.loads(json.dumps(persisted)) if dry_run else persisted
     importer = annual_import(client, retry, log_path, state_access, echo)
-    current, annual = importer.run(playlist_id, current, state, owned, year, dry_run)
-    queue = Queue3LiveQueue(
-        playlist_id, current, {track.spotify_id for track in current}
-    )
-    session = Queue3Run(
-        state, state_access, _datetime, dry_run, legacy.DAILY_ARTIST_LIMIT
-    )
-    snapshot = session.start(queue)
-    liked: dict[str, bool] = {}
-    planner = review_planner(
-        client, retry, {}, liked, snapshot.orders, session.save, transition_reader
-    )
-    execution = review_execution(
-        client, retry, albums_path, removed_albums_log_path, log_path, echo, dry_run
-    )
-    catalog = LegacyQueue3Catalog(client, retry, liked)
-    observations = Queue3Observations(catalog.discography, access.read)
-    review = Queue3Review(
-        session,
-        snapshot,
-        queue,
-        planner,
-        execution,
-        observations,
-        owned,
-        composer_playlist_reader,
-        access.audit,
-        Queue3Presenter(echo, progress_callback),
-    )
-    results, paused = review.run()
-    session.finish(snapshot, paused)
-    return run_summary(snapshot, results, annual, paused, dry_run)
+    return AnnualInputs(owned, access, current, state_access, state, importer)

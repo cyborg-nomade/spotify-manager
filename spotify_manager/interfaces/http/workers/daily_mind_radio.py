@@ -19,9 +19,11 @@ from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.historical import BlastSelectionResult
 from spotify_manager.interfaces.http.presenters.collections import date_strings
 from spotify_manager.interfaces.http.presenters.collections import present_entries
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import daily_mind_radio
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)

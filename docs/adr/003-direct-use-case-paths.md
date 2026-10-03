@@ -1,11 +1,11 @@
 # ADR-003: direct paths from feature adapters to business use cases
 
-**Status:** Accepted direction; implementation pending in Item 7a.
+**Status:** Accepted; implemented in Item 7a, pending PR review and release.
 
 **Date:** 2026-10-03
 
 **Decider:** repository owner, approving the simplification recommendation during
-Item 7 review. This decision does not approve deployment or merge of PR #66.
+Item 7 review. Item 7 PR #66 was subsequently approved, deployed and merged; this decision does not approve the Item 7a release.
 
 ## Context
 
@@ -93,9 +93,9 @@ move transport/presentation into the business rules.
 ## Action items
 
 1. [x] Record the owner-approved direction and insert Item 7a in the roadmap.
-2. [ ] Release approved Item 7, then start Item 7a from clean, current `master`.
-3. [ ] Inventory the runtime and compatibility paths for every routine family.
-4. [ ] Simplify album evaluation and Sauvignon, then the remaining families.
-5. [ ] Verify contracts/effects, typing, boundaries, coverage and local web behavior.
-6. [ ] Open the dedicated Item 7a PR and await approval before deployment/merge.
+2. [x] Release approved Item 7, then start Item 7a from clean, current `master`.
+3. [x] Inventory the runtime and compatibility paths for every routine family.
+4. [x] Simplify album evaluation and Sauvignon, then the remaining families.
+5. [x] Verify contracts/effects, typing, boundaries, coverage and local web behavior.
+6. [ ] Review the dedicated Item 7a PR; obtain approval before deployment/merge.
 7. [ ] Carry the call-path acceptance criteria through Items 8–12.

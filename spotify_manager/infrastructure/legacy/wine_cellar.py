@@ -5,6 +5,7 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.library_affinity import library_affinity
 from spotify_manager.application.new_wine_values import CellarRefillResult
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.wine_cellar import Inventory
@@ -44,7 +45,9 @@ class WineCellarAccess:
         Returns:
             Parsed playable markers.
         """
-        return legacy.load_playlist_tracks(self.client, playlist_id, self.retry)
+        from spotify_manager.routines.new_wine import load_playlist_tracks
+
+        return load_playlist_tracks(self.client, playlist_id, self.retry)
 
     def inventory(self) -> Inventory:
         """Read candidate IDs from the existing canonical mirrors.
@@ -52,7 +55,9 @@ class WineCellarAccess:
         Returns:
             Liked-track and saved-album maps keyed by normalized artist name.
         """
-        return legacy._load_no_discovery_inventory(self.liked_path, self.albums_path)
+        from spotify_manager.routines.new_wine import _load_no_discovery_inventory
+
+        return _load_no_discovery_inventory(self.liked_path, self.albums_path)
 
     def counts(self, artist: str, inventory: Inventory) -> LibraryCounts:
         """Read live membership under the original early-stop policy.
@@ -64,9 +69,17 @@ class WineCellarAccess:
         Returns:
             Liked count, saved-album count and eligibility.
         """
+        from spotify_manager.routines.new_wine import _artist_key
+
         tracks, albums = inventory
-        return legacy._live_no_discovery_counts(
-            self.client, artist, tracks, albums, self.retry
+        key = _artist_key(artist)
+        return library_affinity(
+            ArtistLibraryMembership(self.client, artist, self.retry),
+            albums.get(key, ()),
+            tracks.get(key, ()),
+            batch_size=legacy.LIKED_TRACK_BATCH_SIZE,
+            minimum_albums=legacy.NO_DISCOVERY_MIN_SAVED_ALBUMS,
+            minimum_tracks=legacy.NO_DISCOVERY_MIN_LIKED_TRACKS,
         )
 
     def append(self, playlist_id: str, source: PlaylistTrack) -> None:
@@ -76,8 +89,10 @@ class WineCellarAccess:
             playlist_id: Destination playlist.
             source: Original cellar marker.
         """
+        from spotify_manager.routines.new_wine import _add_playlist_track
+
         track = ReleaseTrack(source.spotify_id, source.uri, source.name, 1, 1)
-        legacy._add_playlist_track(self.client, playlist_id, track, self.retry)
+        _add_playlist_track(self.client, playlist_id, track, self.retry)
 
     def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
         """Remove the cellar marker after its replacement is secure.
@@ -86,7 +101,9 @@ class WineCellarAccess:
             playlist_id: Cellar playlist.
             source: Original marker.
         """
-        legacy._remove_playlist_track(self.client, playlist_id, source, self.retry)
+        from spotify_manager.routines.new_wine import _remove_playlist_track
+
+        _remove_playlist_track(self.client, playlist_id, source, self.retry)
 
     def save(self, state: dict[str, object]) -> None:
         """Persist one pending-transfer checkpoint.
@@ -103,7 +120,9 @@ class WineCellarAccess:
             run_id: Original execution identifier.
             result: Accepted or previewed refill outcome.
         """
-        legacy.append_cellar_log(run_id, result, self.log_path)
+        from spotify_manager.routines.new_wine import append_cellar_log
+
+        append_cellar_log(run_id, result, self.log_path)
 
     def source(self, raw: object) -> PlaylistTrack:
         """Reconstruct a pending marker with unchanged validation.
@@ -114,7 +133,9 @@ class WineCellarAccess:
         Returns:
             Original source value.
         """
-        return legacy._playlist_track_from_record(raw)
+        from spotify_manager.routines.new_wine import _playlist_track_from_record
+
+        return _playlist_track_from_record(raw)
 
 
 @dataclass(frozen=True)
@@ -140,9 +161,9 @@ class ArtistLibraryMembership:
         Returns:
             Boolean statuses in the same order.
         """
-        return legacy._affinity_album_statuses(
-            self.client, self.artist, ids, self.retry
-        )
+        from spotify_manager.routines.new_wine import _affinity_album_statuses
+
+        return _affinity_album_statuses(self.client, self.artist, ids, self.retry)
 
     def tracks(self, ids: list[str]) -> tuple[bool, ...]:
         """Read validated liked-track statuses.
@@ -153,6 +174,6 @@ class ArtistLibraryMembership:
         Returns:
             Boolean statuses in the same order.
         """
-        return legacy._affinity_track_statuses(
-            self.client, self.artist, ids, self.retry
-        )
+        from spotify_manager.routines.new_wine import _affinity_track_statuses
+
+        return _affinity_track_statuses(self.client, self.artist, ids, self.retry)

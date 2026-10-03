@@ -493,22 +493,23 @@ def flush_slow_listening(
     Raises:
         SlowListeningError: Observations, choices or durable state are invalid.
     """
-    from spotify_manager.bootstrap.slow_listening import run_slow_listening
+    from spotify_manager.interfaces.operations.slow_listening import (
+        flush_slow_listening as operation,
+    )
 
-    return run_slow_listening(
+    return operation(
         sp,
         playlist_id,
         order_reader,
         completion_notifier,
-        action_reader,
-        dry_run,
-        echo,
-        progress_callback,
-        retry_call,
-        state_path,
-        state_service,
-        log_path,
-        _clock,
+        action_reader=action_reader,
+        dry_run=dry_run,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
     )
 
 

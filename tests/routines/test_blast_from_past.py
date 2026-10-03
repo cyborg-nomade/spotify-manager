@@ -7,6 +7,7 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 from email.message import Message
+from functools import partial
 from io import BytesIO
 from pathlib import Path
 from urllib.error import HTTPError
@@ -16,7 +17,9 @@ from urllib.parse import urlparse
 
 import pytest
 
+from spotify_manager.bootstrap import historical_playlists as historical_composition
 from spotify_manager.routines import blast_from_past
+from tests.support.direct_dependencies import blast_batch
 
 
 def make_scrobble(number: int) -> blast_from_past.Scrobble:
@@ -763,9 +766,9 @@ def test_spotify_routine_prefers_liked_match_and_adds_it(
     ]
     sp.liked_ids = {"liked"}
     monkeypatch.setattr(
-        blast_from_past,
-        "select_blast_from_past",
-        lambda **_kwargs: batch,
+        historical_composition,
+        "_blast_batch",
+        partial(blast_batch, lambda **_kwargs: batch),
     )
 
     summary = blast_from_past.add_blast_from_past_to_spotify(
@@ -809,7 +812,9 @@ def test_maximum_playlist_length_only_selects_open_slots(
         calls.append(int(str(kwargs["count"])))
         return batch
 
-    monkeypatch.setattr(blast_from_past, "select_blast_from_past", select)
+    monkeypatch.setattr(
+        historical_composition, "_blast_batch", partial(blast_batch, select)
+    )
 
     summary = blast_from_past.add_blast_from_past_to_spotify(
         sp,  # type: ignore[arg-type]
@@ -847,9 +852,9 @@ def test_dry_run_resolves_tracks_without_updating_playlist(
         spotify_track("match", "Track", "Artist", "Album")
     ]
     monkeypatch.setattr(
-        blast_from_past,
-        "select_blast_from_past",
-        lambda **_kwargs: batch,
+        historical_composition,
+        "_blast_batch",
+        partial(blast_batch, lambda **_kwargs: batch),
     )
 
     summary = blast_from_past.add_blast_from_past_to_spotify(

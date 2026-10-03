@@ -5,9 +5,9 @@ from spotify_manager.interfaces.http.models.discovery import NewKidsTrackResult
 from spotify_manager.interfaces.http.models.discovery import Queue3AnnualImportEntry
 from spotify_manager.interfaces.http.models.discovery import Queue3ReleaseOption
 from spotify_manager.interfaces.http.models.discovery import Queue3TrackResult
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import queue_3
-from spotify_manager.routines import slow_listening
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import queue_3 as queue_3
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
 
 
 def new_kids_track_result(result: new_kids.FlushResult) -> NewKidsTrackResult:

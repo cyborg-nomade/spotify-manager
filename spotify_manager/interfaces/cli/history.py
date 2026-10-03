@@ -10,8 +10,8 @@ from rich.console import Console
 from rich.table import Table
 
 from spotify_manager.client.lastfm import LastFmError
-from spotify_manager.routines import found_art
-from spotify_manager.routines import scrobble_history as history
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import scrobble_history as history
 from spotify_manager.settings import Settings
 
 

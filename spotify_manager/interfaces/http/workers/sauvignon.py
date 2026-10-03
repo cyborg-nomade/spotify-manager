@@ -16,6 +16,7 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.application.job_lifecycle import await_submission
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
@@ -28,9 +29,10 @@ from spotify_manager.interfaces.http.models.recommendations import (
 )
 from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.workers.errors import _SauvignonJobCancelledError
-from spotify_manager.routines import found_art
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import sauvignon
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)

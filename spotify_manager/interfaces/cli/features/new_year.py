@@ -7,8 +7,8 @@ from rich.console import Console
 from spotipy import Spotify
 
 from spotify_manager.client.lastfm import LastFmClient
-from spotify_manager.routines import found_art
-from spotify_manager.routines import new_year
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import new_year as new_year
 from spotify_manager.settings import Settings
 
 

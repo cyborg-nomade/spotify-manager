@@ -16,7 +16,6 @@ from spotify_manager.infrastructure.legacy.history import ExportListeningHistory
 from spotify_manager.infrastructure.legacy.spotify import RequeuePlaylistAccess
 from spotify_manager.infrastructure.legacy.spotify import SpotifyAlbumCatalog
 from spotify_manager.infrastructure.legacy.spotify import SpotifyTrackMembership
-from spotify_manager.routines import requeue_for_a_dream
 
 
 def album_review_ports(client: Spotify) -> tuple[AlbumCatalog, TrackMembership]:
@@ -59,7 +58,9 @@ def requeue_audit(
 
 
 def _write_requeue_audit(path: Path, summary: RequeueForADreamSummary) -> None:
-    requeue_for_a_dream._append_log(summary, path)
+    from spotify_manager.routines.requeue_for_a_dream import _append_log
+
+    _append_log(summary, path)
 
 
 def listening_history(path: Path) -> ListeningHistory:

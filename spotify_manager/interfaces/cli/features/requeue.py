@@ -10,8 +10,12 @@ from rich.table import Table
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.routines import requeue_for_a_dream
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import (
+    requeue_for_a_dream as requeue_for_a_dream,
+)
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 from spotify_manager.settings import Settings
 
 

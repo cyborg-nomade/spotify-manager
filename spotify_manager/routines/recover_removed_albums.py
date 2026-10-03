@@ -587,9 +587,11 @@ def recover_removed_albums(
         SpotifyTransientServerError: The existing retry policy is exhausted.
         RuntimeError: A response is malformed or a caller interrupts execution.
     """
-    from spotify_manager.bootstrap.album_recovery import run_album_recovery
+    from spotify_manager.interfaces.operations.recover_removed_albums import (
+        recover_removed_albums as operation,
+    )
 
-    return run_album_recovery(
+    return operation(
         sp,
         echo,
         progress_callback,
@@ -597,8 +599,7 @@ def recover_removed_albums(
         recovery_log_path,
         dry_run,
         limit,
-        partial(_today, today),
-        _clock,
+        today,
         sleep,
         transient_retry_delay_seconds,
         transient_max_attempts,

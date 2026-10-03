@@ -283,9 +283,11 @@ def select_seed_tracks(
         FoundArtConfigError: Count is less than one.
         FoundArtStateError: History is empty or lacks enough diverse seeds.
     """
-    from spotify_manager.bootstrap.recommendations import select_seeds
+    from spotify_manager.interfaces.operations.found_art import (
+        select_seed_tracks as operation,
+    )
 
-    return select_seeds(history, seed_count, week_start)
+    return operation(history, seed_count=seed_count, week_start=week_start)
 
 
 def _cache_key(seed: FoundArtSeed) -> str:
@@ -371,18 +373,20 @@ def gather_candidates(
         FoundArtStateError: Cache or enabled prior-addition data is unusable.
         AssertionError: Validated cache entries or candidate support are corrupted.
     """
-    from spotify_manager.bootstrap.recommendations import gather_candidates as gather
+    from spotify_manager.interfaces.operations.found_art import (
+        gather_candidates as operation,
+    )
 
-    return gather(
+    return operation(
         lastfm,
         seeds,
         heard_keys,
-        cache_path,
-        log_path,
-        week_start,
-        candidate_pool_size,
-        now,
-        progress_callback,
+        cache_path=cache_path,
+        log_path=log_path,
+        week_start=week_start,
+        candidate_pool_size=candidate_pool_size,
+        now=now,
+        progress_callback=progress_callback,
     )
 
 
@@ -420,10 +424,17 @@ def resolve_spotify_candidates(
         SpotifyTrackResolutionError: Catalog or liked-status data is unusable.
         ValueError: The configured batch size is zero.
     """
-    from spotify_manager.bootstrap.recommendations import resolve_candidates
+    from spotify_manager.interfaces.operations.found_art import (
+        resolve_spotify_candidates as operation,
+    )
 
-    return resolve_candidates(
-        sp, candidates, playlist, count, dry_run, progress_callback
+    return operation(
+        sp,
+        candidates,
+        playlist,
+        count=count,
+        dry_run=dry_run,
+        progress_callback=progress_callback,
     )
 
 
@@ -492,20 +503,22 @@ def run_found_art(
         FoundArtStateError: History, cache, seed selection or audit is unusable.
         SpotifyTrackResolutionError: Catalog or destination data is unusable.
     """
-    from spotify_manager.bootstrap.recommendations import run_recommendations
+    from spotify_manager.interfaces.operations.found_art import (
+        run_found_art as operation,
+    )
 
-    return run_recommendations(
+    return operation(
         sp,
         lastfm,
         playlist_id,
-        count,
-        max_playlist_length,
-        seed_count,
-        dry_run,
-        export_path,
-        recent_path,
-        cache_path,
-        log_path,
-        now,
-        progress_callback,
+        count=count,
+        max_playlist_length=max_playlist_length,
+        seed_count=seed_count,
+        dry_run=dry_run,
+        export_path=export_path,
+        recent_path=recent_path,
+        cache_path=cache_path,
+        log_path=log_path,
+        now=now,
+        progress_callback=progress_callback,
     )

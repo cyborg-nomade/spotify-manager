@@ -7,7 +7,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
-from functools import partial
+from functools import partialmethod
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
@@ -15,6 +15,7 @@ from unittest.mock import patch
 from pydantic import BaseModel
 from spotipy import Spotify
 
+from spotify_manager.bootstrap.artist_review import ReviewResources
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
@@ -654,10 +655,22 @@ def _patch_reads(stack: ExitStack, edge: ReviewObservations) -> None:
         "append_events": edge.append,
         "save_artists": edge.save_artists,
         "update_stats_after_unfollow": edge.stats,
-        "ranked_artist_tracks": partial(_track_bridge, edge),
-        "ranked_artist_releases": partial(_ranked_bridge, edge, "ranked"),
-        "earliest_artist_releases": partial(_ranked_bridge, edge, "earliest"),
     }
+    stack.enter_context(
+        patch.object(ReviewResources, "tracks", partialmethod(_resource_tracks, edge))
+    )
+    stack.enter_context(
+        patch.object(
+            ReviewResources, "ranked", partialmethod(_resource_releases, edge, "ranked")
+        )
+    )
+    stack.enter_context(
+        patch.object(
+            ReviewResources,
+            "earliest",
+            partialmethod(_resource_releases, edge, "earliest"),
+        )
+    )
     for name, operation in replacements.items():
         stack.enter_context(patch.object(legacy, name, operation))
 
@@ -739,3 +752,20 @@ def _without_uris(
         if item.get("uri") not in removed:
             remaining.append(item)
     return remaining
+
+
+def _resource_tracks(
+    resources: ReviewResources,
+    edge: ReviewObservations,
+    artist: YourLibraryArtist,
+) -> list[legacy.TrackCandidate]:
+    return edge.ranked_tracks(artist)
+
+
+def _resource_releases(
+    resources: ReviewResources,
+    edge: ReviewObservations,
+    kind: str,
+    artist: YourLibraryArtist,
+) -> list[legacy.ReleaseCandidate]:
+    return edge.ranked(kind, artist)

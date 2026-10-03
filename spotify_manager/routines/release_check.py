@@ -926,35 +926,28 @@ def run_release_check(
     retry_call: RetryCall = _direct_retry,
 ) -> ReleaseCheckSummary:
     """Refresh Last.fm, discover releases, and update both playlists safely."""
-    from spotify_manager.bootstrap.release_opening import open_release_run
-
-    opening, state_access = open_release_run(
-        lastfm,
-        expected_username,
-        dry_run,
-        state_path,
-        state_service,
-        log_path,
-        export_path,
-        legacy_delta_path,
-        backup_dir,
-        history_log_path,
-        now,
-        progress_callback,
+    from spotify_manager.interfaces.operations.release_check import (
+        run_release_check as operation,
     )
-    from spotify_manager.bootstrap.release_run import run_release_review
 
-    return run_release_review(
-        opening,
-        state_access,
+    return operation(
         sp,
+        lastfm,
         playlists,
-        log_path,
-        artist_choice_reader,
-        release_choice_reader,
-        progress_callback,
-        retry_call,
-        dry_run,
+        expected_username=expected_username,
+        artist_choice_reader=artist_choice_reader,
+        release_choice_reader=release_choice_reader,
+        dry_run=dry_run,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+        export_path=export_path,
+        legacy_delta_path=legacy_delta_path,
+        backup_dir=backup_dir,
+        history_log_path=history_log_path,
+        now=now,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
     )
 
 

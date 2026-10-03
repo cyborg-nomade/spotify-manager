@@ -28,9 +28,11 @@ from spotify_manager.interfaces.http.models.releases import ReleaseCheckResultEn
 from spotify_manager.interfaces.http.workers.errors import (
     _ReleaseCheckJobCancelledError,
 )
-from spotify_manager.routines import release_check
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import scrobble_history
+from spotify_manager.interfaces.operations import release_check as release_check
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 
 
 @dataclass(kw_only=True)

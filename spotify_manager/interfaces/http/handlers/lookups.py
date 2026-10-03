@@ -9,12 +9,12 @@ from requests.exceptions import RequestException
 from spotipy import Spotify
 
 from spotify_manager.interfaces.http.models.common import CommandResult
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.lookups import ArtistLibraryStats
 from spotify_manager.models.lookups import TrackScrobbleStatus
 from spotify_manager.models.your_library import YourLibraryFile
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import scrobble_history
 
 
 class CachedLibrary(Protocol):

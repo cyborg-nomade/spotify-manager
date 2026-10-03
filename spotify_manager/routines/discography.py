@@ -385,20 +385,24 @@ def build_discography_plan(
     Returns:
         Original complete compatible result.
     """
-    return composition.planning(
+    from spotify_manager.interfaces.operations.discography import (
+        build_discography_plan as operation,
+    )
+
+    return operation(
         spotify,
         playlist_ids,
         release_selector,
-        queue_3_playlist_id,
-        historical_artist_choice_reader,
-        scrobbles_path,
-        today,
-        random_index_reader,
-        retry_call,
-        progress_callback,
-        state_path,
-        state_service,
-    ).run()
+        queue_3_playlist_id=queue_3_playlist_id,
+        historical_artist_choice_reader=historical_artist_choice_reader,
+        scrobbles_path=scrobbles_path,
+        today=today,
+        random_index_reader=random_index_reader,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
+        state_path=state_path,
+        state_service=state_service,
+    )
 
 
 def _append_log(
@@ -434,14 +438,19 @@ def apply_discography_plan(
     Returns:
         Original complete compatible result.
     """
-    return composition.execution(
+    from spotify_manager.interfaces.operations.discography import (
+        apply_discography_plan as operation,
+    )
+
+    return operation(
         spotify,
-        retry_call,
-        progress_callback,
-        state_path,
-        state_service,
-        log_path,
-    ).run(plan)
+        plan,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+    )
 
 
 def _release_page(

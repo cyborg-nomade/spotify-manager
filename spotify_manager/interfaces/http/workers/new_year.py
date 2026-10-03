@@ -11,10 +11,10 @@ from spotipy import Spotify
 
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import found_art
-from spotify_manager.routines import new_year
-from spotify_manager.routines import scrobble_history
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import new_year as new_year
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.settings import Settings
 
 

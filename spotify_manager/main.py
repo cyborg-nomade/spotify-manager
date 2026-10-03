@@ -54,6 +54,7 @@ from spotify_manager.core.library_data.runtime import (
 from spotify_manager.core.state.models import StateDocumentError as StateDocumentError
 from spotify_manager.core.state.models import StateError as StateError
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
+from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.cli.features.album_review import (
     AlbumReviewCLI as AlbumReviewCLI,
 )
@@ -105,6 +106,63 @@ from spotify_manager.interfaces.cli.history import HistoryCommand as HistoryComm
 from spotify_manager.interfaces.cli.history import (
     present_history_summary as present_history_summary,
 )
+from spotify_manager.interfaces.lookup_operations import (
+    evaluate_live_album as evaluate_album_live,
+)
+from spotify_manager.interfaces.lookup_operations import (
+    get_live_artist_library_stats as get_live_artist_library_stats,
+)
+from spotify_manager.interfaces.operations import analyse_library as library_sync
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import (
+    blast_from_past_artists as blast_from_past_artists,
+)
+from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
+from spotify_manager.interfaces.operations import discography as discography
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import genre_reveal as genre_reveal
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import new_wine as new_wine
+from spotify_manager.interfaces.operations import new_year as new_year
+from spotify_manager.interfaces.operations import palace_of_memory as palace_of_memory
+from spotify_manager.interfaces.operations import queue_3 as queue_3
+from spotify_manager.interfaces.operations import (
+    recover_removed_albums as recover_removed_albums,
+)
+from spotify_manager.interfaces.operations import release_check as release_check
+from spotify_manager.interfaces.operations import (
+    requeue_for_a_dream as requeue_for_a_dream,
+)
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import review_artists as artist_review
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
+from spotify_manager.interfaces.operations import something_old as something_old
+from spotify_manager.interfaces.operations import the_queue as the_queue
+from spotify_manager.interfaces.operations import upload_library_files as hf_upload
+from spotify_manager.interfaces.operations.legacy_library import (
+    analyse_comparison as analyse_comparison,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    compare_your_library_and_all_albums as compare_your_library_and_all_albums,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    convert_your_library_file as convert_your_library_file,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    count_artists_in_library as count_artists_in_library,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    restore_your_library_from_file as restore_your_library_from_file,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    run_monthly_routines as run_monthly_routines,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    update_total_album_list as update_total_album_list,
+)
 from spotify_manager.processors.library_lookups import (
     AlbumNotFoundError as AlbumNotFoundError,
 )
@@ -120,57 +178,7 @@ from spotify_manager.processors.library_lookups import (
 from spotify_manager.processors.library_lookups import (
     SpotifyLookupResponseError as SpotifyLookupResponseError,
 )
-from spotify_manager.processors.library_lookups import (
-    evaluate_album_live as evaluate_album_live,
-)
-from spotify_manager.processors.library_lookups import (
-    get_live_artist_library_stats as get_live_artist_library_stats,
-)
-from spotify_manager.processors.total_albums_processor import (
-    update_total_album_list as update_total_album_list,
-)
-from spotify_manager.routines import analyse_library as library_sync
-from spotify_manager.routines import blast_from_past as blast_from_past
-from spotify_manager.routines import blast_from_past_artists as blast_from_past_artists
 from spotify_manager.routines import composer_playlists as composer_playlists
-from spotify_manager.routines import daily_mind_radio as daily_mind_radio
-from spotify_manager.routines import discography as discography
-from spotify_manager.routines import found_art as found_art
-from spotify_manager.routines import genre_reveal as genre_reveal
-from spotify_manager.routines import new_kids as new_kids
-from spotify_manager.routines import new_wine as new_wine
-from spotify_manager.routines import new_year as new_year
-from spotify_manager.routines import palace_of_memory as palace_of_memory
-from spotify_manager.routines import queue_3 as queue_3
-from spotify_manager.routines import recover_removed_albums as recover_removed_albums
-from spotify_manager.routines import release_check as release_check
-from spotify_manager.routines import requeue_for_a_dream as requeue_for_a_dream
-from spotify_manager.routines import review_album_limits as review_album_limits
-from spotify_manager.routines import review_artists as artist_review
-from spotify_manager.routines import sauvignon as sauvignon
-from spotify_manager.routines import scrobble_history as scrobble_history
-from spotify_manager.routines import slow_listening as slow_listening
-from spotify_manager.routines import something_old as something_old
-from spotify_manager.routines import the_queue as the_queue
-from spotify_manager.routines import upload_library_files as hf_upload
-from spotify_manager.routines.convert_library_file import (
-    analyse_comparison as analyse_comparison,
-)
-from spotify_manager.routines.convert_library_file import (
-    compare_your_library_and_all_albums as compare_your_library_and_all_albums,
-)
-from spotify_manager.routines.convert_library_file import (
-    convert_your_library_file as convert_your_library_file,
-)
-from spotify_manager.routines.convert_library_file import (
-    restore_your_library_from_file as restore_your_library_from_file,
-)
-from spotify_manager.routines.count_items import (
-    count_artists_in_library as count_artists_in_library,
-)
-from spotify_manager.routines.monthly_routine import (
-    run_monthly_routines as run_monthly_routines,
-)
 from spotify_manager.settings import Settings as Settings
 
 

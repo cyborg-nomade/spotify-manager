@@ -23,9 +23,9 @@ from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.release_check_values import ReleaseCheckResult
-from spotify_manager.routines import found_art
-from spotify_manager.routines import release_check
-from spotify_manager.routines import scrobble_history
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import release_check as release_check
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.settings import Settings
 
 

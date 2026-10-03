@@ -18,8 +18,10 @@ from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.queue import QueueFlushResultEntry
 from spotify_manager.interfaces.http.workers.errors import _QueueJobCancelledError
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import the_queue
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import the_queue as the_queue
 
 
 @dataclass(kw_only=True)

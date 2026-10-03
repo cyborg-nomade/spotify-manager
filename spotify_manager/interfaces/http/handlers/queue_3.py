@@ -11,7 +11,7 @@ from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.discovery import Queue3ChoiceRequest
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.validation import option_ids
-from spotify_manager.routines import queue_3
+from spotify_manager.interfaces.operations import queue_3 as queue_3
 from spotify_manager.settings import Settings
 
 

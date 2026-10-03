@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from spotify_manager.infrastructure.legacy import sauvignon as sauvignon_integration
+from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import sauvignon
@@ -371,12 +373,10 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
     first = sauvignon.FirstTrack("first", "spotify:track:first", "Opening")
     scrobbles = [blast_from_past.Scrobble("Known", "Known Artist", "Known Album", 1)]
     monkeypatch.setattr(
-        found_art,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: (scrobbles, 2),
+        LegacySauvignon, "refresh", lambda *_args, **_kwargs: (scrobbles, 2)
     )
     monkeypatch.setattr(
-        found_art,
+        sauvignon_integration,
         "aggregate_track_history",
         lambda _history: (
             found_art.TrackHistory(
@@ -390,15 +390,9 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
             ),
         ),
     )
+    monkeypatch.setattr(LegacySauvignon, "seeds", lambda *_args, **_kwargs: (seed,))
     monkeypatch.setattr(
-        found_art,
-        "select_seed_tracks",
-        lambda *_args, **_kwargs: (seed,),
-    )
-    monkeypatch.setattr(
-        found_art,
-        "gather_candidates",
-        lambda *_args, **_kwargs: (candidate,),
+        LegacySauvignon, "tracks", lambda *_args, **_kwargs: (candidate,)
     )
     monkeypatch.setattr(
         sauvignon.new_wine,
@@ -406,9 +400,7 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        sauvignon,
-        "gather_album_recommendations",
-        lambda *_args, **_kwargs: (album_recommendation,),
+        LegacySauvignon, "albums", lambda *_args, **_kwargs: (album_recommendation,)
     )
     monkeypatch.setattr(
         sauvignon,
@@ -473,23 +465,23 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         ),
     )
     monkeypatch.setattr(
-        found_art,
-        "refresh_scrobble_history",
+        LegacySauvignon,
+        "refresh",
         lambda *_args, **_kwargs: (
             [blast_from_past.Scrobble("Seed", "Seed", "Seed Album", 1)],
             0,
         ),
     )
     monkeypatch.setattr(
-        found_art,
+        sauvignon_integration,
         "aggregate_track_history",
         lambda _history: (
             found_art.TrackHistory("Seed", "Seed", ("seed", "seed"), 1, 1, 1, 1),
         ),
     )
     monkeypatch.setattr(
-        found_art,
-        "select_seed_tracks",
+        LegacySauvignon,
+        "seeds",
         lambda *_args, **_kwargs: (
             found_art.FoundArtSeed(
                 "Seed",
@@ -503,9 +495,7 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         ),
     )
     monkeypatch.setattr(
-        found_art,
-        "gather_candidates",
-        lambda *_args, **_kwargs: (track_candidate(),),
+        LegacySauvignon, "tracks", lambda *_args, **_kwargs: (track_candidate(),)
     )
     monkeypatch.setattr(
         sauvignon.new_wine,
@@ -513,9 +503,7 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        sauvignon,
-        "gather_album_recommendations",
-        lambda *_args, **_kwargs: recommendations,
+        LegacySauvignon, "albums", lambda *_args, **_kwargs: recommendations
     )
     monkeypatch.setattr(
         sauvignon,
@@ -553,11 +541,7 @@ def test_fill_sauvignon_full_playlist_and_invalid_limits(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(
-        found_art,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: ([], 0),
-    )
+    monkeypatch.setattr(LegacySauvignon, "refresh", lambda *_args, **_kwargs: ([], 0))
     monkeypatch.setattr(
         sauvignon.new_wine,
         "load_playlist_tracks",

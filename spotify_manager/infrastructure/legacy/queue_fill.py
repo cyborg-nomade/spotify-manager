@@ -22,6 +22,9 @@ from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.queue_values import ArtistHistory
 from spotify_manager.domain.queue_values import ArtistRecommendation
 from spotify_manager.domain.queue_values import ArtistSeed
+from spotify_manager.domain.release_check_values import RankedArtist
+from spotify_manager.infrastructure.recommendation_calendar import listening_week_start
+from spotify_manager.infrastructure.recommendation_history import refresh_history
 from spotify_manager.routines import the_queue as legacy
 
 
@@ -77,7 +80,7 @@ class LegacyQueueFill:
         Returns:
             Original supplied or current time converted to UTC.
         """
-        return (self.now or legacy.datetime.now(UTC)).astimezone(UTC)
+        return (self.now or datetime.now(UTC)).astimezone(UTC)
 
     def week(self, now: datetime) -> date:
         """Resolve the original local listening calendar.
@@ -88,7 +91,7 @@ class LegacyQueueFill:
         Returns:
             Original effective listening week.
         """
-        return legacy.found_art.listening_week_start(now)
+        return listening_week_start(now)
 
     def history(self, preview: bool, now: datetime) -> tuple[Sequence[Scrobble], int]:
         """Preserve original refresh parameters and narrowed error translation.
@@ -105,7 +108,7 @@ class LegacyQueueFill:
         """
         progress = self._history_progress if self.callback is not None else None
         try:
-            return legacy.found_art.refresh_scrobble_history(
+            return refresh_history(
                 self.lastfm,
                 export_path=self.export_path,
                 recent_path=self.recent_path,
@@ -125,11 +128,9 @@ class LegacyQueueFill:
         Returns:
             Original observed Queue length.
         """
-        return len(
-            legacy.new_wine.load_playlist_tracks(
-                self.spotify, self.playlists.queue, self.retry
-            )
-        )
+        from spotify_manager.routines.new_wine import load_playlist_tracks
+
+        return len(load_playlist_tracks(self.spotify, self.playlists.queue, self.retry))
 
     def seeds(
         self,
@@ -147,7 +148,11 @@ class LegacyQueueFill:
         Returns:
             Original ordered weighted seeds.
         """
-        return legacy.select_seed_artists(history, seed_count=count, week_start=week)
+        from spotify_manager.application.queue_seeds import QueueSeeds
+
+        return QueueSeeds(listening_week_start, legacy.SEED_POOL_MULTIPLIER).select(
+            history, count, week
+        )
 
     def candidates(
         self,
@@ -169,17 +174,14 @@ class LegacyQueueFill:
         Returns:
             Original ordered weekly recommendations.
         """
-        return legacy.gather_artist_recommendations(
-            self.lastfm,
-            seeds,
-            heard,
-            cache_path=self.cache_path,
-            log_path=self.log_path,
-            week_start=week,
-            candidate_pool_size=limit,
-            now=now,
-            progress_callback=self.callback,
+        from spotify_manager.bootstrap.queue_recommendations import (
+            queue_recommendations,
         )
+
+        workflow = queue_recommendations(
+            self.lastfm, self.cache_path, self.log_path, now, self.callback
+        )
+        return workflow.run(seeds, heard, week, limit)
 
     def represented(self) -> set[str]:
         """Retain original destination read order before state loading.
@@ -187,7 +189,9 @@ class LegacyQueueFill:
         Returns:
             Original represented Spotify artist identities.
         """
-        return legacy._playlist_artist_ids(
+        from spotify_manager.routines.the_queue import _playlist_artist_ids
+
+        return _playlist_artist_ids(
             self.spotify,
             (
                 self.playlists.queue,
@@ -204,7 +208,9 @@ class LegacyQueueFill:
         Returns:
             Original caller-owned state handle.
         """
-        return legacy._state_access(self.state_path, self.state_service)
+        from spotify_manager.routines.the_queue import _state_access
+
+        return _state_access(self.state_path, self.state_service)
 
     def decode_mapping(self, raw: object) -> SpotifyArtistCandidate | None:
         """Preserve original unchecked mapping tolerance.
@@ -215,7 +221,9 @@ class LegacyQueueFill:
         Returns:
             Original accepted mapping or no mapping.
         """
-        return legacy._mapped_artist(raw)
+        from spotify_manager.routines.the_queue import _mapped_artist
+
+        return _mapped_artist(raw)
 
     def resolve(
         self, recommendation: ArtistRecommendation
@@ -228,18 +236,14 @@ class LegacyQueueFill:
         Returns:
             Original mapping, skip, quit or no-match outcome.
         """
-        ranked = legacy.release_check.RankedArtist(
-            key=recommendation.key,
-            name=recommendation.artist,
-            scrobbles=0,
-            rank=recommendation.base_rank,
+        from spotify_manager.bootstrap.artist_mapping import artist_mapping
+        from spotify_manager.routines.the_queue import _mapping_choice_reader
+
+        ranked = RankedArtist(
+            recommendation.key, recommendation.artist, 0, recommendation.base_rank
         )
-        return legacy.release_check.resolve_spotify_artist(
-            self.spotify,
-            ranked,
-            legacy._mapping_choice_reader(self.choice, recommendation),
-            self.retry,
-        )
+        reader = _mapping_choice_reader(self.choice, recommendation)
+        return artist_mapping(self.spotify, reader, self.retry).run(ranked)
 
     def top_tracks(self, artist: SpotifyArtistCandidate) -> tuple[CatalogTrack, ...]:
         """Read original ordered top tracks.
@@ -250,9 +254,9 @@ class LegacyQueueFill:
         Returns:
             Original top tracks before window truncation.
         """
-        _, tracks = legacy.new_kids.load_top_track_data(
-            self.spotify, artist.spotify_id, self.retry
-        )
+        from spotify_manager.routines.new_kids import load_top_track_data
+
+        _, tracks = load_top_track_data(self.spotify, artist.spotify_id, self.retry)
         return tracks
 
     def liked(self, tracks: tuple[CatalogTrack, ...]) -> dict[str, bool]:
@@ -264,7 +268,9 @@ class LegacyQueueFill:
         Returns:
             Original liked statuses.
         """
-        return legacy._liked_statuses(self.spotify, tracks, self.retry)
+        from spotify_manager.routines.the_queue import _liked_statuses
+
+        return _liked_statuses(self.spotify, tracks, self.retry)
 
     def following(self, artist: SpotifyArtistCandidate) -> bool:
         """Read and validate the original Spotify following response.
@@ -275,7 +281,9 @@ class LegacyQueueFill:
         Returns:
             Original first follow status.
         """
-        return legacy._fill_following(self.spotify, artist, self.retry)
+        from spotify_manager.routines.the_queue import _fill_following
+
+        return _fill_following(self.spotify, artist, self.retry)
 
     def follow(self, artist: SpotifyArtistCandidate) -> None:
         """Accept the original Spotify follow before mirror persistence.
@@ -283,7 +291,9 @@ class LegacyQueueFill:
         Args:
             artist: Original accepted artist mapping.
         """
-        legacy._fill_follow(self.spotify, artist, self.retry)
+        from spotify_manager.routines.the_queue import _fill_follow
+
+        _fill_follow(self.spotify, artist, self.retry)
 
     def persist_followed(self, artist: SpotifyArtistCandidate) -> None:
         """Retain original mirror persistence and its presentation.
@@ -291,7 +301,9 @@ class LegacyQueueFill:
         Args:
             artist: Original accepted mapping.
         """
-        legacy._persist_followed_artist(artist, self.echo)
+        from spotify_manager.routines.the_queue import _persist_followed_artist
+
+        _persist_followed_artist(artist, self.echo)
 
     def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
         """Accept the original Queue marker append.
@@ -300,10 +312,10 @@ class LegacyQueueFill:
             artist: Original accepted mapping.
             track: Original selected marker.
         """
+        from spotify_manager.routines.review_artists import add_playlist_item
+
         self.retry(
-            partial(
-                legacy.add_playlist_item, self.spotify, self.playlists.queue, track.uri
-            ),
+            partial(add_playlist_item, self.spotify, self.playlists.queue, track.uri),
             f"adding {artist.name} to The Queue",
         )
 
@@ -315,12 +327,14 @@ class LegacyQueueFill:
             preview: Original preview behavior.
             selected: Whether an actual or proposed addition was selected.
         """
+        from spotify_manager.routines.the_queue import append_event
+
         if not selected:
-            legacy.append_event(
+            append_event(
                 self.log_path, "fill_candidate", result=asdict(result), dry_run=preview
             )
             return
-        legacy.append_event(
+        append_event(
             self.log_path,
             "fill_candidate" if preview else "artist_added",
             lastfm_artist_key=result.recommendation.key,

@@ -1,12 +1,7 @@
 """Stable public entry points for legacy export comparison and conversion."""
 
-from functools import partial
-
 from spotipy import Spotify
 
-from spotify_manager.application import legacy_library_conversion as workflow
-from spotify_manager.bootstrap.legacy_library import conversion_catalog
-from spotify_manager.bootstrap.legacy_library import conversion_files
 from spotify_manager.loaders_savers import load_comparison_file as load_comparison_file
 from spotify_manager.loaders_savers import (
     load_total_albums_file as load_total_albums_file,
@@ -54,7 +49,11 @@ get_album_id_list_from_your_library_file = _export_ids
 
 def compare_your_library_and_all_albums() -> None:
     """Publish the original comparison after export and legacy file reads."""
-    workflow.compare(conversion_files(), compare_and_get_dict)
+    from spotify_manager.interfaces.operations.legacy_library import (
+        compare_your_library_and_all_albums as operation,
+    )
+
+    return operation()
 
 
 def analyse_comparison(sp: Spotify) -> None:
@@ -63,12 +62,11 @@ def analyse_comparison(sp: Spotify) -> None:
     Args:
         sp: Original caller-owned synchronous client.
     """
-    workflow.analyse(
-        conversion_files(),
-        partial(_analyse_removed, sp),
-        partial(_analyse_added, sp),
-        print,
+    from spotify_manager.interfaces.operations.legacy_library import (
+        analyse_comparison as operation,
     )
+
+    return operation(sp)
 
 
 def convert_your_library_file(sp: Spotify) -> None:
@@ -77,7 +75,11 @@ def convert_your_library_file(sp: Spotify) -> None:
     Args:
         sp: Original caller-owned synchronous client.
     """
-    workflow.convert(conversion_files(), conversion_catalog(sp), print)
+    from spotify_manager.interfaces.operations.legacy_library import (
+        convert_your_library_file as operation,
+    )
+
+    return operation(sp)
 
 
 def restore_your_library_from_file(sp: Spotify) -> None:
@@ -86,7 +88,11 @@ def restore_your_library_from_file(sp: Spotify) -> None:
     Args:
         sp: Original caller-owned synchronous client.
     """
-    workflow.restore(conversion_files(), conversion_catalog(sp), print)
+    from spotify_manager.interfaces.operations.legacy_library import (
+        restore_your_library_from_file as operation,
+    )
+
+    return operation(sp)
 
 
 def _analyse_removed(sp: Spotify, identifier: str) -> object:

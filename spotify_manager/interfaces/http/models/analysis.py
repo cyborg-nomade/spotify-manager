@@ -3,7 +3,7 @@
 from pydantic import BaseModel
 from pydantic import Field
 
-from spotify_manager.routines import analyse_library as library_analysis
+from spotify_manager.interfaces.operations import analyse_library as library_analysis
 
 from .common import JobStatus
 

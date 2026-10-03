@@ -15,8 +15,12 @@ from rich.progress import TimeElapsedColumn
 from spotipy import Spotify
 
 from spotify_manager.interfaces.cli.presentation import progress_description
-from spotify_manager.routines import recover_removed_albums
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import (
+    recover_removed_albums as recover_removed_albums,
+)
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)

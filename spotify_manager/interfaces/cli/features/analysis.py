@@ -24,8 +24,10 @@ from rich.table import Table
 from rich.text import Text
 from spotipy import Spotify
 
-from spotify_manager.routines import analyse_library as library_sync
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import analyse_library as library_sync
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)

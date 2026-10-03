@@ -20,10 +20,12 @@ from spotipy.exceptions import SpotifyException
 
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.cli.presentation import progress_description
-from spotify_manager.routines import found_art
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import sauvignon
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 from spotify_manager.settings import Settings
 
 

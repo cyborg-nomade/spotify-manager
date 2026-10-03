@@ -3,7 +3,7 @@
 from spotify_manager.interfaces.http.models.slow_listening import (
     SlowListeningTrackResult,
 )
-from spotify_manager.routines import slow_listening
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
 
 
 def slow_listening_track_result(

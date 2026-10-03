@@ -32,9 +32,12 @@ class LegacyHistoryStorage:
 
     def hydrate(self) -> None:
         """Hydrate managed history before the first cancellation check."""
-        if legacy.artifact_for_path(self.export_path) != "scrobbles":
+        from spotify_manager.bootstrap.library_data import artifact_for_path
+        from spotify_manager.bootstrap.library_data import get_library_data_service
+
+        if artifact_for_path(self.export_path) != "scrobbles":
             return
-        self.data_service = legacy.get_library_data_service()
+        self.data_service = get_library_data_service()
         self.data_service.hydrate("scrobbles")
 
     def load(self) -> HistoryExport:
@@ -46,7 +49,9 @@ class LegacyHistoryStorage:
         Raises:
             ScrobbleHistoryError: The export cannot be read or validated.
         """
-        return HistoryExport(*legacy._load_export(self.export_path))
+        from spotify_manager.routines.scrobble_history import _load_export
+
+        return HistoryExport(*_load_export(self.export_path))
 
     def legacy(self) -> tuple[HistoryRecord, ...]:
         """Read the optional legacy delta.
@@ -57,7 +62,9 @@ class LegacyHistoryStorage:
         Raises:
             ScrobbleHistoryError: A present delta is invalid.
         """
-        return legacy._load_legacy_delta(self.legacy_path)
+        from spotify_manager.routines.scrobble_history import _load_legacy_delta
+
+        return _load_legacy_delta(self.legacy_path)
 
     def backup(self, export: HistoryExport, checked_at: datetime) -> Path:
         """Back up original bytes or the recovered fallback payload.
@@ -72,7 +79,9 @@ class LegacyHistoryStorage:
         Raises:
             ScrobbleHistoryError: Backup creation fails.
         """
-        return legacy._backup_export(
+        from spotify_manager.routines.scrobble_history import _backup_export
+
+        return _backup_export(
             self.export_path,
             self.backup_dir,
             checked_at,
@@ -89,7 +98,9 @@ class LegacyHistoryStorage:
         Raises:
             ScrobbleHistoryError: Atomic replacement fails.
         """
-        legacy._write_export_atomic(self.export_path, payload, records)
+        from spotify_manager.routines.scrobble_history import _write_export_atomic
+
+        _write_export_atomic(self.export_path, payload, records)
 
     def mark(self, checked_at: datetime) -> None:
         """Update the export's successful-check timestamp.
@@ -100,7 +111,9 @@ class LegacyHistoryStorage:
         Raises:
             ScrobbleHistoryError: The file timestamp cannot be updated.
         """
-        legacy._mark_export_checked(self.export_path, checked_at)
+        from spotify_manager.routines.scrobble_history import _mark_export_checked
+
+        _mark_export_checked(self.export_path, checked_at)
 
     def publish(self, full_rebuild: bool) -> None:
         """Publish managed history after its check timestamp is recorded.
@@ -122,7 +135,9 @@ class LegacyHistoryStorage:
         Raises:
             ScrobbleHistoryError: Audit persistence fails.
         """
-        legacy._append_log(summary, self.log_path)
+        from spotify_manager.routines.scrobble_history import _append_log
+
+        _append_log(summary, self.log_path)
 
 
 @dataclass(frozen=True)
@@ -145,5 +160,7 @@ class LegacyHistoryReader:
         Returns:
             Lazy records consumed after the workflow's cancellation check.
         """
+        from spotify_manager.routines.scrobble_history import _api_record
+
         tracks = self.client.recent_tracks(from_timestamp=start, to_timestamp=end)
-        return map(legacy._api_record, tracks)
+        return map(_api_record, tracks)

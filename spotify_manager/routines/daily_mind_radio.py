@@ -60,9 +60,11 @@ def select_daily_mind_radio(
         LastFmExportError: History has no date buckets or cannot be read.
         RandomOrgError: The random source fails.
     """
-    from spotify_manager.bootstrap.historical_playlists import select_radio
+    from spotify_manager.interfaces.operations.daily_mind_radio import (
+        select_daily_mind_radio as operation,
+    )
 
-    return select_radio(path, today, random_timestamp_reader, progress_callback)
+    return operation(path, today, random_timestamp_reader, progress_callback)
 
 
 def add_daily_mind_radio_to_spotify(
@@ -98,9 +100,11 @@ def add_daily_mind_radio_to_spotify(
         BlastFromPastError: Selection or Spotify observations fail.
         BlastFromPastCancelledError: Cancellation is requested.
     """
-    from spotify_manager.bootstrap.historical_playlists import add_radio
+    from spotify_manager.interfaces.operations.daily_mind_radio import (
+        add_daily_mind_radio_to_spotify as operation,
+    )
 
-    return add_radio(
+    return operation(
         sp,
         playlist_id,
         path,

@@ -25,9 +25,11 @@ from spotify_manager.interfaces.http.models.something_old import (
 )
 from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.workers.errors import _DiscographyJobCancelledError
-from spotify_manager.routines import discography
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import something_old
+from spotify_manager.interfaces.operations import discography as discography
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import something_old as something_old
 
 
 @dataclass(kw_only=True)

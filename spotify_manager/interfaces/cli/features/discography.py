@@ -13,9 +13,11 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.domain.discography_values import CatalogRelease
-from spotify_manager.routines import discography
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import something_old
+from spotify_manager.interfaces.operations import discography as discography
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import something_old as something_old
 from spotify_manager.settings import Settings
 
 

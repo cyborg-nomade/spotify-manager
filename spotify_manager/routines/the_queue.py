@@ -441,20 +441,20 @@ def gather_artist_recommendations(
     Raises:
         QueueStateError: Original cache or audit data is unusable.
     """
-    from spotify_manager.bootstrap.queue_recommendations import (
-        gather_queue_recommendations,
+    from spotify_manager.interfaces.operations.the_queue import (
+        gather_artist_recommendations as operation,
     )
 
-    return gather_queue_recommendations(
+    return operation(
         lastfm,
         seeds,
         heard_keys,
-        cache_path,
-        log_path,
-        week_start,
-        candidate_pool_size,
-        now,
-        progress_callback,
+        cache_path=cache_path,
+        log_path=log_path,
+        week_start=week_start,
+        candidate_pool_size=candidate_pool_size,
+        now=now,
+        progress_callback=progress_callback,
     )
 
 
@@ -610,25 +610,29 @@ def fill_queue_from_lastfm(
         QueueStateError: Original history, cache or state is unusable.
         QueueSpotifyError: Original follow or liked response is invalid.
     """
-    from spotify_manager.application.queue_fill_values import QueueFillRequest
-    from spotify_manager.bootstrap.queue_fill import fill_queue
+    from spotify_manager.interfaces.operations.the_queue import (
+        fill_queue_from_lastfm as operation,
+    )
 
-    return fill_queue(
+    return operation(
         sp,
         lastfm,
         playlists,
         choice_reader,
-        QueueFillRequest(count, max_playlist_length, seed_count, dry_run),
-        echo,
-        progress_callback,
-        retry_call,
-        export_path,
-        recent_path,
-        state_path,
-        state_service,
-        cache_path,
-        log_path,
-        now,
+        count=count,
+        max_playlist_length=max_playlist_length,
+        seed_count=seed_count,
+        dry_run=dry_run,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        export_path=export_path,
+        recent_path=recent_path,
+        state_path=state_path,
+        state_service=state_service,
+        cache_path=cache_path,
+        log_path=log_path,
+        now=now,
     )
 
 
@@ -741,17 +745,17 @@ def flush_queue(
         QueueStateError: Original stored sources, plans or counts are invalid.
         QueueSpotifyError: Original follow-status response is invalid.
     """
-    from spotify_manager.bootstrap.queue_flush import flush_queue as run_flush
+    from spotify_manager.interfaces.operations.the_queue import flush_queue as operation
 
-    return run_flush(
+    return operation(
         sp,
         playlists,
-        dry_run,
-        echo,
-        progress_callback,
-        retry_call,
-        state_path,
-        state_service,
-        log_path,
-        artists_path,
+        dry_run=dry_run,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+        artists_path=artists_path,
     )

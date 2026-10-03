@@ -21,7 +21,7 @@ from spotify_manager.interfaces.http.models.recommendations import (
     FoundArtSelectionResult,
 )
 from spotify_manager.interfaces.http.presenters.collections import present_entries
-from spotify_manager.routines import found_art
+from spotify_manager.interfaces.operations import found_art as found_art
 
 
 @dataclass(kw_only=True)

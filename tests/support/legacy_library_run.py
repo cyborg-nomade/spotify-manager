@@ -15,6 +15,7 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager import loaders_savers as files
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
@@ -420,7 +421,15 @@ def bind(monkeypatch: pytest.MonkeyPatch, memory: Memory) -> Catalog:
         Original SDK boundary fake.
     """
     catalog = Catalog(memory)
-    for module in (total, control, stats, conversion, monthly_routine, count_items):
+    for module in (
+        files,
+        total,
+        control,
+        stats,
+        conversion,
+        monthly_routine,
+        count_items,
+    ):
         _bind_module(monkeypatch, module, memory)
     monkeypatch.setattr(total, "datetime", FixedDatetime)
     monkeypatch.setattr(builtins, "print", memory.echo)

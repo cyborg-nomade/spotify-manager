@@ -880,33 +880,30 @@ def flush_new_wine(
     Raises:
         NewWineError: Observations, choices or durable records are invalid.
     """
-    from spotify_manager.bootstrap.new_wine import run_new_wine
+    from spotify_manager.interfaces.operations.new_wine import (
+        flush_new_wine as operation,
+    )
 
-    options = NewWineOptions(
+    return operation(
+        sp,
         new_wine_playlist_id,
         sauvignon_playlist_id,
-        wine_cellar_playlist_id,
-        no_discovery,
-        choose_album_endpoints,
-        dry_run,
-    )
-    return run_new_wine(
-        sp,
-        options,
         choice_reader,
-        endpoint_choice_reader,
-        year,
-        echo,
-        progress_callback,
-        retry_call,
-        state_path,
-        state_service,
-        log_path,
-        albums_path,
-        liked_tracks_path,
-        removed_albums_log_path,
-        _clock,
-        _local_year,
+        endpoint_choice_reader=endpoint_choice_reader,
+        choose_album_endpoints=choose_album_endpoints,
+        wine_cellar_playlist_id=wine_cellar_playlist_id,
+        no_discovery=no_discovery,
+        dry_run=dry_run,
+        year=year,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+        albums_path=albums_path,
+        liked_tracks_path=liked_tracks_path,
+        removed_albums_log_path=removed_albums_log_path,
     )
 
 

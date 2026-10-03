@@ -15,7 +15,9 @@ from rich.progress import TimeElapsedColumn
 from rich.prompt import Prompt
 from spotipy import Spotify
 
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)

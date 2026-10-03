@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
 from datetime import tzinfo
+from functools import partialmethod
 from pathlib import Path
 from typing import Self
 from typing import cast
@@ -34,6 +35,9 @@ from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import something_old
 from spotify_manager.settings import Settings
 from tests.support.discography_boundaries import marker
+from tests.support.history_dependencies import AnnualResources
+from tests.support.history_dependencies import annual_discoveries
+from tests.support.history_dependencies import annual_history
 from tests.support.queue_neighbors import NOW
 
 
@@ -615,8 +619,12 @@ def original_run(
         (blast_from_past, "parse_playlist_id", edge.parse),
         (queue_3, "parse_playlist_id", edge.parse),
         (queue_3, "load_owned_playlists", edge.owned),
-        (queue_3, "import_previous_year_discoveries", edge.discoveries),
-        (legacy.scrobble_history, "refresh_scrobble_history", edge.history),
+        (
+            AnnualResources,
+            "discoveries",
+            partialmethod(annual_discoveries, edge.discoveries),
+        ),
+        (AnnualResources, "history", partialmethod(annual_history, edge.history)),
         (new_wine, "load_playlist_tracks", edge.playlist),
         (blast_from_past, "search_spotify_matches", edge.search),
         (palace_of_memory, "search_spotify_album", edge.album),

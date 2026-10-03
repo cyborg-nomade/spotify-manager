@@ -17,7 +17,9 @@ def _search(
     retry: legacy.RetryCall,
     candidate: FoundArtCandidate,
 ) -> tuple[legacy.SpotifyAlbumOption, ...]:
-    return legacy.search_candidate_albums(spotify, candidate, retry)
+    from spotify_manager.routines.sauvignon import search_candidate_albums
+
+    return search_candidate_albums(spotify, candidate, retry)
 
 
 def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
@@ -53,7 +55,24 @@ def gather_albums(
     Raises:
         SauvignonSpotifyError: Existing catalog observations are unusable.
     """
+    workflow = album_gathering(spotify, retry, progress)
+    return workflow.run(candidates, excluded, existing, maximum, week)
+
+
+def album_gathering(
+    spotify: Spotify, retry: legacy.RetryCall, progress: legacy.ProgressCallback | None
+) -> AlbumGathering:
+    """Construct the invocation dependencies without executing the use case.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        retry: Existing caller-owned retry behavior.
+        progress: Optional original candidate presenter.
+
+    Returns:
+        The configured application dependencies or workflow.
+    """
     workflow = AlbumGathering(
         partial(_search, spotify, retry), partial(_progress, progress)
     )
-    return workflow.run(candidates, excluded, existing, maximum, week)
+    return workflow

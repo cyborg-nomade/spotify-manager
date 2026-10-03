@@ -16,7 +16,7 @@ from spotify_manager.interfaces.http.models.slow_listening import (
     SlowListeningPendingChoice,
 )
 from spotify_manager.interfaces.http.validation import option_ids
-from spotify_manager.routines import slow_listening
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
 from spotify_manager.settings import Settings
 
 

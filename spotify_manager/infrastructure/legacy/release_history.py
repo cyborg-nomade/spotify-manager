@@ -7,8 +7,6 @@ from spotipy import Spotify
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import new_wine
 
 
 @dataclass(frozen=True)
@@ -32,7 +30,9 @@ class LegacyReleaseHistory:
         Returns:
             Original ordered catalog tracks with primary credits.
         """
-        return new_kids.load_release_tracks(self.client, release, self.retry)
+        from spotify_manager.routines.new_kids import load_release_tracks
+
+        return load_release_tracks(self.client, release, self.retry)
 
     def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Populate missing statuses using the existing conservative batch helper.
@@ -41,4 +41,6 @@ class LegacyReleaseHistory:
             ids: Original requested sequence, retaining duplicates.
             cache: Shared run-owned memberships, updated in place.
         """
-        new_wine.get_liked_statuses(self.client, ids, cache, self.retry)
+        from spotify_manager.routines.new_wine import get_liked_statuses
+
+        get_liked_statuses(self.client, ids, cache, self.retry)

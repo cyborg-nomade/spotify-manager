@@ -6,12 +6,11 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.something_old_run import SomethingOld
-from spotify_manager.application.something_old_values import SomethingOldSummary
 from spotify_manager.infrastructure.legacy.something_old_run import LegacySomethingOld
 from spotify_manager.routines import something_old as legacy
 
 
-def run_something_old(
+def something_old(
     spotify: Spotify,
     lastfm: legacy.LastFmReader,
     playlist: str,
@@ -19,7 +18,6 @@ def run_something_old(
     mode_reader: legacy.ModeReader,
     album_reader: legacy.AlbumChoiceReader,
     artist_reader: legacy.ArtistChoiceReader | None,
-    preview: bool,
     export_path: Path,
     legacy_delta_path: Path | None,
     backup_dir: Path,
@@ -28,8 +26,8 @@ def run_something_old(
     now: datetime | None,
     progress: legacy.ProgressCallback | None,
     retry: legacy.RetryCall,
-) -> SomethingOldSummary:
-    """Bind original history, catalog, prompts, append and audit behavior.
+) -> SomethingOld:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         spotify: Original caller-owned Spotify client.
@@ -39,7 +37,6 @@ def run_something_old(
         mode_reader: Original required mode presenter.
         album_reader: Original required studio-release presenter.
         artist_reader: Original optional exact-artist presenter.
-        preview: Original preview behavior.
         export_path: Original canonical history location.
         legacy_delta_path: Original optional legacy delta location.
         backup_dir: Original history backup location.
@@ -50,7 +47,7 @@ def run_something_old(
         retry: Original read-only retry boundary.
 
     Returns:
-        Original complete selected, cancelled or nonempty summary.
+        The configured application dependencies or workflow.
     """
     edge = LegacySomethingOld(
         spotify,
@@ -69,4 +66,4 @@ def run_something_old(
         progress,
         retry,
     )
-    return SomethingOld(edge, legacy.MIN_ARTIST_SCROBBLES).run(playlist, preview)
+    return SomethingOld(edge, legacy.MIN_ARTIST_SCROBBLES)

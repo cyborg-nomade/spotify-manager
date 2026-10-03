@@ -5,7 +5,6 @@ from datetime import date
 from pathlib import Path
 
 from spotify_manager.domain.history import Scrobble
-from spotify_manager.routines import blast_from_past
 
 
 @dataclass(frozen=True)
@@ -27,7 +26,9 @@ class ExportListeningHistory:
         Raises:
             blast_from_past.LastFmExportError: The export cannot be read or parsed.
         """
+        from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
+
         result = {}
-        for day, scrobbles in blast_from_past.load_scrobbles_by_date(self.path).items():
+        for day, scrobbles in load_scrobbles_by_date(self.path).items():
             result[day] = tuple(scrobbles)
         return result

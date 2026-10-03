@@ -6,12 +6,15 @@ from contextlib import ExitStack
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import date
+from functools import partial
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.bootstrap import discography as composition
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import discography as legacy
@@ -313,12 +316,16 @@ def original_plan(edge: PlanReads) -> legacy.DiscographyPlan:
     """
     bindings = {
         "_state_access": edge.state,
-        "_load_artist_queues": edge.legacy_queues,
-        "load_release_catalog": edge.legacy_catalog,
-        "select_historical_artist": edge.history,
-        "resolve_historical_artist": edge.map,
     }
     with ExitStack() as stack:
+        stack.enter_context(patch.object(composition, "queues", edge.legacy_queues))
+        stack.enter_context(
+            patch.object(composition, "_catalog", partial(_catalog, edge))
+        )
+        stack.enter_context(
+            patch.object(composition, "historical", partial(_history, edge))
+        )
+        stack.enter_context(patch.object(composition, "_resolve", edge.map))
         for name, callback in bindings.items():
             stack.enter_context(patch.object(legacy, name, callback))
         return legacy.build_discography_plan(
@@ -377,4 +384,25 @@ def cases(name: str = "discography_run.json") -> list[dict[str, object]]:
     """
     return cast(
         list[dict[str, object]], json.loads(FIXTURE.with_name(name).read_text())
+    )
+
+
+def _catalog(
+    edge: PlanReads,
+    spotify: Spotify,
+    retry: legacy.RetryCall,
+    candidate: legacy.QueueArtist,
+) -> tuple[legacy.CatalogRelease, ...]:
+    return edge.legacy_catalog(spotify, candidate.spotify_id, retry)
+
+
+def _history(
+    edge: PlanReads,
+    path: Path,
+    today: date | None,
+    random: legacy.RandomIndexReader,
+    progress: legacy.ProgressCallback | None,
+) -> legacy.HistoricalArtistSelection:
+    return edge.history(
+        path=path, today=today, random_index_reader=random, progress_callback=progress
     )

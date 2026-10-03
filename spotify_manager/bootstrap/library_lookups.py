@@ -6,6 +6,8 @@ from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application import library_lookup_run
+from spotify_manager.application import lookup_resolution
 from spotify_manager.application.library_lookup_run import ArtistStatistics
 from spotify_manager.application.lookup_effects import AlbumLookup
 from spotify_manager.application.lookup_effects import ArtistLookup
@@ -33,21 +35,27 @@ def artist_statistics(
     Returns:
         Original explicitly constructed artist lookup dependencies.
     """
-    from spotify_manager.processors import library_lookups as legacy
+    from spotify_manager.processors.library_lookups import SPOTIFY_CONTAINS_BATCH_SIZE
+    from spotify_manager.processors.library_lookups import _liked_artist_statuses
+    from spotify_manager.processors.library_lookups import _live_artist_release_ids
+    from spotify_manager.processors.library_lookups import _live_primary_track_ids
+    from spotify_manager.processors.library_lookups import _saved_artist_statuses
 
     return ArtistStatistics(
-        partial(legacy.resolve_live_artist, sp, name=name, artist_id=identifier),
-        partial(legacy._live_artist_release_ids, sp),
+        partial(_resolve_artist, sp, name, identifier),
+        partial(_live_artist_release_ids, sp),
         partial(
-            legacy._count_live_contains,
-            contains=partial(legacy._saved_artist_statuses, sp),
+            library_lookup_run.count_contains,
+            contains=partial(_saved_artist_statuses, sp),
             resource="Saved Albums",
+            batch_size=SPOTIFY_CONTAINS_BATCH_SIZE,
         ),
-        partial(legacy._live_primary_track_ids, sp),
+        partial(_live_primary_track_ids, sp),
         partial(
-            legacy._count_live_contains,
-            contains=partial(legacy._liked_artist_statuses, sp),
+            library_lookup_run.count_contains,
+            contains=partial(_liked_artist_statuses, sp),
             resource="Liked Songs",
+            batch_size=SPOTIFY_CONTAINS_BATCH_SIZE,
         ),
     )
 
@@ -62,11 +70,12 @@ def cached_tracks(sp: Spotify | None, factory: ClientFactory | None) -> CachedTr
     Returns:
         Original cache authority and delayed read boundary.
     """
-    from spotify_manager.processors import library_lookups as legacy
+    from spotify_manager.loaders_savers import load_album_tracks_cache
+    from spotify_manager.loaders_savers import save_album_tracks_cache
 
     return CachedTracks(
-        cast(CacheRead, legacy.load_album_tracks_cache),
-        cast(CacheWrite, legacy.save_album_tracks_cache),
+        cast(CacheRead, load_album_tracks_cache),
+        cast(CacheWrite, save_album_tracks_cache),
         partial(fetch_tracks, sp, factory),
     )
 
@@ -87,14 +96,14 @@ def fetch_tracks(
     Raises:
         TracklistUnavailableError: No original client can be selected.
     """
-    from spotify_manager.processors import library_lookups as legacy
+    from spotify_manager.processors.library_lookups import _fetch_album_tracks
 
     selected = sp if sp is not None else (factory() if factory else None)
     if selected is None:
         raise TracklistUnavailableError(
             f"Album {identifier!r} is not cached and no Spotify client is available."
         )
-    return legacy._fetch_album_tracks(selected, identifier)
+    return _fetch_album_tracks(selected, identifier)
 
 
 def local_album(
@@ -114,16 +123,16 @@ def local_album(
     Returns:
         Original explicit local evaluation dependencies.
     """
-    from spotify_manager.processors import library_lookups as legacy
+    from spotify_manager.loaders_savers import load_your_library_file
 
     return LocalAlbumLookup(
-        legacy.load_your_library_file,
+        load_your_library_file,
         partial(
-            legacy.get_album_tracklist,
-            sp=sp,
-            client_factory=factory,
-            use_cache=use_cache,
-            refresh_cache=refresh_cache,
+            _tracklist,
+            sp,
+            factory,
+            use_cache,
+            refresh_cache,
         ),
     )
 
@@ -137,19 +146,19 @@ def artist_lookup(client: Spotify) -> ArtistLookup:
     Returns:
         Original identity reads without constructing an environment client.
     """
-    from spotify_manager.processors import library_lookups as legacy
+    from spotify_manager.processors.library_lookups import _direct_artist_identity
 
     return ArtistLookup(
-        partial(legacy._direct_artist_identity, client),
+        partial(_direct_artist_identity, client),
         partial(_artist_candidates, client),
     )
 
 
 def _artist_candidates(client: Spotify, name: str) -> list[tuple[str, str]]:
     from spotify_manager.infrastructure import lookup_records
-    from spotify_manager.processors import library_lookups as legacy
+    from spotify_manager.processors.library_lookups import _artist_search_items
 
-    return lookup_records.artist_identities(legacy._artist_search_items(client, name))
+    return lookup_records.artist_identities(_artist_search_items(client, name))
 
 
 def album_lookup(client: Spotify) -> AlbumLookup:
@@ -161,8 +170,27 @@ def album_lookup(client: Spotify) -> AlbumLookup:
     Returns:
         Original album reads without constructing an environment client.
     """
-    from spotify_manager.processors import library_lookups as legacy
+    from spotify_manager.processors.library_lookups import _album_search
+    from spotify_manager.processors.library_lookups import _direct_album
 
-    return AlbumLookup(
-        partial(legacy._direct_album, client), partial(legacy._album_search, client)
+    return AlbumLookup(partial(_direct_album, client), partial(_album_search, client))
+
+
+def _resolve_artist(
+    client: Spotify,
+    name: str | None,
+    identifier: str | None,
+) -> tuple[str, str]:
+    return lookup_resolution.artist(artist_lookup(client), name, identifier)
+
+
+def _tracklist(
+    client: Spotify | None,
+    factory: ClientFactory | None,
+    use_cache: bool,
+    refresh_cache: bool,
+    identifier: str,
+) -> tuple[list[LookupTrack], bool]:
+    return library_lookup_run.tracklist(
+        cached_tracks(client, factory), identifier, use_cache, refresh_cache
     )

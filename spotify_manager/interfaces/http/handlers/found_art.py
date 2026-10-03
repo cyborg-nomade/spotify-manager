@@ -9,7 +9,7 @@ from spotipy import Spotify
 
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
-from spotify_manager.routines import found_art
+from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.settings import Settings
 
 

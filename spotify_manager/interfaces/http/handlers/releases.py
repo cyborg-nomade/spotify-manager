@@ -20,8 +20,8 @@ from spotify_manager.interfaces.http.models.releases import (
 )
 from spotify_manager.interfaces.http.models.releases import ReleaseCheckStateSnapshot
 from spotify_manager.interfaces.http.validation import option_ids
-from spotify_manager.routines import found_art
-from spotify_manager.routines import release_check
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import release_check as release_check
 from spotify_manager.settings import Settings
 
 

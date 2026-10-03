@@ -11,7 +11,7 @@ from threading import Lock
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
-from spotify_manager.routines import scrobble_history
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 
 
 @dataclass(kw_only=True)

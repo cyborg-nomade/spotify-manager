@@ -6,7 +6,7 @@ Spotify Manager is a single-user application that turns a personal listening
 policy into cautious Spotify and Last.fm workflows. It is intentionally a
 modular monolith:
 
-- one Python package contains the interfaces and domain routines;
+- one Python package contains feature interfaces, application workflows and pure domain policies;
 - one process serves the web UI and API;
 - working JSON and JSON-lines files provide mirrors, checkpoints, and audit logs;
 - private Hub datasets durably share routine state and canonical data files;
@@ -27,7 +27,7 @@ flowchart LR
     CLI["Typer CLI"]
     Web["Web cockpit"]
     API["FastAPI service"]
-    Routines["Domain routines"]
+    Routines["Application workflows"]
     Files["JSON state and mirrors"]
     Spotify["Spotify Web API"]
     LastFM["Last.fm API and export"]
@@ -57,8 +57,12 @@ flowchart LR
 ### CLI
 
 `spotify_manager/main.py` defines the Typer application installed as
-`spotify-manager`. It owns terminal rendering and interactive prompts, then
-delegates work to functions in `spotify_manager/routines/`.
+`spotify-manager`. Its stable command signatures construct feature adapters in
+`interfaces/cli/features/`. Those adapters own terminal rendering and prompts,
+and invoke shared functions in `interfaces/operations/` or `lookup_operations.py`.
+The invocation constructs concrete dependencies and calls application use cases;
+pure decisions stay in `domain/`. See the complete
+[request and return map](refactor/CALL_PATH_SIMPLIFICATION.md).
 
 CLI commands use Rich for progress, tables, status messages, and cautious
 confirmation. Each public Typer command has a same-named recipe in `justfile`.
@@ -71,10 +75,16 @@ just flush-new-wine --dry-run
 uv run spotify-manager flush-new-wine --dry-run
         |
         v
-main.py prompt/render adapter
+main.py → interfaces/cli/features/wine.py
         |
         v
-routines/new_wine.py
+interfaces/operations/new_wine.py
+        |
+        v
+application/new_wine.py → domain policies
+        |
+        v
+summary → CLI rendering
 ```
 
 ### Pure API
@@ -114,19 +124,26 @@ nearest-neighbor route with server-backed completion state.
 | --- | --- | --- |
 | Configuration | `spotify_manager/settings.py` | Parse `.env` and process environment values with Pydantic Settings. |
 | Authentication and clients | `spotify_manager/client/`, `spotify_manager/_auth.py` | Spotify OAuth, credential rotation, Last.fm HTTP calls, and web password enforcement. |
-| Interface adapters | `spotify_manager/main.py`, `spotify_manager/api.py`, `spotify_manager/web.py` | Parse user input, render output, manage web jobs, and translate errors to interface responses. |
-| Domain routines | `spotify_manager/routines/` | Plan and execute playlist, library, recommendation, analysis, and recovery workflows. |
-| Processors | `spotify_manager/processors/` | Shared library transformations, lookups, statistics, and legacy reconciliation. |
+| Stable entry points | `spotify_manager/main.py`, `spotify_manager/api.py`, `spotify_manager/web.py` | Preserve command/endpoint signatures, overrides, composition and web delivery. |
+| Feature interfaces | `spotify_manager/interfaces/cli/`, `spotify_manager/interfaces/http/` | Validate input, own job signals, present results and translate interface errors. |
+| Shared invocations | `spotify_manager/interfaces/operations/`, `lookup_operations.py`, `sauvignon_operations.py` | Construct invocation dependencies and invoke named application stages for CLI and HTTP. |
+| Application | `spotify_manager/application/` | Sequence observations, decisions, accepted effects, checkpoints and recovery. |
+| Domain | `spotify_manager/domain/` | Pure listening, ranking, progression, selection and state rules. |
+| Composition | `spotify_manager/bootstrap/` | Construct explicit dependencies at their original observation scope. |
+| Compatibility and SDK leaves | `spotify_manager/routines/`, `spotify_manager/processors/` | Keep public imports and concrete SDK/file/validation helpers whose contracts remain frozen. Internal code skips their primary workflow forwarding entries. |
 | Models | `spotify_manager/models/` | Pydantic models for exports, mirrors, lookups, albums, artists, tracks, and statistics. |
 | Persistence helpers | `spotify_manager/loaders_savers/` | Load and save canonical and legacy JSON files. |
 | Utilities | `spotify_manager/utils/` | Sorting, comparison, and growth calculations. |
 | Central state | `spotify_manager/core/state/`, `spotify_manager/infrastructure/` | State interface, schema, concurrency, local adapter, and private-Hub adapter. |
 | Local data | `spotify_manager/files/` | Exports, mirrors, caches, staging, backups, and audit logs. |
 
-The interface modules should not reimplement routine rules. Interactive choices
-are passed into routines as callbacks in the CLI and as pause/resume state in
-the API. This keeps Spotify mutation order, eligibility logic, and persistence
-behavior shared between both interfaces.
+Feature interfaces supply invocation-owned choice, progress, retry and cancellation
+callbacks to the shared operation. Application workflows retain Spotify mutation
+order and persistence/recovery sequencing; domain policies retain eligibility and
+selection. Results return to CLI or HTTP presenters. Concrete infrastructure
+bindings use explicit imports rather than mutable routine-module function lookup.
+The [retained helper inventory](refactor/RETAINED_LEGACY_HELPERS.md) records the
+remaining compatibility and frozen SDK source boundaries.
 
 ## Routine families
 

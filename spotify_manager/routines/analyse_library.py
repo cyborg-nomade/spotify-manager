@@ -28,7 +28,6 @@ from spotify_manager.application import (
     library_analysis_publication as analysis_publication_owner,
 )
 from spotify_manager.application import library_analysis_records as analysis_records
-from spotify_manager.application import library_analysis_run as analysis_runs
 from spotify_manager.application import library_analysis_values as analysis_values_paths
 from spotify_manager.application.library_analysis_values import Checkpoint
 from spotify_manager.application.library_analysis_values import (
@@ -89,8 +88,6 @@ from spotify_manager.domain.library_analysis_values import (
 from spotify_manager.domain.library_analysis_values import RetryNotice as RetryNotice
 from spotify_manager.infrastructure import library_analysis_backups as analysis_backups
 from spotify_manager.infrastructure import library_analysis_files as analysis_files
-from spotify_manager.infrastructure import library_analysis_restore as analysis_restore
-from spotify_manager.infrastructure.library_analysis_errors import AnalysisFailure
 from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
 from spotify_manager.infrastructure.library_records import (
     current_stats_history_key as current_stats_history_key,
@@ -711,22 +708,11 @@ def analyse_library_async_routine(
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    del echo
-    if paths.mode != "async":
-        raise LibrarySyncError("Export analysis requires async output paths.")
-    checkpoint = load_or_create_checkpoint(paths)
-    session = analysis_session(
-        paths,
-        cast(Checkpoint, checkpoint),
-        progress=progress_callback,
-        cancel_check=cancel_check,
+    from spotify_manager.interfaces.operations.analyse_library import (
+        analyse_library_async_routine as operation,
     )
-    with AnalysisFailure(
-        session,
-        "Export analysis failed",
-        (LibraryAnalysisCancelledError, KeyboardInterrupt),
-    ):
-        return analysis_runs.analyse_export(session, analysis_publication())
+
+    return operation(echo, progress_callback, cancel_check, paths)
 
 
 def retry_delay(base: int, maximum: int, attempt: int) -> int:
@@ -1165,27 +1151,21 @@ def analyse_library_sync_routine(
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    if paths.mode != "sync":
-        raise LibrarySyncError("Live analysis requires sync output paths.")
-    checkpoint = load_or_create_checkpoint(paths)
-    session = analysis_session(
-        paths,
-        cast(Checkpoint, checkpoint),
-        progress=progress_callback,
-        cancel_check=cancel_check,
-        spotify=sp,
-        echo=echo,
-        retry_wait=retry_wait,
-        sleep=sleep,
-        retry_base_seconds=retry_base_seconds,
-        retry_max_seconds=retry_max_seconds,
+    from spotify_manager.interfaces.operations.analyse_library import (
+        analyse_library_sync_routine as operation,
     )
-    with AnalysisFailure(
-        session,
-        "Live analysis failed",
-        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
-    ):
-        return analysis_runs.analyse_live(session, analysis_publication())
+
+    return operation(
+        sp,
+        echo,
+        progress_callback,
+        retry_wait,
+        cancel_check,
+        paths,
+        sleep,
+        retry_base_seconds,
+        retry_max_seconds,
+    )
 
 
 def refresh_live_library_mirrors_routine(
@@ -1218,30 +1198,22 @@ def refresh_live_library_mirrors_routine(
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    if paths.mode != "mirrors":
-        raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
-    refresh_mode: MirrorRefreshMode = "full" if full_rebuild else "incremental"
-    checkpoint = load_or_create_checkpoint(paths, refresh_mode)
-    session = analysis_session(
-        paths,
-        cast(Checkpoint, checkpoint),
-        progress=progress_callback,
-        cancel_check=cancel_check,
-        spotify=sp,
-        echo=echo,
-        retry_wait=retry_wait,
-        sleep=sleep,
-        retry_base_seconds=retry_base_seconds,
-        retry_max_seconds=retry_max_seconds,
+    from spotify_manager.interfaces.operations.analyse_library import (
+        refresh_live_library_mirrors_routine as operation,
     )
-    with AnalysisFailure(
-        session,
-        "Live mirror refresh failed",
-        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
-    ):
-        return analysis_runs.refresh_mirrors(
-            session, analysis_publication(), full_rebuild
-        )
+
+    return operation(
+        sp,
+        echo,
+        progress_callback,
+        retry_wait,
+        cancel_check,
+        paths,
+        sleep,
+        retry_base_seconds,
+        retry_max_seconds,
+        full_rebuild,
+    )
 
 
 def refresh_live_library_resource_routine(
@@ -1276,31 +1248,23 @@ def refresh_live_library_resource_routine(
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    if paths.mode != "mirrors":
-        raise LibrarySyncError("Canonical mirror refresh requires mirror paths.")
-    paths = live_mirror_resource_paths(paths, resource)
-    refresh_mode: MirrorRefreshMode = "full" if full_rebuild else "incremental"
-    checkpoint = load_or_create_checkpoint(paths, refresh_mode)
-    session = analysis_session(
-        paths,
-        cast(Checkpoint, checkpoint),
-        progress=progress_callback,
-        cancel_check=cancel_check,
-        spotify=sp,
-        echo=echo,
-        retry_wait=retry_wait,
-        sleep=sleep,
-        retry_base_seconds=retry_base_seconds,
-        retry_max_seconds=retry_max_seconds,
+    from spotify_manager.interfaces.operations.analyse_library import (
+        refresh_live_library_resource_routine as operation,
     )
-    with AnalysisFailure(
-        session,
-        f"Live {resource} mirror refresh failed",
-        (LibraryAnalysisCancelledError, SpotifyRateLimitError, KeyboardInterrupt),
-    ):
-        return analysis_runs.refresh_resource(
-            session, analysis_publication(), resource, full_rebuild
-        )
+
+    return operation(
+        sp,
+        resource,
+        echo,
+        progress_callback,
+        retry_wait,
+        cancel_check,
+        paths,
+        sleep,
+        retry_base_seconds,
+        retry_max_seconds,
+        full_rebuild,
+    )
 
 
 def restore_library_sync(
@@ -1317,14 +1281,11 @@ def restore_library_sync(
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    candidates = (
-        [paths]
-        if paths is not None
-        else [DEFAULT_SYNC_PATHS, DEFAULT_ASYNC_PATHS, DEFAULT_LIVE_MIRROR_PATHS]
+    from spotify_manager.interfaces.operations.analyse_library import (
+        restore_library_sync as operation,
     )
-    return analysis_restore.restore_library_sync(
-        run_id, candidates, analysis_storage(), _publish_restored
-    )
+
+    return operation(run_id, paths)
 
 
 # Compatibility alias for integrations that imported the old hybrid entry point.
