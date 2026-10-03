@@ -55,6 +55,11 @@ The first adapters wrap the current synchronous implementation. Extract policies
 and use cases before introducing native async transport. Keep structural moves,
 async conversion, and efficiency changes in separate reviewable milestones.
 
+[ADR-003](003-direct-use-case-paths.md), accepted on 2026-10-03, adds synchronous
+Item 7a before async work: simplify internal entry-to-use-case and return paths,
+keeping compatibility facades at external edges. It refines the implementation
+of these boundaries without changing their dependency direction or contracts.
+
 ### Async lifetime model
 
 - The web app's lifespan owns its event loop's pooled async clients, application
@@ -122,10 +127,12 @@ accident in this refactor.
 2. [x] Add characterization and fault-injection scenarios (item 2, PR #61).
 3. [x] Extract pure domain policies (item 3, deployed and merged in PR #62).
    Integration ports and production composition are deployed and merged in PR #63.
-4. [ ] Prove vertical slices and migrate the remaining families (items 5–6).
-   [Item 5 album and Requeue slices](../refactor/VERTICAL_SLICES.md) are implemented
-   for review; the remaining families await item 6.
+4. [x] Prove vertical slices and migrate the remaining families (items 5–6).
+   [Item 5 album and Requeue slices](../refactor/VERTICAL_SLICES.md) were deployed
+   and merged in PR #64; [Item 6 routine families](../refactor/ROUTINE_FAMILIES.md)
+   were deployed and merged in PR #65.
 5. [ ] Consolidate interface/job ownership without schema changes (item 7).
+   Then simplify internal call paths in the additional Item 7a before async work.
 6. [ ] Implement async transport and execution with compatibility evidence (items 8–9).
 7. [ ] Optimize proven independent reads and enforce dependency boundaries (items 10–11).
 

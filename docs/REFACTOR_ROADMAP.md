@@ -1,6 +1,11 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–5 deployed and merged; item 6 in progress.**
+**Status: items 1–6 deployed and merged; item 7 complete and ready for PR review.**
+
+**Approved sequence update, 2026-10-03:** add item **7a**, simplifying internal
+call paths, after item 7 is approved, deployed, and merged and before item 8.
+The owner approved this architectural direction; Item 7 PR approval is still
+pending. Frontend source restructuring is reserved for a future targeted refactor.
 
 Item 1 deliverables are in the [compatibility inventory](refactor/README.md),
 including frozen interface snapshots and the accepted
@@ -12,7 +17,10 @@ is the unchanged workflow oracle for the
 [item 4 integration ports and composition](refactor/INTEGRATION_PORTS.md) are
 deployed. The [item 5 vertical slices](refactor/VERTICAL_SLICES.md) were deployed
 and merged in PR #64. The [item 6 wave inventory](refactor/ROUTINE_FAMILIES.md)
-records the ongoing routine migrations. Later items remain pending.
+and [ownership audit](refactor/ROUTINE_OWNERSHIP.md) were deployed and merged
+in PR #65. [Item 7 interface and job migration](refactor/INTERFACES_AND_JOBS.md)
+is complete and ready for PR review, with its local web environment available.
+Deployment and merge await approval. Later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,
@@ -83,6 +91,14 @@ handling. Readability and maintainability take priority over additional layers
 or abstractions. These rules apply to tests and tooling as well as application
 code, with legacy code migrated in its assigned item.
 
+An internal call should lead from a feature adapter to a named application use
+case, then to its policies and integration ports, and return a typed result to
+the adapter's presenter. Bootstrap constructs dependencies at the appropriate
+startup or invocation boundary; it is not an additional business execution
+layer. Keep compatibility facades at external entry points rather than making
+new internal code traverse them. See [ADR 003](adr/003-direct-use-case-paths.md)
+and the [item 7a implementation plan](refactor/CALL_PATH_SIMPLIFICATION.md).
+
 ```mermaid
 flowchart TD
     CLI[CLI adapters] --> APP[Application use cases by routine family]
@@ -142,6 +158,11 @@ Disagreements between prose rules and current implementation, retry safety
 problems, or existing race-condition fixes go into an explicit behavior-change
 list. This refactor does not silently resolve them. No new durable job system,
 database, public schema redesign, or production deployment is part of this plan.
+
+The frontend is covered by wire-contract preservation and integration checks.
+Splitting or redesigning its HTML, CSS, and JavaScript is outside this roadmap
+and remains a future targeted refactor. Python coverage figures do not measure
+frontend source coverage.
 
 ## 5. Itemized implementation roadmap
 
@@ -214,6 +235,38 @@ and type improvements accompany every slice, not just the final milestone.
    resource ownership before removing mutable shared callbacks.
    **Exit:** public schema/CLI snapshots match; domain code contains no rendering;
    job lifecycle tests cover every routine adapter.
+
+### Item 7a: simplify internal call paths before async
+
+This additional item was approved on 2026-10-03. Keep the existing item numbers
+and finish the Item 7 release workflow before creating Item 7a's dedicated branch.
+
+1. Inventory HTTP, CLI and background execution paths by routine family. Identify
+   each wrapper's responsibility and distinguish public compatibility seams from
+   forwarding-only internals. Record any necessary exception explicitly.
+2. Simplify album evaluation and Sauvignon as representative read-only and
+   interactive job paths. Connect feature adapters to application use cases with
+   explicit dependencies and put result presentation back at the interface.
+3. Apply the same approach to the remaining family inventory, including analysis,
+   legacy library commands and operational entry points. Remove internal detours
+   through compatibility modules; keep meaningful business-stage helpers.
+4. Move default wiring out of the execution path without changing resource scope,
+   observation timing, callback ownership, retries or accepted effect ordering.
+   Keep public imports, framework signatures and supported overrides compatible.
+5. Verify both retained public entry points and direct internal paths against the
+   existing behavior fixtures. Add focused dependency checks, update request-path
+   documentation, and run the full coverage and frozen-contract gates.
+
+**Exit:** every command/routine family has a documented entry-to-use-case-to-policy
+and result-to-presenter path. Normal internal execution does not bounce through
+`api.py`, `main.py` or legacy routine/processor facades after entering its feature
+adapter; any unavoidable compatibility dependency is narrow, named and justified.
+Each retained wrapper has a distinct responsibility. There is no generic workflow
+framework or arbitrary limit that forces meaningful stages into one function.
+Existing behavior, coverage gates and the local web review workflow still hold.
+Item 8 cannot start until this item is approved, deployed and merged.
+
+### Remaining items
 
 8. **Implement native async Spotify transport behind the ports.**
    Use a pooled `httpx.AsyncClient` for the endpoint subset this application uses,
@@ -320,6 +373,10 @@ Proposed final gates:
    live read-only smoke test is separate; no live writes are part of verification.
 7. Every optimization has a request-count or scheduling rationale and parity
    evidence. No claimed live speedup without a representative measurement.
+8. Short, traceable internal call paths pass the Item 7a acceptance criteria and
+   remain intact during async migration and final cleanup. Import-boundary checks
+   complement a human review of each wrapper's purpose; module separation alone
+   does not establish readability.
 
 Coverage and differential tests give strong regression evidence; they do not
 mathematically prove identical behavior for every possible live-service response.
@@ -335,7 +392,9 @@ their compatibility can be established.
 ## 8. Approved delivery workflow
 
 The user approved the architecture, migration order, compatibility definition,
-and coverage targets on 2026-09-24. For every roadmap item:
+and coverage targets on 2026-09-24, and approved the additional Item 7a on
+2026-10-03. The same workflow applies to Item 7a. Approval of a roadmap change
+does not approve an implementation PR. For every roadmap item:
 
 1. Start from clean, current `master` and create a dedicated branch.
 2. Implement, verify, and commit the changes for that item.

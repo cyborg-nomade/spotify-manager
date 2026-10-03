@@ -252,10 +252,39 @@ def spotify_contracts() -> dict[str, Any]:
     }
 
 
-def route_inventory(app: Any, surface: str) -> list[dict[str, Any]]:
-    """Include framework and hidden routes as well as OpenAPI operations."""
-    result = []
+def _effective_routes(app: Any) -> Iterator[Any]:
+    """Observe framework routes and included routers in actual encounter order.
+
+    Args:
+        app: Framework application inspected at this external audit boundary.
+
+    Yields:
+        Concrete routes or effective included-route contexts, retaining composed
+        prefixes, methods, status codes and response metadata.
+    """
     for route in app.routes:
+        contexts = getattr(route, "effective_route_contexts", None)
+        if callable(contexts):
+            yield from contexts()
+            continue
+        yield route
+
+
+def route_inventory(app: Any, surface: str) -> list[dict[str, Any]]:
+    """Include effective framework/hidden routes as well as OpenAPI operations.
+
+    Args:
+        app: Framework application inspected at this external audit boundary.
+        surface: Original inventory label for API or deployment-only routes.
+
+    Returns:
+        Ordered public registrations including composed router metadata.
+
+    Raises:
+        OSError: A handler's original Python source cannot be inspected.
+    """
+    result = []
+    for route in _effective_routes(app):
         endpoint = route.endpoint
         module = endpoint.__module__
         result.append(

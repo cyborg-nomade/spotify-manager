@@ -1,10 +1,10 @@
 # Item 6: routine family migration
 
-**Status:** implemented and verified, ready for review on
-`codex/refactor-06-routine-families`, based on item 5's merge `3d7c1df`.
-Item 6 is delivered as one complete PR under the approved roadmap. The earlier
-sections retain wave checkpoint evidence; the final verification below supersedes
-their provisional statuses. Deployment and merge require the user's approval.
+**Status:** approved, deployed and merged as PR #65 on 2026-10-02.
+Item 6 was delivered as one complete PR under the approved roadmap, based on
+item 5's merge `3d7c1df`. The earlier sections retain wave checkpoint evidence;
+the final verification and release record below supersede their provisional
+statuses. The merge is `93a36aa`.
 
 ## Wave inventory
 
@@ -1510,3 +1510,21 @@ An actual Python 3.13 execution of the standalone automation client passes;
 all 248 focused automation, injected-workflow and HTTP contract tests still pass,
 along with strict typing and Ruff. The Actions preflight is repeated before
 deployment. No Space update occurred during the failed check.
+
+### Deployment and merge record
+
+After owner approval, source `e0e384f755d3a8e4c4e7be28d429af04cb54de8e` was deployed
+as Space revision `ffa7c4c9e7f162e6066e9a227775495fb259d48c`. All **737 committed
+paths** were verified against Git blob or LFS content identities. The running
+container reported that same revision and completed startup successfully.
+
+The [authenticated post-deployment check](https://github.com/cyborg-nomade/spotify-manager/actions/runs/37024577220)
+passed on Python 3.13: authentication, shared state and all four durable artifacts
+were healthy, with no active jobs across **20 endpoints**. The state dataset
+remained at `2203d6f1b8e26c9e73f6bc7942f46fce24bdc686`; the canonical-data dataset
+remained at `4c93270a54445e0fd26127e1bfe011fde02f8f8e`.
+
+PR #65 was merged as `93a36aa79567b54a5907d324af444a049136a532`; its branch was
+removed and the checkout returned to clean, up-to-date `master`. Seven local
+review-generated data/log/cache changes were preserved in the named Git stash
+`Preserve Item 6 local review runtime data before release cleanup`.

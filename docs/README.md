@@ -37,6 +37,10 @@ ports, explicit construction, compatibility bridges, and their verification.
 The [item 5 vertical-slice guide](refactor/VERTICAL_SLICES.md) follows album
 evaluation and Requeue from CLI/HTTP entry points through application use cases,
 pure policies, and integration adapters.
+The [item 7a simplification plan](refactor/CALL_PATH_SIMPLIFICATION.md) and
+[ADR 003](adr/003-direct-use-case-paths.md) define the owner-approved call-path
+cleanup before async work. Frontend source restructuring remains a future
+targeted refactor; its current behavior is covered by compatibility checks.
 
 ### Operating the Hugging Face Space
 
