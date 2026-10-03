@@ -9,6 +9,10 @@ were deployed and merged in PR #63. [Item 5 vertical slices](VERTICAL_SLICES.md)
 were deployed and merged in PR #64. [Item 6 routine families](ROUTINE_FAMILIES.md)
 were deployed and merged in PR #65. [Item 7 interfaces and jobs](INTERFACES_AND_JOBS.md)
 are complete and ready for PR review, with the local web environment available.
+The owner approved an additional [Item 7a](CALL_PATH_SIMPLIFICATION.md) on
+2026-10-03 to simplify internal call paths after the Item 7 release and before
+async work. Its implementation is pending; frontend source restructuring is
+reserved for a future targeted refactor.
 
 **Source baseline:** `37ff9f28930f22807af2f4723ebf9f13f5f9104c` on `master`.
 The application code is the same as the roadmap's `fbcfc65` audit baseline.

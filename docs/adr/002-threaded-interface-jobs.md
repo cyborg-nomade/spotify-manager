@@ -79,6 +79,12 @@ Native async transport and task lifetime remain follow-up decisions. Keeping
 those changes separate allows the original effects, choices and interruption
 fixtures to remain useful throughout the migration.
 
+During Item 7 review, the owner approved [ADR 003](003-direct-use-case-paths.md)
+and an additional Item 7a to shorten internal call paths before Items 8–9. The
+compatibility wiring recorded here is the synchronous migration implementation,
+not a requirement that future internal execution traverse every facade. Item 7a
+keeps this job behavior while simplifying how feature adapters reach use cases.
+
 ## Evidence and actions
 
 - [x] Capture original starts, launch arguments, overlap and phase observations

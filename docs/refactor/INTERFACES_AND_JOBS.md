@@ -135,3 +135,11 @@ return to clean, current `master` before the next item.
 Native async transport and task/client ownership remain Items 8–9. The known
 pre-existing invalid production `YourLibrary.json` export is not rewritten by
 this interface refactor.
+
+The owner approved an additional [Item 7a](CALL_PATH_SIMPLIFICATION.md) during
+review on 2026-10-03. After the Item 7 release, simplify internal call paths in
+a dedicated branch and PR before Item 8. The request map above describes the
+current implementation, including temporary compatibility detours; it is not
+the final call-path target. Frontend source restructuring remains a future
+targeted refactor. The existing Item 7 verification evidence still applies; this
+plan update makes no production or test changes.

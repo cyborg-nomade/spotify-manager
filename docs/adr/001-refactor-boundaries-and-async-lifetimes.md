@@ -55,6 +55,11 @@ The first adapters wrap the current synchronous implementation. Extract policies
 and use cases before introducing native async transport. Keep structural moves,
 async conversion, and efficiency changes in separate reviewable milestones.
 
+[ADR-003](003-direct-use-case-paths.md), accepted on 2026-10-03, adds synchronous
+Item 7a before async work: simplify internal entry-to-use-case and return paths,
+keeping compatibility facades at external edges. It refines the implementation
+of these boundaries without changing their dependency direction or contracts.
+
 ### Async lifetime model
 
 - The web app's lifespan owns its event loop's pooled async clients, application
@@ -127,6 +132,7 @@ accident in this refactor.
    and merged in PR #64; [Item 6 routine families](../refactor/ROUTINE_FAMILIES.md)
    were deployed and merged in PR #65.
 5. [ ] Consolidate interface/job ownership without schema changes (item 7).
+   Then simplify internal call paths in the additional Item 7a before async work.
 6. [ ] Implement async transport and execution with compatibility evidence (items 8–9).
 7. [ ] Optimize proven independent reads and enforce dependency boundaries (items 10–11).
 

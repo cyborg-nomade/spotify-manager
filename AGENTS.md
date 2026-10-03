@@ -30,6 +30,14 @@ its roadmap item is handled; do not mix unrelated production rewrites into a
 test-only item. Keep helpers cohesive rather than splitting code mechanically
 or introducing a framework merely to satisfy a line limit.
 
+The owner approved Item 7a on 2026-10-03: simplify internal call paths after the
+Item 7 release and before Item 8. Follow `docs/adr/003-direct-use-case-paths.md` and
+`docs/refactor/CALL_PATH_SIMPLIFICATION.md`. Feature adapters should call named
+application use cases directly with explicit dependencies; keep compatibility
+facades at external edges and bootstrap wiring outside business execution.
+Frontend source restructuring remains a future targeted refactor; preserve its
+contracts and integration checks throughout the backend work.
+
 ## Approved refactor workflow
 
 Follow the approved roadmap in `docs/REFACTOR_ROADMAP.md`. For each roadmap item:
