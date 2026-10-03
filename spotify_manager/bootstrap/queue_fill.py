@@ -6,19 +6,16 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.queue_fill import QueueFill
-from spotify_manager.application.queue_fill_values import FillSummary
-from spotify_manager.application.queue_fill_values import QueueFillRequest
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.queue_fill import LegacyQueueFill
 from spotify_manager.routines import the_queue as legacy
 
 
-def fill_queue(
+def queue_fill(
     spotify: Spotify,
     lastfm: legacy.LastFmReader,
     playlists: legacy.QueuePlaylists,
     choice: legacy.ArtistChoiceReader | None,
-    request: QueueFillRequest,
     echo: legacy.Echo,
     progress: legacy.ProgressCallback | None,
     retry: legacy.RetryCall | None,
@@ -29,15 +26,14 @@ def fill_queue(
     cache_path: Path,
     log_path: Path,
     now: datetime | None,
-) -> FillSummary:
-    """Bind the original synchronous client, storage and presentation behavior.
+) -> QueueFill:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         spotify: Original caller-owned Spotify client.
         lastfm: Original caller-owned Last.fm reader.
         playlists: Original parsed destination identities.
         choice: Original optional interaction reader.
-        request: Original fill limits and preview mode.
         echo: Original text presenter.
         progress: Original optional status presenter.
         retry: Original optional retry boundary.
@@ -50,7 +46,7 @@ def fill_queue(
         now: Original optional timestamp.
 
     Returns:
-        Original complete fill summary after accepted effects.
+        The configured application dependencies or workflow.
     """
     edge = LegacyQueueFill(
         spotify,
@@ -74,4 +70,4 @@ def fill_queue(
         legacy.CANDIDATE_POOL_MULTIPLIER,
         legacy.MIN_CANDIDATE_POOL,
         legacy.TOP_TRACK_LIMIT,
-    ).run(request)
+    )

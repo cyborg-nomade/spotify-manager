@@ -11,7 +11,7 @@ from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.discovery import NewKidsChoiceRequest
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.validation import option_ids
-from spotify_manager.routines import new_kids
+from spotify_manager.interfaces.operations import new_kids as new_kids
 
 
 @dataclass(kw_only=True)

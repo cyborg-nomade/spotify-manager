@@ -18,8 +18,10 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import review_artists as artist_review
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import review_artists as artist_review
 from spotify_manager.settings import Settings
 
 

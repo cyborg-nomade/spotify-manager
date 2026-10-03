@@ -7,6 +7,8 @@ from datetime import date
 from typing import cast
 
 import pytest
+from functools import partialmethod
+from spotify_manager.infrastructure.legacy.dormant_artists import LegacyDormantRecovery
 from spotipy import Spotify
 
 from spotify_manager.routines import blast_from_past as blast
@@ -140,7 +142,7 @@ def _bind(monkeypatch: pytest.MonkeyPatch, effects: Observations) -> None:
     monkeypatch.setattr(legacy, "dormant_artists", effects.candidates)
     monkeypatch.setattr(blast, "load_playlist_state", effects.read)
     monkeypatch.setattr(legacy, "_spotify_artist", effects.mapping)
-    monkeypatch.setattr(legacy, "most_popular_liked_track", effects.track)
+    monkeypatch.setattr(LegacyDormantRecovery, "track", partialmethod(_track, effects))
     monkeypatch.setattr(blast, "add_spotify_matches", effects.append)
 
 
@@ -208,3 +210,11 @@ def test_original_dormant_preview(
     assert summary.playlist_length_after == int(not preview)
     assert effects.events == (EVENTS[:6] + EVENTS[7:] if preview else EVENTS)
     assert summary.history_years == (2022, 2023, 2024, 2025)
+
+
+def _track(
+    resources: LegacyDormantRecovery,
+    effects: Observations,
+    artist: str,
+) -> new_kids.CatalogTrack:
+    return effects.track(resources.spotify, artist, resources.retry)

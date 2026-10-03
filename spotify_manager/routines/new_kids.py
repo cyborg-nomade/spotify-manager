@@ -1313,16 +1313,18 @@ def _flush_review_playlist(
     _live_tracks: list[new_wine.PlaylistTrack] | None = None,
 ) -> FlushSummary:
     """Advance one playlist snapshot using the shared four-release rules."""
-    from spotify_manager.bootstrap.new_kids import run_review
+    from spotify_manager.interfaces.operations.new_kids import (
+        _flush_review_playlist as operation,
+    )
 
-    return run_review(
-        sp=sp,
-        new_kids_playlist_id=new_kids_playlist_id,
-        queue_2_playlist_id=queue_2_playlist_id,
-        great_discoveries_2026_playlist_id=great_discoveries_2026_playlist_id,
-        unlucky_ones_playlist_id=unlucky_ones_playlist_id,
-        newfoundland_playlist_id=newfoundland_playlist_id,
-        choice_reader=choice_reader,
+    return operation(
+        sp,
+        new_kids_playlist_id,
+        queue_2_playlist_id,
+        great_discoveries_2026_playlist_id,
+        unlucky_ones_playlist_id,
+        newfoundland_playlist_id,
+        choice_reader,
         dry_run=dry_run,
         year=year,
         echo=echo,
@@ -1403,7 +1405,11 @@ def flush_new_kids(
         NewKidsStateError: Saved progress is invalid or another run blocks execution.
         NewKidsError: Catalog observations or operator selections are invalid.
     """
-    return _flush_review_playlist(
+    from spotify_manager.interfaces.operations.new_kids import (
+        flush_new_kids as operation,
+    )
+
+    return operation(
         sp,
         new_kids_playlist_id,
         queue_2_playlist_id,
@@ -1485,16 +1491,18 @@ def flush_queue_2(
         NewKidsStateError: Saved progress is invalid or another run blocks execution.
         NewKidsError: Catalog observations or operator selections are invalid.
     """
-    from spotify_manager.bootstrap.new_kids import run_queue_review
+    from spotify_manager.interfaces.operations.new_kids import (
+        flush_queue_2 as operation,
+    )
 
-    return run_queue_review(
-        sp=sp,
-        new_kids_playlist_id=new_kids_playlist_id,
-        queue_2_playlist_id=queue_2_playlist_id,
-        great_discoveries_2026_playlist_id=great_discoveries_2026_playlist_id,
-        unlucky_ones_playlist_id=unlucky_ones_playlist_id,
-        newfoundland_playlist_id=newfoundland_playlist_id,
-        choice_reader=choice_reader,
+    return operation(
+        sp,
+        new_kids_playlist_id,
+        queue_2_playlist_id,
+        great_discoveries_2026_playlist_id,
+        unlucky_ones_playlist_id,
+        newfoundland_playlist_id,
+        choice_reader,
         dry_run=dry_run,
         year=year,
         echo=echo,

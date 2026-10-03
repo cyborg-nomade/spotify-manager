@@ -13,6 +13,9 @@ from spotify_manager import main
 from spotify_manager.application.artist_follows import ArtistFollowOutcome
 from spotify_manager.application.artist_follows import ArtistPersistenceResult
 from spotify_manager.domain.library import AlbumArtist
+from spotify_manager.interfaces.operations import (
+    recover_removed_albums as recovery_operations,
+)
 from spotify_manager.interfaces.presenters.album_limits import AlbumReviewPresenter
 from spotify_manager.interfaces.presenters.album_limits import present_artist_follow
 from spotify_manager.interfaces.presenters.album_limits import read_action
@@ -96,7 +99,7 @@ def test_recovery_cli_executes_original_result_and_effects(
     )
     spotify = RecoverySpotify()
     monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
-    monkeypatch.setattr(recovery, "_today", _today)
+    monkeypatch.setattr(recovery_operations, "_today", _today)
     arguments = ["recover-removed-albums", "--limit", "1"]
     if dry_run:
         arguments.append("--dry-run")

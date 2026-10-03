@@ -2,9 +2,6 @@
 
 from spotipy.client import Spotify
 
-from spotify_manager.application.legacy_library_monthly import run
-from spotify_manager.bootstrap.legacy_library import monthly_actions
-from spotify_manager.bootstrap.legacy_library import monthly_files
 from spotify_manager.loaders_savers import load_control_file as load_control_file
 from spotify_manager.loaders_savers import (
     load_total_albums_file as load_total_albums_file,
@@ -27,4 +24,8 @@ def run_monthly_routines(sp: Spotify) -> None:
     Args:
         sp: Original caller-owned synchronous client.
     """
-    run(monthly_files(), monthly_actions(sp), print)
+    from spotify_manager.interfaces.operations.legacy_library import (
+        run_monthly_routines as operation,
+    )
+
+    return operation(sp)

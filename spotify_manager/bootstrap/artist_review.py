@@ -63,8 +63,11 @@ class ReviewResources:
         Returns:
             Original mutable state with the original save callback semantics.
         """
-        access = legacy._state_access(self.paths, self.state_service)
-        state = legacy._deserialize_state(access.load())
+        from spotify_manager.routines.review_artists import _deserialize_state
+        from spotify_manager.routines.review_artists import _state_access
+
+        access = _state_access(self.paths, self.state_service)
+        state = _deserialize_state(access.load())
         state.persist = partial(_persist, access, state)
         return state
 
@@ -74,7 +77,9 @@ class ReviewResources:
         Args:
             refresh: Original refresh-cache option.
         """
-        self.cache = legacy.load_cache(self.paths.cache, refresh=refresh)
+        from spotify_manager.routines.review_artists import load_cache
+
+        self.cache = load_cache(self.paths.cache, refresh=refresh)
 
     def retry(self, operation: Callable[[], object], description: str) -> object:
         """Retain original narrowed synchronous transient retry behavior.
@@ -86,7 +91,11 @@ class ReviewResources:
         Returns:
             Original accepted response.
         """
-        return legacy.retry_spotify_server_errors(
+        from spotify_manager.infrastructure.spotify.retry import (
+            retry_spotify_server_errors,
+        )
+
+        return retry_spotify_server_errors(
             operation,
             description,
             self.echo,
@@ -104,9 +113,9 @@ class ReviewResources:
         Returns:
             Original complete ordered candidates.
         """
-        return legacy.ranked_artist_tracks(
+        return catalog(
             self.spotify, artist, self.cache, self.paths.cache, self.retry
-        )
+        ).ranked_tracks()
 
     def ranked(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
         """Read original cached ranked album/EP releases.
@@ -117,9 +126,9 @@ class ReviewResources:
         Returns:
             Original complete enriched releases.
         """
-        return legacy.ranked_artist_releases(
+        return catalog(
             self.spotify, artist, self.cache, self.paths.cache, self.retry
-        )
+        ).ranked_releases()
 
     def earliest(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
         """Read original cached chronological releases.
@@ -130,9 +139,9 @@ class ReviewResources:
         Returns:
             Original complete enriched releases.
         """
-        return legacy.earliest_artist_releases(
+        return catalog(
             self.spotify, artist, self.cache, self.paths.cache, self.retry
-        )
+        ).earliest_releases()
 
     def append(self, playlist: str, uri: str, description: str) -> object:
         """Retry original single-marker addition at the mutation boundary.
@@ -145,8 +154,10 @@ class ReviewResources:
         Returns:
             Original mutation response.
         """
+        from spotify_manager.routines.review_artists import add_playlist_item
+
         return self.retry(
-            partial(legacy.add_playlist_item, self.spotify, playlist, uri), description
+            partial(add_playlist_item, self.spotify, playlist, uri), description
         )
 
     def remove(self, playlist: str, uris: list[str], description: str) -> object:
@@ -160,8 +171,10 @@ class ReviewResources:
         Returns:
             Original mutation response.
         """
+        from spotify_manager.routines.review_artists import remove_playlist_items
+
         return self.retry(
-            partial(legacy.remove_playlist_items, self.spotify, playlist, uris),
+            partial(remove_playlist_items, self.spotify, playlist, uris),
             description,
         )
 
@@ -175,39 +188,51 @@ class ReviewResources:
         Returns:
             Original mutation response.
         """
+        from spotify_manager.routines.review_artists import remove_library_artists
+
         return self.retry(
-            partial(legacy.remove_library_artists, self.spotify, uris), description
+            partial(remove_library_artists, self.spotify, uris), description
         )
 
 
 def _persist(access: RoutineState, state: ArtistReviewState) -> None:
-    access.save(legacy._serialize_state(state))
+    from spotify_manager.routines.review_artists import _serialize_state
+
+    access.save(_serialize_state(state))
 
 
 def _event(run_id: str, name: str, **details: object) -> dict[str, object]:
-    return legacy.event(run_id, name, **details)
+    from spotify_manager.routines.review_artists import event
+
+    return event(run_id, name, **details)
 
 
 def _storage(resources: ReviewResources) -> ReviewStorage:
+    from spotify_manager.routines.review_artists import append_events
+    from spotify_manager.routines.review_artists import load_models
+    from spotify_manager.routines.review_artists import new_run_id
+    from spotify_manager.routines.review_artists import save_artists
+    from spotify_manager.routines.review_artists import update_stats_after_unfollow
+
     paths = resources.paths
     return ReviewStorage(
-        partial(legacy.load_models, paths.artists, YourLibraryArtist),
-        partial(legacy.load_models, paths.liked_tracks, YourLibraryTrack),
+        partial(load_models, paths.artists, YourLibraryArtist),
+        partial(load_models, paths.liked_tracks, YourLibraryTrack),
         resources.state,
         resources.initialize_cache,
-        legacy.new_run_id,
+        new_run_id,
         _event,
-        partial(legacy.append_events, paths.log),
-        partial(legacy.save_artists, paths.artists),
-        partial(legacy.update_stats_after_unfollow, paths.stats_history),
+        partial(append_events, paths.log),
+        partial(save_artists, paths.artists),
+        partial(update_stats_after_unfollow, paths.stats_history),
     )
 
 
 def _spotify(resources: ReviewResources) -> ReviewSpotify:
+    from spotify_manager.routines.review_artists import playlist_membership
+
     return ReviewSpotify(
-        partial(
-            legacy.playlist_membership, resources.spotify, retry_call=resources.retry
-        ),
+        partial(playlist_membership, resources.spotify, retry_call=resources.retry),
         resources.append,
         resources.remove,
         resources.unfollow,
@@ -280,9 +305,11 @@ def recovery_session(
     Returns:
         Recovery context sharing the exact original mutable authorities.
     """
+    from spotify_manager.routines.review_artists import playlist_membership
+
     resources = ReviewResources(sp, paths, echo, default_sleep, 0, 0, None)
     spotify = ReviewSpotify(
-        partial(legacy.playlist_membership, sp, retry_call=retry),
+        partial(playlist_membership, sp, retry_call=retry),
         partial(_append, sp, retry),
         partial(_remove, sp, retry),
         partial(_unfollow, sp, retry),
@@ -306,7 +333,9 @@ def recovery_session(
 def _append(
     sp: Spotify, retry: legacy.RetryCall, identity: str, uri: str, description: str
 ) -> object:
-    return retry(partial(legacy.add_playlist_item, sp, identity, uri), description)
+    from spotify_manager.routines.review_artists import add_playlist_item
+
+    return retry(partial(add_playlist_item, sp, identity, uri), description)
 
 
 def _remove(
@@ -316,13 +345,17 @@ def _remove(
     uris: list[str],
     description: str,
 ) -> object:
-    return retry(partial(legacy.remove_playlist_items, sp, identity, uris), description)
+    from spotify_manager.routines.review_artists import remove_playlist_items
+
+    return retry(partial(remove_playlist_items, sp, identity, uris), description)
 
 
 def _unfollow(
     sp: Spotify, retry: legacy.RetryCall, uris: list[str], description: str
 ) -> object:
-    return retry(partial(legacy.remove_library_artists, sp, uris), description)
+    from spotify_manager.routines.review_artists import remove_library_artists
+
+    return retry(partial(remove_library_artists, sp, uris), description)
 
 
 def catalog(
@@ -344,13 +377,19 @@ def catalog(
     Returns:
         Complete original synchronous catalog gatherer.
     """
+    from spotify_manager.routines.review_artists import _read_discography_page
+    from spotify_manager.routines.review_artists import _read_first
+    from spotify_manager.routines.review_artists import _read_ranked_page
+    from spotify_manager.routines.review_artists import _read_tracks
+    from spotify_manager.routines.review_artists import save_cache
+
     repository = LegacyCatalogCache(
-        artist.spotify_id, artist.name, cache, partial(legacy.save_cache, path, cache)
+        artist.spotify_id, artist.name, cache, partial(save_cache, path, cache)
     )
     return ArtistCatalog(
         repository,
-        partial(legacy._read_tracks, sp, artist, retry),
-        partial(legacy._read_ranked_page, sp, artist, retry),
-        partial(legacy._read_discography_page, sp, artist, retry),
-        partial(legacy._read_first, sp, retry),
+        partial(_read_tracks, sp, artist, retry),
+        partial(_read_ranked_page, sp, artist, retry),
+        partial(_read_discography_page, sp, artist, retry),
+        partial(_read_first, sp, retry),
     )

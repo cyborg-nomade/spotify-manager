@@ -53,11 +53,11 @@ def test_update_total_album_list(mocker) -> None:
         "next": None,
     }
     load_albums = mocker.patch(
-        "spotify_manager.processors.total_albums_processor.load_total_albums_file",
+        "spotify_manager.loaders_savers.load_total_albums_file",
         return_value=[album("stored", "Alpha")],
     )
     save_albums = mocker.patch(
-        "spotify_manager.processors.total_albums_processor.save_total_albums_file"
+        "spotify_manager.loaders_savers.save_total_albums_file"
     )
 
     result = update_total_album_list(spotify, just_update=True)
@@ -132,7 +132,7 @@ def test_update_total_album_list_reads_all_pages_and_ignores_empty_items(
     spotify.current_user_saved_albums.return_value = first_page
     spotify.next.return_value = second_page
     save_albums = mocker.patch(
-        "spotify_manager.processors.total_albums_processor.save_total_albums_file"
+        "spotify_manager.loaders_savers.save_total_albums_file"
     )
 
     result = update_total_album_list(spotify, just_update=False)
@@ -147,7 +147,7 @@ def test_update_total_album_list_returns_safe_fallbacks_on_failure(mocker) -> No
     spotify.current_user_saved_albums.side_effect = RuntimeError("offline")
     stored = [album("stored", "Stored")]
     mocker.patch(
-        "spotify_manager.processors.total_albums_processor.load_total_albums_file",
+        "spotify_manager.loaders_savers.load_total_albums_file",
         return_value=stored,
     )
 
@@ -180,7 +180,7 @@ def test_update_total_album_list_recovers_one_failed_next_page(mocker) -> None:
     spotify.current_user_saved_albums.side_effect = [first_page, recovered_page]
     spotify.next.side_effect = RuntimeError("temporary")
     mocker.patch(
-        "spotify_manager.processors.total_albums_processor.save_total_albums_file"
+        "spotify_manager.loaders_savers.save_total_albums_file"
     )
 
     result = update_total_album_list(spotify, just_update=False)
@@ -256,23 +256,19 @@ def test_add_monthly_albums_updates_playlist_and_control_file(mocker) -> None:
     selected = [album("one", "One"), album("two", "Two")]
     tracks = [SimplifiedTrack(disc_number=1, track_number=1, uri="track")]
     mocker.patch(
-        "spotify_manager.processors.total_albums_processor.get_months_items",
+        "spotify_manager.bootstrap.legacy_library._monthly_selection",
         return_value=selected,
     )
     mocker.patch(
-        "spotify_manager.processors.total_albums_processor.create_playlist",
+        "spotify_manager.bootstrap.legacy_library._monthly_create",
         return_value="playlist",
     )
     get_tracks = mocker.patch(
-        "spotify_manager.processors.total_albums_processor.get_ordered_tracks",
+        "spotify_manager.bootstrap.legacy_library._ordered_tracks",
         return_value=tracks,
     )
-    append = mocker.patch(
-        "spotify_manager.processors.total_albums_processor.append_to_playlist"
-    )
-    save = mocker.patch(
-        "spotify_manager.processors.total_albums_processor.save_control_file"
-    )
+    append = mocker.patch("spotify_manager.bootstrap.legacy_library._monthly_append")
+    save = mocker.patch("spotify_manager.loaders_savers.save_control_file")
 
     result = add_monthly_albums(spotify, control, selected, 0)
 
@@ -285,7 +281,7 @@ def test_add_monthly_albums_updates_playlist_and_control_file(mocker) -> None:
 
 def test_add_monthly_albums_returns_false_when_a_stage_fails(mocker) -> None:
     mocker.patch(
-        "spotify_manager.processors.total_albums_processor.get_months_items",
+        "spotify_manager.bootstrap.legacy_library._monthly_selection",
         side_effect=RuntimeError("failed"),
     )
 

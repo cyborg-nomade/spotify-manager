@@ -19,8 +19,6 @@ from spotify_manager.application.artist_review_membership import MembershipPage
 from spotify_manager.application.artist_review_membership import (
     playlist_membership as gather_membership,
 )
-from spotify_manager.application.artist_review_recovery import flush_moves
-from spotify_manager.application.artist_review_recovery import flush_unfollows
 from spotify_manager.application.artist_review_session import record_completion
 from spotify_manager.application.artist_review_values import (
     ArtistReviewPaths as ArtistReviewPaths,
@@ -615,18 +613,11 @@ def flush_pending_unfollows(
     Returns:
         Original current followed artists after recovery.
     """
-    session = composition.recovery_session(
-        sp,
-        artists,
-        state,
-        counts,
-        paths,
-        run_id,
-        retry_call,
-        echo,
+    from spotify_manager.interfaces.operations.review_artists import (
+        flush_pending_unfollows as operation,
     )
-    flush_unfollows(session)
-    return session.artists
+
+    return operation(sp, artists, state, counts, paths, run_id, retry_call, echo)
 
 
 def flush_pending_queue_moves(
@@ -653,17 +644,13 @@ def flush_pending_queue_moves(
         get_membership: Original caller-owned queue membership authority.
         echo: Original visible progress and action presenter.
     """
-    session = composition.recovery_session(
-        sp,
-        artists,
-        state,
-        counts,
-        paths,
-        run_id,
-        retry_call,
-        echo,
+    from spotify_manager.interfaces.operations.review_artists import (
+        flush_pending_queue_moves as operation,
     )
-    flush_moves(session, get_membership)
+
+    return operation(
+        sp, artists, state, counts, paths, run_id, retry_call, get_membership, echo
+    )
 
 
 def review_artists(
@@ -704,19 +691,25 @@ def review_artists(
     Raises:
         ArtistReviewError: An original required boundary is invalid.
     """
-    return composition.compose(
+    from spotify_manager.interfaces.operations.review_artists import (
+        review_artists as operation,
+    )
+
+    return operation(
         sp,
         playlists,
+        track_choice_reader,
+        release_choice_reader,
         paths,
         echo,
         progress_callback,
-        track_choice_reader,
-        release_choice_reader,
+        refresh_cache,
+        limit,
         sleep,
         transient_retry_delay_seconds,
         transient_max_attempts,
         state_service,
-    ).run(refresh_cache, limit)
+    )
 
 
 __all__ = [

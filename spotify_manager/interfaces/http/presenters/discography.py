@@ -1,7 +1,7 @@
 """Stable discography result serialization."""
 
 from spotify_manager.interfaces.http.models.discography import DiscographyArtistResult
-from spotify_manager.routines import discography
+from spotify_manager.interfaces.operations import discography as discography
 
 
 def discography_artist_result(

@@ -624,9 +624,11 @@ def review_album_limits(
         SpotifyRateLimitError: Spotify reports a rate limit.
         SpotifyTransientServerError: The configured retry policy is exhausted.
     """
-    from spotify_manager.bootstrap.album_limits import run_album_review
+    from spotify_manager.interfaces.operations.review_album_limits import (
+        review_album_limits as operation,
+    )
 
-    run_album_review(
+    return operation(
         sp,
         action_reader,
         threshold,
@@ -634,7 +636,7 @@ def review_album_limits(
         refresh_cache,
         echo,
         log_path,
-        decisions_path or REVIEW_DECISIONS_PATH,
+        decisions_path,
         state_service,
         progress_callback,
         sleep,

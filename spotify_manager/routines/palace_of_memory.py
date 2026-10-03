@@ -156,10 +156,17 @@ def refresh_saved_albums(
     Raises:
         PalaceOfMemoryError: Original live paging, replacement or audit fails.
     """
-    from spotify_manager.bootstrap.palace_mirror import refresh_mirror
+    from spotify_manager.interfaces.operations.palace_of_memory import (
+        refresh_saved_albums as operation,
+    )
 
-    return refresh_mirror(
-        spotify, path, backups_dir, log_path, retry_call, progress_callback
+    return operation(
+        spotify,
+        path=path,
+        backups_dir=backups_dir,
+        log_path=log_path,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
     )
 
 
@@ -298,9 +305,17 @@ def select_historical_albums(
         PalaceOfMemoryError: Original history, population or random source fails.
         IndexError: An original custom index is out of range.
     """
-    from spotify_manager.bootstrap.palace_history import select_history
+    from spotify_manager.interfaces.operations.palace_of_memory import (
+        select_historical_albums as operation,
+    )
 
-    return select_history(count, path, today, random_index_reader, progress_callback)
+    return operation(
+        count=count,
+        path=path,
+        today=today,
+        random_index_reader=random_index_reader,
+        progress_callback=progress_callback,
+    )
 
 
 def _saved_album_match(
@@ -465,18 +480,20 @@ def set_alphabetical_cursor(
     Raises:
         PalaceOfMemoryError: Original preflight, position or checkpoint fails.
     """
-    from spotify_manager.bootstrap.palace_cursor import set_cursor
+    from spotify_manager.interfaces.operations.palace_of_memory import (
+        set_alphabetical_cursor as operation,
+    )
 
-    return set_cursor(
+    return operation(
         spotify,
         position,
-        albums_path,
-        state_path,
-        state_service,
-        album_backups_dir,
-        album_refresh_log_path,
-        retry_call,
-        progress_callback,
+        albums_path=albums_path,
+        state_path=state_path,
+        state_service=state_service,
+        album_backups_dir=album_backups_dir,
+        album_refresh_log_path=album_refresh_log_path,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
     )
 
 
@@ -530,25 +547,27 @@ def fill_palace_of_memory(
     Raises:
         PalaceOfMemoryError: Original preflight, selection, checkpoint or audit fails.
     """
-    from spotify_manager.bootstrap.palace_run import fill_palace
+    from spotify_manager.interfaces.operations.palace_of_memory import (
+        fill_palace_of_memory as operation,
+    )
 
-    return fill_palace(
+    return operation(
         spotify,
         playlist_id,
-        dry_run,
-        alphabetical_start,
-        today,
-        albums_path,
-        scrobbles_path,
-        state_path,
-        state_service,
-        log_path,
-        album_backups_dir,
-        album_refresh_log_path,
-        random_index_reader,
-        retry_call,
-        progress_callback,
-        echo,
+        dry_run=dry_run,
+        alphabetical_start=alphabetical_start,
+        today=today,
+        albums_path=albums_path,
+        scrobbles_path=scrobbles_path,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+        album_backups_dir=album_backups_dir,
+        album_refresh_log_path=album_refresh_log_path,
+        random_index_reader=random_index_reader,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
+        echo=echo,
     )
 
 

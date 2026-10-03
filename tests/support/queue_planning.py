@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
@@ -14,6 +15,10 @@ from spotipy import Spotify
 from spotify_manager.application.new_kids_values import ArtistAssessment
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
+from spotify_manager.infrastructure.legacy import queue_planning as composition
+from spotify_manager.infrastructure.legacy.artist_assessment import (
+    LegacyAssessmentCatalog,
+)
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import the_queue as legacy
 from tests.support.queue_fill import TRACK
@@ -219,7 +224,7 @@ def original_outcome(case: dict[str, object]) -> object:
         patch.object(new_kids, "load_top_track_data", edge.top),
         patch.object(legacy, "_liked_statuses", edge.liked),
         patch.object(new_kids, "load_ranked_catalog", edge.catalog),
-        patch.object(new_kids, "assess_artist", edge.assessment),
+        patch.object(composition, "assess_artist", partial(_assessment, edge)),
         patch.object(new_kids, "load_release_tracks", edge.release_tracks),
     ):
         plan = legacy._plan_flush_entry(
@@ -254,3 +259,13 @@ def cases() -> list[tuple[str, dict[str, object]]]:
     """
     raw = cast(dict[str, dict[str, object]], json.loads(FIXTURE.read_text()))
     return list(raw.items())
+
+
+def _assessment(
+    edge: PlanningObservations,
+    access: LegacyAssessmentCatalog,
+    artist: str,
+    catalog: tuple[RankedRelease, ...],
+    cache: dict[str, tuple[CatalogTrack, ...]],
+) -> ArtistAssessment:
+    return edge.assessment(access.client, artist, catalog, access.retry, cache)

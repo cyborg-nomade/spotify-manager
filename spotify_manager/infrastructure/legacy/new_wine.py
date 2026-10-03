@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from dataclasses import field
+from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -9,11 +10,15 @@ from spotipy import Spotify
 from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.new_wine_values import FlushResult
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.wine_cellar import CellarOptions
+from spotify_manager.application.wine_cellar import refill_cellar
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
+from spotify_manager.infrastructure.legacy.wine_cellar import WineCellarAccess
+from spotify_manager.interfaces.presenters.wine_cellar import present_transfer
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import new_wine as legacy
@@ -57,7 +62,9 @@ class LegacyNewWine:
         Returns:
             Parsed playable markers.
         """
-        return legacy.load_playlist_tracks(self.client, playlist_id, self.retry)
+        from spotify_manager.routines.new_wine import load_playlist_tracks
+
+        return load_playlist_tracks(self.client, playlist_id, self.retry)
 
     def load_state(self, dry_run: bool) -> dict[str, object]:
         """Resolve namespace access after both initial playlist reads.
@@ -68,8 +75,11 @@ class LegacyNewWine:
         Returns:
             Existing namespace or original preview defaults.
         """
-        self._state_access = legacy._state_access(self.state_path, self.state_service)
-        return legacy._default_state() if dry_run else self._state_access.load()
+        from spotify_manager.routines.new_wine import _default_state
+        from spotify_manager.routines.new_wine import _state_access
+
+        self._state_access = _state_access(self.state_path, self.state_service)
+        return _default_state() if dry_run else self._state_access.load()
 
     def _state(self) -> RoutineState:
         if self._state_access is None:
@@ -93,7 +103,9 @@ class LegacyNewWine:
         Returns:
             Ordered playable tracks.
         """
-        return legacy.load_release_tracks(self.client, release, self.retry)
+        from spotify_manager.routines.new_wine import load_release_tracks
+
+        return load_release_tracks(self.client, release, self.retry)
 
     def releases(self, artist_id: str, year: int) -> tuple[ReleaseCandidate, ...]:
         """Read current-year primary-credit candidates.
@@ -105,7 +117,9 @@ class LegacyNewWine:
         Returns:
             Original ordered release candidates.
         """
-        return legacy.current_year_releases(self.client, artist_id, year, self.retry)
+        from spotify_manager.routines.new_wine import current_year_releases
+
+        return current_year_releases(self.client, artist_id, year, self.retry)
 
     def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Fill missing likes under the original batching and validation rules.
@@ -114,7 +128,9 @@ class LegacyNewWine:
             ids: Requested track IDs in order.
             cache: Run-scoped membership cache updated in place.
         """
-        legacy.get_liked_statuses(self.client, ids, cache, self.retry)
+        from spotify_manager.routines.new_wine import get_liked_statuses
+
+        get_liked_statuses(self.client, ids, cache, self.retry)
 
     def append(self, playlist_id: str, track: ReleaseTrack) -> None:
         """Append a replacement with the original retry description.
@@ -123,7 +139,9 @@ class LegacyNewWine:
             playlist_id: Destination playlist.
             track: Accepted replacement.
         """
-        legacy._add_playlist_track(self.client, playlist_id, track, self.retry)
+        from spotify_manager.routines.new_wine import _add_playlist_track
+
+        _add_playlist_track(self.client, playlist_id, track, self.retry)
 
     def remove(self, playlist_id: str, source: PlaylistTrack) -> None:
         """Remove a source after required additions.
@@ -132,7 +150,9 @@ class LegacyNewWine:
             playlist_id: Source playlist.
             source: Original marker.
         """
-        legacy._remove_playlist_track(self.client, playlist_id, source, self.retry)
+        from spotify_manager.routines.new_wine import _remove_playlist_track
+
+        _remove_playlist_track(self.client, playlist_id, source, self.retry)
 
     def saved(self, release: ReleaseCandidate, *, removing: bool = False) -> bool:
         """Retain each original saved-membership SDK boundary and parser.
@@ -144,7 +164,10 @@ class LegacyNewWine:
         Returns:
             Original tolerant first-status interpretation.
         """
-        reader = legacy._saved_for_drop if removing else legacy._saved_for_keep
+        from spotify_manager.routines.new_wine import _saved_for_drop
+        from spotify_manager.routines.new_wine import _saved_for_keep
+
+        reader = _saved_for_drop if removing else _saved_for_keep
         return reader(self.client, release, self.retry)
 
     def save_album(self, release: ReleaseCandidate) -> None:
@@ -153,7 +176,9 @@ class LegacyNewWine:
         Args:
             release: Selected album.
         """
-        legacy._save_album(self.client, release, self.retry)
+        from spotify_manager.routines.new_wine import _save_album
+
+        _save_album(self.client, release, self.retry)
 
     def unsave_album(self, release: ReleaseCandidate) -> None:
         """Unsave a rejected album remotely.
@@ -161,7 +186,9 @@ class LegacyNewWine:
         Args:
             release: Selected album.
         """
-        legacy._unsave_album(self.client, release, self.retry)
+        from spotify_manager.routines.new_wine import _unsave_album
+
+        _unsave_album(self.client, release, self.retry)
 
     def mirror_album(self, release: ReleaseCandidate) -> None:
         """Publish a qualifying album through the existing mirror/statistics helper.
@@ -169,7 +196,9 @@ class LegacyNewWine:
         Args:
             release: Accepted album.
         """
-        legacy._add_local_album(release, self.albums_path)
+        from spotify_manager.routines.new_wine import _add_local_album
+
+        _add_local_album(release, self.albums_path)
 
     def remove_mirror_album(self, release: ReleaseCandidate) -> None:
         """Publish removal through the existing mirror/statistics helper.
@@ -177,7 +206,9 @@ class LegacyNewWine:
         Args:
             release: Album already unsaved remotely.
         """
-        legacy._remove_local_album(release.spotify_id, self.albums_path)
+        from spotify_manager.routines.new_wine import _remove_local_album
+
+        _remove_local_album(release.spotify_id, self.albums_path)
 
     def removed_audit(
         self, release: ReleaseCandidate, evaluation: AlbumEvaluation, reason: str
@@ -189,7 +220,11 @@ class LegacyNewWine:
             evaluation: Original live keep evaluation.
             reason: Original drop action identifier.
         """
-        legacy.append_removed_album_log(
+        from spotify_manager.routines.review_album_limits import (
+            append_removed_album_log,
+        )
+
+        append_removed_album_log(
             album=YourLibraryAlbum(
                 artist=release.primary_artist_name, album=release.name, uri=release.uri
             ),
@@ -206,7 +241,9 @@ class LegacyNewWine:
             run_id: Original execution identifier.
             result: Completed or skipped result, including previews.
         """
-        legacy.append_log(run_id, result, self.log_path)
+        from spotify_manager.routines.new_wine import append_log
+
+        append_log(run_id, result, self.log_path)
 
     def refill(
         self,
@@ -230,19 +267,23 @@ class LegacyNewWine:
         Returns:
             Original refill result.
         """
-        return legacy._refill_new_wine(
-            self.client,
+        options = CellarOptions(
             self.destination,
             cellar_id,
-            no_discovery=no_discovery,
-            dry_run=dry_run,
-            retry_call=self.retry,
-            state=state,
-            run=run,
-            state_access=self._state(),
-            log_path=self.log_path,
-            liked_tracks_path=self.liked_path,
-            albums_path=self.albums_path,
-            echo=self.echo,
-            projected_new_wine_ids=projected,
+            no_discovery,
+            dry_run,
+            legacy.NEW_WINE_TARGET_SIZE,
+            projected,
+        )
+        access = self._state()
+        integration = WineCellarAccess(
+            self.client,
+            self.retry,
+            access,
+            self.log_path,
+            self.liked_path,
+            self.albums_path,
+        )
+        return refill_cellar(
+            integration, options, state, run, partial(present_transfer, self.echo)
         )

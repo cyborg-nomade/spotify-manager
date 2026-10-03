@@ -12,8 +12,6 @@ from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import new_wine
-from spotify_manager.routines import queue_3 as legacy
-from spotify_manager.routines import slow_listening
 
 
 @dataclass(frozen=True)
@@ -42,8 +40,10 @@ class LegacyAnnualImport:
         Raises:
             Queue3Error: The existing playlist reader fails.
         """
+        from spotify_manager.routines.new_wine import load_playlist_tracks
+
         try:
-            return new_wine.load_playlist_tracks(self.client, playlist_id, self.retry)
+            return load_playlist_tracks(self.client, playlist_id, self.retry)
         except new_wine.NewWineError as exc:
             raise Queue3Error(str(exc)) from exc
 
@@ -57,9 +57,9 @@ class LegacyAnnualImport:
             tracks: Selected artist markers in source order.
             description: Original retry description before batch suffixes.
         """
-        legacy._add_playlist_tracks(
-            self.client, playlist_id, tracks, self.retry, description
-        )
+        from spotify_manager.routines.queue_3 import _add_playlist_tracks
+
+        _add_playlist_tracks(self.client, playlist_id, tracks, self.retry, description)
 
     def audit(self, event: str, details: dict[str, object]) -> None:
         """Persist original audit fields at the caller's audit destination.
@@ -68,7 +68,9 @@ class LegacyAnnualImport:
             event: Original event identifier.
             details: Original structured event fields.
         """
-        legacy.append_event(self.log_path, event, **details)
+        from spotify_manager.routines.queue_3 import append_event
+
+        append_event(self.log_path, event, **details)
 
     def remove(self, playlist_id: str, uris: list[str], description: str) -> None:
         """Remove markers through original URI deduplication and ordered batches.
@@ -78,9 +80,9 @@ class LegacyAnnualImport:
             uris: Original marker URI selection.
             description: Original retry message before batch suffixes.
         """
-        legacy._remove_playlist_uris(
-            self.client, playlist_id, uris, self.retry, description
-        )
+        from spotify_manager.routines.queue_3 import _remove_playlist_uris
+
+        _remove_playlist_uris(self.client, playlist_id, uris, self.retry, description)
 
 
 @dataclass(frozen=True)
@@ -106,7 +108,9 @@ class LegacyQueue3Catalog:
         Returns:
             Selected studio releases in original chronological order.
         """
-        return slow_listening.load_discography(self.client, artist_id, self.retry)
+        from spotify_manager.routines.slow_listening import load_discography
+
+        return load_discography(self.client, artist_id, self.retry)
 
     def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read a selected edition through the original ordered-track loader.
@@ -117,7 +121,9 @@ class LegacyQueue3Catalog:
         Returns:
             Original playable tracks in disc and track order.
         """
-        return slow_listening.load_release_tracks(self.client, release, self.retry)
+        from spotify_manager.routines.slow_listening import load_release_tracks
+
+        return load_release_tracks(self.client, release, self.retry)
 
     def evaluate(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
@@ -131,6 +137,14 @@ class LegacyQueue3Catalog:
         Returns:
             Original album evaluation with per-track live memberships.
         """
-        return legacy._live_evaluation(
-            self.client, release, tracks, self.liked, self.retry
+        from spotify_manager.application.release_evaluation import evaluate_release
+        from spotify_manager.domain.catalog import release_candidate
+        from spotify_manager.routines.new_wine import get_liked_statuses
+
+        get_liked_statuses(
+            self.client,
+            [track.spotify_id for track in tracks],
+            self.liked,
+            self.retry,
         )
+        return evaluate_release(release_candidate(release), tracks, self.liked)

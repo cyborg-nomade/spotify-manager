@@ -15,7 +15,9 @@ from spotify_manager.routines import release_check as legacy
 def _tracks(
     sp: Spotify, retry: legacy.RetryCall, release: ReleaseCandidate
 ) -> tuple[ReleaseTrack, ...]:
-    return legacy.load_release_tracks(sp, release, retry)
+    from spotify_manager.routines.release_check import load_release_tracks
+
+    return load_release_tracks(sp, release, retry)
 
 
 def matching_future_record(

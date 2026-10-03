@@ -335,25 +335,27 @@ def fill_sauvignon_from_lastfm(
     now: datetime | None = None,
 ) -> SauvignonSummary:
     """Fill Sauvignon with album-level recommendations inferred from Last.fm."""
-    from spotify_manager.bootstrap.sauvignon import run_sauvignon
+    from spotify_manager.interfaces.sauvignon_operations import (
+        fill_sauvignon_from_lastfm as operation,
+    )
 
-    return run_sauvignon(
+    return operation(
         spotify,
         lastfm,
         playlist_id,
         choice_reader,
-        count,
-        max_playlist_length,
-        seed_count,
-        dry_run,
-        echo,
-        progress_callback,
-        retry_call,
-        export_path,
-        recent_path,
-        cache_path,
-        log_path,
-        now,
+        count=count,
+        max_playlist_length=max_playlist_length,
+        seed_count=seed_count,
+        dry_run=dry_run,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        export_path=export_path,
+        recent_path=recent_path,
+        cache_path=cache_path,
+        log_path=log_path,
+        now=now,
     )
 
 

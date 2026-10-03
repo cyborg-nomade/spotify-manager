@@ -8,7 +8,7 @@ from spotipy import Spotify
 
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
-from spotify_manager.routines import the_queue
+from spotify_manager.interfaces.operations import the_queue as the_queue
 
 
 @dataclass(kw_only=True)

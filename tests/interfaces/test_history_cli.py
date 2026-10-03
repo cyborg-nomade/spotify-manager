@@ -9,7 +9,7 @@ import pytest
 
 from spotify_manager import main
 from spotify_manager.client.lastfm import LastFmClient
-from spotify_manager.routines import scrobble_history
+from spotify_manager.interfaces.operations import scrobble_history
 from spotify_manager.routines.scrobble_history import ScrobbleHistorySummary
 
 

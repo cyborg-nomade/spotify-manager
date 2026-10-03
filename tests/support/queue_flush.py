@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
 from datetime import tzinfo
+from functools import partialmethod
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
@@ -16,8 +17,10 @@ from spotipy import Spotify
 
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
+from spotify_manager.infrastructure.legacy.queue_flush import LegacyQueueFlush
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
+from spotify_manager.routines import review_artists
 from spotify_manager.routines import the_queue as legacy
 from tests.support.queue_fill import TRACK
 from tests.support.queue_neighbors import NOW
@@ -318,10 +321,10 @@ class FlushObservations:
 def _patches(edge: FlushObservations) -> tuple[tuple[object, str, object], ...]:
     return (
         (new_wine, "load_playlist_tracks", edge.playlist),
-        (legacy, "_plan_flush_entry", edge.plan),
-        (legacy, "add_playlist_item", edge.append),
-        (legacy, "remove_playlist_items", edge.remove),
-        (legacy, "remove_library_artists", edge.unfollow),
+        (LegacyQueueFlush, "plan", partialmethod(_plan, edge)),
+        (review_artists, "add_playlist_item", edge.append),
+        (review_artists, "remove_playlist_items", edge.remove),
+        (review_artists, "remove_library_artists", edge.unfollow),
         (new_kids, "remove_local_artist", edge.remove_local),
         (legacy, "append_event", edge.audit),
         (legacy, "datetime", edge),
@@ -411,3 +414,12 @@ def restart_cases() -> list[tuple[str, dict[str, object]]]:
         if "restart_outcome" in case:
             selected.append((name, case))
     return selected
+
+
+def _plan(
+    access: LegacyQueueFlush,
+    edge: FlushObservations,
+    source: PlaylistTrack,
+    uris: list[str],
+) -> dict[str, object]:
+    return edge.plan(access.spotify, source, uris, access.retry)

@@ -12,8 +12,8 @@ from rich.table import Table
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import genre_reveal
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import genre_reveal as genre_reveal
 from spotify_manager.settings import Settings
 
 

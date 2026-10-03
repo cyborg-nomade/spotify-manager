@@ -1,6 +1,7 @@
 import json
 from datetime import UTC
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,6 +11,8 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines import something_old
+from tests.support.history_dependencies import LegacySomethingOld
+from tests.support.history_dependencies import something_old_history
 
 
 class FakeSpotify:
@@ -112,9 +115,7 @@ def patch_history_refresh(
         return history_summary(dry_run=bool(kwargs["dry_run"]))
 
     monkeypatch.setattr(
-        something_old.scrobble_history,
-        "refresh_scrobble_history",
-        refresh,
+        LegacySomethingOld, "history", partialmethod(something_old_history, refresh)
     )
 
 
@@ -147,9 +148,12 @@ def test_nonempty_playlist_stops_before_refresh_or_prompt(
         ]
     )
     monkeypatch.setattr(
-        something_old.scrobble_history,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: pytest.fail("history should not refresh"),
+        LegacySomethingOld,
+        "history",
+        partialmethod(
+            something_old_history,
+            lambda *_args, **_kwargs: pytest.fail("history should not refresh"),
+        ),
     )
 
     summary = something_old.run_something_old(

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from spotify_manager.client.lastfm import LastFmSimilarArtist
+from spotify_manager.infrastructure.legacy import queue_fill as fill_integration
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import the_queue
 
@@ -716,8 +717,8 @@ def test_fill_maps_follows_and_adds_first_unliked_top_track(
         for index in range(1, 4)
     }
     monkeypatch.setattr(
-        the_queue.found_art,
-        "refresh_scrobble_history",
+        fill_integration,
+        "refresh_history",
         lambda *_args, **_kwargs: (history, 0),
     )
     monkeypatch.setattr(the_queue, "_persist_followed_artist", lambda *_args: None)
@@ -783,8 +784,8 @@ def test_fill_at_maximum_playlist_length_is_a_noop(
     spotify.playlists["queue"] = [seed_artist(spotify, "existing")[0]]
     history = [scrobble("Seed", 1_000)]
     monkeypatch.setattr(
-        the_queue.found_art,
-        "refresh_scrobble_history",
+        fill_integration,
+        "refresh_history",
         lambda *_args, **_kwargs: (history, 2),
     )
 
@@ -840,13 +841,13 @@ def test_fill_handles_mapping_skip_quit_and_no_match(
         base_rank=1,
     )
     monkeypatch.setattr(
-        the_queue.found_art,
-        "refresh_scrobble_history",
+        fill_integration,
+        "refresh_history",
         lambda *_args, **_kwargs: (history, 0),
     )
     monkeypatch.setattr(
-        the_queue,
-        "gather_artist_recommendations",
+        fill_integration.LegacyQueueFill,
+        "candidates",
         lambda *_args, **_kwargs: (recommendation,),
     )
     reader = None if choice is None else lambda *_args: choice
@@ -916,13 +917,13 @@ def test_fill_skips_represented_and_fully_liked_artists_before_dry_run_addition(
         state_path,
     )
     monkeypatch.setattr(
-        the_queue.found_art,
-        "refresh_scrobble_history",
+        fill_integration,
+        "refresh_history",
         lambda *_args, **_kwargs: (history, 0),
     )
     monkeypatch.setattr(
-        the_queue,
-        "gather_artist_recommendations",
+        fill_integration.LegacyQueueFill,
+        "candidates",
         lambda *_args, **_kwargs: recommendations,
     )
     progress: list[str] = []

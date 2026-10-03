@@ -19,7 +19,7 @@ from spotify_manager.interfaces.http.job_records import AnalysisJob
 from spotify_manager.interfaces.http.models.analysis import AnalysisJobResult
 from spotify_manager.interfaces.http.models.analysis import AnalysisResourceProgress
 from spotify_manager.interfaces.http.models.common import JobStatus
-from spotify_manager.routines import analyse_library as analysis
+from spotify_manager.interfaces.operations import analyse_library as analysis
 
 
 @dataclass

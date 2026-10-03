@@ -40,7 +40,9 @@ class LegacyGenreReveal:
         Returns:
             Typed original public links and ordered markers.
         """
-        source = legacy.load_genre_playlist_source(slug, name, self.reader)
+        from spotify_manager.routines.genre_reveal import load_genre_playlist_source
+
+        source = load_genre_playlist_source(slug, name, self.reader)
         preview = source.preview
         values = GenreSource(
             preview.slug,
@@ -61,9 +63,9 @@ class LegacyGenreReveal:
         Returns:
             Original live destination identities.
         """
-        return legacy.blast_from_past.load_playlist_state(
-            self.spotify, playlist_id
-        ).track_ids
+        from spotify_manager.routines.blast_from_past import load_playlist_state
+
+        return load_playlist_state(self.spotify, playlist_id).track_ids
 
     def follow(self, source: GenrePlaylistSource) -> None:
         """Accept the original library-save request before any marker append.
@@ -71,7 +73,9 @@ class LegacyGenreReveal:
         Args:
             source: Discovered original source.
         """
-        legacy._save_source_playlist(self.spotify, source)
+        from spotify_manager.routines.genre_reveal import _save_source_playlist
+
+        _save_source_playlist(self.spotify, source)
 
     def append(self, destination: str, missing: tuple[str, ...]) -> None:
         """Accept the original ordered missing-marker append.
@@ -80,7 +84,9 @@ class LegacyGenreReveal:
             destination: Original target identity.
             missing: Original missing markers.
         """
-        legacy._append_source_tracks(self.spotify, destination, missing)
+        from spotify_manager.routines.genre_reveal import _append_source_tracks
+
+        _append_source_tracks(self.spotify, destination, missing)
 
     def clock(self) -> datetime:
         """Retain the original completion clock after accepted writes.
@@ -96,6 +102,8 @@ class LegacyGenreReveal:
         Args:
             outcome: Completed original business observations.
         """
+        from spotify_manager.routines.genre_reveal import append_genre_reveal_log
+
         self.result = legacy.GenreRevealRunResult(
             **asdict(outcome.source),
             destination_playlist_id=outcome.destination_playlist_id,
@@ -104,4 +112,4 @@ class LegacyGenreReveal:
             already_present_track_uris=list(outcome.already_present_track_uris),
             completed_at=outcome.completed_at,
         )
-        legacy.append_genre_reveal_log(self.result, self.path)
+        append_genre_reveal_log(self.result, self.path)

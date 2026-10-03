@@ -9,7 +9,6 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.sauvignon_run import SauvignonRun
-from spotify_manager.application.sauvignon_values import SauvignonSummary
 from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
 from spotify_manager.routines import sauvignon as legacy
 
@@ -30,15 +29,11 @@ def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
         callback(message)
 
 
-def run_sauvignon(
+def sauvignon_workflow(
     spotify: Spotify,
     lastfm: legacy.LastFmReader,
     playlist_id: str,
     choice: legacy.AlbumChoiceReader | None,
-    count: int | None,
-    maximum: int | None,
-    seed_count: int,
-    dry_run: bool,
     echo: legacy.Echo,
     progress: legacy.ProgressCallback | None,
     retry: legacy.RetryCall | None,
@@ -47,33 +42,30 @@ def run_sauvignon(
     cache_path: Path,
     log_path: Path,
     now: datetime | None,
-) -> SauvignonSummary:
-    """Bind the independent workflow to original configuration and compatibility seams.
+) -> SauvignonRun:
+    """Construct one workflow with invocation-owned clients and callbacks.
 
     Args:
         spotify: Caller-owned Spotify client.
         lastfm: Caller-owned history source.
-        playlist_id: Original destination.
-        choice: Original edition interaction.
-        count: Optional explicit additions.
-        maximum: Optional destination capacity.
-        seed_count: Requested seeds.
-        dry_run: Original preview mode.
-        echo: Original accepted-effect presentation.
-        progress: Original progress observer.
-        retry: Original retry policy or immediate default.
+        playlist_id: Destination identity.
+        choice: Edition interaction owned by this invocation.
+        echo: Accepted-effect presenter.
+        progress: Stage observer.
+        retry: Retry policy configured after request validation.
         export_path: Canonical history location.
         recent_path: Recent history location.
         cache_path: Neighborhood cache location.
         log_path: Audit location.
-        now: Optional effective UTC time.
+        now: Optional UTC timestamp, observed after validation.
 
     Returns:
-        Original completed result after its audit succeeds.
-
-    Raises:
-        SauvignonError: Original request, catalog or storage failure.
+        A workflow whose construction performs no observations or effects.
     """
+    from spotify_manager.infrastructure.recommendation_calendar import (
+        listening_week_start,
+    )
+
     effects = LegacySauvignon(
         spotify,
         lastfm,
@@ -86,10 +78,10 @@ def run_sauvignon(
         log_path,
         progress,
     )
-    workflow = SauvignonRun(
+    return SauvignonRun(
         effects,
         partial(_configure_retry_and_clock, now, retry, effects),
-        legacy.found_art.listening_week_start,
+        listening_week_start,
         partial(_progress, progress),
         echo,
         legacy.DEFAULT_MAX_PLAYLIST_LENGTH,
@@ -98,4 +90,3 @@ def run_sauvignon(
         legacy.MIN_SPOTIFY_CANDIDATES,
         legacy.SPOTIFY_CANDIDATE_MULTIPLIER,
     )
-    return workflow.run(playlist_id, count, maximum, seed_count, dry_run)

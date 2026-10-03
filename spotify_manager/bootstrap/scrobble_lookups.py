@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from spotipy import Spotify
 
 from spotify_manager.application.lookup_effects import TrackLookup
+from spotify_manager.application.lookup_resolution import track
 from spotify_manager.application.scrobble_lookup_run import TrackHistoryLookup
 from spotify_manager.domain.lookup_values import ResolvedTrack
 from spotify_manager.infrastructure import scrobble_lookup as history
@@ -30,11 +31,9 @@ def latest(path: Path, track: str, artist: str) -> datetime | None:
     Returns:
         Original latest matching play or none.
     """
-    from spotify_manager.routines import blast_from_past
+    from spotify_manager.routines.blast_from_past import load_scrobble_export
 
-    return history.latest(
-        blast_from_past.load_scrobble_export, path, track, artist, TIMEZONE
-    )
+    return history.latest(load_scrobble_export, path, track, artist, TIMEZONE)
 
 
 def resources(
@@ -56,10 +55,8 @@ def resources(
     Returns:
         Explicit original ordered lookup dependencies.
     """
-    from spotify_manager.processors import scrobble_lookups as legacy
-
     return TrackHistoryLookup(
-        partial(legacy.resolve_live_track, client, name=name, track_id=identifier),
+        partial(_resolve_track, client, name, identifier),
         partial(_read_latest, path),
         partial(_current_time, now),
         TIMEZONE,
@@ -67,15 +64,11 @@ def resources(
 
 
 def _read_latest(path: Path, track: str, artist: str) -> datetime | None:
-    from spotify_manager.processors import scrobble_lookups as legacy
-
-    return legacy._last_scrobble_at(path, track_name=track, artist_name=artist)
+    return latest(path, track, artist)
 
 
 def _current_time(now: datetime | None) -> datetime:
-    from spotify_manager.processors import scrobble_lookups as legacy
-
-    return now or legacy.datetime.now(TIMEZONE)
+    return now or datetime.now(TIMEZONE)
 
 
 def track_lookup(client: Spotify) -> TrackLookup:
@@ -87,15 +80,23 @@ def track_lookup(client: Spotify) -> TrackLookup:
     Returns:
         Original track reads without constructing an environment client.
     """
-    from spotify_manager.processors import scrobble_lookups as legacy
+    from spotify_manager.processors.scrobble_lookups import _direct_track
 
     return TrackLookup(
-        partial(legacy._direct_track, client), partial(_track_candidates, client)
+        partial(_direct_track, client), partial(_track_candidates, client)
     )
 
 
 def _track_candidates(client: Spotify, name: str) -> list[ResolvedTrack]:
     from spotify_manager.infrastructure import lookup_records
-    from spotify_manager.processors import scrobble_lookups as legacy
+    from spotify_manager.processors.scrobble_lookups import _track_search
 
-    return lookup_records.track_identities(legacy._track_search(client, name))
+    return lookup_records.track_identities(_track_search(client, name))
+
+
+def _resolve_track(
+    client: Spotify,
+    name: str | None,
+    identifier: str | None,
+) -> ResolvedTrack:
+    return track(track_lookup(client), name, identifier)

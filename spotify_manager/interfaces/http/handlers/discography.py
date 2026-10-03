@@ -12,7 +12,7 @@ from spotify_manager.interfaces.http.models.discography import DiscographyChoice
 from spotify_manager.interfaces.http.models.discography import DiscographyPendingChoice
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.validation import option_ids
-from spotify_manager.routines import discography
+from spotify_manager.interfaces.operations import discography as discography
 from spotify_manager.settings import Settings
 
 

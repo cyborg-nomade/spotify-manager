@@ -70,14 +70,17 @@ class LegacyPalace:
         Returns:
             Original complete mirror and refresh result.
         """
-        return legacy.refresh_saved_albums(
+        from spotify_manager.bootstrap.palace_mirror import saved_mirror
+
+        workflow = saved_mirror(
             self.spotify,
-            path=self.albums_path,
-            backups_dir=self.backups_dir,
-            log_path=self.refresh_log,
-            retry_call=self.retry,
-            progress_callback=self.callback,
+            self.albums_path,
+            self.backups_dir,
+            self.refresh_log,
+            self.retry,
+            self.callback,
         )
+        return workflow.run()
 
     def state_access(self) -> PalaceStateAccess:
         """Resolve original shared authority or explicit legacy path.
@@ -85,7 +88,9 @@ class LegacyPalace:
         Returns:
             Original caller-owned state boundary.
         """
-        return legacy._state_access(self.state_path, self.state_service)
+        from spotify_manager.routines.palace_of_memory import _state_access
+
+        return _state_access(self.state_path, self.state_service)
 
     def start_index(
         self,
@@ -103,9 +108,12 @@ class LegacyPalace:
         Returns:
             Original selected zero-based position.
         """
+        from spotify_manager.routines.palace_of_memory import _cursor_index
+        from spotify_manager.routines.palace_of_memory import resolve_alphabetical_start
+
         if manual is not None:
-            return legacy.resolve_alphabetical_start(albums, manual)
-        return legacy._cursor_index(state, albums)
+            return resolve_alphabetical_start(albums, manual)
+        return _cursor_index(state, albums)
 
     def historical(
         self,
@@ -115,12 +123,12 @@ class LegacyPalace:
         Returns:
             Original effective time, cutoff, eligible count and selections.
         """
-        return legacy.select_historical_albums(
-            path=self.scrobbles_path,
-            today=self.today,
-            random_index_reader=self.random_reader,
-            progress_callback=self.callback,
+        from spotify_manager.bootstrap.palace_history import palace_history
+
+        workflow = palace_history(
+            self.scrobbles_path, self.today, self.random_reader, self.callback
         )
+        return workflow.run(legacy.HISTORY_COUNT)
 
     def playlist(self, recheck: bool) -> PlaylistState:
         """Read original destination authority through the original retry boundary.
@@ -131,7 +139,9 @@ class LegacyPalace:
         Returns:
             Original valid complete live facts.
         """
-        return legacy._read_palace_playlist(
+        from spotify_manager.routines.palace_of_memory import _read_palace_playlist
+
+        return _read_palace_playlist(
             self.spotify, self.playlist_id, self.retry, recheck
         )
 
@@ -144,7 +154,9 @@ class LegacyPalace:
         Returns:
             Original complete first marker.
         """
-        return legacy.load_first_track(self.spotify, album, self.retry)
+        from spotify_manager.routines.palace_of_memory import load_first_track
+
+        return load_first_track(self.spotify, album, self.retry)
 
     def search(self, artist: str, album: str) -> SpotifyAlbum | None:
         """Retain original historical album qualification and search options.
@@ -156,7 +168,9 @@ class LegacyPalace:
         Returns:
             Original qualified remote release or none.
         """
-        return legacy.search_spotify_album(self.spotify, artist, album, self.retry)
+        from spotify_manager.routines.palace_of_memory import search_spotify_album
+
+        return search_spotify_album(self.spotify, artist, album, self.retry)
 
     def append(self, pending: tuple[SpotifyFirstTrack, ...]) -> None:
         """Retain the original caller-owned retry around complete marker append.
@@ -164,7 +178,9 @@ class LegacyPalace:
         Args:
             pending: Original ordered distinct first tracks.
         """
-        legacy._append_first_tracks(self.spotify, self.playlist_id, pending, self.retry)
+        from spotify_manager.routines.palace_of_memory import _append_first_tracks
+
+        _append_first_tracks(self.spotify, self.playlist_id, pending, self.retry)
 
     def echo(self, message: str) -> None:
         """Retain original accepted-write presentation.
@@ -186,7 +202,9 @@ class LegacyPalace:
         Returns:
             Original complete checkpoint fields.
         """
-        return legacy._cursor_payload(next_index, last)
+        from spotify_manager.routines.palace_of_memory import _cursor_payload
+
+        return _cursor_payload(next_index, last)
 
     def audit(self, summary: PalaceOfMemorySummary) -> None:
         """Retain original completion audit after the successful cursor checkpoint.
@@ -194,4 +212,6 @@ class LegacyPalace:
         Args:
             summary: Original complete selected outcome.
         """
-        legacy._append_log(self.log_path, summary)
+        from spotify_manager.routines.palace_of_memory import _append_log
+
+        _append_log(self.log_path, summary)

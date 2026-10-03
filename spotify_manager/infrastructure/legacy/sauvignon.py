@@ -9,6 +9,7 @@ from typing import Literal
 
 from spotipy import Spotify
 
+from spotify_manager.application.album_recommendations import choose_album
 from spotify_manager.application.sauvignon_values import SauvignonSummary
 from spotify_manager.domain.album_recommendations import AlbumKey
 from spotify_manager.domain.album_recommendations import AlbumRecommendation
@@ -19,7 +20,10 @@ from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_history import TrackHistory
+from spotify_manager.domain.recommendation_history import aggregate_track_history
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
+from spotify_manager.infrastructure import sauvignon_data
+from spotify_manager.infrastructure.recommendation_history import refresh_history
 from spotify_manager.routines import sauvignon as legacy
 
 
@@ -64,7 +68,7 @@ class LegacySauvignon:
         Returns:
             Ordered plays and live-added count.
         """
-        return legacy.found_art.refresh_scrobble_history(
+        return refresh_history(
             self.lastfm,
             export_path=self.export_path,
             recent_path=self.recent_path,
@@ -82,10 +86,10 @@ class LegacySauvignon:
         Raises:
             SauvignonSpotifyError: Original playlist loading fails.
         """
+        from spotify_manager.routines.new_wine import load_playlist_tracks
+
         try:
-            return legacy.new_wine.load_playlist_tracks(
-                self.spotify, self.playlist_id, self.retry
-            )
+            return load_playlist_tracks(self.spotify, self.playlist_id, self.retry)
         except legacy.new_wine.NewWineError as exc:
             raise legacy.SauvignonSpotifyError(str(exc)) from exc
 
@@ -102,10 +106,10 @@ class LegacySauvignon:
         Returns:
             Original ordered seeds.
         """
-        self.history = legacy.found_art.aggregate_track_history(history)
-        return legacy.found_art.select_seed_tracks(
-            self.history, seed_count=count, week_start=week
-        )
+        from spotify_manager.bootstrap.recommendations import recommendation_seeds
+
+        self.history = aggregate_track_history(history)
+        return recommendation_seeds().run(self.history, count, week)
 
     def tracks(
         self,
@@ -127,17 +131,12 @@ class LegacySauvignon:
         Returns:
             Original ranked track candidates.
         """
-        return legacy.found_art.gather_candidates(
-            self.lastfm,
-            seeds,
-            {track.key for track in self.history},
-            cache_path=self.cache_path,
-            log_path=None,
-            week_start=week,
-            candidate_pool_size=pool,
-            now=generated_at,
-            progress_callback=self.progress,
+        from spotify_manager.bootstrap.recommendations import candidate_gathering
+
+        workflow = candidate_gathering(
+            self.lastfm, self.cache_path, None, generated_at, self.progress
         )
+        return workflow.run(seeds, {track.key for track in self.history}, week, pool)
 
     def previous(self) -> set[AlbumKey]:
         """Read original accepted-addition exclusions.
@@ -145,7 +144,7 @@ class LegacySauvignon:
         Returns:
             Original album identities.
         """
-        return legacy.previously_added_album_keys(self.log_path)
+        return sauvignon_data.previously_added_album_keys(self.log_path)
 
     def albums(
         self,
@@ -167,16 +166,10 @@ class LegacySauvignon:
         Returns:
             Ordered album recommendations.
         """
-        return legacy.gather_album_recommendations(
-            self.spotify,
-            candidates,
-            excluded,
-            existing,
-            maximum_candidates=maximum,
-            week_start=week,
-            retry_call=self.retry,
-            progress_callback=self.progress,
-        )
+        from spotify_manager.bootstrap.album_recommendations import album_gathering
+
+        workflow = album_gathering(self.spotify, self.retry, self.progress)
+        return workflow.run(candidates, excluded, existing, maximum, week)
 
     def choose(
         self, item: AlbumRecommendation
@@ -189,7 +182,9 @@ class LegacySauvignon:
         Returns:
             Selected edition or control response.
         """
-        return legacy.choose_album_option(item, self.choice_reader)
+        return choose_album(
+            item, self.choice_reader, legacy.CHOICE_SKIP, legacy.CHOICE_QUIT
+        )
 
     def first(self, album: SpotifyAlbumOption) -> FirstTrack:
         """Retain the original first-track observation.
@@ -200,7 +195,9 @@ class LegacySauvignon:
         Returns:
             Original playable marker.
         """
-        return legacy.load_first_track(self.spotify, album, self.retry)
+        from spotify_manager.routines.sauvignon import load_first_track
+
+        return load_first_track(self.spotify, album, self.retry)
 
     def append(self, additions: list[PendingAlbum]) -> None:
         """Accept original ordered additions through the original retry seam.
@@ -208,9 +205,11 @@ class LegacySauvignon:
         Args:
             additions: Freshly filtered proposals.
         """
+        from spotify_manager.routines.sauvignon import _append_recommendation_albums
+
         self.retry(
             partial(
-                legacy._append_recommendation_albums,
+                _append_recommendation_albums,
                 self.spotify,
                 self.playlist_id,
                 additions,
@@ -224,4 +223,4 @@ class LegacySauvignon:
         Args:
             summary: Original completed result.
         """
-        legacy.append_log(summary, self.log_path)
+        sauvignon_data.append_log(summary, self.log_path)

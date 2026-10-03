@@ -392,9 +392,11 @@ def import_previous_year_discoveries(
     Raises:
         Queue3Error: Configuration, playlist observation or state handling fails.
     """
-    from spotify_manager.bootstrap.queue_3 import run_import
+    from spotify_manager.interfaces.operations.queue_3 import (
+        import_previous_year_discoveries as operation,
+    )
 
-    return run_import(
+    return operation(
         sp,
         playlist_id,
         active_year=active_year,
@@ -617,9 +619,9 @@ def flush_queue_3(
     Raises:
         Queue3Error: Configuration, state, planning or execution fails.
     """
-    from spotify_manager.bootstrap.queue_3 import run_flush
+    from spotify_manager.interfaces.operations.queue_3 import flush_queue_3 as operation
 
-    return run_flush(
+    return operation(
         sp,
         playlist_id,
         transition_reader,

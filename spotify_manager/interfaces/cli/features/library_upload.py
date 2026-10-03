@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from spotify_manager.application.upload_values import UploadResource
-from spotify_manager.routines import upload_library_files as hf_upload
+from spotify_manager.interfaces.operations import upload_library_files as hf_upload
 
 
 @dataclass(kw_only=True)

@@ -18,10 +18,12 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.interfaces.cli.presentation import progress_description
-from spotify_manager.routines import new_wine
-from spotify_manager.routines import queue_3
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import slow_listening
+from spotify_manager.interfaces.operations import new_wine as new_wine
+from spotify_manager.interfaces.operations import queue_3 as queue_3
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
 from spotify_manager.settings import Settings
 
 

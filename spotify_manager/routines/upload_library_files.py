@@ -4,7 +4,6 @@ from pathlib import Path
 
 from huggingface_hub import HfApi as HfApi
 
-from spotify_manager.application import upload_run
 from spotify_manager.application.upload_values import DEFAULT_REPO_ID as DEFAULT_REPO_ID
 from spotify_manager.application.upload_values import (
     DEFAULT_REVISION as DEFAULT_REVISION,
@@ -39,7 +38,6 @@ from spotify_manager.application.upload_values import (
     LibraryFilesUploadResult as LibraryFilesUploadResult,
 )
 from spotify_manager.application.upload_values import UploadResource as UploadResource
-from spotify_manager.bootstrap import upload_library
 from spotify_manager.domain.upload_manifest import part_suffix
 from spotify_manager.infrastructure import upload_files
 
@@ -81,13 +79,16 @@ def prepare_library_files_upload(
     Returns:
         Original prepare library files upload result.
     """
-    return upload_run.prepare(
-        upload_library.preparation(),
-        files_dir,
-        include_your_library,
-        include_lastfm,
-        repo_id,
-        revision,
+    from spotify_manager.interfaces.operations.upload_library_files import (
+        prepare_library_files_upload as operation,
+    )
+
+    return operation(
+        include_your_library=include_your_library,
+        include_lastfm=include_lastfm,
+        repo_id=repo_id,
+        revision=revision,
+        files_dir=files_dir,
     )
 
 
@@ -114,7 +115,11 @@ def upload_library_files(
     Returns:
         Original upload library files result.
     """
-    return upload_run.upload(upload_library.actions(api), plan)
+    from spotify_manager.interfaces.operations.upload_library_files import (
+        upload_library_files as operation,
+    )
+
+    return operation(plan, api=api)
 
 
 def _part_suffix(index: int) -> str:

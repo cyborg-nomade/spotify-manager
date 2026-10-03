@@ -1,11 +1,11 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–6 deployed and merged; item 7 complete and ready for PR review.**
+**Status: items 1–7 deployed and merged; item 7a implemented and ready for PR review.**
 
 **Approved sequence update, 2026-10-03:** add item **7a**, simplifying internal
 call paths, after item 7 is approved, deployed, and merged and before item 8.
-The owner approved this architectural direction; Item 7 PR approval is still
-pending. Frontend source restructuring is reserved for a future targeted refactor.
+The owner approved this architectural direction and subsequently approved Item 7
+PR #66. Frontend source restructuring is reserved for a future targeted refactor.
 
 Item 1 deliverables are in the [compatibility inventory](refactor/README.md),
 including frozen interface snapshots and the accepted
@@ -19,8 +19,11 @@ deployed. The [item 5 vertical slices](refactor/VERTICAL_SLICES.md) were deploye
 and merged in PR #64. The [item 6 wave inventory](refactor/ROUTINE_FAMILIES.md)
 and [ownership audit](refactor/ROUTINE_OWNERSHIP.md) were deployed and merged
 in PR #65. [Item 7 interface and job migration](refactor/INTERFACES_AND_JOBS.md)
-is complete and ready for PR review, with its local web environment available.
-Deployment and merge await approval. Later items remain pending.
+was deployed and merged in PR #66. Item 7a starts from merge `7fe292c` and is
+ready for review on `codex/refactor-07a-direct-use-cases`; its
+[family call-path and verification guide](refactor/CALL_PATH_SIMPLIFICATION.md)
+records the completed wiring and preserved contracts. Deployment and merge await
+Item 7a PR approval. Later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,

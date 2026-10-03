@@ -2,7 +2,7 @@
 
 from spotify_manager.interfaces.http.models.queue import QueueFillResultEntry
 from spotify_manager.interfaces.http.models.queue import QueueFlushResultEntry
-from spotify_manager.routines import the_queue
+from spotify_manager.interfaces.operations import the_queue as the_queue
 
 
 def queue_fill_result_entry(result: the_queue.FillResult) -> QueueFillResultEntry:

@@ -21,15 +21,15 @@ def preparation() -> Preparation:
     Returns:
         Explicit source preparation dependencies.
     """
-    from spotify_manager.routines import upload_library_files as legacy
+    from spotify_manager.routines.upload_library_files import _build_lastfm_parts
 
-    return Preparation(_read_export, legacy._build_lastfm_parts)
+    return Preparation(_read_export, _build_lastfm_parts)
 
 
 def _read_export(path: Path, key: str) -> tuple[bytes, int]:
-    from spotify_manager.routines import upload_library_files as legacy
+    from spotify_manager.routines.upload_library_files import _load_and_validate_export
 
-    return legacy._load_and_validate_export(path, expected_list_key=key)
+    return _load_and_validate_export(path, expected_list_key=key)
 
 
 def actions(api: HfApi | None) -> UploadActions:
@@ -42,11 +42,12 @@ def actions(api: HfApi | None) -> UploadActions:
         Explicit original publication boundaries.
     """
     from spotify_manager.routines import upload_library_files as legacy
+    from spotify_manager.routines.upload_library_files import materialize_lastfm_parts
 
     client = api or legacy.HfApi()
     return UploadActions(
         partial(_remote, client),
-        legacy.materialize_lastfm_parts,
+        materialize_lastfm_parts,
         manifest,
         partial(_commit, client),
         UploadFailure,

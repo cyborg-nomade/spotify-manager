@@ -26,11 +26,13 @@ from spotify_manager.interfaces.http.models.discovery import NewKidsReleaseOptio
 from spotify_manager.interfaces.http.models.discovery import NewKidsTrackResult
 from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.workers.errors import _NewKidsJobCancelledError
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.routines import composer_playlists
-from spotify_manager.routines import found_art
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import scrobble_history
 from spotify_manager.settings import Settings
 
 

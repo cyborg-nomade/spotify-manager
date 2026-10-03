@@ -1,7 +1,7 @@
 """Stable historical result serialization."""
 
 from spotify_manager.interfaces.http.models.historical import BlastSelectionResult
-from spotify_manager.routines import blast_from_past
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 
 
 def blast_selection_result(

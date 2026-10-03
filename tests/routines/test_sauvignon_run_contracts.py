@@ -1,21 +1,18 @@
 """Protect original Sauvignon stage order, accepted writes and fresh membership."""
 
 from collections.abc import Callable
-from functools import partial
 from pathlib import Path
 from typing import cast
 
 import pytest
 from spotipy import Spotify
 
-from spotify_manager.routines import found_art
-from spotify_manager.routines import new_wine
+from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
 from spotify_manager.routines import sauvignon as legacy
 from tests.support.sauvignon_run import STAMP
 from tests.support.sauvignon_run import RunObservations
 from tests.support.sauvignon_run import marker
 from tests.support.sauvignon_run import recommendation
-from tests.support.sauvignon_run import track_history
 
 
 class RunSpotify:
@@ -54,16 +51,15 @@ def _immediate(operation: Callable[[], object], description: str) -> object:
 
 
 def _bind(monkeypatch: pytest.MonkeyPatch, observations: RunObservations) -> None:
-    monkeypatch.setattr(found_art, "refresh_scrobble_history", observations.refresh)
-    monkeypatch.setattr(found_art, "aggregate_track_history", track_history)
-    monkeypatch.setattr(found_art, "select_seed_tracks", observations.seeds)
-    monkeypatch.setattr(found_art, "gather_candidates", observations.tracks)
-    monkeypatch.setattr(new_wine, "load_playlist_tracks", observations.read)
-    monkeypatch.setattr(legacy, "previously_added_album_keys", observations.previous)
-    monkeypatch.setattr(legacy, "gather_album_recommendations", observations.albums)
-    monkeypatch.setattr(legacy, "choose_album_option", observations.choose)
-    monkeypatch.setattr(legacy, "load_first_track", partial(_first, observations))
-    monkeypatch.setattr(legacy, "append_log", observations.audit)
+    monkeypatch.setattr(LegacySauvignon, "refresh", observations.refresh)
+    monkeypatch.setattr(LegacySauvignon, "seeds", observations.seeds)
+    monkeypatch.setattr(LegacySauvignon, "tracks", observations.tracks)
+    monkeypatch.setattr(LegacySauvignon, "read", observations.read)
+    monkeypatch.setattr(LegacySauvignon, "previous", observations.previous)
+    monkeypatch.setattr(LegacySauvignon, "albums", observations.albums)
+    monkeypatch.setattr(LegacySauvignon, "choose", observations.choose)
+    monkeypatch.setattr(LegacySauvignon, "first", observations.first)
+    monkeypatch.setattr(LegacySauvignon, "audit", observations.audit)
 
 
 def _run(

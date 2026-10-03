@@ -13,6 +13,7 @@ import pytest
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager import loaders_savers as files
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
@@ -588,6 +589,7 @@ def observe_lookup(
     memory = LookupMemory(scenario)
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(library, "load_your_library_file", memory.read_library)
+        patch.setattr(files, "load_your_library_file", memory.read_library)
         patch.setattr(library, "load_album_tracks_cache", memory.read_cache)
         patch.setattr(library, "save_album_tracks_cache", memory.save_cache)
         patch.setattr(blast_from_past, "load_scrobble_export", memory.history)

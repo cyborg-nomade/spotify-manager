@@ -10,7 +10,7 @@ from typing import cast
 from spotipy import Spotify
 
 from spotify_manager.interfaces.http.job_records import AnalysisJob
-from spotify_manager.routines import analyse_library as analysis
+from spotify_manager.interfaces.operations import analyse_library as analysis
 
 
 type EventCallback = Callable[[str], None]

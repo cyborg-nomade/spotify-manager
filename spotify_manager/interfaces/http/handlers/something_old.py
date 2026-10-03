@@ -16,8 +16,8 @@ from spotify_manager.interfaces.http.models.something_old import (
     SomethingOldPendingChoice,
 )
 from spotify_manager.interfaces.http.validation import option_ids
-from spotify_manager.routines import found_art
-from spotify_manager.routines import something_old
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import something_old as something_old
 from spotify_manager.settings import Settings
 
 

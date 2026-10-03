@@ -8,10 +8,8 @@ from spotipy import Spotify
 
 from spotify_manager.application.new_wine import NewWineDependencies
 from spotify_manager.application.new_wine import NewWineOptions
-from spotify_manager.application.new_wine import flush_new_wine
 from spotify_manager.application.new_wine_observations import WineObservations
 from spotify_manager.application.new_wine_values import EndpointChoiceReader
-from spotify_manager.application.new_wine_values import FlushSummary
 from spotify_manager.application.new_wine_values import ReleaseChoiceReader
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.core.state.service import StateService
@@ -23,7 +21,7 @@ def _direct(operation: Callable[[], object], description: str) -> object:
     return operation()
 
 
-def run_new_wine(
+def new_wine_dependencies(
     client: Spotify,
     options: NewWineOptions,
     choose: ReleaseChoiceReader,
@@ -40,8 +38,8 @@ def run_new_wine(
     removed_path: Path,
     clock: Callable[[], datetime],
     local_year: Callable[[], int],
-) -> FlushSummary:
-    """Bind original paths, callbacks and clocks before the first playlist observation.
+) -> NewWineDependencies:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         client: Caller-owned synchronous Spotify client.
@@ -62,7 +60,7 @@ def run_new_wine(
         local_year: Original local-calendar year source.
 
     Returns:
-        Original public New Wine summary.
+        The configured application dependencies or workflow.
     """
     active_year = year or local_year()
     access = LegacyNewWine(
@@ -86,4 +84,4 @@ def run_new_wine(
         clock,
         progress,
     )
-    return flush_new_wine(options, dependencies)
+    return dependencies

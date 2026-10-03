@@ -8,6 +8,7 @@ from dataclasses import field
 from datetime import UTC
 from datetime import datetime
 from datetime import tzinfo
+from functools import partialmethod
 from pathlib import Path
 from typing import Protocol
 from typing import Self
@@ -19,6 +20,8 @@ from spotipy import Spotify
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.routines import release_check as legacy
 from spotify_manager.routines import scrobble_history
+from tests.support.history_dependencies import LegacyReleaseOpening
+from tests.support.history_dependencies import release_history
 
 
 STAMP = datetime(2026, 9, 25, tzinfo=UTC)
@@ -154,7 +157,9 @@ def _bind(monkeypatch: pytest.MonkeyPatch, effects: OpeningEffects) -> None:
     monkeypatch.setattr(legacy, "datetime", OpeningClock)
     monkeypatch.setattr(legacy, "save_state", effects.save)
     monkeypatch.setattr(legacy, "append_event", effects.audit)
-    monkeypatch.setattr(scrobble_history, "refresh_scrobble_history", effects.refresh)
+    monkeypatch.setattr(
+        LegacyReleaseOpening, "refresh", partialmethod(release_history, effects.refresh)
+    )
 
 
 def _active() -> dict[str, object]:

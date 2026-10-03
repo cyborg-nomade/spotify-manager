@@ -3,14 +3,17 @@
 import json
 from datetime import date
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
 
 import pytest
 
+from spotify_manager.infrastructure.legacy.dormant_artists import LegacyDormantRecovery
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import blast_from_past_artists
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import release_check
+from tests.support.direct_dependencies import dormant_track
 
 
 def _timestamp(year: int) -> int:
@@ -329,9 +332,7 @@ def test_fill_reports_unmapped_unliked_and_duplicate_candidates(
 
     monkeypatch.setattr(blast_from_past_artists, "_spotify_artist", mapping)
     monkeypatch.setattr(
-        blast_from_past_artists,
-        "most_popular_liked_track",
-        liked_track,
+        LegacyDormantRecovery, "track", partialmethod(dormant_track, liked_track)
     )
     monkeypatch.setattr(
         blast_from_past,
@@ -423,13 +424,16 @@ def test_dormant_artist_fill_skips_represented_and_appends_five(
 
     monkeypatch.setattr(blast_from_past_artists, "_spotify_artist", mapped)
     monkeypatch.setattr(
-        blast_from_past_artists,
-        "most_popular_liked_track",
-        lambda _sp, artist_id, _retry: _track(
-            f"track-{artist_id}",
-            artist_id,
-            artist_id.removeprefix("id-").title(),
-            75,
+        LegacyDormantRecovery,
+        "track",
+        partialmethod(
+            dormant_track,
+            lambda _sp, artist_id, _retry: _track(
+                f"track-{artist_id}",
+                artist_id,
+                artist_id.removeprefix("id-").title(),
+                75,
+            ),
         ),
     )
 

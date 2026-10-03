@@ -12,7 +12,7 @@ from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 from spotify_manager.interfaces.http.models.wine import NewWineChoiceRequest
 from spotify_manager.interfaces.http.models.wine import NewWinePendingChoice
 from spotify_manager.interfaces.http.validation import option_ids
-from spotify_manager.routines import new_wine
+from spotify_manager.interfaces.operations import new_wine as new_wine
 from spotify_manager.settings import Settings
 
 

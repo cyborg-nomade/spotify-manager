@@ -31,8 +31,6 @@ from spotify_manager.infrastructure.discography_records import saved_statuses
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import discography as legacy
 from spotify_manager.routines import new_wine
-from spotify_manager.routines import palace_of_memory
-from spotify_manager.routines import something_old
 
 
 def _direct(operation: Callable[[], object], description: str) -> object:
@@ -45,17 +43,21 @@ def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
 
 
 def _priority(path: Path, service: StateService | None) -> dict[str, object]:
-    return legacy._state_access(path, service).load()
+    from spotify_manager.routines.discography import _state_access
+
+    return _state_access(path, service).load()
 
 
 def _state(path: Path, service: StateService | None) -> DiscographyStateAccess:
-    return legacy._state_access(path, service)
+    from spotify_manager.routines.discography import _state_access
+
+    return _state_access(path, service)
 
 
 def _catalog(
     spotify: Spotify, retry: legacy.RetryCall, candidate: QueueArtist
 ) -> tuple[CatalogRelease, ...]:
-    return legacy.load_release_catalog(spotify, candidate.spotify_id, retry)
+    return catalog(spotify, candidate.spotify_id, retry)
 
 
 def _resolve(
@@ -64,7 +66,7 @@ def _resolve(
     retry: legacy.RetryCall,
     selection: HistoricalArtistSelection,
 ) -> QueueArtist:
-    return legacy.resolve_historical_artist(spotify, selection, choice, retry)
+    return resolve_historical(selection, partial(_artist, spotify, choice, retry))
 
 
 def _artist(
@@ -73,7 +75,9 @@ def _artist(
     retry: legacy.RetryCall,
     name: str,
 ) -> SpotifyArtistCandidate | None:
-    return something_old.resolve_spotify_artist(spotify, name, choice, retry)
+    from spotify_manager.routines.something_old import resolve_spotify_artist
+
+    return resolve_spotify_artist(spotify, name, choice, retry)
 
 
 def resolve_artist(
@@ -132,13 +136,13 @@ def planning(
     caller_retry = retry or _direct
     reads = DiscographyReads(
         partial(_priority, state_path, service),
-        partial(legacy._load_artist_queues, spotify, playlists, caller_retry, extra),
+        partial(queues, spotify, playlists, caller_retry, extra),
         partial(
-            legacy.select_historical_artist,
-            path=history_path,
-            today=today,
-            random_index_reader=random,
-            progress_callback=progress,
+            historical,
+            history_path,
+            today,
+            random,
+            progress,
         ),
         partial(_resolve, spotify, choice, caller_retry),
         partial(_catalog, spotify, caller_retry),
@@ -169,10 +173,13 @@ def execution(
     Returns:
         Original complete synchronous execution use case.
     """
+    from spotify_manager.routines.discography import _append_log
+    from spotify_manager.routines.discography import _remove_batch
+
     caller_retry = retry or _direct
     effects = DiscographyEffects(
-        partial(legacy._remove_batch, spotify, caller_retry),
-        partial(legacy._append_log, path=audit_path),
+        partial(_remove_batch, spotify, caller_retry),
+        partial(_append_log, path=audit_path),
         partial(_state, state_path, service),
         partial(_progress, progress),
     )
@@ -196,9 +203,12 @@ def historical(
     Returns:
         Complete original historical selection.
     """
+    from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
+    from spotify_manager.routines.palace_of_memory import palace_cutoff
+
     return DiscographyHistory(
-        partial(blast_from_past.load_scrobbles_by_date, path),
-        partial(palace_of_memory.palace_cutoff, today),
+        partial(load_scrobbles_by_date, path),
+        partial(palace_cutoff, today),
         random,
         partial(_progress, progress),
         blast_from_past.FIRST_ELIGIBLE_DATE,
@@ -208,8 +218,10 @@ def historical(
 def _playlist(
     spotify: Spotify, retry: legacy.RetryCall, playlist: str
 ) -> tuple[PlaylistTrack, ...]:
+    from spotify_manager.routines.new_wine import load_playlist_tracks
+
     try:
-        return new_wine.load_playlist_tracks(spotify, playlist, retry)
+        return load_playlist_tracks(spotify, playlist, retry)
     except new_wine.NewWineError as exc:
         raise DiscographyError(str(exc)) from exc
 
@@ -239,13 +251,17 @@ def queues(
 def _page(
     spotify: Spotify, artist: str, retry: legacy.RetryCall, offset: int
 ) -> DiscographyPage:
-    return catalog_page(legacy._release_page(spotify, artist, offset, retry), artist)
+    from spotify_manager.routines.discography import _release_page
+
+    return catalog_page(_release_page(spotify, artist, offset, retry), artist)
 
 
 def _saved(
     spotify: Spotify, retry: legacy.RetryCall, identities: list[str]
 ) -> list[bool]:
-    raw = legacy._saved_batch(spotify, identities, retry)
+    from spotify_manager.routines.discography import _saved_batch
+
+    raw = _saved_batch(spotify, identities, retry)
     return saved_statuses(raw, len(identities))
 
 

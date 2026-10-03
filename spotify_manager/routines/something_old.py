@@ -421,25 +421,25 @@ def run_something_old(
     Raises:
         SomethingOldError: Original history, selection, authority or audit fails.
     """
-    from spotify_manager.bootstrap.something_old_run import (
-        run_something_old as run_workflow,
+    from spotify_manager.interfaces.operations.something_old import (
+        run_something_old as operation,
     )
 
-    return run_workflow(
+    return operation(
         sp,
         lastfm,
         playlist_id,
-        expected_username,
-        mode_reader,
-        album_choice_reader,
-        artist_choice_reader,
-        dry_run,
-        export_path,
-        legacy_delta_path,
-        backup_dir,
-        history_log_path,
-        log_path,
-        now,
-        progress_callback,
-        retry_call,
+        expected_username=expected_username,
+        mode_reader=mode_reader,
+        album_choice_reader=album_choice_reader,
+        artist_choice_reader=artist_choice_reader,
+        dry_run=dry_run,
+        export_path=export_path,
+        legacy_delta_path=legacy_delta_path,
+        backup_dir=backup_dir,
+        history_log_path=history_log_path,
+        log_path=log_path,
+        now=now,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
     )

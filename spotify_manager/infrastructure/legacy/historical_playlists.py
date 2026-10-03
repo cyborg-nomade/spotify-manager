@@ -39,7 +39,9 @@ class LegacyHistoricalPlaylist:
             SpotifyTrackResolutionError: Spotify returns unusable playlist data.
             BlastFromPastCancelledError: Cancellation is requested.
         """
-        return legacy.load_playlist_state(
+        from spotify_manager.routines.blast_from_past import load_playlist_state
+
+        return load_playlist_state(
             self.client, self.playlist_id, self.retry, self.cancel
         )
 
@@ -59,9 +61,12 @@ class LegacyHistoricalPlaylist:
             SpotifyTrackResolutionError: Spotify returns unusable search or liked data.
             BlastFromPastCancelledError: Cancellation is requested.
         """
-        return legacy.resolve_spotify_selections(
-            self.client, selections, playlist, self.progress, self.retry, self.cancel
+        from spotify_manager.bootstrap.historical_playlists import historical_resolution
+
+        workflow = historical_resolution(
+            self.client, self.progress, self.retry, self.cancel
         )
+        return workflow.run(selections, playlist)
 
     def append(self, matches: list[SpotifyTrackMatch]) -> None:
         """Append pending matches using the original API-sized batches.
@@ -72,7 +77,9 @@ class LegacyHistoricalPlaylist:
         Raises:
             BlastFromPastCancelledError: Cancellation is requested.
         """
-        legacy.add_spotify_matches(
+        from spotify_manager.routines.blast_from_past import add_spotify_matches
+
+        add_spotify_matches(
             self.client, self.playlist_id, matches, self.retry, self.cancel
         )
 
@@ -104,9 +111,9 @@ class LegacyHistoricalMatches:
             SpotifyTrackResolutionError: Search data is unusable.
             BlastFromPastCancelledError: Cancellation is requested.
         """
-        return legacy.search_spotify_matches(
-            self.client, scrobble, self.retry, self.cancel
-        )
+        from spotify_manager.routines.blast_from_past import search_spotify_matches
+
+        return search_spotify_matches(self.client, scrobble, self.retry, self.cancel)
 
     def liked(self, groups: list[tuple[SpotifyTrackMatch, ...]]) -> set[str]:
         """Read liked status using original identity batching.
@@ -121,6 +128,6 @@ class LegacyHistoricalMatches:
             SpotifyTrackResolutionError: Liked statuses are unusable.
             BlastFromPastCancelledError: Cancellation is requested.
         """
-        return legacy.liked_spotify_track_ids(
-            self.client, groups, self.retry, self.cancel
-        )
+        from spotify_manager.routines.blast_from_past import liked_spotify_track_ids
+
+        return liked_spotify_track_ids(self.client, groups, self.retry, self.cancel)

@@ -56,7 +56,9 @@ class LegacyDormantRecovery:
         Returns:
             Alphabetical candidates.
         """
-        return legacy.dormant_artists(self.path, today=today)
+        from spotify_manager.routines.blast_from_past_artists import dormant_artists
+
+        return dormant_artists(self.path, today=today)
 
     def read(self) -> PlaylistState:
         """Observe original destination membership.
@@ -64,7 +66,9 @@ class LegacyDormantRecovery:
         Returns:
             Ordered original membership facts.
         """
-        return legacy.blast_from_past.load_playlist_state(
+        from spotify_manager.routines.blast_from_past import load_playlist_state
+
+        return load_playlist_state(
             self.spotify, self.playlist_id, self.retry, self.cancel
         )
 
@@ -80,7 +84,9 @@ class LegacyDormantRecovery:
         Returns:
             Unique mapping or no match.
         """
-        return legacy._spotify_artist(self.spotify, artist, rank, self.retry)
+        from spotify_manager.routines.blast_from_past_artists import _spotify_artist
+
+        return _spotify_artist(self.spotify, artist, rank, self.retry)
 
     def track(self, artist_id: str) -> CatalogTrack | None:
         """Observe the original preferred live-liked marker.
@@ -91,7 +97,9 @@ class LegacyDormantRecovery:
         Returns:
             Original preferred marker or no liked track.
         """
-        return legacy.most_popular_liked_track(self.spotify, artist_id, self.retry)
+        from spotify_manager.bootstrap.dormant_artists import dormant_tracks
+
+        return dormant_tracks(self.spotify, artist_id, self.retry).run()
 
     def append(self, tracks: list[CatalogTrack]) -> None:
         """Convert original markers and accept the existing ordered batch append.
@@ -99,7 +107,9 @@ class LegacyDormantRecovery:
         Args:
             tracks: Original pending markers.
         """
+        from spotify_manager.routines.blast_from_past import add_spotify_matches
+
         matches = [_match(track) for track in tracks]
-        legacy.blast_from_past.add_spotify_matches(
+        add_spotify_matches(
             self.spotify, self.playlist_id, matches, self.retry, self.cancel
         )

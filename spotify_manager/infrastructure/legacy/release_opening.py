@@ -54,7 +54,9 @@ class LegacyReleaseOpening:
         Returns:
             Original normalized payload, including unknown fields.
         """
-        self.state_access = legacy._state_access(self.state_path, self.state_service)
+        from spotify_manager.routines.release_check import _state_access
+
+        self.state_access = _state_access(self.state_path, self.state_service)
         return self.state_access.load()
 
     def refresh(self, stamp: datetime) -> ScrobbleHistorySummary:
@@ -69,17 +71,19 @@ class LegacyReleaseOpening:
         progress = (
             None if self.progress is None else partial(_history_progress, self.progress)
         )
-        return legacy.scrobble_history.refresh_scrobble_history(
+        from spotify_manager.bootstrap.history import history_refresh
+
+        workflow = history_refresh(
             self.lastfm,
-            expected_username=self.expected_username,
-            export_path=self.export_path,
-            legacy_delta_path=self.legacy_delta_path,
-            backup_dir=self.backup_dir,
-            log_path=self.history_log_path,
-            dry_run=False,
-            now=stamp,
-            progress_callback=progress,
+            self.export_path,
+            self.legacy_delta_path,
+            self.backup_dir,
+            self.history_log_path,
+            stamp,
+            progress,
+            None,
         )
+        return workflow.run(self.expected_username, False, False)
 
     def rank(self, history: tuple[Scrobble, ...]) -> tuple[RankedArtist, ...]:
         """Retain the original ranking compatibility seam.
@@ -90,7 +94,9 @@ class LegacyReleaseOpening:
         Returns:
             Original ranked eligible artists.
         """
-        return legacy.rank_lastfm_artists(history)
+        from spotify_manager.routines.release_check import rank_lastfm_artists
+
+        return rank_lastfm_artists(history)
 
     def restore(self, active: ReleaseState) -> tuple[RankedArtist, ...]:
         """Retain original frozen-ranking decoding before window validation.
@@ -101,7 +107,9 @@ class LegacyReleaseOpening:
         Returns:
             Original frozen ranked artists.
         """
-        return legacy._active_artists(active)
+        from spotify_manager.routines.release_check import _active_artists
+
+        return _active_artists(active)
 
     def persist(self, state: ReleaseState) -> None:
         """Accept the original complete checkpoint and original freshness timestamp.
@@ -109,7 +117,9 @@ class LegacyReleaseOpening:
         Args:
             state: Original mutable new-run state.
         """
-        legacy._persist_state(self.state_access, state)
+        from spotify_manager.routines.release_check import _persist_state
+
+        _persist_state(self.state_access, state)
 
     def audit(self, run_id: str, event: str, **details: object) -> None:
         """Accept original release event bytes after their checkpoint.
@@ -119,4 +129,6 @@ class LegacyReleaseOpening:
             event: Original event name.
             details: Original event fields in insertion order.
         """
-        legacy.append_event(self.log_path, run_id, event, **details)
+        from spotify_manager.routines.release_check import append_event
+
+        append_event(self.log_path, run_id, event, **details)

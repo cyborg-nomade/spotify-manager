@@ -6,9 +6,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 
-from spotify_manager.application.release_opening import OpenedReleaseRun
 from spotify_manager.application.release_opening import ReleaseRunOpening
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
 from spotify_manager.routines import release_check as legacy
@@ -22,10 +20,9 @@ def _local_date(stamp: datetime) -> date:
     return stamp.astimezone(legacy.blast_from_past.SCROBBLE_TIMEZONE).date()
 
 
-def open_release_run(
+def release_opening(
     lastfm: legacy.LastFmReader,
     expected_username: str | None,
-    dry_run: bool,
     state_path: Path,
     state_service: StateService | None,
     log_path: Path,
@@ -35,30 +32,27 @@ def open_release_run(
     history_log_path: Path,
     now: datetime | None,
     progress: legacy.ProgressCallback | None,
-) -> tuple[OpenedReleaseRun, RoutineState]:
-    """Bind original clock, local date, history paths and accepted opening effects.
+) -> tuple[ReleaseRunOpening, LegacyReleaseOpening]:
+    """Construct release startup with caller-owned history and checkpoint resources.
 
     Args:
-        lastfm: Caller-owned history source.
-        expected_username: Original canonical history ownership.
-        dry_run: Original release preview mode.
-        state_path: Original state location.
-        state_service: Optional original shared service.
-        log_path: Original release audit location.
-        export_path: Original canonical history location.
-        legacy_delta_path: Optional original delta location.
-        backup_dir: Original history backup location.
-        history_log_path: Original history audit location.
-        now: Optional effective UTC timestamp.
-        progress: Original progress observer.
+    lastfm: Caller-owned history reader.
+    expected_username: Expected canonical history account.
+    state_path: Existing namespace location.
+    state_service: Optional shared state authority.
+    log_path: Original release audit destination.
+    export_path: Canonical history export.
+    legacy_delta_path: Optional history delta.
+    backup_dir: Original history backup location.
+    history_log_path: Original history audit destination.
+    now: Optional effective UTC timestamp.
+    progress: Optional progress callback.
 
     Returns:
-        Original opening observations and the acquired original state handle.
-
-    Raises:
-        ReleaseCheckError: Original eligible ranking is empty.
-        ReleaseCheckStateError: Original state or active window is unusable.
+    The application opening stage and its state acquisition boundary.
     """
+    from spotify_manager.routines.release_check import _run_id
+
     effects = LegacyReleaseOpening(
         lastfm,
         expected_username,
@@ -75,7 +69,7 @@ def open_release_run(
         effects,
         partial(_clock, now),
         _local_date,
-        legacy._run_id,
+        _run_id,
         legacy.MIN_ARTIST_SCROBBLES,
-    ).run(dry_run)
-    return opening, effects.state_access
+    )
+    return (opening, effects)

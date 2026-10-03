@@ -21,8 +21,10 @@ from spotify_manager.interfaces.http.models.palace import PalaceAlbumSelectionRe
 from spotify_manager.interfaces.http.workers.errors import (
     _PalaceOfMemoryJobCancelledError,
 )
-from spotify_manager.routines import palace_of_memory
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import palace_of_memory as palace_of_memory
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)

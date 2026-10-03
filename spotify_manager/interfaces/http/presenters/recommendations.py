@@ -6,7 +6,7 @@ from spotify_manager.interfaces.http.models.recommendations import (
 from spotify_manager.interfaces.http.models.recommendations import (
     SauvignonSelectionResult,
 )
-from spotify_manager.routines import found_art
+from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.routines import sauvignon
 
 

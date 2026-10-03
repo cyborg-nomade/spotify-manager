@@ -1,7 +1,7 @@
 """Stable something old result serialization."""
 
 from spotify_manager.interfaces.http.models.something_old import SomethingOldTrackResult
-from spotify_manager.routines import something_old
+from spotify_manager.interfaces.operations import something_old as something_old
 
 
 def something_old_track_result(

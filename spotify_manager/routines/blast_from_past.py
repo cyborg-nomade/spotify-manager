@@ -517,9 +517,11 @@ def select_blast_from_past(
         LastFmExportError: History cannot be read.
         RandomOrgError: The random source fails.
     """
-    from spotify_manager.bootstrap.historical_playlists import select_blast
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        select_blast_from_past as operation,
+    )
 
-    return select_blast(count, path, today, random_index_reader, progress_callback)
+    return operation(count, path, today, random_index_reader, progress_callback)
 
 
 def load_playlist_state(
@@ -602,9 +604,11 @@ def resolve_spotify_selections(
         SpotifyTrackResolutionError: Spotify observations are unusable.
         BlastFromPastCancelledError: Cancellation is requested.
     """
-    from spotify_manager.bootstrap.historical_playlists import resolve_matches
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        resolve_spotify_selections as operation,
+    )
 
-    return resolve_matches(
+    return operation(
         sp, selections, playlist, progress_callback, retry_call, cancel_check
     )
 
@@ -644,9 +648,11 @@ def add_blast_from_past_to_spotify(
         BlastFromPastError: Configuration, selection or observations fail.
         BlastFromPastCancelledError: Cancellation is requested.
     """
-    from spotify_manager.bootstrap.historical_playlists import add_blast
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        add_blast_from_past_to_spotify as operation,
+    )
 
-    return add_blast(
+    return operation(
         sp,
         playlist_id,
         count,

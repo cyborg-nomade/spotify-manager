@@ -12,7 +12,6 @@ from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.discography import select_editions
 from spotify_manager.routines import new_wine
-from spotify_manager.routines import slow_listening as legacy
 
 
 @dataclass(frozen=True)
@@ -39,8 +38,11 @@ class StudioCatalogAccess:
         Raises:
             SlowListeningError: Original catalog or saved-membership parsing fails.
         """
-        releases = legacy._load_candidates(self.client, artist_id, self.retry)
-        saved = legacy._load_saved_statuses(self.client, releases, self.retry)
+        from spotify_manager.routines.slow_listening import _load_candidates
+        from spotify_manager.routines.slow_listening import _load_saved_statuses
+
+        releases = _load_candidates(self.client, artist_id, self.retry)
+        saved = _load_saved_statuses(self.client, releases, self.retry)
         observed = []
         for release in releases:
             observed.append(
@@ -60,8 +62,10 @@ class StudioCatalogAccess:
         Raises:
             SlowListeningError: The original release-track reader fails.
         """
+        from spotify_manager.routines.new_wine import load_release_tracks
+
         try:
-            return new_wine.load_release_tracks(
+            return load_release_tracks(
                 self.client, release_candidate(release), self.retry
             )
         except new_wine.NewWineError as exc:

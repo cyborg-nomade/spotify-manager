@@ -9,7 +9,7 @@ from spotipy import Spotify
 
 from spotify_manager.interfaces.http.job_records import AnalysisJob as _AnalysisJob
 from spotify_manager.interfaces.http.models.analysis import AnalysisJobResult
-from spotify_manager.routines import analyse_library as library_analysis
+from spotify_manager.interfaces.operations import analyse_library as library_analysis
 
 
 @dataclass(kw_only=True)

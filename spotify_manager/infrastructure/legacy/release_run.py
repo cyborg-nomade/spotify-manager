@@ -4,10 +4,12 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.future_release import matching_future_record
 from spotify_manager.application.release_check_values import ReleaseCheckSpotifyError
 from spotify_manager.application.release_opening import ReleaseState
 from spotify_manager.core.state.compat import RoutineState
@@ -60,7 +62,9 @@ class LegacyReleaseRun:
         Args:
             state: Complete mutable working or preview-learning state.
         """
-        legacy._persist_state(self.state, state)
+        from spotify_manager.routines.release_check import _persist_state
+
+        _persist_state(self.state, state)
 
     def audit(self, run_id: str, event: str, **details: object) -> None:
         """Accept original event bytes and insertion-ordered fields.
@@ -70,7 +74,9 @@ class LegacyReleaseRun:
             event: Original event name.
             details: Original event fields.
         """
-        legacy.append_event(self.log_path, run_id, event, **details)
+        from spotify_manager.routines.release_check import append_event
+
+        append_event(self.log_path, run_id, event, **details)
 
     def progress(self, done: int, total: int, message: str) -> None:
         """Forward original progress only when a callback is supplied.
@@ -89,9 +95,9 @@ class LegacyReleaseRun:
         Returns:
             Original ordered snapshot and membership indexes.
         """
-        return legacy._playlist_snapshot(
-            self.spotify, self.playlists.wine_cellar, self.retry
-        )
+        from spotify_manager.routines.release_check import _playlist_snapshot
+
+        return _playlist_snapshot(self.spotify, self.playlists.wine_cellar, self.retry)
 
     def cleanup(
         self, snapshot: PlaylistSnapshot, preview: bool
@@ -105,7 +111,9 @@ class LegacyReleaseRun:
         Returns:
             Planned or accepted duplicate count and cleaned membership.
         """
-        return legacy._deduplicate_wine_cellar(
+        from spotify_manager.routines.release_check import _deduplicate_wine_cellar
+
+        return _deduplicate_wine_cellar(
             self.spotify, self.playlists.wine_cellar, snapshot, preview, self.retry
         )
 
@@ -115,7 +123,9 @@ class LegacyReleaseRun:
         Returns:
             Original mutable membership indexes.
         """
-        return legacy._playlist_membership(
+        from spotify_manager.routines.release_check import _playlist_membership
+
+        return _playlist_membership(
             self.spotify, self.playlists.new_vintage, self.retry
         )
 
@@ -128,11 +138,11 @@ class LegacyReleaseRun:
         Raises:
             ReleaseCheckSpotifyError: Original composer lookup failed.
         """
+        from spotify_manager.routines.composer_playlists import load_owned_playlists
+
         excluded = frozenset({self.playlists.wine_cellar, self.playlists.new_vintage})
         try:
-            return composer_playlists.load_owned_playlists(
-                self.spotify, self.retry, excluded
-            )
+            return load_owned_playlists(self.spotify, self.retry, excluded)
         except composer_playlists.ComposerPlaylistError as exc:
             raise ReleaseCheckSpotifyError(str(exc)) from exc
 
@@ -145,7 +155,9 @@ class LegacyReleaseRun:
         Returns:
             Original mapping or no valid mapping.
         """
-        return legacy._mapped_artist(raw)
+        from spotify_manager.routines.release_check import _mapped_artist
+
+        return _mapped_artist(raw)
 
     def resolve(self, artist: RankedArtist) -> SpotifyArtistCandidate | str | None:
         """Retain original artist interaction and synchronous search seam.
@@ -156,9 +168,9 @@ class LegacyReleaseRun:
         Returns:
             Original mapping, control choice or no search result.
         """
-        return legacy.resolve_spotify_artist(
-            self.spotify, artist, self.artist_reader, self.retry
-        )
+        from spotify_manager.bootstrap.artist_mapping import artist_mapping
+
+        return artist_mapping(self.spotify, self.artist_reader, self.retry).run(artist)
 
     def catalog(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate, start: date
@@ -173,9 +185,9 @@ class LegacyReleaseRun:
         Returns:
             Original ordered catalog observations.
         """
-        return legacy.load_recent_catalog(
-            self.spotify, artist, mapped, start, self.retry
-        )
+        from spotify_manager.routines.release_check import load_recent_catalog
+
+        return load_recent_catalog(self.spotify, artist, mapped, start, self.retry)
 
     def decode_pending(self, raw: object) -> PendingSingle | None:
         """Retain original pending-single decoding.
@@ -186,7 +198,9 @@ class LegacyReleaseRun:
         Returns:
             Original pending single or no valid record.
         """
-        return legacy._pending_single(raw)
+        from spotify_manager.routines.release_check import _pending_single
+
+        return _pending_single(raw)
 
     def first_track(self, release: ReleaseCandidate) -> ReleaseTrack | None:
         """Observe the first original playable release marker.
@@ -197,9 +211,9 @@ class LegacyReleaseRun:
         Returns:
             First original playable marker or no track.
         """
-        tracks = legacy.load_release_tracks(
-            self.spotify, release, self.retry, first_only=True
-        )
+        from spotify_manager.routines.release_check import load_release_tracks
+
+        tracks = load_release_tracks(self.spotify, release, self.retry, first_only=True)
         return tracks[0] if tracks else None
 
     def match(
@@ -218,9 +232,10 @@ class LegacyReleaseRun:
         Returns:
             Original first containing record or no match.
         """
-        return legacy.matching_future_release(
-            self.spotify, track, records, self.retry, cache
-        )
+        from spotify_manager.routines.release_check import load_release_tracks
+
+        reader = partial(load_release_tracks, self.spotify, retry_call=self.retry)
+        return matching_future_record(reader, track, records, cache)
 
     def add(
         self,
@@ -240,6 +255,8 @@ class LegacyReleaseRun:
         Returns:
             Original planned or accepted playlist action.
         """
-        return legacy._add_to_playlist(
+        from spotify_manager.routines.release_check import _add_to_playlist
+
+        return _add_to_playlist(
             self.spotify, destination, membership, track, preview, self.retry
         )

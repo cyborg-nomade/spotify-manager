@@ -3,6 +3,7 @@ from collections import Counter
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,9 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import release_check
 from spotify_manager.routines import scrobble_history
+from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
+from spotify_manager.application.history_values import ScrobbleHistorySummary
+from tests.support.history_dependencies import release_history
 
 
 def raw_artist(spotify_id: str, name: str) -> dict[str, object]:
@@ -195,27 +199,51 @@ def history_summary(*, dry_run: bool) -> scrobble_history.ScrobbleHistorySummary
     )
 
 
+def _observed_history(
+    dry_runs: list[bool] | None,
+    *args: object,
+    **kwargs: object,
+) -> ScrobbleHistorySummary:
+    dry_run = bool(kwargs["dry_run"])
+    if dry_runs is not None:
+        dry_runs.append(dry_run)
+    return history_summary(dry_run=dry_run)
+
+
+def _release_history(
+    resources: LegacyReleaseOpening, stamp: datetime
+) -> ScrobbleHistorySummary:
+    return release_history(resources, scrobble_history.refresh_scrobble_history, stamp)
+
+
 def patch_history_and_ranking(
     monkeypatch: pytest.MonkeyPatch,
     artists: tuple[release_check.RankedArtist, ...],
     history_dry_runs: list[bool] | None = None,
 ) -> None:
-    def refresh(*_args: object, **kwargs: object):
-        dry_run = bool(kwargs["dry_run"])
-        if history_dry_runs is not None:
-            history_dry_runs.append(dry_run)
-        return history_summary(dry_run=dry_run)
+    """Inject observed history at the explicit startup dependency boundary.
 
+    Args:
+        monkeypatch: Per-test patch manager.
+        artists: Original ranked history fixture.
+        history_dry_runs: Optional observation of history preview flags.
+    """
     monkeypatch.setattr(
-        release_check.scrobble_history,
+        scrobble_history,
         "refresh_scrobble_history",
-        refresh,
+        partial(_observed_history, history_dry_runs),
     )
+    monkeypatch.setattr(LegacyReleaseOpening, "refresh", _release_history)
     monkeypatch.setattr(
-        release_check,
-        "rank_lastfm_artists",
-        lambda _history: artists,
+        release_check, "rank_lastfm_artists", partial(_ranked_artists, artists)
     )
+
+
+def _ranked_artists(
+    artists: tuple[release_check.RankedArtist, ...],
+    history: tuple[blast_from_past.Scrobble, ...],
+) -> tuple[release_check.RankedArtist, ...]:
+    return artists
 
 
 def test_artist_progress_is_batched_into_bounded_state_checkpoints(

@@ -16,10 +16,10 @@ from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
 from spotify_manager.domain.golden_selection import SelectedTrack
-from spotify_manager.routines import found_art
-from spotify_manager.routines import scrobble_history
-from spotify_manager.routines import slow_listening
-from spotify_manager.routines import something_old
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
+from spotify_manager.interfaces.operations import something_old as something_old
 from spotify_manager.settings import Settings
 
 

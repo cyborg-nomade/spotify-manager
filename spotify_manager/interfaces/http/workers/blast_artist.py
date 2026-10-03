@@ -17,10 +17,14 @@ from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.historical import DormantArtistResultEntry
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import blast_from_past_artists
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import (
+    blast_from_past_artists as blast_from_past_artists,
+)
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)

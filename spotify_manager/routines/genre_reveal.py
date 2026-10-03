@@ -518,10 +518,17 @@ def process_next_genre(
         GenreRevealLogError: Original completion audit cannot be written.
         ValidationError: Original request values are invalid.
     """
-    from spotify_manager.bootstrap.genre_run import run_genre_reveal
+    from spotify_manager.interfaces.operations.genre_reveal import (
+        process_next_genre as operation,
+    )
 
-    return run_genre_reveal(
-        sp, slug, name, destination_playlist_id, log_path, page_reader
+    return operation(
+        sp,
+        slug,
+        name,
+        destination_playlist_id,
+        log_path=log_path,
+        page_reader=page_reader,
     )
 
 
