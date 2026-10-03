@@ -32,7 +32,27 @@ from spotify_manager.routines import slow_listening
 
 @dataclass(kw_only=True)
 class Queue3Worker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        annual_only: Explicit annual only input or adapter boundary.
+        connection_failure: Explicit connection failure input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        _apply_queue_3_annual_summary: Explicit apply queue 3 annual summary input or
+            adapter boundary.
+        _apply_queue_3_flush_summary: Explicit apply queue 3 flush summary input or
+            adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _queue_3_release_option: Explicit queue 3 release option input or adapter
+            boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -81,7 +101,7 @@ class Queue3Worker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -93,9 +113,9 @@ class Queue3Worker:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
-        completed: Original routine-supplied completed.
-        total: Original routine-supplied total.
-        progress_status: Original routine-supplied progress status.
+            completed: Original routine-supplied completed.
+            total: Original routine-supplied total.
+            progress_status: Original routine-supplied progress status.
         """
         if self.job.cancel_event.is_set():
             raise _Queue3JobCancelledError
@@ -108,10 +128,10 @@ class Queue3Worker:
         """Publish a waiting phase and consume the next accepted choice.
 
         Args:
-        detail: Original routine-supplied detail.
+            detail: Original routine-supplied detail.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -132,16 +152,16 @@ class Queue3Worker:
         """Ask for confirmation of the original Queue 3 transition.
 
         Args:
-        source: Original routine-supplied source.
-        current: Original routine-supplied current.
-        following: Original routine-supplied following.
+            source: Original routine-supplied source.
+            current: Original routine-supplied current.
+            following: Original routine-supplied following.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             self.job.result.queue_3_pending_choice = Queue3PendingChoice(
-                kind=("release"),
+                kind="release",
                 artist=source.primary_artist_name,
                 source_track=source.name,
                 current_release=self._queue_3_release_option(current),
@@ -157,15 +177,15 @@ class Queue3Worker:
         """Present the original composer playlist options.
 
         Args:
-        artist: Original routine-supplied artist.
-        candidates: Original routine-supplied candidates.
+            artist: Original routine-supplied artist.
+            candidates: Original routine-supplied candidates.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             self.job.result.queue_3_pending_choice = Queue3PendingChoice(
-                kind=("composer_playlist"),
+                kind="composer_playlist",
                 artist=artist,
                 playlists=self._queue3_composer_playlist_options(candidates),
             )
@@ -175,7 +195,7 @@ class Queue3Worker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _Queue3JobCancelledError
@@ -184,11 +204,11 @@ class Queue3Worker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return review_album_limits.retry_spotify_server_errors(
             operation,
@@ -202,7 +222,7 @@ class Queue3Worker:
     def _start(self) -> None:
         self.job = self.lookup(self.job_id, command="flush_queue_3")
         self.operation_name = (
-            ("Previous-year Queue 3 import") if self.annual_only else ("Queue 3 flush")
+            "Previous-year Queue 3 import" if self.annual_only else "Queue 3 flush"
         )
         with self.lock:
             self.job.result.status = "running"
@@ -295,7 +315,7 @@ class Queue3Worker:
             self.job.result.status = "paused"
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
-                + (". Progress was saved.")
+                + ". Progress was saved."
             )
             self.append(self.job, self.job.result.detail)
 

@@ -17,13 +17,32 @@ from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.historical import BlastSelectionResult
+from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import review_album_limits
 
 
 @dataclass(kw_only=True)
 class BlastWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        count: Explicit count input or adapter boundary.
+        max_playlist_length: Explicit max playlist length input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        connection_failure: Explicit connection failure input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _blast_selection_result: Explicit blast selection result input or adapter
+            boundary.
+        _playlist_job_retry: Explicit playlist job retry input or adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -71,7 +90,7 @@ class BlastWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -85,8 +104,8 @@ class BlastWorker:
             self.job.result.detail = "Playlist routine started"
             self.append(
                 self.job,
-                ("A blast from the past started")
-                + ((" in dry-run mode.") if self.dry_run else (".")),
+                "A blast from the past started"
+                + (" in dry-run mode." if self.dry_run else "."),
             )
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
         self.previous_spotify_event_callback = None
@@ -107,9 +126,7 @@ class BlastWorker:
         return summary
 
     def _completed(self, summary: blast_from_past.BlastFromPastSpotifySummary) -> None:
-        selections = [
-            self._blast_selection_result(result) for result in summary.results
-        ]
+        selections = present_entries(summary.results, self._blast_selection_result)
         with self.lock:
             self.job.result.status = "completed"
             self.job.result.requested_count = summary.requested_count

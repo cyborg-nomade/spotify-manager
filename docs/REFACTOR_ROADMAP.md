@@ -1,6 +1,6 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–6 deployed and merged; item 7 in progress.**
+**Status: items 1–6 deployed and merged; item 7 complete and ready for PR review.**
 
 Item 1 deliverables are in the [compatibility inventory](refactor/README.md),
 including frozen interface snapshots and the accepted
@@ -14,7 +14,8 @@ deployed. The [item 5 vertical slices](refactor/VERTICAL_SLICES.md) were deploye
 and merged in PR #64. The [item 6 wave inventory](refactor/ROUTINE_FAMILIES.md)
 and [ownership audit](refactor/ROUTINE_OWNERSHIP.md) were deployed and merged
 in PR #65. [Item 7 interface and job migration](refactor/INTERFACES_AND_JOBS.md)
-is now in progress. Later items remain pending.
+is complete and ready for PR review, with its local web environment available.
+Deployment and merge await approval. Later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,

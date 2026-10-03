@@ -24,6 +24,7 @@ from spotify_manager.interfaces.http.models.discovery import NewKidsFillResult
 from spotify_manager.interfaces.http.models.discovery import NewKidsPendingChoice
 from spotify_manager.interfaces.http.models.discovery import NewKidsReleaseOption
 from spotify_manager.interfaces.http.models.discovery import NewKidsTrackResult
+from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.workers.errors import _NewKidsJobCancelledError
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import found_art
@@ -35,7 +36,34 @@ from spotify_manager.settings import Settings
 
 @dataclass(kw_only=True)
 class NewKidsWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        new_kids_playlist_id: Explicit new kids playlist id input or adapter boundary.
+        queue_2_playlist_id: Explicit queue 2 playlist id input or adapter boundary.
+        great_discoveries_playlist_id: Explicit great discoveries playlist id input or
+            adapter boundary.
+        unlucky_ones_playlist_id: Explicit unlucky ones playlist id input or adapter
+            boundary.
+        newfoundland_playlist_id: Explicit newfoundland playlist id input or adapter
+            boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        command: Explicit command input or adapter boundary.
+        rate_limit_delay: Explicit rate limit delay input or adapter boundary.
+        create_lastfm: Explicit create lastfm input or adapter boundary.
+        connection_failure: Explicit connection failure input or adapter boundary.
+        configuration: Explicit configuration input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _new_kids_fill_result: Explicit new kids fill result input or adapter boundary.
+        _new_kids_track_result: Explicit new kids track result input or adapter
+            boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -95,7 +123,7 @@ class NewKidsWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -107,9 +135,9 @@ class NewKidsWorker:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
-        completed: Original routine-supplied completed.
-        total: Original routine-supplied total.
-        progress_status: Original routine-supplied progress status.
+            completed: Original routine-supplied completed.
+            total: Original routine-supplied total.
+            progress_status: Original routine-supplied progress status.
         """
         if self.job.cancel_event.is_set():
             raise _NewKidsJobCancelledError
@@ -124,11 +152,11 @@ class NewKidsWorker:
         """Present feature options and wait for this job's accepted choice.
 
         Args:
-        artist: Original routine-supplied artist.
-        candidates: Original routine-supplied candidates.
+            artist: Original routine-supplied artist.
+            candidates: Original routine-supplied candidates.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -147,7 +175,7 @@ class NewKidsWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _NewKidsJobCancelledError
@@ -156,11 +184,11 @@ class NewKidsWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         while True:
             try:
@@ -210,7 +238,7 @@ class NewKidsWorker:
         )
         routine = (
             new_kids.flush_queue_2
-            if self.command == ("flush_queue_2")
+            if self.command == "flush_queue_2"
             else new_kids.flush_new_kids
         )
         summary = routine(
@@ -290,7 +318,7 @@ class NewKidsWorker:
             self.job.result.new_kids_pending_choice = None
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
-                + (". Progress was saved.")
+                + ". Progress was saved."
             )
             self.append(self.job, self.job.result.detail)
 
@@ -347,10 +375,10 @@ class NewKidsWorker:
                 NewKidsReleaseOption(
                     spotify_id=candidate.spotify_id,
                     name=candidate.name,
-                    release_type=("Composer works playlist")
+                    release_type="Composer works playlist"
                     if isinstance(candidate, composer_playlists.OwnedPlaylist)
                     else candidate.release_type,
-                    release_date=("Stored Spotify order")
+                    release_date="Stored Spotify order"
                     if isinstance(candidate, composer_playlists.OwnedPlaylist)
                     else candidate.release_date,
                     total_tracks=candidate.total_tracks,
@@ -372,17 +400,14 @@ class NewKidsWorker:
         summary: new_kids.FlushSummary | new_kids.Queue2Summary,
         results: list[NewKidsTrackResult],
     ) -> None:
-        self.job.result.advanced = sum(
-            result.action in {("advance"), ("next release")}
-            for result in summary.results
+        self.job.result.advanced = self._count_actions(
+            summary.results, {"advance", "next release"}
         )
-        self.job.result.skipped = sum(
-            result.action == ("skip") for result in summary.results
-        )
+        self.job.result.skipped = self._count_actions(summary.results, {"skip"})
         self.job.result.new_kids_results = results
-        self.job.result.new_kids_prefill = [
-            self._new_kids_fill_result(result) for result in summary.prefill
-        ]
+        self.job.result.new_kids_prefill = present_entries(
+            summary.prefill, self._new_kids_fill_result
+        )
         self.job.result.new_kids_postfill = (
             []
             if isinstance(summary, new_kids.Queue2Summary)
@@ -448,3 +473,11 @@ class NewKidsWorker:
             self.job.result.retry_at = None
             self.job.result.detail = f"Retrying {description}."
             self.append(self.job, self.job.result.detail)
+
+    def _count_actions(
+        self, results: tuple[new_kids.FlushResult, ...], actions: set[str]
+    ) -> int:
+        count = 0
+        for result in results:
+            count += result.action in actions
+        return count

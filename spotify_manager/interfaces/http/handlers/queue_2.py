@@ -45,7 +45,7 @@ class Queue2Handlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         playlist_ids = self._configured_album_discovery_playlists()
@@ -65,7 +65,7 @@ class Queue2Handlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="flush_queue_2")
@@ -81,10 +81,10 @@ class Queue2Handlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="flush_queue_2")
@@ -93,7 +93,7 @@ class Queue2Handlers:
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
                     status_code=409,
-                    detail=("Queue 2 job is not waiting for a release choice"),
+                    detail="Queue 2 job is not waiting for a release choice",
                 )
             allowed = {
                 new_kids.CHOICE_SKIP,
@@ -102,7 +102,7 @@ class Queue2Handlers:
             }
             if request.choice not in allowed:
                 raise HTTPException(
-                    status_code=400, detail=("release choice is not available")
+                    status_code=400, detail="release choice is not available"
                 )
             job.submitted_choice = request.choice
             job.result.new_kids_pending_choice = None
@@ -117,10 +117,10 @@ class Queue2Handlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="flush_queue_2")

@@ -59,16 +59,16 @@ class SauvignonHandlers:
             seed_count: Original validated seed count value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         if count is not None and max_playlist_length is not None:
             raise HTTPException(
                 status_code=400,
-                detail=("use either count or maximum playlist length, not both"),
+                detail="use either count or maximum playlist length, not both",
             )
         configuration = self.Settings()
         try:
@@ -110,7 +110,7 @@ class SauvignonHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
@@ -126,10 +126,10 @@ class SauvignonHandlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
@@ -138,7 +138,7 @@ class SauvignonHandlers:
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
                     status_code=409,
-                    detail=("Sauvignon discovery is not waiting for an album choice"),
+                    detail="Sauvignon discovery is not waiting for an album choice",
                 )
             allowed = {
                 sauvignon.CHOICE_SKIP,
@@ -147,7 +147,7 @@ class SauvignonHandlers:
             }
             if request.choice not in allowed:
                 raise HTTPException(
-                    status_code=400, detail=("album choice is not available")
+                    status_code=400, detail="album choice is not available"
                 )
             job.submitted_choice = request.choice
             job.result.sauvignon_pending_choice = None
@@ -162,17 +162,17 @@ class SauvignonHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="fill_sauvignon_from_lastfm")
         with self._blast_jobs_lock:
             if job.result.status not in self._ACTIVE_JOB_STATUSES:
                 raise HTTPException(
-                    status_code=409, detail=("Sauvignon discovery job is not active")
+                    status_code=409, detail="Sauvignon discovery job is not active"
                 )
             job.result.status = "cancelling"
             job.result.sauvignon_pending_choice = None

@@ -16,7 +16,21 @@ from spotify_manager.routines import scrobble_history
 
 @dataclass(kw_only=True)
 class ScrobbleHistoryWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        api_key: Explicit api key input or adapter boundary.
+        username: Explicit username input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        full_rebuild: Explicit full rebuild input or adapter boundary.
+        create_lastfm: Explicit create lastfm input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     api_key: str
@@ -52,7 +66,7 @@ class ScrobbleHistoryWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         scrobble_history.check_cancel(self.job.cancel_event.is_set)
         with self.lock:
@@ -67,9 +81,9 @@ class ScrobbleHistoryWorker:
             self.job.result.detail = "Last.fm scrobble history update started"
             self.append(
                 self.job,
-                ("Last.fm scrobble history update started in dry-run mode.")
+                "Last.fm scrobble history update started in dry-run mode."
                 if self.dry_run
-                else ("Last.fm scrobble history update started."),
+                else "Last.fm scrobble history update started.",
             )
         self.lastfm = self.create_lastfm(
             self.api_key, self.username, event_callback=self.echo

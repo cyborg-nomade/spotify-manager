@@ -26,6 +26,7 @@ from spotify_manager.interfaces.http.models.recommendations import (
 from spotify_manager.interfaces.http.models.recommendations import (
     SauvignonSelectionResult,
 )
+from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.workers.errors import _SauvignonJobCancelledError
 from spotify_manager.routines import found_art
 from spotify_manager.routines import review_album_limits
@@ -34,7 +35,28 @@ from spotify_manager.routines import sauvignon
 
 @dataclass(kw_only=True)
 class SauvignonWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        api_key: Explicit api key input or adapter boundary.
+        username: Explicit username input or adapter boundary.
+        count: Explicit count input or adapter boundary.
+        max_playlist_length: Explicit max playlist length input or adapter boundary.
+        seed_count: Explicit seed count input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        create_lastfm: Explicit create lastfm input or adapter boundary.
+        connection_failure: Explicit connection failure input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _sauvignon_selection_result: Explicit sauvignon selection result input or
+            adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -90,7 +112,7 @@ class SauvignonWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -100,7 +122,7 @@ class SauvignonWorker:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
-        progress_status: Original routine-supplied progress status.
+            progress_status: Original routine-supplied progress status.
         """
         if self.job.cancel_event.is_set():
             raise _SauvignonJobCancelledError
@@ -118,11 +140,11 @@ class SauvignonWorker:
         """Present feature options and wait for this job's accepted choice.
 
         Args:
-        recommendation: Original routine-supplied recommendation.
-        options: Original routine-supplied options.
+            recommendation: Original routine-supplied recommendation.
+            options: Original routine-supplied options.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -153,7 +175,7 @@ class SauvignonWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _SauvignonJobCancelledError
@@ -162,11 +184,11 @@ class SauvignonWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         if self.job.cancel_event.is_set():
             raise _SauvignonJobCancelledError
@@ -213,9 +235,7 @@ class SauvignonWorker:
         return summary
 
     def _completed(self, summary: sauvignon.SauvignonSummary) -> None:
-        results = [
-            self._sauvignon_selection_result(result) for result in summary.results
-        ]
+        results = present_entries(summary.results, self._sauvignon_selection_result)
         with self.lock:
             self.job.result.status = "paused" if summary.paused else "completed"
             self.job.result.requested_count = summary.requested_count
@@ -281,7 +301,7 @@ class SauvignonWorker:
                     "completed additions remain saved."
                 )
                 if not self.dry_run
-                else ("Sauvignon discovery dry run stopped.")
+                else "Sauvignon discovery dry run stopped."
             )
             self.append(self.job, self.job.result.detail)
 
@@ -306,7 +326,7 @@ class SauvignonWorker:
             self.job.result.status = "paused"
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
-                + (". Cached calls and completed additions remain saved.")
+                + ". Cached calls and completed additions remain saved."
             )
             self.append(self.job, self.job.result.detail)
 

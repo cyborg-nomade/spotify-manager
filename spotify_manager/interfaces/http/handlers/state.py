@@ -64,7 +64,7 @@ class StateHandlers:
         namespaces = snapshot.document["namespaces"]
         return SharedStateSummary(
             revision=snapshot.revision,
-            updated_at=snapshot.document[("updated_at")],
+            updated_at=snapshot.document["updated_at"],
             namespaces=self._namespace_timestamps(namespaces),
         )
 
@@ -100,9 +100,7 @@ class StateHandlers:
         if set(schema["namespaces"]) != set(self.STATE_NAMESPACE_DEFINITIONS):
             raise HTTPException(
                 status_code=500,
-                detail=(
-                    "State editor schema and namespace validators are out of sync."
-                ),
+                detail="State editor schema and namespace validators are out of sync.",
             )
         return schema
 
@@ -115,10 +113,10 @@ class StateHandlers:
             namespace: Original validated namespace value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         definition = self.STATE_NAMESPACE_DEFINITIONS.get(namespace)
@@ -159,17 +157,17 @@ class StateHandlers:
         Args:
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         try:
             snapshot = self.get_state_service().replace(
                 request.document,
                 expected_revision=request.expected_revision,
-                message=("Edit Spotify Manager state from web app"),
+                message="Edit Spotify Manager state from web app",
             )
         except StateConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -199,12 +197,12 @@ class StateHandlers:
         timestamp = self.datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         return Response(
             self.canonical_json(
-                {("revision"): snapshot.revision, ("document"): snapshot.document}
+                {"revision": snapshot.revision, "document": snapshot.document}
             )
             + "\n",
-            media_type=("application/json"),
+            media_type="application/json",
             headers={
-                ("Content-Disposition"): (
+                "Content-Disposition": (
                     f'attachment; filename="spotify-manager-state-{timestamp}.json"'
                 )
             },

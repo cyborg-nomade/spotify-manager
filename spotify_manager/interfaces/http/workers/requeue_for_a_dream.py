@@ -24,7 +24,19 @@ from spotify_manager.routines import review_album_limits
 
 @dataclass(kw_only=True)
 class RequeueForADreamWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -65,7 +77,7 @@ class RequeueForADreamWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -75,7 +87,7 @@ class RequeueForADreamWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _RequeueForADreamJobCancelledError
@@ -84,11 +96,11 @@ class RequeueForADreamWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         if self.job.cancel_event.is_set():
             raise _RequeueForADreamJobCancelledError
@@ -112,9 +124,9 @@ class RequeueForADreamWorker:
             self.job.result.detail = "Requeue for a Dream started"
             self.append(
                 self.job,
-                ("Requeue for a Dream started in dry-run mode.")
+                "Requeue for a Dream started in dry-run mode."
                 if self.dry_run
-                else ("Requeue for a Dream started."),
+                else "Requeue for a Dream started.",
             )
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
         self.previous_spotify_event_callback = None
@@ -149,7 +161,7 @@ class RequeueForADreamWorker:
             self.job.result.playlist_length_before = summary.playlist_length_before
             self.job.result.playlist_length_after = summary.playlist_length_after
             self.job.result.added = int(
-                summary.action == ("advance") and (not summary.target_already_present)
+                summary.action == "advance" and (not summary.target_already_present)
             )
             self._present_transition_detail(summary)
 
@@ -187,7 +199,7 @@ class RequeueForADreamWorker:
         with self.lock:
             self.job.result.status = "paused"
             self.job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + (".")
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             self.append(self.job, self.job.result.detail)
 

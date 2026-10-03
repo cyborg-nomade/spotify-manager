@@ -241,6 +241,36 @@ def _concurrent_start(case: StartCase, barrier: Barrier) -> int:
     return 202
 
 
+def _failed_analysis_snapshot(job: api._AnalysisJob) -> api.AnalysisJobResult:
+    raise RuntimeError(f"Cannot present {job.result.command}")
+
+
+def _failed_playlist_snapshot(job: api._BlastJob) -> api.BlastJobResult:
+    raise RuntimeError(f"Cannot present {job.result.command}")
+
+
+@pytest.mark.parametrize("case", CASES, ids=[case.name for case in CASES])
+def test_snapshot_failure_retains_reservation_without_dispatch(
+    case: StartCase, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep a registered queued handle when its original presenter fails.
+
+    Args:
+        case: Original start configuration, including the annual no-log case.
+        monkeypatch: Isolate scheduling and snapshot presentation boundaries.
+    """
+    bind(monkeypatch)
+    monkeypatch.setattr(api, "_job_snapshot", _failed_analysis_snapshot)
+    monkeypatch.setattr(api, "_blast_job_snapshot", _failed_playlist_snapshot)
+    with pytest.raises(RuntimeError, match="Cannot present"):
+        case.start()
+    registry = api._analysis_jobs if case.family == "analysis" else api._blast_jobs
+    assert len(registry) == 1
+    job = cast(api._AnalysisJob | api._BlastJob, next(iter(registry.values())))
+    assert job.result.status == "queued"
+    assert not ThreadCapture.observations
+
+
 @pytest.mark.parametrize(
     ("first", "second", "expected"),
     (

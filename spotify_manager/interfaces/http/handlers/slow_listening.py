@@ -53,10 +53,10 @@ class SlowListeningHandlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         configuration = self.Settings()
@@ -82,7 +82,7 @@ class SlowListeningHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="flush_slow_listening")
@@ -98,10 +98,10 @@ class SlowListeningHandlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="flush_slow_listening")
@@ -110,7 +110,7 @@ class SlowListeningHandlers:
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
                     status_code=409,
-                    detail=("Slow Listening job is not waiting for a choice"),
+                    detail="Slow Listening job is not waiting for a choice",
                 )
             submitted_order = self._validate_submission(pending, request)
             job.submitted_choice = request.choice
@@ -127,17 +127,17 @@ class SlowListeningHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="flush_slow_listening")
         with self._blast_jobs_lock:
             if job.result.status not in self._ACTIVE_JOB_STATUSES:
                 raise HTTPException(
-                    status_code=409, detail=("Slow Listening job is not active")
+                    status_code=409, detail="Slow Listening job is not active"
                 )
             job.result.status = "cancelling"
             job.result.slow_listening_pending_choice = None
@@ -159,22 +159,22 @@ class SlowListeningHandlers:
             }
             if request.choice not in allowed or request.order:
                 raise HTTPException(
-                    status_code=400, detail=("track choice is not available")
+                    status_code=400, detail="track choice is not available"
                 )
         elif pending.kind == "release_order":
             expected_ids = set(option_ids(pending.releases))
             submitted_order = tuple(request.order)
             if (
-                request.choice != ("order")
+                request.choice != "order"
                 or len(submitted_order) != len(expected_ids)
                 or set(submitted_order) != expected_ids
             ):
                 raise HTTPException(
                     status_code=400,
-                    detail=("release order must include every option exactly once"),
+                    detail="release order must include every option exactly once",
                 )
         elif request.choice != "continue" or request.order:
             raise HTTPException(
-                status_code=400, detail=("completion choice is not available")
+                status_code=400, detail="completion choice is not available"
             )
         return submitted_order

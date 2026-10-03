@@ -8,6 +8,7 @@ from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
 from threading import Lock
+from typing import cast
 
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
@@ -27,7 +28,30 @@ from spotify_manager.routines import review_album_limits
 
 @dataclass(kw_only=True)
 class NewWineWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        new_wine_playlist_id: Explicit new wine playlist id input or adapter boundary.
+        sauvignon_playlist_id: Explicit sauvignon playlist id input or adapter boundary.
+        wine_cellar_playlist_id: Explicit wine cellar playlist id input or adapter
+            boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        no_discovery: Explicit no discovery input or adapter boundary.
+        choose_album_endpoints: Explicit choose album endpoints input or adapter
+            boundary.
+        rate_limit_delay: Explicit rate limit delay input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _new_wine_refill_result: Explicit new wine refill result input or adapter
+            boundary.
+        _new_wine_track_result: Explicit new wine track result input or adapter
+            boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -73,7 +97,7 @@ class NewWineWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -85,9 +109,9 @@ class NewWineWorker:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
-        completed: Original routine-supplied completed.
-        total: Original routine-supplied total.
-        progress_status: Original routine-supplied progress status.
+            completed: Original routine-supplied completed.
+            total: Original routine-supplied total.
+            progress_status: Original routine-supplied progress status.
         """
         if self.job.cancel_event.is_set():
             raise _NewWineJobCancelledError
@@ -104,11 +128,11 @@ class NewWineWorker:
         """Present feature options and wait for this job's accepted choice.
 
         Args:
-        source: Original routine-supplied source.
-        candidates: Original routine-supplied candidates.
+            source: Original routine-supplied source.
+            candidates: Original routine-supplied candidates.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -118,7 +142,7 @@ class NewWineWorker:
             self.job.result.pending_choice = NewWinePendingChoice(
                 artist=source.primary_artist_name,
                 source_track=source.name,
-                terminal_release=source.release.release_type in {("Album"), ("EP")},
+                terminal_release=source.release.release_type in {"Album", "EP"},
                 releases=self._new_wine_release_options(candidates),
             )
             self.job.result.status = "waiting"
@@ -137,12 +161,12 @@ class NewWineWorker:
         """Ask where to place the artist after the final release.
 
         Args:
-        source: Original routine-supplied source.
-        tracks: Original routine-supplied tracks.
-        current_index: Original routine-supplied current index.
+            source: Original routine-supplied source.
+            tracks: Original routine-supplied tracks.
+            current_index: Original routine-supplied current index.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -150,7 +174,7 @@ class NewWineWorker:
             self.job.submitted_choice = None
             self.job.choice_event.clear()
             self.job.result.pending_choice = NewWinePendingChoice(
-                kind=("album_endpoint"),
+                kind="album_endpoint",
                 artist=source.primary_artist_name,
                 source_track=source.name,
                 release=source.release.name,
@@ -170,7 +194,7 @@ class NewWineWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _NewWineJobCancelledError
@@ -179,11 +203,11 @@ class NewWineWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         while True:
             try:
@@ -275,16 +299,7 @@ class NewWineWorker:
                     f"{unsave_label}"
                     "."
                 )
-                if summary.refill is not None:
-                    self.job.result.detail += (
-                        " New Wine "
-                        f"{summary.refill.before}"
-                        " -> "
-                        f"{summary.refill.after}"
-                        "; "
-                        f"{summary.refill.added}"
-                        " pulled from Wine Cellar."
-                    )
+                self._append_refill_detail(summary)
             self.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
@@ -300,9 +315,9 @@ class NewWineWorker:
             self.job.result.pending_choice = None
             self.job.result.retry_at = None
             self.job.result.detail = (
-                ("New Wine flush stopped. Progress was saved.")
+                "New Wine flush stopped. Progress was saved."
                 if not self.dry_run
-                else ("New Wine dry run stopped.")
+                else "New Wine dry run stopped."
             )
             self.append(self.job, self.job.result.detail)
 
@@ -329,7 +344,7 @@ class NewWineWorker:
             self.job.result.pending_choice = None
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
-                + (". Progress was saved.")
+                + ". Progress was saved."
             )
             self.append(self.job, self.job.result.detail)
 
@@ -417,3 +432,15 @@ class NewWineWorker:
             self.job.result.retry_at = None
             self.job.result.detail = f"Retrying {description}."
             self.append(self.job, self.job.result.detail)
+
+    def _append_refill_detail(self, summary: new_wine.FlushSummary) -> None:
+        if summary.refill is not None:
+            self.job.result.detail = cast(str, self.job.result.detail) + (
+                " New Wine "
+                f"{summary.refill.before}"
+                " -> "
+                f"{summary.refill.after}"
+                "; "
+                f"{summary.refill.added}"
+                " pulled from Wine Cellar."
+            )

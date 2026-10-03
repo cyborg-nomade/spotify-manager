@@ -24,7 +24,22 @@ from spotify_manager.routines import the_queue
 
 @dataclass(kw_only=True)
 class QueueFlushWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlists: Explicit playlists input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        connection_failure: Explicit connection failure input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _queue_flush_result_entry: Explicit queue flush result entry input or adapter
+            boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -68,7 +83,7 @@ class QueueFlushWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -80,9 +95,9 @@ class QueueFlushWorker:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
-        completed: Original routine-supplied completed.
-        total: Original routine-supplied total.
-        progress_status: Original routine-supplied progress status.
+            completed: Original routine-supplied completed.
+            total: Original routine-supplied total.
+            progress_status: Original routine-supplied progress status.
         """
         if self.job.cancel_event.is_set():
             raise _QueueJobCancelledError
@@ -98,7 +113,7 @@ class QueueFlushWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _QueueJobCancelledError
@@ -107,11 +122,11 @@ class QueueFlushWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return review_album_limits.retry_spotify_server_errors(
             operation,
@@ -172,28 +187,7 @@ class QueueFlushWorker:
                 "."
             )
             for result in results:
-                target = result.target_track or "no replacement"
-                if result.target_release:
-                    target = f"{result.target_release} - {target}"
-                self.append(
-                    self.job,
-                    (
-                        f"{result.artist}"
-                        ": "
-                        f"{result.source_track}"
-                        " -> "
-                        f"{target}"
-                        " ("
-                        f"{result.action}"
-                        "; top "
-                        f"{result.top_liked_tracks}"
-                        "/"
-                        f"{result.top_tracks}"
-                        "; total "
-                        f"{result.total_liked_tracks}"
-                        ")."
-                    ),
-                )
+                self._log_result(result)
             self.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
@@ -206,9 +200,9 @@ class QueueFlushWorker:
         with self.lock:
             self.job.result.status = "cancelled"
             self.job.result.detail = (
-                ("Queue flush stopped. Progress was saved.")
+                "Queue flush stopped. Progress was saved."
                 if not self.dry_run
-                else ("Queue flush dry run stopped.")
+                else "Queue flush dry run stopped."
             )
             self.append(self.job, self.job.result.detail)
 
@@ -233,7 +227,7 @@ class QueueFlushWorker:
             self.job.result.status = "paused"
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
-                + (". Progress was saved.")
+                + ". Progress was saved."
             )
             self.append(self.job, self.job.result.detail)
 
@@ -255,3 +249,27 @@ class QueueFlushWorker:
             self.job.result.status = "failed"
             self.job.result.detail = f"Unexpected Queue flush error: {exc}"
             self.append(self.job, self.job.result.detail)
+
+    def _log_result(self, result: QueueFlushResultEntry) -> None:
+        target = result.target_track or "no replacement"
+        if result.target_release:
+            target = f"{result.target_release} - {target}"
+        self.append(
+            self.job,
+            (
+                f"{result.artist}"
+                ": "
+                f"{result.source_track}"
+                " -> "
+                f"{target}"
+                " ("
+                f"{result.action}"
+                "; top "
+                f"{result.top_liked_tracks}"
+                "/"
+                f"{result.top_tracks}"
+                "; total "
+                f"{result.total_liked_tracks}"
+                ")."
+            ),
+        )

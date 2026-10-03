@@ -158,9 +158,11 @@ from spotify_manager.interfaces.http.job_queries import (
 from spotify_manager.interfaces.http.job_queries import (
     active_playlist_snapshots as active_playlist_snapshots,
 )
-from spotify_manager.interfaces.http.job_records import AnalysisJob as _AnalysisJob
-from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
+from spotify_manager.interfaces.http.job_records import AnalysisJob as AnalysisJob
+from spotify_manager.interfaces.http.job_records import PlaylistJob as PlaylistJob
 from spotify_manager.interfaces.http.job_registry import lookup_job as lookup_job
+from spotify_manager.interfaces.http.job_registry import register_job
+from spotify_manager.interfaces.http.job_registry import require_slot
 from spotify_manager.interfaces.http.models.analysis import (
     AnalysisJobLog as AnalysisJobLog,
 )
@@ -348,6 +350,7 @@ from spotify_manager.interfaces.http.models.wine import (
 from spotify_manager.interfaces.http.playlist_retry import (
     PlaylistRetry as PlaylistRetry,
 )
+from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.presenters.discography import (
     discography_artist_result as _discography_artist_result,
 )
@@ -612,12 +615,16 @@ from spotify_manager.routines.monthly_routine import (
 from spotify_manager.settings import Settings as Settings
 
 
+def _new_year_default_state() -> dict[str, object]:
+    return {"years": {}}
+
+
 STATE_NAMESPACE_DEFINITIONS: dict[str, tuple[StateFactory, StateValidator]] = {
     "discography": (discography._default_state, discography.validate_state),
     "genre_reveal": (genre_reveal._default_state, genre_reveal.validate_state),
     "new_kids": (new_kids._default_state, new_kids.validate_state),
     "new_wine": (new_wine._default_state, new_wine.validate_state),
-    "new_year": (lambda: {"years": {}}, new_year.validate_state),
+    "new_year": (_new_year_default_state, new_year.validate_state),
     "palace_of_memory": (
         palace_of_memory._default_state,
         palace_of_memory.validate_state,
@@ -633,6 +640,8 @@ STATE_NAMESPACE_DEFINITIONS: dict[str, tuple[StateFactory, StateValidator]] = {
     "review_artists": (review_artists._default_state, review_artists.validate_state),
     "slow_listening": (slow_listening._default_state, slow_listening.validate_state),
 }
+_AnalysisJob = AnalysisJob
+_BlastJob = PlaylistJob
 _analysis_jobs: dict[str, _AnalysisJob] = {}
 _analysis_jobs_lock = Lock()
 _MAX_ANALYSIS_LOGS = 250
@@ -756,15 +765,10 @@ def _require_analysis_slot(command: str) -> None:
     Raises:
         HTTPException: A matching active analysis retains its original 409 detail.
     """
-    existing = first_active_job(_analysis_job_identities(), command)
-    if existing is None:
-        return
-    raise HTTPException(
-        status_code=409,
-        detail={
-            "message": "an analysis of this type is already running",
-            "job_id": existing.job_id,
-        },
+    require_slot(
+        _analysis_job_identities(),
+        "an analysis of this type is already running",
+        command,
     )
 
 
@@ -777,17 +781,7 @@ def _require_playlist_slot(message: str) -> None:
     Raises:
         HTTPException: An active playlist/history job retains its original detail.
     """
-    existing = first_active_job(_playlist_job_identities())
-    if existing is None:
-        return
-    raise HTTPException(
-        status_code=409,
-        detail={
-            "message": message,
-            "job_id": existing.job_id,
-            "command": existing.command,
-        },
-    )
+    require_slot(_playlist_job_identities(), message, include_command=True)
 
 
 def _release_check_state_snapshot(
@@ -797,7 +791,9 @@ def _release_check_state_snapshot(
     state = (
         get_state_service()
         .namespace(
-            "release_check", release_check._default_state, release_check.validate_state
+            "release_check",
+            release_check._default_state,
+            release_check.validate_state,
         )
         .load()
     )
@@ -930,7 +926,7 @@ def start_analysis_job(
         command = (
             "refresh_library_mirrors"
             if mode == "mirrors"
-            else f"analyse_library_{mode}"
+            else (f"analyse_library_{mode}")
         )
     is_full_rebuild = mode == "mirrors" and full_rebuild
     resources = (
@@ -949,19 +945,16 @@ def start_analysis_job(
                 command=command,
                 full_rebuild=is_full_rebuild,
                 mirror_resource=mirror_resource,
-                resources={
-                    resource: AnalysisResourceProgress() for resource in resources
-                },
+                resources=_analysis_resources(resources),
             ),
             cancel_event=Event(),
         )
         _append_job_log_locked(job, f"{mode.title()} analysis queued.")
-        _analysis_jobs[job_id] = job
-        snapshot = _job_snapshot(job)
+        snapshot = register_job(_analysis_jobs, job_id, job, _job_snapshot)
     Thread(
         target=_run_analysis_job,
         args=(job_id, mode, spotify, full_rebuild, mirror_resource),
-        name=f"library-analysis-{mode}-{job_id[:8]}",
+        name=(f"library-analysis-{mode}-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1231,9 +1224,7 @@ def _apply_queue_3_flush_summary(job: _BlastJob, summary: queue_3.FlushSummary) 
     job.result.queue_3_changed_releases = summary.changed_releases
     job.result.completed_artists = summary.completed_artists
     job.result.skipped = summary.skipped
-    job.result.queue_3_results = [
-        _queue_3_track_result(result) for result in summary.results
-    ]
+    job.result.queue_3_results = present_entries(summary.results, _queue_3_track_result)
     job.result.queue_3_annual_import = _queue_3_annual_entries(summary.annual_import)
     job.result.queue_3_resumed = summary.resumed
     job.result.queue_3_paused = summary.paused
@@ -1489,12 +1480,11 @@ def start_blast_job(
             job,
             "A blast from the past queued" + (" in dry-run mode." if dry_run else "."),
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_blast_job,
         args=(job_id, spotify, playlist_id, count, max_playlist_length, dry_run),
-        name=f"blast-from-the-past-{job_id[:8]}",
+        name=(f"blast-from-the-past-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1520,12 +1510,11 @@ def start_blast_artist_job(
             "Dormant-artist recovery queued"
             + (" in dry-run mode." if dry_run else "."),
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_blast_artist_job,
         args=(job_id, spotify, playlist_id, count, dry_run),
-        name=f"blast-from-the-past-artists-{job_id[:8]}",
+        name=(f"blast-from-the-past-artists-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1544,14 +1533,14 @@ def start_daily_mind_radio_job(
             )
         )
         _append_blast_log_locked(
-            job, "Daily Mind Radio queued" + (" in dry-run mode." if dry_run else ".")
+            job,
+            "Daily Mind Radio queued" + (" in dry-run mode." if dry_run else "."),
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_daily_mind_radio_job,
         args=(job_id, spotify, playlist_id, dry_run),
-        name=f"daily-mind-radio-{job_id[:8]}",
+        name=(f"daily-mind-radio-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1570,12 +1559,11 @@ def start_found_art_job(
             )
         )
         _append_blast_log_locked(job, "Found Art queued.")
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_found_art_job,
         args=(job_id, spotify, playlist_id, api_key, username, count),
-        name=f"found-art-{job_id[:8]}",
+        name=(f"found-art-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1612,8 +1600,7 @@ def start_sauvignon_job(
                 "."
             ),
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_sauvignon_job,
         args=(
@@ -1627,7 +1614,7 @@ def start_sauvignon_job(
             seed_count,
             dry_run,
         ),
-        name=f"sauvignon-fill-{job_id[:8]}",
+        name=(f"sauvignon-fill-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1659,10 +1646,13 @@ def start_queue_fill_job(
         )
         _append_blast_log_locked(
             job,
-            f"Queue artist discovery queued{(' in dry-run mode' if dry_run else '')}.",
+            (
+                "Queue artist discovery queued"
+                f"{(' in dry-run mode' if dry_run else '')}"
+                "."
+            ),
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_queue_fill_job,
         args=(
@@ -1676,7 +1666,7 @@ def start_queue_fill_job(
             seed_count,
             dry_run,
         ),
-        name=f"queue-fill-{job_id[:8]}",
+        name=(f"queue-fill-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1693,14 +1683,13 @@ def start_queue_flush_job(
             result=BlastJobResult(job_id=job_id, command="flush_queue", dry_run=dry_run)
         )
         _append_blast_log_locked(
-            job, f"Queue flush queued{(' in dry-run mode' if dry_run else '')}."
+            job, (f"Queue flush queued{(' in dry-run mode' if dry_run else '')}.")
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_queue_flush_job,
         args=(job_id, spotify, playlists, dry_run),
-        name=f"queue-flush-{job_id[:8]}",
+        name=(f"queue-flush-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1726,10 +1715,9 @@ def start_new_kids_job(
             )
         )
         _append_blast_log_locked(
-            job, f"New Kids flush queued{(' in dry-run mode' if dry_run else '')}."
+            job, (f"New Kids flush queued{(' in dry-run mode' if dry_run else '')}.")
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_new_kids_job,
         args=(
@@ -1742,7 +1730,7 @@ def start_new_kids_job(
             newfoundland_playlist_id,
             dry_run,
         ),
-        name=f"new-kids-flush-{job_id[:8]}",
+        name=(f"new-kids-flush-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1768,10 +1756,9 @@ def start_queue_2_job(
             )
         )
         _append_blast_log_locked(
-            job, f"Queue 2 flush queued{(' in dry-run mode' if dry_run else '')}."
+            job, (f"Queue 2 flush queued{(' in dry-run mode' if dry_run else '')}.")
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_new_kids_job,
         args=(
@@ -1785,7 +1772,7 @@ def start_queue_2_job(
             dry_run,
             "flush_queue_2",
         ),
-        name=f"queue-2-flush-{job_id[:8]}",
+        name=(f"queue-2-flush-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1809,14 +1796,13 @@ def start_queue_3_job(
         _append_blast_log_locked(
             job,
             ("Previous-year Queue 3 import" if annual_only else "Queue 3 flush")
-            + f" queued{(' in dry-run mode' if dry_run else '')}.",
+            + (f" queued{(' in dry-run mode' if dry_run else '')}."),
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_queue_3_job,
         args=(job_id, spotify, playlist_id, dry_run, annual_only),
-        name=f"queue-3-{('import' if annual_only else 'flush')}-{job_id[:8]}",
+        name=(f"queue-3-{('import' if annual_only else 'flush')}-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1846,10 +1832,9 @@ def start_new_wine_job(
             )
         )
         _append_blast_log_locked(
-            job, f"New Wine flush queued{(' in dry-run mode' if dry_run else '')}."
+            job, (f"New Wine flush queued{(' in dry-run mode' if dry_run else '')}.")
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_new_wine_job,
         args=(
@@ -1862,7 +1847,7 @@ def start_new_wine_job(
             no_discovery,
             choose_album_endpoints,
         ),
-        name=f"new-wine-flush-{job_id[:8]}",
+        name=(f"new-wine-flush-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1886,12 +1871,11 @@ def start_slow_listening_job(
             if dry_run
             else "Slow Listening flush queued.",
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_slow_listening_job,
         args=(job_id, spotify, playlist_id, dry_run),
-        name=f"slow-listening-flush-{job_id[:8]}",
+        name=(f"slow-listening-flush-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1915,12 +1899,11 @@ def start_something_old_job(
             if dry_run
             else "Something Old queued.",
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_something_old_job,
         args=(job_id, spotify, playlist_id, api_key, username, dry_run),
-        name=f"something-old-{job_id[:8]}",
+        name=(f"something-old-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1949,12 +1932,11 @@ def start_release_check_job(
             if dry_run
             else "New-release check queued.",
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_release_check_job,
         args=(job_id, spotify, playlists, api_key, username, dry_run),
-        name=f"release-check-{job_id[:8]}",
+        name=(f"release-check-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -1982,12 +1964,11 @@ def start_discography_job(
             if dry_run
             else "Discography planning queued.",
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_discography_job,
         args=(job_id, spotify, playlist_ids, queue_3_playlist_id, dry_run),
-        name=f"discography-plan-{job_id[:8]}",
+        name=(f"discography-plan-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -2011,12 +1992,11 @@ def start_requeue_for_a_dream_job(
             if dry_run
             else "Requeue for a Dream queued.",
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_requeue_for_a_dream_job,
         args=(job_id, spotify, playlist_id, dry_run),
-        name=f"requeue-for-a-dream-{job_id[:8]}",
+        name=(f"requeue-for-a-dream-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -2047,15 +2027,14 @@ def start_palace_of_memory_job(
             )
         )
         queued_message = (
-            f"Palace alphabetical cursor adjustment to {cursor_position} queued."
+            (f"Palace alphabetical cursor adjustment to {cursor_position} queued.")
             if cursor_only
             else "Palace of Memory queued in dry-run mode."
             if dry_run
             else "Palace of Memory queued."
         )
         _append_blast_log_locked(job, queued_message)
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_palace_of_memory_job,
         args=(
@@ -2066,7 +2045,7 @@ def start_palace_of_memory_job(
             alphabetical_start,
             cursor_position,
         ),
-        name=f"palace-of-memory-{job_id[:8]}",
+        name=(f"palace-of-memory-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -2093,12 +2072,11 @@ def start_scrobble_history_job(
             if dry_run
             else "Last.fm scrobble history update queued.",
         )
-        _blast_jobs[job_id] = job
-        snapshot = _blast_job_snapshot(job)
+        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
     Thread(
         target=_run_scrobble_history_job,
         args=(job_id, api_key, username, dry_run, full_rebuild),
-        name=f"scrobble-history-{job_id[:8]}",
+        name=(f"scrobble-history-{job_id[:8]}"),
         daemon=True,
     ).start()
     return snapshot
@@ -2176,7 +2154,7 @@ def _spotify_lookup_failed(request: Request, exc: SpotifyException) -> JSONRespo
     return JSONResponse(
         status_code=status_code,
         content={
-            ("detail"): (
+            "detail": (
                 "Spotify request failed (HTTP "
                 f"{exc.http_status}"
                 "): "
@@ -3167,7 +3145,7 @@ def _server_file_status(path: Path) -> ServerFileStatus:
     except OSError as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Could not read server file status for {path.name}.",
+            detail=(f"Could not read server file status for {path.name}."),
         ) from exc
     return ServerFileStatus(filename=path.name, exists=True, updated_at=modified_at)
 
@@ -3494,3 +3472,12 @@ app.include_router(
         cmd_cancel_new_year_job,
     )
 )
+
+
+def _analysis_resources(
+    resources: tuple[str, ...],
+) -> dict[str, AnalysisResourceProgress]:
+    progress = {}
+    for resource in resources:
+        progress[resource] = AnalysisResourceProgress()
+    return progress

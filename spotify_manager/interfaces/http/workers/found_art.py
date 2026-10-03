@@ -20,12 +20,31 @@ from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.recommendations import (
     FoundArtSelectionResult,
 )
+from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.routines import found_art
 
 
 @dataclass(kw_only=True)
 class FoundArtWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        api_key: Explicit api key input or adapter boundary.
+        username: Explicit username input or adapter boundary.
+        count: Explicit count input or adapter boundary.
+        create_lastfm: Explicit create lastfm input or adapter boundary.
+        connection_failure: Explicit connection failure input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _found_art_selection_result: Explicit found art selection result input or
+            adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -66,7 +85,7 @@ class FoundArtWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -98,9 +117,7 @@ class FoundArtWorker:
         return summary
 
     def _completed(self, summary: found_art.FoundArtSummary) -> None:
-        results = [
-            self._found_art_selection_result(result) for result in summary.results
-        ]
+        results = present_entries(summary.results, self._found_art_selection_result)
         with self.lock:
             self.job.result.status = "completed"
             self.job.result.requested_count = summary.requested_count

@@ -17,6 +17,8 @@ from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.historical import BlastSelectionResult
+from spotify_manager.interfaces.http.presenters.collections import date_strings
+from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
 from spotify_manager.routines import review_album_limits
@@ -24,7 +26,23 @@ from spotify_manager.routines import review_album_limits
 
 @dataclass(kw_only=True)
 class DailyMindRadioWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        connection_failure: Explicit connection failure input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _blast_selection_result: Explicit blast selection result input or adapter
+            boundary.
+        _playlist_job_retry: Explicit playlist job retry input or adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -70,7 +88,7 @@ class DailyMindRadioWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -84,8 +102,8 @@ class DailyMindRadioWorker:
             self.job.result.detail = "Playlist routine started"
             self.append(
                 self.job,
-                ("Daily Mind Radio started")
-                + ((" in dry-run mode.") if self.dry_run else (".")),
+                "Daily Mind Radio started"
+                + (" in dry-run mode." if self.dry_run else "."),
             )
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
         self.previous_spotify_event_callback = None
@@ -106,21 +124,15 @@ class DailyMindRadioWorker:
     def _completed(
         self, summary: daily_mind_radio.DailyMindRadioSpotifySummary
     ) -> None:
-        selections = [
-            self._blast_selection_result(result) for result in summary.results
-        ]
+        selections = present_entries(summary.results, self._blast_selection_result)
         with self.lock:
             self.job.result.status = "completed"
             self.job.result.requested_count = len(summary.batch.selections)
             self.job.result.playlist_length_before = summary.playlist_length_before
             self.job.result.playlist_length_after = summary.playlist_length_after
             self.job.result.added = summary.added
-            self.job.result.target_dates = [
-                target_date.isoformat() for target_date in summary.batch.target_dates
-            ]
-            self.job.result.missing_dates = [
-                missing_date.isoformat() for missing_date in summary.batch.missing_dates
-            ]
+            self.job.result.target_dates = date_strings(summary.batch.target_dates)
+            self.job.result.missing_dates = date_strings(summary.batch.missing_dates)
             self.job.result.selections = selections
             if summary.batch.generated_at is not None:
                 self.job.result.random_org_timestamp = (

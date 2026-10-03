@@ -35,7 +35,25 @@ from spotify_manager.routines import scrobble_history
 
 @dataclass(kw_only=True)
 class ReleaseCheckWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlists: Explicit playlists input or adapter boundary.
+        api_key: Explicit api key input or adapter boundary.
+        username: Explicit username input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        create_lastfm: Explicit create lastfm input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _release_check_result: Explicit release check result input or adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+        RELEASE_CHECK_STATE_PATH: Explicit RELEASE CHECK STATE PATH input or adapter
+            boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -88,7 +106,7 @@ class ReleaseCheckWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -100,11 +118,11 @@ class ReleaseCheckWorker:
         """Publish pending interaction data and consume its submission.
 
         Args:
-        pending: Original routine-supplied pending.
-        detail: Original routine-supplied detail.
+            pending: Original routine-supplied pending.
+            detail: Original routine-supplied detail.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -127,15 +145,15 @@ class ReleaseCheckWorker:
         """Resolve the original ambiguous Spotify artist selection.
 
         Args:
-        artist: Original routine-supplied artist.
-        candidates: Original routine-supplied candidates.
+            artist: Original routine-supplied artist.
+            candidates: Original routine-supplied candidates.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return self.wait_for_submission(
             ReleaseCheckPendingChoice(
-                kind=("artist"),
+                kind="artist",
                 artist=artist.name,
                 artist_rank=artist.rank,
                 artist_scrobbles=artist.scrobbles,
@@ -155,18 +173,18 @@ class ReleaseCheckWorker:
         """Read the destination decision for the proposed release.
 
         Args:
-        artist: Original routine-supplied artist.
-        release: Original routine-supplied release.
-        track: Original routine-supplied track.
-        destinations: Original routine-supplied destinations.
-        unattached_single: Original routine-supplied unattached single.
+            artist: Original routine-supplied artist.
+            release: Original routine-supplied release.
+            track: Original routine-supplied track.
+            destinations: Original routine-supplied destinations.
+            unattached_single: Original routine-supplied unattached single.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return self.wait_for_submission(
             ReleaseCheckPendingChoice(
-                kind=("release"),
+                kind="release",
                 artist=artist.name,
                 artist_rank=artist.rank,
                 artist_scrobbles=artist.scrobbles,
@@ -193,9 +211,9 @@ class ReleaseCheckWorker:
         """Publish original release-check counters and display detail.
 
         Args:
-        completed: Original routine-supplied completed.
-        total: Original routine-supplied total.
-        detail: Original routine-supplied detail.
+            completed: Original routine-supplied completed.
+            total: Original routine-supplied total.
+            detail: Original routine-supplied detail.
         """
         with self.lock:
             self.job.result.processed = completed
@@ -207,7 +225,7 @@ class ReleaseCheckWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _ReleaseCheckJobCancelledError
@@ -216,11 +234,11 @@ class ReleaseCheckWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return review_album_limits.retry_spotify_server_errors(
             operation,
@@ -358,7 +376,7 @@ class ReleaseCheckWorker:
         with self.lock:
             self.job.result.status = "paused"
             self.job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + (".")
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             self.append(self.job, self.job.result.detail)
 

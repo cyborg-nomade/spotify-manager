@@ -20,7 +20,21 @@ from spotify_manager.settings import Settings
 
 @dataclass(kw_only=True)
 class NewYearWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        year: Explicit year input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        create_lastfm: Explicit create lastfm input or adapter boundary.
+        configuration: Explicit configuration input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _playlist_job_retry: Explicit playlist job retry input or adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -56,7 +70,7 @@ class NewYearWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         scrobble_history.check_cancel(self.job.cancel_event.is_set)
         with self.lock:

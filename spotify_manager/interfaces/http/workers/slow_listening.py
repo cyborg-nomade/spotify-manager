@@ -25,6 +25,7 @@ from spotify_manager.interfaces.http.models.slow_listening import (
 from spotify_manager.interfaces.http.models.slow_listening import (
     SlowListeningTrackResult,
 )
+from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.workers.errors import (
     _SlowListeningJobCancelledError,
 )
@@ -35,7 +36,21 @@ from spotify_manager.routines import slow_listening
 
 @dataclass(kw_only=True)
 class SlowListeningWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _slow_listening_track_result: Explicit slow listening track result input or
+            adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -75,7 +90,7 @@ class SlowListeningWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -87,9 +102,9 @@ class SlowListeningWorker:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
-        completed: Original routine-supplied completed.
-        total: Original routine-supplied total.
-        progress_status: Original routine-supplied progress status.
+            completed: Original routine-supplied completed.
+            total: Original routine-supplied total.
+            progress_status: Original routine-supplied progress status.
         """
         if self.job.cancel_event.is_set():
             raise _SlowListeningJobCancelledError
@@ -104,11 +119,11 @@ class SlowListeningWorker:
         """Publish pending interaction data and consume its submission.
 
         Args:
-        pending: Original routine-supplied pending.
-        detail: Original routine-supplied detail.
+            pending: Original routine-supplied pending.
+            detail: Original routine-supplied detail.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -133,16 +148,16 @@ class SlowListeningWorker:
         """Ask whether to add the proposed Slow Listening track.
 
         Args:
-        source: Original routine-supplied source.
-        target: Original routine-supplied target.
-        target_release: Original routine-supplied target release.
+            source: Original routine-supplied source.
+            target: Original routine-supplied target.
+            target_release: Original routine-supplied target release.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         choice, _order = self.wait_for_submission(
             SlowListeningPendingChoice(
-                kind=("track"),
+                kind="track",
                 artist=source.primary_artist_name,
                 source_track=source.name,
                 source_release=source.release.name,
@@ -171,16 +186,16 @@ class SlowListeningWorker:
         """Read the submitted release order without changing its validation.
 
         Args:
-        release_date: Original routine-supplied release date.
-        candidates: Original routine-supplied candidates.
+            release_date: Original routine-supplied release date.
+            candidates: Original routine-supplied candidates.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         artist = candidates[0].primary_artist_name if candidates else "Artist"
         choice, order = self.wait_for_submission(
             SlowListeningPendingChoice(
-                kind=("release_order"),
+                kind="release_order",
                 artist=artist,
                 release_date=release_date,
                 releases=self._slow_listening_release_options(candidates),
@@ -197,11 +212,11 @@ class SlowListeningWorker:
         """Wait for acknowledgement of the completed artist.
 
         Args:
-        source: Original routine-supplied source.
+            source: Original routine-supplied source.
         """
         choice, _order = self.wait_for_submission(
             SlowListeningPendingChoice(
-                kind=("completion"),
+                kind="completion",
                 artist=source.primary_artist_name,
                 source_track=source.name,
                 source_release=source.release.name,
@@ -221,7 +236,7 @@ class SlowListeningWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _SlowListeningJobCancelledError
@@ -230,11 +245,11 @@ class SlowListeningWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return review_album_limits.retry_spotify_server_errors(
             operation,
@@ -279,9 +294,7 @@ class SlowListeningWorker:
         return summary
 
     def _completed(self, summary: slow_listening.FlushSummary) -> None:
-        results = [
-            self._slow_listening_track_result(result) for result in summary.results
-        ]
+        results = present_entries(summary.results, self._slow_listening_track_result)
         with self.lock:
             self.job.result.status = "paused" if summary.paused else "completed"
             self.job.result.processed = summary.processed
@@ -322,9 +335,9 @@ class SlowListeningWorker:
             self.job.result.status = "cancelled"
             self.job.result.slow_listening_pending_choice = None
             self.job.result.detail = (
-                ("Slow Listening flush stopped. Progress was saved.")
+                "Slow Listening flush stopped. Progress was saved."
                 if not self.dry_run
-                else ("Slow Listening dry run stopped.")
+                else "Slow Listening dry run stopped."
             )
             self.append(self.job, self.job.result.detail)
 
@@ -351,7 +364,7 @@ class SlowListeningWorker:
             self.job.result.slow_listening_pending_choice = None
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
-                + (". Progress was saved.")
+                + ". Progress was saved."
             )
             self.append(self.job, self.job.result.detail)
 

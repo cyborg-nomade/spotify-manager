@@ -47,10 +47,10 @@ class DiscographyHandlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         configuration = self.Settings()
@@ -61,7 +61,7 @@ class DiscographyHandlers:
                 configuration.discography_requeue_playlist,
             )
             queue_3_playlist_id = discography.parse_playlist_id(
-                configuration.the_queue_3_playlist, ("THE_QUEUE_3_PLAYLIST")
+                configuration.the_queue_3_playlist, "THE_QUEUE_3_PLAYLIST"
             )
         except discography.DiscographyConfigError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -83,7 +83,7 @@ class DiscographyHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="plan_discographies")
@@ -99,10 +99,10 @@ class DiscographyHandlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="plan_discographies")
@@ -111,7 +111,7 @@ class DiscographyHandlers:
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
                     status_code=409,
-                    detail=("Discography job is not waiting for a choice"),
+                    detail="Discography job is not waiting for a choice",
                 )
             self._validate_submission(pending, request)
             job.submitted_choice = request.choice
@@ -128,17 +128,17 @@ class DiscographyHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="plan_discographies")
         with self._blast_jobs_lock:
             if job.result.status not in self._ACTIVE_JOB_STATUSES:
                 raise HTTPException(
-                    status_code=409, detail=("Discography job is not active")
+                    status_code=409, detail="Discography job is not active"
                 )
             job.result.status = "cancelling"
             job.result.discography_pending_choice = None
@@ -155,25 +155,25 @@ class DiscographyHandlers:
             available = set(option_ids(pending.artist_candidates))
             if request.choice not in available | {"quit"}:
                 raise HTTPException(
-                    status_code=400, detail=("Spotify artist choice is not available")
+                    status_code=400, detail="Spotify artist choice is not available"
                 )
         elif pending.kind == "releases":
             if request.choice not in {"select", "none", "quit"}:
                 raise HTTPException(
                     status_code=400,
-                    detail=("release checklist choice is not available"),
+                    detail="release checklist choice is not available",
                 )
             available = set(option_ids(pending.releases))
             selected = set(request.release_ids)
-            if request.choice == ("select") and (
+            if request.choice == "select" and (
                 not request.release_ids
                 or len(selected) != len(request.release_ids)
                 or (not selected.issubset(available))
             ):
                 raise HTTPException(
-                    status_code=400, detail=("selected releases are not available")
+                    status_code=400, detail="selected releases are not available"
                 )
         elif request.choice not in {"apply", "keep", "quit"}:
             raise HTTPException(
-                status_code=400, detail=("final discography choice is not available")
+                status_code=400, detail="final discography choice is not available"
             )

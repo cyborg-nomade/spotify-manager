@@ -6,7 +6,9 @@ changed. [Item 2 characterization coverage](CHARACTERIZATION.md) was approved,
 deployed, and merged in PR #61. [Item 3 domain policies](DOMAIN_POLICIES.md) were
 deployed and merged in PR #62. [Item 4 integration ports](INTEGRATION_PORTS.md)
 were deployed and merged in PR #63. [Item 5 vertical slices](VERTICAL_SLICES.md)
-are implemented for review.
+were deployed and merged in PR #64. [Item 6 routine families](ROUTINE_FAMILIES.md)
+were deployed and merged in PR #65. [Item 7 interfaces and jobs](INTERFACES_AND_JOBS.md)
+are complete and ready for PR review, with the local web environment available.
 
 **Source baseline:** `37ff9f28930f22807af2f4723ebf9f13f5f9104c` on `master`.
 The application code is the same as the roadmap's `fbcfc65` audit baseline.

@@ -52,10 +52,10 @@ class SomethingOldHandlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         configuration = self.Settings()
@@ -89,7 +89,7 @@ class SomethingOldHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="something_old")
@@ -105,10 +105,10 @@ class SomethingOldHandlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="something_old")
@@ -117,7 +117,7 @@ class SomethingOldHandlers:
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
                     status_code=409,
-                    detail=("Something Old job is not waiting for a choice"),
+                    detail="Something Old job is not waiting for a choice",
                 )
             self._validate_submission(pending, request)
             job.submitted_choice = request.choice
@@ -133,17 +133,17 @@ class SomethingOldHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="something_old")
         with self._blast_jobs_lock:
             if job.result.status not in self._ACTIVE_JOB_STATUSES:
                 raise HTTPException(
-                    status_code=409, detail=("Something Old job is not active")
+                    status_code=409, detail="Something Old job is not active"
                 )
             job.result.status = "cancelling"
             job.result.something_old_pending_choice = None
@@ -164,5 +164,5 @@ class SomethingOldHandlers:
             allowed = {"quit", *option_ids(pending.releases)}
         if request.choice not in allowed:
             raise HTTPException(
-                status_code=400, detail=("Something Old choice is not available")
+                status_code=400, detail="Something Old choice is not available"
             )

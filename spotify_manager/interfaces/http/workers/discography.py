@@ -23,6 +23,7 @@ from spotify_manager.interfaces.http.models.discography import DiscographyReleas
 from spotify_manager.interfaces.http.models.something_old import (
     SomethingOldArtistOption,
 )
+from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.workers.errors import _DiscographyJobCancelledError
 from spotify_manager.routines import discography
 from spotify_manager.routines import review_album_limits
@@ -31,7 +32,22 @@ from spotify_manager.routines import something_old
 
 @dataclass(kw_only=True)
 class DiscographyWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_ids: Explicit playlist ids input or adapter boundary.
+        queue_3_playlist_id: Explicit queue 3 playlist id input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _discography_artist_result: Explicit discography artist result input or adapter
+            boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -72,7 +88,7 @@ class DiscographyWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -84,11 +100,11 @@ class DiscographyWorker:
         """Publish pending interaction data and consume its submission.
 
         Args:
-        pending: Original routine-supplied pending.
-        detail: Original routine-supplied detail.
+            pending: Original routine-supplied pending.
+            detail: Original routine-supplied detail.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -112,21 +128,19 @@ class DiscographyWorker:
         """Read the original discography release selection.
 
         Args:
-        artist: Original routine-supplied artist.
-        releases: Original routine-supplied releases.
+            artist: Original routine-supplied artist.
+            releases: Original routine-supplied releases.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         choice, release_ids = self.wait_for_submission(
             DiscographyPendingChoice(
-                kind=("releases"),
+                kind="releases",
                 artist=artist.name,
                 queue=discography.QUEUE_LABELS[artist.queue],
                 releases=self._discography_release_options(releases),
-                default_release_ids=[
-                    release.spotify_id for release in releases if release.default
-                ],
+                default_release_ids=self._default_release_ids(releases),
             ),
             (f"Choose the releases to count for {artist.name}."),
         )
@@ -144,17 +158,17 @@ class DiscographyWorker:
         """Resolve a historical artist using the original choices.
 
         Args:
-        artist_name: Original routine-supplied artist name.
-        candidates: Original routine-supplied candidates.
+            artist_name: Original routine-supplied artist name.
+            candidates: Original routine-supplied candidates.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         choice, _release_ids = self.wait_for_submission(
             DiscographyPendingChoice(
-                kind=("artist"),
+                kind="artist",
                 artist=artist_name,
-                queue=discography.QUEUE_LABELS[("memory_lane")],
+                queue=discography.QUEUE_LABELS["memory_lane"],
                 artist_candidates=self._something_old_artist_options(candidates),
             ),
             (f"Choose the exact Spotify artist for {artist_name}."),
@@ -165,7 +179,7 @@ class DiscographyWorker:
         """Publish original discography progress text.
 
         Args:
-        detail: Original routine-supplied detail.
+            detail: Original routine-supplied detail.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -177,7 +191,7 @@ class DiscographyWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _DiscographyJobCancelledError
@@ -186,11 +200,11 @@ class DiscographyWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return review_album_limits.retry_spotify_server_errors(
             operation,
@@ -268,7 +282,7 @@ class DiscographyWorker:
         with self.lock:
             self.job.result.status = "paused"
             self.job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + (".")
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             self.append(self.job, self.job.result.detail)
 
@@ -352,9 +366,9 @@ class DiscographyWorker:
             self.job.result.discography_total_releases = plan.total_releases
             self.job.result.discography_days = plan.days
             self.job.result.discography_open_slots = plan.open_slots
-            self.job.result.discography_results = [
-                self._discography_artist_result(selection) for selection in plan.artists
-            ]
+            self.job.result.discography_results = present_entries(
+                plan.artists, self._discography_artist_result
+            )
 
     def _complete_or_apply_plan(self, plan: discography.DiscographyPlan) -> None:
         if not plan.artists:
@@ -376,8 +390,8 @@ class DiscographyWorker:
                 self.append(self.job, self.job.result.detail)
             return
         choice, _release_ids = self.wait_for_submission(
-            DiscographyPendingChoice(kind=("confirm")),
-            ("Confirm removal from the source queues and Queue 3 where applicable."),
+            DiscographyPendingChoice(kind="confirm"),
+            "Confirm removal from the source queues and Queue 3 where applicable.",
         )
         if choice == "quit":
             raise _DiscographyJobCancelledError
@@ -413,3 +427,12 @@ class DiscographyWorker:
                 "."
             )
             self.append(self.job, self.job.result.detail)
+
+    def _default_release_ids(
+        self, releases: tuple[discography.CatalogRelease, ...]
+    ) -> list[str]:
+        identifiers = []
+        for release in releases:
+            if release.default:
+                identifiers.append(release.spotify_id)
+        return identifiers

@@ -42,7 +42,25 @@ from spotify_manager.routines import something_old
 
 @dataclass(kw_only=True)
 class SomethingOldWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        api_key: Explicit api key input or adapter boundary.
+        username: Explicit username input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        create_lastfm: Explicit create lastfm input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _something_old_date: Explicit something old date input or adapter boundary.
+        _something_old_track_result: Explicit something old track result input or
+            adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -93,7 +111,7 @@ class SomethingOldWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -105,11 +123,11 @@ class SomethingOldWorker:
         """Publish pending interaction data and consume its submission.
 
         Args:
-        pending: Original routine-supplied pending.
-        detail: Original routine-supplied detail.
+            pending: Original routine-supplied pending.
+            detail: Original routine-supplied detail.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             if self.job.cancel_event.is_set():
@@ -132,11 +150,11 @@ class SomethingOldWorker:
         """Resolve the original ambiguous Spotify artist selection.
 
         Args:
-        artist: Original routine-supplied artist.
-        candidates: Original routine-supplied candidates.
+            artist: Original routine-supplied artist.
+            candidates: Original routine-supplied candidates.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         average_date = self._something_old_date(artist.average_scrobble_ms)
         with self.lock:
@@ -144,7 +162,7 @@ class SomethingOldWorker:
             self.job.result.something_old_average_scrobble_date = average_date
         return self.wait_for_submission(
             SomethingOldPendingChoice(
-                kind=("artist"),
+                kind="artist",
                 artist=artist.artist,
                 scrobbles=artist.scrobbles,
                 average_scrobble_date=average_date,
@@ -161,11 +179,11 @@ class SomethingOldWorker:
         """Read the original Something Old selection mode.
 
         Args:
-        artist: Original routine-supplied artist.
-        spotify_artist: Original routine-supplied spotify artist.
+            artist: Original routine-supplied artist.
+            spotify_artist: Original routine-supplied spotify artist.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         with self.lock:
             self.job.result.something_old_artist = artist.artist
@@ -175,7 +193,7 @@ class SomethingOldWorker:
             self.job.result.something_old_spotify_artist = spotify_artist.name
         return self.wait_for_submission(
             SomethingOldPendingChoice(
-                kind=("mode"),
+                kind="mode",
                 artist=artist.artist,
                 scrobbles=artist.scrobbles,
                 average_scrobble_date=self._something_old_date(
@@ -194,15 +212,15 @@ class SomethingOldWorker:
         """Read the original Something Old release selection.
 
         Args:
-        artist: Original routine-supplied artist.
-        releases: Original routine-supplied releases.
+            artist: Original routine-supplied artist.
+            releases: Original routine-supplied releases.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return self.wait_for_submission(
             SomethingOldPendingChoice(
-                kind=("album"),
+                kind="album",
                 artist=artist.artist,
                 scrobbles=artist.scrobbles,
                 average_scrobble_date=self._something_old_date(
@@ -218,7 +236,7 @@ class SomethingOldWorker:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
-        seconds: Original routine-supplied seconds.
+            seconds: Original routine-supplied seconds.
         """
         if self.job.cancel_event.wait(seconds):
             raise _SomethingOldJobCancelledError
@@ -227,11 +245,11 @@ class SomethingOldWorker:
         """Apply the original retry policy with job-owned event callbacks.
 
         Args:
-        operation: Original routine-supplied operation.
-        description: Original routine-supplied description.
+            operation: Original routine-supplied operation.
+            description: Original routine-supplied description.
 
         Returns:
-        The original accepted routine callback result.
+            The original accepted routine callback result.
         """
         return review_album_limits.retry_spotify_server_errors(
             operation,
@@ -284,7 +302,7 @@ class SomethingOldWorker:
         tracks = [self._something_old_track_result(track) for track in summary.tracks]
         with self.lock:
             self.job.result.status = (
-                ("cancelled") if summary.action == ("cancelled") else ("completed")
+                "cancelled" if summary.action == "cancelled" else "completed"
             )
             self.job.result.something_old_action = summary.action
             self.job.result.playlist_length_before = summary.playlist_length_before
@@ -332,7 +350,7 @@ class SomethingOldWorker:
             self.job.result.status = "paused"
             self.job.result.something_old_pending_choice = None
             self.job.result.detail = (
-                review_album_limits.format_transient_spotify_failure(exc) + (".")
+                review_album_limits.format_transient_spotify_failure(exc) + "."
             )
             self.append(self.job, self.job.result.detail)
 

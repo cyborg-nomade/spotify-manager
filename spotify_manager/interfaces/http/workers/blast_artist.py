@@ -25,7 +25,22 @@ from spotify_manager.routines import review_album_limits
 
 @dataclass(kw_only=True)
 class BlastArtistWorker:
-    """Own one routine job and its explicitly supplied interface dependencies."""
+    """Own one routine job and its explicitly supplied interface dependencies.
+
+    Args:
+        job_id: Explicit job id input or adapter boundary.
+        spotify: Explicit spotify input or adapter boundary.
+        playlist_id: Explicit playlist id input or adapter boundary.
+        count: Explicit count input or adapter boundary.
+        dry_run: Explicit dry run input or adapter boundary.
+        connection_failure: Explicit connection failure input or adapter boundary.
+        logger: Explicit logger input or adapter boundary.
+        append: Explicit append input or adapter boundary.
+        lock: Explicit lock input or adapter boundary.
+        _playlist_job_retry: Explicit playlist job retry input or adapter boundary.
+        clock: Explicit clock input or adapter boundary.
+        lookup: Explicit lookup input or adapter boundary.
+    """
 
     job_id: str
     spotify: Spotify
@@ -75,7 +90,7 @@ class BlastArtistWorker:
         """Present a routine message using this job's original log sink.
 
         Args:
-        message: Original routine-supplied message.
+            message: Original routine-supplied message.
         """
         with self.lock:
             self.job.result.detail = message
@@ -92,8 +107,8 @@ class BlastArtistWorker:
             self.job.result.detail = "Reading recently dormant Last.fm artists"
             self.append(
                 self.job,
-                ("Dormant-artist recovery started")
-                + ((" in dry-run mode.") if self.dry_run else (".")),
+                "Dormant-artist recovery started"
+                + (" in dry-run mode." if self.dry_run else "."),
             )
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
         self.previous_spotify_event_callback = None

@@ -55,24 +55,24 @@ class WineHandlers:
             no_discovery: Original validated no discovery value.
             choose_album_endpoints: Original validated choose album endpoints value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         configuration = self.Settings()
         try:
             new_wine_playlist_id = new_wine.parse_playlist_id(
                 configuration.new_wine_from_old_bottles_playlist,
-                ("NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST"),
+                "NEW_WINE_FROM_OLD_BOTTLES_PLAYLIST",
             )
             sauvignon_playlist_id = new_wine.parse_playlist_id(
                 configuration.sauvignon_terre_neuve_playlist,
-                ("SAUVIGNON_TERRE_NEUVE_PLAYLIST"),
+                "SAUVIGNON_TERRE_NEUVE_PLAYLIST",
             )
             wine_cellar_playlist_id = new_wine.parse_playlist_id(
-                configuration.wine_cellar_playlist, ("WINE_CELLAR_PLAYLIST")
+                configuration.wine_cellar_playlist, "WINE_CELLAR_PLAYLIST"
             )
         except new_wine.NewWineConfigError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -100,7 +100,7 @@ class WineHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="flush_new_wine")
@@ -116,10 +116,10 @@ class WineHandlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="flush_new_wine")
@@ -128,7 +128,7 @@ class WineHandlers:
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
                     status_code=409,
-                    detail=("New Wine job is not waiting for a release choice"),
+                    detail="New Wine job is not waiting for a release choice",
                 )
             self._validate_submission(pending, request)
             job.submitted_choice = request.choice
@@ -144,17 +144,17 @@ class WineHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="flush_new_wine")
         with self._blast_jobs_lock:
             if job.result.status not in self._ACTIVE_JOB_STATUSES:
                 raise HTTPException(
-                    status_code=409, detail=("New Wine job is not active")
+                    status_code=409, detail="New Wine job is not active"
                 )
             job.result.status = "cancelling"
             job.result.pending_choice = None
@@ -185,5 +185,5 @@ class WineHandlers:
                 allowed.add(new_wine.CHOICE_FINISH)
         if request.choice not in allowed:
             raise HTTPException(
-                status_code=400, detail=("release choice is not available")
+                status_code=400, detail="release choice is not available"
             )

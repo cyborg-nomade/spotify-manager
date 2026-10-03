@@ -40,7 +40,7 @@ class QueueFlushHandlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self.start_queue_flush_job(
@@ -61,7 +61,7 @@ class QueueFlushHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="flush_queue")
@@ -74,7 +74,7 @@ class QueueFlushHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self._cancel_queue_job(job_id, "flush_queue", "Queue flush")

@@ -64,10 +64,10 @@ class ReleasesHandlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         configuration = self.Settings()
@@ -95,10 +95,10 @@ class ReleasesHandlers:
         Args:
             known_fingerprint: Original validated known fingerprint value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         try:
@@ -114,19 +114,17 @@ class ReleasesHandlers:
         Args:
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         with self._blast_jobs_lock:
             if self._has_active_release_check():
                 raise HTTPException(
                     status_code=409,
-                    detail=(
-                        "New-release check is active; state restore was not applied"
-                    ),
+                    detail="New-release check is active; state restore was not applied",
                 )
             return self._restore_state_locked(request)
 
@@ -144,7 +142,7 @@ class ReleasesHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="check_new_releases")
@@ -160,10 +158,10 @@ class ReleasesHandlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="check_new_releases")
@@ -172,7 +170,7 @@ class ReleasesHandlers:
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
                     status_code=409,
-                    detail=("New-release check is not waiting for a choice"),
+                    detail="New-release check is not waiting for a choice",
                 )
             self._validate_submission(pending, request)
             job.submitted_choice = request.choice
@@ -188,17 +186,17 @@ class ReleasesHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="check_new_releases")
         with self._blast_jobs_lock:
             if job.result.status not in self._ACTIVE_JOB_STATUSES:
                 raise HTTPException(
-                    status_code=409, detail=("New-release check is not active")
+                    status_code=409, detail="New-release check is not active"
                 )
             job.result.status = "cancelling"
             job.result.release_check_pending_choice = None
@@ -226,7 +224,7 @@ class ReleasesHandlers:
             ).strip()
             if request.choice not in allowed and (not (custom_search and search_text)):
                 raise HTTPException(
-                    status_code=400, detail=("artist mapping choice is not available")
+                    status_code=400, detail="artist mapping choice is not available"
                 )
         elif request.choice not in {
             release_check.CHOICE_ADD,
@@ -238,7 +236,7 @@ class ReleasesHandlers:
             and (not pending.unattached_single)
         ):
             raise HTTPException(
-                status_code=400, detail=("release review choice is not available")
+                status_code=400, detail="release review choice is not available"
             )
 
     def _restore_state_locked(
@@ -247,7 +245,7 @@ class ReleasesHandlers:
         try:
             candidate = release_check.validate_state(request.state)
             state_access = self.get_state_service().namespace(
-                ("release_check"),
+                "release_check",
                 release_check._default_state,
                 release_check.validate_state,
             )
@@ -256,14 +254,14 @@ class ReleasesHandlers:
             if current_fingerprint != request.expected_server_fingerprint:
                 raise HTTPException(
                     status_code=409,
-                    detail=("Release-check state changed; reload before restoring"),
+                    detail="Release-check state changed; reload before restoring",
                 )
             if not self._release_state_is_newer(candidate, current):
                 raise HTTPException(
-                    status_code=409, detail=("Browser release-check state is not newer")
+                    status_code=409, detail="Browser release-check state is not newer"
                 )
             state_access.save(
-                candidate, message=("Restore newer browser release-check state")
+                candidate, message="Restore newer browser release-check state"
             )
             return self._release_check_state_snapshot()
         except StateConflictError as exc:

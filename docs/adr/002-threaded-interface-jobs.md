@@ -1,8 +1,7 @@
 # ADR 002: explicit interface jobs during the synchronous migration
 
-**Status:** proposed in Item 7; implementation is in progress on
-`codex/refactor-07-interfaces-and-jobs`. Review the complete Item 7 PR before its
-deployment or merge.
+**Status:** implemented in Item 7 on `codex/refactor-07-interfaces-and-jobs`,
+awaiting complete PR review. Deployment and merge require owner approval.
 
 ## Context
 
@@ -90,13 +89,17 @@ fixtures to remain useful throughout the migration.
   snapshot log buffers are detached.
 - [x] Extract feature wire models, 16 result presenters, process-local handles,
   active queries and initial shared lifecycle/log helpers.
-- [ ] Extract worker callback contexts and explicit interaction dependencies;
+- [x] Extract worker callback contexts and explicit interaction dependencies;
   complete callback ownership and cancellation/choice race tests.
-  Analysis callbacks are extracted and directly covered, including concurrent
-  sink/signal ownership and the unchanged SDK hook restoration convention.
-- [ ] Extract feature HTTP routers and CLI commands/renderers/prompts.
-  Original API registration is separated into 24 explicit feature factories;
-  handler logic and CLI extraction remain in progress.
-- [ ] Verify full coverage, strict typing, frozen public artifacts, dependency
+  All worker families use explicit contexts. Concurrent callback/signal ownership,
+  SDK restoration and real choice/cancellation races are covered. Interaction and
+  snapshot-failure tests also pass against Item 6 `93a36aa`.
+- [x] Extract feature HTTP routers and CLI commands/renderers/prompts.
+  Registration and handler logic use 24 HTTP feature adapters. CLI execution and
+  presentation use 25 contexts plus the history adapter.
+- [x] Verify full coverage, strict typing, frozen public artifacts, dependency
   boundaries and local frontend/job behavior on the complete Item 7 branch.
+  The [delivery evidence](../refactor/INTERFACES_AND_JOBS.md) records 10,373 passing
+  tests, 96.44% package statement / 92.66% branch coverage, 100% inner-layer
+  coverage, unchanged public artifacts and local browser/reconnect checks.
 - [ ] Obtain Item 7 PR approval before deployment or merge.

@@ -9,6 +9,7 @@ from uuid import UUID
 from spotipy import Spotify
 
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
+from spotify_manager.interfaces.http.job_registry import register_job
 from spotify_manager.interfaces.http.models.jobs import BlastJobResult
 
 
@@ -50,7 +51,7 @@ class NewYearHandlers:
             dry_run: Original validated dry run value.
             year: Original validated year value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         with self._blast_jobs_lock:
@@ -60,11 +61,12 @@ class NewYearHandlers:
             job_id = self.uuid4().hex
             job = _BlastJob(
                 result=BlastJobResult(
-                    job_id=job_id, command=("new_year"), dry_run=dry_run
+                    job_id=job_id, command="new_year", dry_run=dry_run
                 )
             )
-            self._blast_jobs[job_id] = job
-            snapshot = self._blast_job_snapshot(job)
+            snapshot = register_job(
+                self._blast_jobs, job_id, job, self._blast_job_snapshot
+            )
         self.Thread(
             target=self._run_new_year_job,
             args=(job_id, client, year, dry_run),
@@ -87,7 +89,7 @@ class NewYearHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="new_year")
@@ -100,9 +102,9 @@ class NewYearHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self._cancel_simple_playlist_job(
-            job_id, command=("new_year"), detail=("Stopping New Year's Routines")
+            job_id, command="new_year", detail="Stopping New Year's Routines"
         )

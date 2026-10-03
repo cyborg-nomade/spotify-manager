@@ -75,22 +75,22 @@ class LookupsHandlers:
             name: Original validated name value.
             artist_id: Original validated artist id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         if reference is not None:
             try:
                 name, artist_id = self.parse_spotify_lookup_reference(
-                    reference, ("artist")
+                    reference, "artist"
                 )
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not name and (not artist_id):
             raise HTTPException(
-                status_code=400, detail=("provide an artist name, ID, or Spotify link")
+                status_code=400, detail="provide an artist name, ID, or Spotify link"
             )
         try:
             return self.get_live_artist_library_stats(
@@ -124,10 +124,10 @@ class LookupsHandlers:
             artist: Original validated artist value.
             threshold: Original validated threshold value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         if reference is not None:
@@ -137,7 +137,7 @@ class LookupsHandlers:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not name and (not album_id):
             raise HTTPException(
-                status_code=400, detail=("provide an album name, ID, or Spotify link")
+                status_code=400, detail="provide an album name, ID, or Spotify link"
             )
         try:
             return self.evaluate_album_live(
@@ -167,10 +167,10 @@ class LookupsHandlers:
             name: Original validated name value.
             track_id: Original validated track id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         if reference is not None:
@@ -180,7 +180,7 @@ class LookupsHandlers:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not name and (not track_id):
             raise HTTPException(
-                status_code=400, detail=("provide a track name, ID, or Spotify link")
+                status_code=400, detail="provide a track name, ID, or Spotify link"
             )
         try:
             return self.get_track_scrobble_status(

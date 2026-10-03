@@ -48,7 +48,7 @@ class AnalysisHandlers:
         Args:
             client: Original validated client value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self.start_analysis_job("sync", client)
@@ -62,7 +62,7 @@ class AnalysisHandlers:
             client: Original validated client value.
             full_rebuild: Original validated full rebuild value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self.start_analysis_job("mirrors", client, full_rebuild=full_rebuild)
@@ -80,11 +80,11 @@ class AnalysisHandlers:
             client: Original validated client value.
             full_rebuild: Original validated full rebuild value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self.start_analysis_job(
-            ("mirrors"), client, full_rebuild=full_rebuild, mirror_resource=resource
+            "mirrors", client, full_rebuild=full_rebuild, mirror_resource=resource
         )
 
     def cmd_active_library_analysis_jobs(self) -> list[AnalysisJobResult]:
@@ -101,7 +101,7 @@ class AnalysisHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_analysis_job(job_id)
@@ -114,17 +114,17 @@ class AnalysisHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_analysis_job(job_id)
         with self._analysis_jobs_lock:
             if job.result.status not in self._ACTIVE_JOB_STATUSES:
                 raise HTTPException(
-                    status_code=409, detail=("analysis job is not active")
+                    status_code=409, detail="analysis job is not active"
                 )
             job.cancel_event.set()
             job.result.status = "cancelling"

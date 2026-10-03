@@ -40,10 +40,10 @@ class FoundArtHandlers:
             client: Original validated client value.
             count: Original validated count value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         configuration = self.Settings()
@@ -72,7 +72,7 @@ class FoundArtHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="found_art")

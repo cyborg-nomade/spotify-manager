@@ -42,16 +42,16 @@ class DailyMindRadioHandlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         try:
             playlist_id = blast_from_past.parse_playlist_id(
                 self.Settings().daily_mind_radio_playlist,
-                setting_name=("DAILY_MIND_RADIO_PLAYLIST"),
+                setting_name="DAILY_MIND_RADIO_PLAYLIST",
             )
         except blast_from_past.BlastFromPastConfigError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -71,7 +71,7 @@ class DailyMindRadioHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="daily_mind_radio")
@@ -84,9 +84,9 @@ class DailyMindRadioHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self._cancel_simple_playlist_job(
-            job_id, command=("daily_mind_radio"), detail=("Stopping Daily Mind Radio")
+            job_id, command="daily_mind_radio", detail="Stopping Daily Mind Radio"
         )

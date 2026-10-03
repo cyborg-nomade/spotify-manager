@@ -50,16 +50,16 @@ class HistoricalHandlers:
             max_playlist_length: Original validated max playlist length value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         if count is not None and max_playlist_length is not None:
             raise HTTPException(
                 status_code=400,
-                detail=("use either count or max_playlist_length, not both"),
+                detail="use either count or max_playlist_length, not both",
             )
         effective_count = 10 if count is None and max_playlist_length is None else count
         try:
@@ -86,7 +86,7 @@ class HistoricalHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="blast_from_the_past")
@@ -99,11 +99,11 @@ class HistoricalHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self._cancel_simple_playlist_job(
             job_id,
-            command=("blast_from_the_past"),
-            detail=("Stopping A blast from the past"),
+            command="blast_from_the_past",
+            detail="Stopping A blast from the past",
         )

@@ -38,7 +38,7 @@ class LibraryCommandsHandlers:
         Args:
             client: Original validated client value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         self.compare_your_library_and_all_albums()
@@ -55,12 +55,12 @@ class LibraryCommandsHandlers:
             client: Original validated client value.
             just_update: Original validated just update value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         albums = self.update_total_album_list(client, just_update)
         return CommandResult(
-            command=("update_total_albums"), detail=(f"{len(albums)} albums in list")
+            command="update_total_albums", detail=(f"{len(albums)} albums in list")
         )
 
     def cmd_restore_your_library(self, client: Spotify) -> CommandResult:
@@ -69,7 +69,7 @@ class LibraryCommandsHandlers:
         Args:
             client: Original validated client value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         self.restore_your_library_from_file(client)
@@ -90,7 +90,7 @@ class LibraryCommandsHandlers:
         Args:
             client: Original validated client value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         self.analyse_comparison(client)
@@ -102,7 +102,7 @@ class LibraryCommandsHandlers:
         Args:
             client: Original validated client value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         self.convert_your_library_file(client)

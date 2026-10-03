@@ -1,220 +1,137 @@
-# Item 7: interfaces and shared job mechanics
+# Item 7: feature interfaces and shared job mechanics
 
-**Status:** in progress on `codex/refactor-07-interfaces-and-jobs`, starting from
-the clean Item 6 merge `93a36aa`. Deliver the complete item in one PR, start its
-local web environment for review, and await approval before deployment or merge.
+**Status:** implemented and ready for PR review on
+`codex/refactor-07-interfaces-and-jobs`, starting from the deployed Item 6 merge
+`93a36aa`. Deployment and merge require Item 7 PR approval.
 
-The proposed delivery design is recorded in
-[ADR 002](../adr/002-threaded-interface-jobs.md). Implementation remains
-incremental on this branch; there is no partial Item 7 PR.
+The design and compatibility trade-offs are in
+[ADR 002](../adr/002-threaded-interface-jobs.md). Business rules and use cases
+remain in the domain/application layers extracted in Items 3–6.
 
-## Implemented opening increment
+## Delivery boundaries
 
-- Freeze original queued wire views, launch arguments, 729 directed overlaps
-  and 216 phase decisions from Item 6 merge `93a36aa`, before production changes.
-  Replays also protect 27 thread-start failures and four concurrent reservations.
-- Check polling for each of the 27 configurations in all eight phases against
-  the frozen original active-phase decisions, with detached log buffers.
-- Extract wire models into feature modules under `interfaces/http/models/` and
-  retain explicit compatibility imports in `api.py`. Preserve model docstrings
-  because they are included in the frozen OpenAPI schemas.
-- Extract 16 routine result conversions into typed HTTP feature presenters.
-  Replace compound/multiline result comprehensions with explicit loops.
-- Extract process-local handles into the HTTP adapter and share active-phase,
-  conflict-selection, log acceptance and retention helpers through an SDK-free
-  application module. Keep the existing locks, first-conflict selection order,
-  empty-message behavior and sequence/factory failure boundaries.
-- Replace 20 repeated active-job polling comprehensions with typed query helpers
-  while retaining facade snapshot override seams and encounter order.
+| Responsibility | Implementation |
+| --- | --- |
+| Stable imports, framework signatures, overrides and explicit composition | `api.py`, `main.py` |
+| Original URL/method/status/model registrations | 24 feature factories in `interfaces/http/routers/` |
+| HTTP validation, submission, cancellation and response presentation | 24 feature adapters in `interfaces/http/handlers/` |
+| Original request/response schemas | `interfaces/http/models/` |
+| Typed routine outcome to original JSON conversion | `interfaces/http/presenters/` |
+| Job-owned callbacks, interactions, outcomes and cleanup | `interfaces/http/analysis_worker.py`, 18 contexts in `interfaces/http/workers/` |
+| Process-local handles and separate cancellation/submission signals | `interfaces/http/job_records.py` |
+| Locked lookup, conflict responses and registration-before-snapshot | `interfaces/http/job_registry.py` |
+| Ordered active snapshots and bounded playlist retries | `interfaces/http/job_queries.py`, `interfaces/http/playlist_retry.py` |
+| SDK-free active-phase, accepted-log and submission polling rules | `application/job_lifecycle.py` |
+| CLI execution, prompts, errors and rendering | 25 contexts in `interfaces/cli/features/`, plus `interfaces/cli/history.py` |
 
-At this checkpoint, 1,479 focused job/API/web tests pass. The shared lifecycle
-module has 100% statement and branch coverage; strict typing of the new modules
-and support tests passes. All 11 frozen public artifacts match after the model
-and presenter extraction. Worker, router and CLI extraction are still pending.
+The facade supplies explicit dependencies to fresh command/handler contexts.
+Workers use ordinary methods bound to their own handles and signals. Common
+mechanics are small named helpers; each feature retains its visible choices,
+status transitions and effect boundaries. No runtime handler generation, copied
+module globals or workflow framework is introduced.
 
-The opening increment also passes the full randomized suite: 10,284 tests with
-seed `20261002`, 96.28% package statement coverage and 92.38% branch coverage.
-Domain/application statements and branches remain 100%. Package mypy passes
-for 472 files; Ruff and formatting pass. The separate post-extraction capture
-still matches all 11 original public artifacts. This evidence applies to the
-opening increment, not to later unverified changes or a complete Item 7 release.
+## Behavior retained
 
-## Analysis worker increment
+- All 44 CLI commands and 115 API registrations retain signatures, options,
+  defaults, help/schema documentation, response fields and encounter order.
+  Web additions, password middleware and dependency overrides remain.
+- Analysis conflicts are scoped to the exact command; playlist/history starts
+  share their original registry. Different analysis commands and starts in
+  separate registries can overlap. First-conflict selection remains lazy and
+  ordered, with the original 409 detail.
+- Slot checks, construction, initial logs, registration and detached snapshots
+  stay under the original lock. Dispatch follows registration. Snapshot and
+  thread-start failures retain the queued handle; annual jobs retain their
+  original absence of a queued log.
+- `queued`, `running`, `waiting` and `cancelling` remain active. Terminal handles
+  remain retained in process memory.
+- Empty log text is rejected before observing its clock/factory. Accepted logs
+  advance sequence numbers and then retain the latest 250 entries. Polling
+  returns detached models and log buffers.
+- Choice validation and submission remain atomic. Cancellation wakes the
+  original signals, clears the original pending view, and preserves accepted
+  effects/checkpoints. An accepted token or order stays stored until its safe
+  consumption boundary.
+- Submission polling still waits 0.5 seconds before checking cancellation and
+  consuming a value. Empty strings and empty tuples retain their non-`None`
+  meaning. Retry timing, prompt stop/restart and callback restoration order
+  remain unchanged.
+- SDK construction, caches, credential rotation and threaded dispatch are
+  preserved. Existing last-resort worker and CLI rotation/token-refresh error
+  boundaries remain for compatibility; new business handling uses specific errors.
 
-The analysis worker now uses a feature-owned `AnalysisWorker` context with
-ordinary methods for progress, logging, retry waiting, dispatch and outcome
-presentation. Its facade keeps the original scheduler target, expected exception
-handling, last-resort error boundary and callback restoration before completion
-timestamping. Client construction and shared SDK hook semantics are unchanged.
+Public facade and schema docstrings are frozen interface data. Their text stays
+unchanged; new adapters use Google-style documentation. The wide `BlastJobResult`
+remains an HTTP compatibility view populated from typed routine outcomes, with
+no dependency from the business layers on rendering or wire models.
 
-Direct tests cover all four dispatch paths, missing clients/resources, repeated
-progress, unknown or smaller totals, cancellation detail, empty messages, retry
-resume/cancellation, optional rate-limit timestamps, outcome logs, SDK hook
-binding/restoration and concurrent callback/signal ownership. The 28 tests provide
-100% statement and branch coverage of the new worker. Frozen interface artifacts
-still match. Other worker families and CLI adapters remain pending. Router
-registration is separated in the next increment below.
+## Original evidence and verification
 
-## HTTP router increment
+`tests/fixtures/refactor/job_lifecycle_original.json` was captured from Item 6
+**before** production extraction and remains unchanged. Replays cover 27 launch
+configurations, 729 directed overlaps, 216 phase decisions, 27 thread-start
+failures, four real concurrent reservations and 216 detached polling cases.
+The original 11 public artifacts in `docs/refactor/baseline/` also remain unchanged.
 
-The 115 original API registrations are now declared in 24 feature router
-factories under `interfaces/http/routers/`. `api.py` supplies its original public
-handler functions explicitly and includes the routers in their original encounter
-order. Factories own fresh routers; no handler is generated or rebound through
-copied globals. Existing dependency signatures, response models, status codes,
-handler names and documentation remain unchanged.
+Additional tests cover analysis callback/signal ownership and SDK restoration,
+routine adapter success/error/cancellation paths, constructor-time CLI event
+routing and failure boundaries, lazy/nested router inventory, and real concurrent
+choice/cancellation endpoints. The 27 interaction tests and 27 snapshot-failure
+tests also pass against an isolated checkout of `93a36aa`.
 
-The locked FastAPI represents included routers as lazy route contexts. The audit
-capture now observes their effective metadata, retaining nested prefixes,
-methods, hidden routes and declared response/status information. Tests check
-direct, included and nested registrations, so router extraction cannot make the
-audit silently omit public endpoints. The original baseline is unchanged and
-the complete comparison still verifies all 11 public artifacts.
+Final verification on the complete implementation:
 
-The existing 1,507 job/API/web tests pass after registration moves. Three direct
-audit tests also pass; router factories and audit tests pass strict typing. The
-remaining HTTP handler logic, worker families and CLI extraction are pending.
+- Full randomized suite: **10,373 passed**, seed `20261005`.
+- Package coverage: **96.44% statements** (29,854 / 30,955) and **92.66% branches**
+  (5,369 / 5,794), above the approved 95% / 90% gates.
+- Domain/application statement and branch coverage: **100%**. Separate isolated
+  gates also pass: **1,201 domain** and **3,622 application** tests.
+- Package mypy: **576 files**. All extracted interfaces, shared lifecycle and
+  new ownership/baseline tests pass strict typing.
+- Ruff and formatting pass. Structural audit finds no local functions/classes,
+  lambdas, multiline/compound comprehensions or functions above 25 executable
+  statements in the extracted interface scope; control nesting is at most two.
+- A separate final capture still matches all **11 frozen public artifacts**.
+  The original baseline, dependency inventory and lifecycle fixture are unchanged.
+- Local browser: health is online; **4 / 4 sources** and shared state load; all
+  20 active-job reconnect endpoints return 200; terminal visibility and reload
+  followed by local unlock work without console warnings/errors. No live routine
+  or Spotify write was initiated by the smoke checks.
+
+Local review is available at **http://127.0.0.1:8766/**. Enter any non-empty text
+at the local gate. Startup hydrated the four canonical local data files through
+the existing read path; those runtime changes are excluded from the code commit.
+The earlier preserved runtime stash remains intact.
 
 ## Following a frontend request
 
-Route declarations now provide the first backend entry point when searching for
-a URL used in `frontend/index.html`. They name the existing facade handler,
-whose signature still owns the framework's validation and dependency overrides.
-For a library-analysis start and its later polling:
+For a library-analysis start and later polling:
 
-| Step | Location to follow |
+| Step | Location |
 | --- | --- |
 | Frontend request and polling | `spotify_manager/frontend/index.html` |
-| URL, HTTP method, accepted status and response model | `interfaces/http/routers/analysis.py` |
-| Public handlers, reservation and scheduler target | `api.py`: `cmd_analyse_library_*`, `start_analysis_job`, `_run_analysis_job` |
-| Job-owned progress, cancellation/retry callbacks and outcome presentation | `interfaces/http/analysis_worker.py` |
-| Existing use-case composition and compatibility seams | `routines/analyse_library.py`, `bootstrap/library_analysis.py` |
-| Typed use-case stages and pure business rules | `application/library_analysis_*.py`, `domain/library_analysis*.py` |
-| External implementations and return views | `infrastructure/library_analysis_*.py`, `interfaces/http/models/analysis.py` |
+| URL, method, accepted status and model | `interfaces/http/routers/analysis.py` |
+| Stable framework signature and supplied dependencies | `api.py`: `cmd_analyse_library_*`, named handler factory |
+| Request delegation and poll/cancel response | `interfaces/http/handlers/analysis.py` |
+| Start composition and reservation | `api.py`: `start_analysis_job`; `interfaces/http/job_registry.py` |
+| Job-owned execution, progress, retry and cleanup | `interfaces/http/analysis_worker.py` |
+| Compatibility and use-case composition | `routines/analyse_library.py`, `bootstrap/library_analysis.py` |
+| Typed use cases and pure business rules | `application/library_analysis_*.py`, `domain/library_analysis*.py` |
+| External implementations | `infrastructure/library_analysis_*.py` |
+| Return path | Typed summary → feature presenter → job view → detached poll response → frontend |
 
-Other feature routers follow the same facade entry pattern. Their worker/CLI
-implementation extraction is still in progress; do not assume all logic has
-already moved out of `api.py` and `main.py`.
+Other routers follow the same entry pattern; their workers are under
+`interfaces/http/workers/`. For a CLI operation, start at its Typer command in
+`main.py`, follow its context in `interfaces/cli/features/`, then the routine
+facade/bootstrap into application/domain.
 
-## History CLI increment
+## Review and release
 
-The `update-scrobble-history` command now delegates to a feature-owned
-`interfaces/cli/history.py` adapter with explicit configuration, reader factory,
-refresh and presenter dependencies. Its ordinary `echo` method replaces the
-event lambda. The public command keeps its original Typer signature, flags, help
-text, console/settings creation order and facade override seams.
+The complete item is delivered in one PR. Its local web environment runs on this
+branch so the owner can test before approving. After approval, deploy to Hugging
+Face and verify, merge, preserve unrelated runtime data during cleanup, and
+return to clean, current `master` before the next item.
 
-The summary renderer preserves original table rows, formatting and persistence
-messages. Configuration errors still precede client construction; construction
-errors remain outside the guarded refresh boundary. Two added tests exercise
-construction-time event routing and uncaught construction failure. With the
-original CLI tests, 99 tests pass and cover the new module's statements and
-branches at 100%. Strict typing passes and all 11 frozen public artifacts still
-match. Other CLI command/prompt/rendering families remain in progress.
-
-## Current verified checkpoint
-
-The accumulated opening, analysis-worker, router and history-CLI increments pass
-the full randomized suite: 10,317 tests with seed `20261003`, 96.38% package
-statement coverage and 92.57% branch coverage. Domain/application statements and
-branches remain 100%, as do the extracted analysis worker and history CLI module.
-Package mypy passes for 500 files; all 63 new/extracted interface, lifecycle and
-support-test files pass strict typing. Ruff/formatting and all 11 frozen public
-artifact comparisons pass.
-
-This is an in-progress checkpoint, not the Item 7 exit gate. Remaining work is
-the other worker callback/interaction families, shared lookup/cancellation/choice
-and finalization mechanics, actual feature handler logic, other CLI commands and
-prompts/renderers, and complete local frontend/job smoke verification. Open the
-single Item 7 PR and its local review environment only after the full item is
-complete; do not deploy or merge before user approval.
-
-## HTTP handler increment
-
-The 24 feature adapters under `interfaces/http/handlers/` now own endpoint
-validation, routine delegation, interaction submission and response presentation.
-Named factories in `api.py` supply the original overrideable dependencies;
-public facade signatures and router registrations are unchanged. No runtime
-handler generation or module-global copying is used. Choice validation is
-separated from atomic submission updates so the original lock still surrounds
-both. Shared handle lookup preserves lookup-before-command-guard ordering and
-the existing feature-specific 404 messages.
-
-All 1,510 focused HTTP, worker, web and route-inventory checks pass after this
-extraction. Strict typing, Ruff and formatting pass, and all 11 original public
-artifacts match. The remaining CLI and complete final coverage/local review
-gates are still pending before the single Item 7 PR.
-
-## Implementation sequence
-
-The next verified increment extracts all 18 remaining HTTP worker entry points
-into explicit feature contexts under `interfaces/http/workers/`. Their callbacks
-are ordinary methods, their dependencies are supplied by the facade, and setup,
-execution, outcome presentation and cleanup are separate stages. The original
-last-resort exception boundaries and callback setup/restoration order remain.
-Choice consumption retains the original lock and delegates only its 0.5-second
-polling loop to the application helper; cancellation exceptions still originate
-at the feature's safe boundary. Bounded playlist retries also have named methods.
-
-The 1,524 focused API, worker, web and lifecycle tests pass. The 17 isolated shared
-lifecycle tests provide 100% statement and branch coverage. Strict typing and
-Ruff pass for the new worker/retry/core modules, and all 11 original public
-artifacts still match. This is an incremental check; feature handler logic,
-remaining CLI extraction and the complete final coverage/local review gates
-remain pending before the single Item 7 PR.
-
-1. Characterize existing starts, asymmetric conflicts, command/ID guards,
-   queued snapshots, worker launch arguments and failure boundaries. Freeze
-   original observations before changing production handlers.
-2. Add typed, directly testable job records/events and explicit cancellation and
-   choice channels. Keep process-local lifetime, 250-entry logs, detached
-   snapshots and existing safe cancellation boundaries.
-3. Move actual common reservation, lookup, log, choice, cancellation and terminal
-   cleanup mechanics into a shared lifecycle service. Preserve each feature's
-   conflict scope, validation order and status transitions.
-4. Split HTTP models, presenters, workers and routes by feature. Keep the wide
-   public response envelope through presenters and retain compatibility exports
-   and dependency-override seams in `api.py`.
-5. Split CLI handlers, prompts and renderers by feature, retaining `main.py` as
-   the public entry point and preserving all 44 command signatures and output.
-6. Test every routine adapter, concurrent job reservations, callback ownership,
-   accepted-effect cancellation, choice races and cleanup. Remove mutable shared
-   callbacks only after the applicable compatibility/resource evidence passes.
-7. Run isolated gates, randomized full coverage, strict typing, readability and
-   dependency checks, CLI/OpenAPI comparisons, and local frontend/job smoke tests.
-
-## Compatibility constraints
-
-Execution remains synchronous/threaded during Item 7. Native async clients and
-task lifetime conversion remain Items 8–9. No persistent worker queue, new
-distributed locking, new job retention policy or response schema is introduced.
-
-The two existing registries differ: analyses reject matching active commands;
-playlist/history starts reject active jobs across their shared registry. The
-annual workflow has no initial queued log, unlike the other playlist starts.
-Queue 3 import and flush share the same wire command but differ in their worker
-arguments and annual-only field. Preserve these details rather than making
-the lifecycle mechanically uniform.
-
-Public route names, schemas, validation, statuses and body fields remain frozen.
-Moving implementation modules may change private Python source locations; any
-comparison-tool allowance must apply only to that internal location and must
-continue rejecting changes in public endpoint identity or behavior. Original
-baseline files are never rewritten to the new implementation.
-
-Existing API/CLI tests rely on facade callback and dependency override seams.
-Keep these through explicit composition rather than dynamically copying module
-globals or generating handlers at runtime. New/refactored functions remain
-top-level or ordinary methods, short, flat, fully typed and documented.
-
-## Release starting point
-
-Item 6 is running as Space revision `ffa7c4c9e7f162e6066e9a227775495fb259d48c`.
-The authenticated release check passed with no active jobs. Before Item 7 changes,
-the package has 9,049 passing tests and separate coverage of 96.13% statements and
-91.66% branches; domain/application coverage is 100%.
-
-The pre-existing production nightly artists refresh reports invalid JSON in
-`YourLibrary.json`. It occurred on the Item 5 deployment before this release.
-The authenticated artifact/state checks pass; Item 7 does not silently change
-that source-export behavior or repair production data as part of interface work.
+Native async transport and task/client ownership remain Items 8–9. The known
+pre-existing invalid production `YourLibrary.json` export is not rewritten by
+this interface refactor.

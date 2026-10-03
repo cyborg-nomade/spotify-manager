@@ -57,16 +57,16 @@ class QueueFillHandlers:
             seed_count: Original validated seed count value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         if count is not None and max_playlist_length is not None:
             raise HTTPException(
                 status_code=400,
-                detail=("use either count or maximum playlist length, not both"),
+                detail="use either count or maximum playlist length, not both",
             )
         configuration = self.Settings()
         playlists = self._configured_queue_playlists()
@@ -106,7 +106,7 @@ class QueueFillHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="fill_queue_from_lastfm")
@@ -122,10 +122,10 @@ class QueueFillHandlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="fill_queue_from_lastfm")
@@ -134,7 +134,7 @@ class QueueFillHandlers:
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
                     status_code=409,
-                    detail=("Queue fill is not waiting for an artist mapping"),
+                    detail="Queue fill is not waiting for an artist mapping",
                 )
             allowed = {
                 the_queue.CHOICE_SKIP,
@@ -148,7 +148,7 @@ class QueueFillHandlers:
                 )
             if request.choice not in allowed and (not custom_search):
                 raise HTTPException(
-                    status_code=400, detail=("artist choice is not available")
+                    status_code=400, detail="artist choice is not available"
                 )
             job.submitted_choice = request.choice
             job.result.queue_pending_choice = None
@@ -163,7 +163,7 @@ class QueueFillHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         return self._cancel_queue_job(job_id, "fill_queue_from_lastfm", "Queue fill")

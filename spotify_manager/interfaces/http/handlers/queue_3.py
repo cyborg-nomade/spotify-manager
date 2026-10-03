@@ -46,10 +46,10 @@ class Queue3Handlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         configuration = self.Settings()
@@ -68,10 +68,10 @@ class Queue3Handlers:
             client: Original validated client value.
             dry_run: Original validated dry run value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         configuration = self.Settings()
@@ -97,7 +97,7 @@ class Queue3Handlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="flush_queue_3")
@@ -113,10 +113,10 @@ class Queue3Handlers:
             job_id: Original validated job id value.
             request: Original validated request value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="flush_queue_3")
@@ -124,7 +124,7 @@ class Queue3Handlers:
             pending = job.result.queue_3_pending_choice
             if job.result.status != "waiting" or pending is None:
                 raise HTTPException(
-                    status_code=409, detail=("Queue 3 job is not waiting for a choice")
+                    status_code=409, detail="Queue 3 job is not waiting for a choice"
                 )
             if pending.kind == "release":
                 allowed = {queue_3.CHOICE_ADVANCE, queue_3.CHOICE_QUIT}
@@ -132,7 +132,7 @@ class Queue3Handlers:
                 allowed = {queue_3.CHOICE_QUIT, *option_ids(pending.playlists)}
             if request.choice not in allowed:
                 raise HTTPException(
-                    status_code=400, detail=("Queue 3 choice is not available")
+                    status_code=400, detail="Queue 3 choice is not available"
                 )
             job.submitted_choice = request.choice
             job.result.queue_3_pending_choice = None
@@ -147,10 +147,10 @@ class Queue3Handlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="flush_queue_3")

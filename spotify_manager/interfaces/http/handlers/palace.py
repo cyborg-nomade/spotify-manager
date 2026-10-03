@@ -52,10 +52,10 @@ class PalaceHandlers:
             alphabetical_start: Original validated alphabetical start value.
             set_alphabetical_cursor: Original validated set alphabetical cursor value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         cleaned_start = alphabetical_start.strip() if alphabetical_start else None
@@ -105,7 +105,7 @@ class PalaceHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
         """
         job = self.get_blast_job(job_id, command="fill_palace_of_memory")
@@ -118,17 +118,17 @@ class PalaceHandlers:
         Args:
             job_id: Original validated job id value.
 
-            Returns:
+        Returns:
             Original feature response with unchanged fields and validation.
 
-            Raises:
+        Raises:
             HTTPException: An original validation or feature error is observed.
         """
         job = self.get_blast_job(job_id, command="fill_palace_of_memory")
         with self._blast_jobs_lock:
             if job.result.status not in self._ACTIVE_JOB_STATUSES:
                 raise HTTPException(
-                    status_code=409, detail=("Palace of Memory job is not active")
+                    status_code=409, detail="Palace of Memory job is not active"
                 )
             job.result.status = "cancelling"
             job.result.detail = "Stopping Palace of Memory"
