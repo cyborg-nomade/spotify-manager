@@ -20,6 +20,9 @@ from spotify_manager.domain.golden_selection import SelectedTrack as SelectedTra
 from spotify_manager.domain.golden_selection import (
     SpotifyArtistCandidate as SpotifyArtistCandidate,
 )
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import scrobble_history as scrobble_history
 from spotify_manager.routines.something_old import DEFAULT_LOG_PATH as DEFAULT_LOG_PATH
 from spotify_manager.routines.something_old import (
@@ -41,63 +44,25 @@ from spotify_manager.routines.something_old import (
 def run_something_old(
     sp: Spotify,
     lastfm: LastFmReader,
-    playlist_id: str,
-    *,
-    expected_username: str | None,
-    mode_reader: ModeReader,
-    album_choice_reader: AlbumChoiceReader,
-    artist_choice_reader: ArtistChoiceReader | None = None,
-    dry_run: bool = False,
-    export_path: Path = scrobble_history.DEFAULT_SCROBBLES_PATH,
-    legacy_delta_path: Path | None = scrobble_history.DEFAULT_LEGACY_DELTA_PATH,
-    backup_dir: Path = scrobble_history.DEFAULT_BACKUP_DIR,
-    history_log_path: Path = scrobble_history.DEFAULT_LOG_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
-    now: datetime | None = None,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    options: SomethingOldOptions,
+    callbacks: SomethingOldCallbacks,
+    resources: SomethingOldResources | None = None,
 ) -> SomethingOldSummary:
     """Refresh history and fill an empty Something Old playlist cautiously.
 
     Args:
-        sp: Caller-owned Spotify client.
-        lastfm: Caller-owned history reader.
-        playlist_id: Original destination identity.
-        expected_username: Original expected Last.fm account.
-        mode_reader: Original recipe interaction.
-        album_choice_reader: Original studio-release interaction.
-        artist_choice_reader: Optional original exact-artist ambiguity interaction.
-        dry_run: Original preview behavior, including history refresh semantics.
-        export_path: Original canonical history location.
-        legacy_delta_path: Original optional history delta location.
-        backup_dir: Original history backup directory.
-        history_log_path: Original history refresh audit location.
-        log_path: Original successful selection audit location.
-        now: Original optional effective timestamp.
-        progress_callback: Original optional stage presenter.
-        retry_call: Original read retry policy.
+        sp: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original complete selected, cancelled or nonempty outcome.
+        The original typed summary and accepted effects.
 
     Raises:
-        SomethingOldError: Original history, selection, authority or audit fails.
+        RuntimeError: Observations, selections or persistence cannot complete.
     """
-    configured = something_old(
-        sp,
-        lastfm,
-        playlist_id,
-        expected_username,
-        mode_reader,
-        album_choice_reader,
-        artist_choice_reader,
-        export_path,
-        legacy_delta_path,
-        backup_dir,
-        history_log_path,
-        log_path,
-        now,
-        progress_callback,
-        retry_call,
-    )
-    return configured.run(playlist_id, dry_run)
+    resources = resources or SomethingOldResources()
+    configured = something_old(sp, lastfm, options, callbacks, resources)
+    return configured.run(options.playlist_id, options.dry_run)

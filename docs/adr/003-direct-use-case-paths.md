@@ -1,6 +1,6 @@
 # ADR-003: direct paths from feature adapters to business use cases
 
-**Status:** Accepted; implemented in Item 7a, pending PR review and release.
+**Status:** Accepted; revised Item 7a implementation is ready for PR #67 review.
 
 **Date:** 2026-10-03
 
@@ -28,6 +28,17 @@ Keep the application a modular monolith. Frontend source restructuring remains
 a future targeted refactor; its current integration contracts still apply.
 
 ## Decision
+
+The owner's 2026-10-05 review tightens this decision before any async work:
+route declarations must sit beside their endpoint functions, and the normal
+path through named application functions, domain rules and presenters must be
+navigable with editor definition lookup. Move runtime administration and
+compatibility exports out of the route module. Functions have an absolute
+maximum of 13 parameters, usually two or three; group cohesive data and
+resources in typed models. Do not disguise a large dependency list in a
+generated constructor. Client construction belongs to concrete client wiring,
+not routine modules. Python call sites may change to meet this signature rule;
+HTTP/CLI contracts and ordered business effects remain frozen.
 
 Insert a dedicated synchronous simplification Item 7a after the Item 7 release
 and before native async transport. Keep ADR-001's dependency direction and

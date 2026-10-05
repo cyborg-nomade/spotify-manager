@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from rich.console import Console
 from spotipy import Spotify
 
-from spotify_manager.client.lastfm import LastFmClient
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import new_year as new_year
 from spotify_manager.settings import Settings
@@ -24,7 +25,6 @@ class NewYearCLI:
     """
 
     create_console: type[Console]
-    create_lastfm: type[LastFmClient]
     configuration: type[Settings]
     client: Callable[..., Spotify]
 
@@ -42,7 +42,7 @@ class NewYearCLI:
         )
         new_year.run_new_year(
             self.client(),
-            self.create_lastfm(key, username, event_callback=console.print),
+            create_lastfm_client(LastFmCredentials(key, username), console.print),
             configuration,
             year=year,
             dry_run=dry_run,

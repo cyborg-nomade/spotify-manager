@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
+from spotify_manager.interfaces.requests.queue_3 import Queue3Options
+from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import queue_3
 from spotify_manager.routines import slow_listening
@@ -281,14 +284,16 @@ def test_flush_advances_only_first_ten_unique_artists(tmp_path: Path) -> None:
     spotify.playlists["queue3"] = [first_tracks[0], *first_tracks]
 
     summary = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        lambda *_args: pytest.fail("no release boundary should be reached"),
-        active_year=2026,
-        **{
-            **paths(tmp_path),
-            "state_path": completed_annual_state(tmp_path),
-        },
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(
+            transition_reader=lambda *_args: pytest.fail(
+                "no release boundary should be reached"
+            )
+        ),
+        Queue3Resources(
+            **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
+        ),
     )
 
     assert summary.total == 10
@@ -333,14 +338,12 @@ def test_release_boundary_prompts_once_and_saves_kept_album(tmp_path: Path) -> N
         return queue_3.CHOICE_ADVANCE
 
     summary = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        transition,
-        active_year=2026,
-        **{
-            **paths(tmp_path),
-            "state_path": completed_annual_state(tmp_path),
-        },
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(transition_reader=transition),
+        Queue3Resources(
+            **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
+        ),
     )
 
     assert transitions == [("first", "second")]
@@ -378,14 +381,12 @@ def test_final_track_unsaves_album_and_removes_artist(tmp_path: Path) -> None:
     )
 
     summary = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        automatic_transition,
-        active_year=2026,
-        **{
-            **paths(tmp_path),
-            "state_path": completed_annual_state(tmp_path),
-        },
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(transition_reader=automatic_transition),
+        Queue3Resources(
+            **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
+        ),
     )
 
     assert summary.completed_artists == 1
@@ -436,14 +437,12 @@ def test_ineligible_marker_moves_to_first_studio_release(tmp_path: Path) -> None
         return queue_3.CHOICE_ADVANCE
 
     summary = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        transition,
-        active_year=2026,
-        **{
-            **paths(tmp_path),
-            "state_path": completed_annual_state(tmp_path),
-        },
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(transition_reader=transition),
+        Queue3Resources(
+            **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
+        ),
     )
 
     assert transitions == [("single", "album")]
@@ -466,14 +465,16 @@ def test_artist_without_eligible_releases_is_completed(tmp_path: Path) -> None:
     spotify.playlists["queue3"] = [marker]
 
     summary = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        lambda *_args: pytest.fail("there is no release transition"),
-        active_year=2026,
-        **{
-            **paths(tmp_path),
-            "state_path": completed_annual_state(tmp_path),
-        },
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(
+            transition_reader=lambda *_args: pytest.fail(
+                "there is no release transition"
+            )
+        ),
+        Queue3Resources(
+            **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
+        ),
     )
 
     assert summary.completed_artists == 1
@@ -663,11 +664,14 @@ def test_owned_composer_playlist_overrides_discography_and_survives_performer_cr
     state_path = completed_annual_state(tmp_path)
 
     first = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        lambda *_args: pytest.fail("composer routes do not prompt by release"),
-        active_year=2026,
-        **{**paths(tmp_path), "state_path": state_path},
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(
+            transition_reader=lambda *_args: pytest.fail(
+                "composer routes do not prompt by release"
+            )
+        ),
+        Queue3Resources(**{**paths(tmp_path), "state_path": state_path}),
     )
 
     assert first.results[0].action == "composer playlist"
@@ -678,11 +682,14 @@ def test_owned_composer_playlist_overrides_discography_and_survives_performer_cr
     assert persisted["composer_routes"]["bach"]["current_track_id"] == "bach-2"
 
     second_run = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        lambda *_args: pytest.fail("composer routes do not load a discography"),
-        active_year=2026,
-        **{**paths(tmp_path), "state_path": state_path},
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(
+            transition_reader=lambda *_args: pytest.fail(
+                "composer routes do not load a discography"
+            )
+        ),
+        Queue3Resources(**{**paths(tmp_path), "state_path": state_path}),
     )
 
     assert second_run.results[0].artist == "Johann Sebastian Bach"
@@ -739,12 +746,15 @@ def test_multiple_owned_composer_playlists_are_prompted_and_persisted(
 
     state_path = completed_annual_state(tmp_path)
     summary = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        lambda *_args: pytest.fail("composer routes do not prompt by release"),
-        composer_playlist_reader=select,
-        active_year=2026,
-        **{**paths(tmp_path), "state_path": state_path},
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(
+            transition_reader=lambda *_args: pytest.fail(
+                "composer routes do not prompt by release"
+            ),
+            composer_playlist_reader=select,
+        ),
+        Queue3Resources(**{**paths(tmp_path), "state_path": state_path}),
     )
 
     assert choices == [("Philip Glass", ("glass-a", "glass-b"))]
@@ -775,14 +785,16 @@ def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
     )
 
     summary = queue_3.flush_queue_3(
-        spotify,  # type: ignore[arg-type]
-        "queue3",
-        lambda *_args: pytest.fail("composer routes do not prompt by release"),
-        active_year=2026,
-        **{
-            **paths(tmp_path),
-            "state_path": completed_annual_state(tmp_path),
-        },
+        spotify,
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(
+            transition_reader=lambda *_args: pytest.fail(
+                "composer routes do not prompt by release"
+            )
+        ),
+        Queue3Resources(
+            **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
+        ),
     )
 
     assert summary.completed_artists == 1

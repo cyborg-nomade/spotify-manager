@@ -1,13 +1,10 @@
 """Explicit callbacks and wire presentation for DiscographyWorker."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
 from datetime import timedelta
-from threading import Lock
 
 from requests.exceptions import RequestException
 from spotipy import Spotify
@@ -17,13 +14,16 @@ from spotify_manager.application.job_lifecycle import await_submission
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
-from spotify_manager.interfaces.http.models.discography import DiscographyArtistResult
 from spotify_manager.interfaces.http.models.discography import DiscographyPendingChoice
 from spotify_manager.interfaces.http.models.discography import DiscographyReleaseOption
 from spotify_manager.interfaces.http.models.something_old import (
     SomethingOldArtistOption,
 )
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.presenters.collections import present_entries
+from spotify_manager.interfaces.http.presenters.discography import (
+    discography_artist_result as _discography_artist_result,
+)
 from spotify_manager.interfaces.http.workers.errors import _DiscographyJobCancelledError
 from spotify_manager.interfaces.operations import discography as discography
 from spotify_manager.interfaces.operations import (
@@ -34,34 +34,23 @@ from spotify_manager.interfaces.operations import something_old as something_old
 
 @dataclass(kw_only=True)
 class DiscographyWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        spotify: Explicit spotify input or adapter boundary.
-        playlist_ids: Explicit playlist ids input or adapter boundary.
-        queue_3_playlist_id: Explicit queue 3 playlist id input or adapter boundary.
-        dry_run: Explicit dry run input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        _discography_artist_result: Explicit discography artist result input or adapter
-            boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        context: Invocation-owned context.
+        job_id: Invocation-owned job id.
+        spotify: Invocation-owned spotify.
+        playlist_ids: Invocation-owned playlist ids.
+        queue_3_playlist_id: Invocation-owned queue 3 playlist id.
+        dry_run: Invocation-owned dry run.
     """
 
+    context: PlaylistContext
     job_id: str
     spotify: Spotify
     playlist_ids: dict[discography.QueueName, str]
     queue_3_playlist_id: str
     dry_run: bool
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    _discography_artist_result: Callable[..., DiscographyArtistResult]
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     spotify_event_setter: EventSetter | None = field(init=False)
     previous_spotify_event_callback: EventCallback | None = field(init=False)
@@ -92,9 +81,9 @@ class DiscographyWorker:
         Args:
             message: Original routine-supplied message.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def wait_for_submission(
         self, pending: DiscographyPendingChoice, detail: str
@@ -108,7 +97,7 @@ class DiscographyWorker:
         Returns:
             The original accepted routine callback result.
         """
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _DiscographyJobCancelledError
             self.job.submitted_choice = None
@@ -117,7 +106,7 @@ class DiscographyWorker:
             self.job.result.discography_pending_choice = pending
             self.job.result.status = "waiting"
             self.job.result.detail = detail
-            self.append(self.job, detail)
+            self.context.append(self.job, detail)
         return await_submission(
             self.job.choice_event, self._consume_wait_for_submission
         )
@@ -144,7 +133,7 @@ class DiscographyWorker:
                 releases=self._discography_release_options(releases),
                 default_release_ids=self._default_release_ids(releases),
             ),
-            (f"Choose the releases to count for {artist.name}."),
+            f"Choose the releases to count for {artist.name}.",
         )
         if choice == "quit":
             raise _DiscographyJobCancelledError
@@ -173,7 +162,7 @@ class DiscographyWorker:
                 queue=discography.QUEUE_LABELS["memory_lane"],
                 artist_candidates=self._something_old_artist_options(candidates),
             ),
-            (f"Choose the exact Spotify artist for {artist_name}."),
+            f"Choose the exact Spotify artist for {artist_name}.",
         )
         return choice
 
@@ -183,11 +172,11 @@ class DiscographyWorker:
         Args:
             detail: Original routine-supplied detail.
         """
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _DiscographyJobCancelledError
             self.job.result.detail = detail
-            self.append(self.job, detail)
+            self.context.append(self.job, detail)
 
     def interruptible_sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
@@ -218,17 +207,16 @@ class DiscographyWorker:
         )
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="plan_discographies")
-        with self.lock:
+        self.job = self.context.lookup(self.job_id, command="plan_discographies")
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Discography planning started"
-            self.append(
+            self.context.append(
                 self.job,
                 (
-                    "Discography planning started"
-                    f"{(' in dry-run mode' if self.dry_run else '')}"
-                    "."
+                    f"Discography planning started"
+                    f"{(' in dry-run mode' if self.dry_run else '')}."
                 ),
             )
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
@@ -252,63 +240,65 @@ class DiscographyWorker:
     def _finish(self) -> None:
         if callable(self.spotify_event_setter):
             self.spotify_event_setter(self.previous_spotify_event_callback)
-        with self.lock:
+        with self.context.lock:
             self.job.result.discography_pending_choice = None
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "cancelled"
             self.job.result.detail = (
                 "Discography planning stopped; nothing else changed."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _rate_limited(self, exc: review_album_limits.SpotifyRateLimitError) -> None:
         retry_at = None
         if exc.retry_after_seconds is not None:
-            retry_at = self.clock.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with self.lock:
+            retry_at = self.context.clock.now(UTC) + timedelta(
+                seconds=exc.retry_after_seconds
+            )
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.retry_at = retry_at.isoformat() if retry_at else None
             self.job.result.detail = (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _temporarily_unavailable(
         self, exc: review_album_limits.SpotifyTransientServerError
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc) + "."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _spotify_failed(self, exc: SpotifyException) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = f"Spotify request failed: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _failed(self, exc: discography.DiscographyError | RequestException) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = str(exc)
-            self.append(self.job, f"Discography planning failed: {exc}")
+            self.context.append(self.job, f"Discography planning failed: {exc}")
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected discography planning error")
-        with self.lock:
+        self.context.logger.exception("Unexpected discography planning error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = f"Unexpected discography planning error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _consume_wait_for_submission(self) -> tuple[str, tuple[str, ...]] | None:
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _DiscographyJobCancelledError
             choice = self.job.submitted_choice
@@ -321,7 +311,7 @@ class DiscographyWorker:
             self.job.result.discography_pending_choice = None
             self.job.result.status = "running"
             self.job.result.detail = "Applying discography choice"
-            self.append(self.job, f"Discography choice received: {choice}.")
+            self.context.append(self.job, f"Discography choice received: {choice}.")
             return (choice, release_ids)
 
     def _discography_release_options(
@@ -358,7 +348,7 @@ class DiscographyWorker:
         return entries
 
     def _present_plan(self, plan: discography.DiscographyPlan) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.discography_start_queue = discography.QUEUE_LABELS[
                 plan.start_queue
             ]
@@ -369,27 +359,24 @@ class DiscographyWorker:
             self.job.result.discography_days = plan.days
             self.job.result.discography_open_slots = plan.open_slots
             self.job.result.discography_results = present_entries(
-                plan.artists, self._discography_artist_result
+                plan.artists, _discography_artist_result
             )
 
     def _complete_or_apply_plan(self, plan: discography.DiscographyPlan) -> None:
         if not plan.artists:
-            with self.lock:
+            with self.context.lock:
                 self.job.result.status = "completed"
                 self.job.result.detail = "No artists with selected releases were found."
-                self.append(self.job, self.job.result.detail)
+                self.context.append(self.job, self.job.result.detail)
             return
         if self.dry_run:
-            with self.lock:
+            with self.context.lock:
                 self.job.result.status = "completed"
                 self.job.result.detail = (
-                    "Dry run complete: "
-                    f"{plan.total_releases}"
-                    " releases over "
-                    f"{plan.days:g}"
-                    " days. Playlists and state were unchanged."
+                    f"Dry run complete: {plan.total_releases} releases over "
+                    f"{plan.days:g} days. Playlists and state were unchanged."
                 )
-                self.append(self.job, self.job.result.detail)
+                self.context.append(self.job, self.job.result.detail)
             return
         choice, _release_ids = self.wait_for_submission(
             DiscographyPendingChoice(kind="confirm"),
@@ -398,13 +385,13 @@ class DiscographyWorker:
         if choice == "quit":
             raise _DiscographyJobCancelledError
         if choice == "keep":
-            with self.lock:
+            with self.context.lock:
                 self.job.result.status = "completed"
                 self.job.result.detail = (
                     "Discography plan complete; playlist markers and "
                     "state were kept unchanged."
                 )
-                self.append(self.job, self.job.result.detail)
+                self.context.append(self.job, self.job.result.detail)
             return
         self._apply_plan(plan)
 
@@ -415,20 +402,17 @@ class DiscographyWorker:
             retry_call=self.retry_call,
             progress_callback=self.progress,
         )
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "completed"
             self.job.result.discography_removed_artists = summary.removed_artists
             self.job.result.discography_removed_markers = summary.removed_markers
             self.job.result.detail = (
-                "Removed "
-                f"{summary.removed_artists}"
-                " artists and "
+                f"Removed {summary.removed_artists} artists and "
                 f"{summary.removed_markers}"
-                " marker tracks. The next run starts with "
-                f"{discography.QUEUE_LABELS[summary.next_queue]}"
-                "."
+                f" marker tracks. The next run starts with "
+                f"{discography.QUEUE_LABELS[summary.next_queue]}."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _default_release_ids(
         self, releases: tuple[discography.CatalogRelease, ...]

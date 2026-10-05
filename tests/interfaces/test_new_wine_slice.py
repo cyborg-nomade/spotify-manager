@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 from spotipy import Spotify
 from typer.testing import CliRunner
 
-from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.interfaces.http import jobs as http_jobs
 from tests.interfaces.test_slow_listening_slice import _stop
 from tests.interfaces.test_slow_listening_slice import _thread
 from tests.interfaces.test_vertical_slices import _http_client
@@ -60,11 +60,11 @@ def wine_http(
             wine_cellar_playlist="cellar",
         )
     )
-    monkeypatch.setattr(api, "Settings", settings)
+    monkeypatch.setattr(http_jobs, "Settings", settings)
     monkeypatch.setattr(main, "Settings", settings)
     monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
-    monkeypatch.setattr(api, "_blast_jobs", {})
-    monkeypatch.setattr(api, "Thread", partial(_thread, threads))
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {})
+    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
     try:
         yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify
     finally:

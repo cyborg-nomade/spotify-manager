@@ -9,8 +9,10 @@ from threading import Lock
 
 from spotipy import Spotify
 
-from spotify_manager.client.lastfm import LastFmClient
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
+from spotify_manager.interfaces.http.playlist_retry import PlaylistRetry
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import new_year as new_year
@@ -27,11 +29,9 @@ class NewYearWorker:
         spotify: Explicit spotify input or adapter boundary.
         year: Explicit year input or adapter boundary.
         dry_run: Explicit dry run input or adapter boundary.
-        create_lastfm: Explicit create lastfm input or adapter boundary.
         configuration: Explicit configuration input or adapter boundary.
         append: Explicit append input or adapter boundary.
         lock: Explicit lock input or adapter boundary.
-        _playlist_job_retry: Explicit playlist job retry input or adapter boundary.
         clock: Explicit clock input or adapter boundary.
         lookup: Explicit lookup input or adapter boundary.
     """
@@ -40,13 +40,9 @@ class NewYearWorker:
     spotify: Spotify
     year: int | None
     dry_run: bool
-    create_lastfm: Callable[..., LastFmClient]
     configuration: Callable[[], Settings]
     append: Callable[[_BlastJob, str], None]
     lock: Lock
-    _playlist_job_retry: Callable[
-        [_BlastJob, Callable[[str], None]], blast_from_past.RetryCall
-    ]
     clock: type[datetime]
     lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
@@ -90,13 +86,13 @@ class NewYearWorker:
         )
         result = new_year.run_new_year(
             self.spotify,
-            self.create_lastfm(key, username, event_callback=self.echo),
+            lastfm_client(LastFmCredentials(key, username), self.echo),
             configuration,
             year=self.year,
             dry_run=self.dry_run,
             echo=self.echo,
             cancel_check=self.job.cancel_event.is_set,
-            retry_call=self._playlist_job_retry(self.job, self.echo),
+            retry_call=PlaylistRetry(self.job, self.echo).call,
         )
         with self.lock:
             self.job.result.new_year_result = result

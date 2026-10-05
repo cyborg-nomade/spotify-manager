@@ -6,17 +6,12 @@ from typing import Never
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn
-from rich.progress import MofNCompleteColumn
 from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
-from rich.prompt import Prompt
-from rich.table import Table
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.operations import new_wine as new_wine
 from spotify_manager.interfaces.operations import queue_3 as queue_3
@@ -24,47 +19,27 @@ from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
+from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
+from spotify_manager.interfaces.requests.queue_3 import Queue3Options
+from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class Queue3CLI:
-    """Execute and present queue 3 through explicit facade dependencies.
+    """Run one CLI feature with explicit interaction and presentation resources.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        complete_column: Rich complete column constructor.
-        create_progress: Factory for progress instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        configuration: Original settings factory supplied by the facade.
-        spinner_column: Rich spinner column constructor.
-        create_table: Factory for table instances.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        _render_queue_3_annual_import:  render queue 3 annual import supplied by the
-            caller.
-        ask_queue_3_composer_playlist: Original ask queue 3 composer playlist boundary
-            supplied by the facade.
-        ask_queue_3_release_transition: Original ask queue 3 release transition boundary
-            supplied by the facade.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        progress_display: Caller-owned progress display.
+        display: Caller-owned display.
+        configuration: Caller-owned configuration.
+        review_client: Caller-owned review client.
+        sleep: Caller-owned sleep.
     """
 
-    bar_column: type[BarColumn]
-    create_console: type[Console]
-    complete_column: type[MofNCompleteColumn]
-    create_progress: type[Progress]
-    prompt: type[Prompt]
+    progress_display: ProgressDisplay
+    display: ConsoleDisplay
     configuration: type[Settings]
-    spinner_column: type[SpinnerColumn]
-    create_table: type[Table]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
-    _render_queue_3_annual_import: Callable[..., None]
-    ask_queue_3_composer_playlist: Callable[..., str]
-    ask_queue_3_release_transition: Callable[..., str]
     review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
@@ -91,8 +66,8 @@ class Queue3CLI:
         if progress is not None:
             progress.stop()
         try:
-            table = self.create_table(
-                title=(f"Queue 3 release boundary: {source.primary_artist_name}")
+            table = self.display.create_table(
+                title=f"Queue 3 release boundary: {source.primary_artist_name}"
             )
             table.add_column("Position")
             table.add_column("Release")
@@ -114,7 +89,7 @@ class Queue3CLI:
                 str(next_release.total_tracks),
             )
             console.print(table)
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Advance to this release?",
                 choices=["y", "q"],
                 default="y",
@@ -146,19 +121,18 @@ class Queue3CLI:
         if progress is not None:
             progress.stop()
         try:
-            table = self.create_table(title=f"Queue 3 composer playlist: {artist_name}")
+            table = self.display.create_table(
+                title=f"Queue 3 composer playlist: {artist_name}"
+            )
             table.add_column("#", justify="right")
             table.add_column("Owned playlist")
             table.add_column("Tracks", justify="right")
             for index, candidate in enumerate(candidates, start=1):
                 table.add_row(str(index), candidate.name, str(candidate.total_tracks))
             console.print(table)
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Use which composer playlist?",
-                choices=[
-                    *(str(index) for index in range(1, len(candidates) + 1)),
-                    "q",
-                ],
+                choices=[*(str(index) for index in range(1, len(candidates) + 1)), "q"],
                 default="1",
                 console=console,
             )
@@ -180,7 +154,9 @@ class Queue3CLI:
         """
         if not results:
             return
-        import_table = self.create_table(title="Previous-year Great Discoveries")
+        import_table = self.display.create_table(
+            title="Previous-year Great Discoveries"
+        )
         import_table.add_column("Artist")
         import_table.add_column("Track")
         import_table.add_column("Year", justify="right")
@@ -200,19 +176,21 @@ class Queue3CLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._import_queue_3_previous_year_console = self.create_console()
+        self._import_queue_3_previous_year_console = self.display.create_console()
         configuration = self.configuration()
         try:
             playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
         except queue_3.Queue3ConfigError as exc:
             self._report_import_queue_3_previous_year_configuration_failure(exc)
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._import_queue_3_previous_year_console,
                 transient=True,
             ) as self._import_queue_3_previous_year_progress:
@@ -273,7 +251,7 @@ class Queue3CLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._flush_queue_3_console = self.create_console()
+        self._flush_queue_3_console = self.display.create_console()
         self._flush_queue_3_progress_ref: Progress | None = None
         configuration = self.configuration()
         try:
@@ -281,12 +259,14 @@ class Queue3CLI:
         except queue_3.Queue3ConfigError as exc:
             self._report_flush_queue_3_configuration_failure(exc)
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._flush_queue_3_console,
                 transient=True,
             ) as self._flush_queue_3_progress:
@@ -297,13 +277,15 @@ class Queue3CLI:
                 )
                 summary = queue_3.flush_queue_3(
                     self.review_client(),
-                    playlist_id,
-                    transition_reader=self._flush_queue_3_ask_queue_3_release_transition,
-                    composer_playlist_reader=self._flush_queue_3_ask_queue_3_composer_playlist,
-                    dry_run=dry_run,
-                    echo=self._flush_queue_3_echo,
-                    progress_callback=self._flush_queue_3_update_progress,
-                    retry_call=self._flush_queue_3_retry_call,
+                    Queue3Options(playlist_id=playlist_id, dry_run=dry_run),
+                    Queue3Callbacks(
+                        transition_reader=self._flush_queue_3_ask_queue_3_release_transition,
+                        composer_playlist_reader=self._flush_queue_3_ask_queue_3_composer_playlist,
+                        echo=self._flush_queue_3_echo,
+                        progress_callback=self._flush_queue_3_update_progress,
+                        retry_call=self._flush_queue_3_retry_call,
+                    ),
+                    Queue3Resources(),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_queue_3_rate_limit(exc)
@@ -366,7 +348,7 @@ class Queue3CLI:
         current: slow_listening.DiscographyRelease,
         following: slow_listening.DiscographyRelease,
     ) -> str:
-        return self.ask_queue_3_release_transition(
+        return self._prompt_queue_3_release_transition(
             self._flush_queue_3_console,
             source,
             current,
@@ -377,7 +359,7 @@ class Queue3CLI:
     def _flush_queue_3_ask_queue_3_composer_playlist(
         self, artist: str, candidates: tuple[queue_3.OwnedPlaylist, ...]
     ) -> str:
-        return self.ask_queue_3_composer_playlist(
+        return self._prompt_queue_3_composer_playlist(
             self._flush_queue_3_console,
             artist,
             candidates,
@@ -389,9 +371,9 @@ class Queue3CLI:
     ) -> Never:
         self._flush_queue_3_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -416,7 +398,7 @@ class Queue3CLI:
         self, exc: SpotifyException
     ) -> Never:
         self._flush_queue_3_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -438,9 +420,9 @@ class Queue3CLI:
     ) -> Never:
         self._import_queue_3_previous_year_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -467,7 +449,7 @@ class Queue3CLI:
         self, exc: SpotifyException
     ) -> Never:
         self._import_queue_3_previous_year_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -506,12 +488,12 @@ class Queue3CLI:
             dry_run: Whether to preview changes using the original routine behavior.
             summary: Completed routine outcome to render.
         """
-        self._render_queue_3_annual_import(
+        self._show_annual_import(
             self._import_queue_3_previous_year_console, summary.results
         )
         if summary.already_completed:
             self._import_queue_3_previous_year_console.print(
-                (f"Great Discoveries {summary.source_year} was already imported."),
+                f"Great Discoveries {summary.source_year} was already imported.",
                 style="cyan",
             )
             return
@@ -519,17 +501,9 @@ class Queue3CLI:
         artist_label = "artist" if summary.additions == 1 else "artists"
         self._import_queue_3_previous_year_console.print(
             (
-                "Great Discoveries "
-                f"{summary.source_year}"
-                ": "
-                f"{summary.additions}"
-                " "
-                f"{artist_label}"
-                " "
-                f"{action}"
-                "; "
-                f"{summary.already_present}"
-                " already present."
+                f"Great Discoveries {summary.source_year}: {summary.additions} "
+                f"{artist_label} {action}; {summary.already_present}"
+                f" already present."
             )
             + (" Preview only." if dry_run else ""),
             style="bold cyan" if dry_run else "bold green",
@@ -542,10 +516,8 @@ class Queue3CLI:
             dry_run: Whether to preview changes using the original routine behavior.
             summary: Completed routine outcome to render.
         """
-        self._render_queue_3_annual_import(
-            self._flush_queue_3_console, summary.annual_import
-        )
-        table = self.create_table(title="The Queue 3")
+        self._show_annual_import(self._flush_queue_3_console, summary.annual_import)
+        table = self.display.create_table(title="The Queue 3")
         table.add_column("Artist")
         table.add_column("Current")
         table.add_column("Release")
@@ -563,11 +535,8 @@ class Queue3CLI:
             action_text = str(flush_result.action)
             if flush_result.album_decision is not None:
                 action_text += (
-                    "; "
-                    f"{flush_result.album_decision}"
-                    " "
-                    f"{flush_result.album_liked_tracks}"
-                    "/"
+                    f"; {flush_result.album_decision} "
+                    f"{flush_result.album_liked_tracks}/"
                     f"{flush_result.album_total_tracks}"
                 )
             table.add_row(
@@ -580,19 +549,10 @@ class Queue3CLI:
         self._flush_queue_3_console.print(table)
         self._flush_queue_3_console.print(
             (
-                "Processed "
-                f"{summary.processed}"
-                "/"
-                f"{summary.total}"
-                ": "
-                f"{summary.advanced}"
-                " track advances, "
-                f"{summary.changed_releases}"
-                " release changes, "
-                f"{summary.completed_artists}"
-                " completed artists, "
-                f"{summary.skipped}"
-                " skipped."
+                f"Processed {summary.processed}/{summary.total}: {summary.advanced}"
+                f" track advances, {summary.changed_releases} release changes, "
+                f"{summary.completed_artists} completed artists, {summary.skipped}"
+                f" skipped."
             )
             + (" Preview only." if dry_run else ""),
             style="bold cyan" if dry_run else "bold green",

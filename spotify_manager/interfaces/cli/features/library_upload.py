@@ -64,9 +64,8 @@ class LibraryUploadCLI:
         if dry_run:
             console.print(
                 (
-                    "Dry run complete: "
-                    f"{plan.upload_file_count}"
-                    " files validated; nothing was changed."
+                    f"Dry run complete: {plan.upload_file_count}"
+                    f" files validated; nothing was changed."
                 ),
                 style="bold green",
             )
@@ -91,11 +90,8 @@ class LibraryUploadCLI:
     ) -> None:
         console.print(
             (
-                "Uploaded "
-                f"{result.uploaded_files}"
-                " files ("
-                f"{self.format_file_size(result.upload_size_bytes)}"
-                ")."
+                f"Uploaded {result.uploaded_files} files ("
+                f"{self.format_file_size(result.upload_size_bytes)})."
             ),
             style="bold green",
         )

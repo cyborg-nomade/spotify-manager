@@ -8,14 +8,12 @@ from datetime import UTC
 from datetime import date
 from datetime import datetime
 from functools import partial
-from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.queue_fill_values import FillResult
 from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.application.queue_values import QueueStateError
-from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.history import Scrobble
@@ -25,6 +23,9 @@ from spotify_manager.domain.queue_values import ArtistSeed
 from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.infrastructure.recommendation_calendar import listening_week_start
 from spotify_manager.infrastructure.recommendation_history import refresh_history
+from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
+from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
+from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
 from spotify_manager.routines import the_queue as legacy
 
 
@@ -34,45 +35,26 @@ def _immediate(operation: Callable[[], object], description: str) -> object:
 
 @dataclass
 class LegacyQueueFill:
-    """Retain caller-owned client, files, retry and presenter behavior.
+    """Bind application stages to caller-owned clients and storage.
 
     Args:
-        spotify: Original caller-owned Spotify client.
-        lastfm: Original caller-owned Last.fm reader.
-        playlists: Original parsed destination identities.
-        choice: Original optional artist interaction reader.
-        echo: Original text presenter.
-        callback: Original optional progress presenter.
-        configured_retry: Original optional retry boundary.
-        export_path: Original history export location.
-        recent_path: Original recent-history location.
-        state_path: Original state location.
-        state_service: Original optional shared state authority.
-        cache_path: Original neighborhood cache location.
-        log_path: Original audit location.
-        now: Original optional timestamp.
-        retry: Effective retry resolved only after request validation.
+        spotify: Caller-owned spotify.
+        lastfm: Caller-owned lastfm.
+        options: Caller-owned options.
+        callbacks: Caller-owned callbacks.
+        resources: Caller-owned resources.
     """
 
     spotify: Spotify
     lastfm: legacy.LastFmReader
-    playlists: legacy.QueuePlaylists
-    choice: legacy.ArtistChoiceReader | None
-    echo: legacy.Echo
-    callback: legacy.ProgressCallback | None
-    configured_retry: legacy.RetryCall | None
-    export_path: Path
-    recent_path: Path
-    state_path: Path
-    state_service: StateService | None
-    cache_path: Path
-    log_path: Path
-    now: datetime | None
+    options: QueueFillOptions
+    callbacks: QueueFillCallbacks
+    resources: QueueFillResources
     retry: legacy.RetryCall = _immediate
 
     def configure(self) -> None:
         """Resolve original falsey retry behavior after request validation."""
-        self.retry = self.configured_retry or _immediate
+        self.retry = self.callbacks.retry_call or _immediate
 
     def clock(self) -> datetime:
         """Resolve the original effective timestamp.
@@ -80,7 +62,7 @@ class LegacyQueueFill:
         Returns:
             Original supplied or current time converted to UTC.
         """
-        return (self.now or datetime.now(UTC)).astimezone(UTC)
+        return (self.options.now or datetime.now(UTC)).astimezone(UTC)
 
     def week(self, now: datetime) -> date:
         """Resolve the original local listening calendar.
@@ -106,12 +88,16 @@ class LegacyQueueFill:
         Raises:
             QueueStateError: Original history refresh failed.
         """
-        progress = self._history_progress if self.callback is not None else None
+        progress = (
+            self._history_progress
+            if self.callbacks.progress_callback is not None
+            else None
+        )
         try:
             return refresh_history(
                 self.lastfm,
-                export_path=self.export_path,
-                recent_path=self.recent_path,
+                export_path=self.resources.export_path,
+                recent_path=self.resources.recent_path,
                 dry_run=preview,
                 now=now,
                 progress_callback=progress,
@@ -130,13 +116,12 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.new_wine import load_playlist_tracks
 
-        return len(load_playlist_tracks(self.spotify, self.playlists.queue, self.retry))
+        return len(
+            load_playlist_tracks(self.spotify, self.options.playlists.queue, self.retry)
+        )
 
     def seeds(
-        self,
-        history: tuple[ArtistHistory, ...],
-        count: int,
-        week: date,
+        self, history: tuple[ArtistHistory, ...], count: int, week: date
     ) -> tuple[ArtistSeed, ...]:
         """Retain the original seed selection seam.
 
@@ -179,7 +164,11 @@ class LegacyQueueFill:
         )
 
         workflow = queue_recommendations(
-            self.lastfm, self.cache_path, self.log_path, now, self.callback
+            self.lastfm,
+            self.resources.cache_path,
+            self.resources.log_path,
+            now,
+            self.callbacks.progress_callback,
         )
         return workflow.run(seeds, heard, week, limit)
 
@@ -194,10 +183,10 @@ class LegacyQueueFill:
         return _playlist_artist_ids(
             self.spotify,
             (
-                self.playlists.queue,
-                self.playlists.queue_2,
-                self.playlists.new_kids,
-                self.playlists.queue_3,
+                self.options.playlists.queue,
+                self.options.playlists.queue_2,
+                self.options.playlists.new_kids,
+                self.options.playlists.queue_3,
             ),
             self.retry,
         )
@@ -210,7 +199,7 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.the_queue import _state_access
 
-        return _state_access(self.state_path, self.state_service)
+        return _state_access(self.resources.state_path, self.resources.state_service)
 
     def decode_mapping(self, raw: object) -> SpotifyArtistCandidate | None:
         """Preserve original unchecked mapping tolerance.
@@ -242,7 +231,7 @@ class LegacyQueueFill:
         ranked = RankedArtist(
             recommendation.key, recommendation.artist, 0, recommendation.base_rank
         )
-        reader = _mapping_choice_reader(self.choice, recommendation)
+        reader = _mapping_choice_reader(self.callbacks.choice_reader, recommendation)
         return artist_mapping(self.spotify, reader, self.retry).run(ranked)
 
     def top_tracks(self, artist: SpotifyArtistCandidate) -> tuple[CatalogTrack, ...]:
@@ -303,7 +292,7 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.the_queue import _persist_followed_artist
 
-        _persist_followed_artist(artist, self.echo)
+        _persist_followed_artist(artist, self.callbacks.echo)
 
     def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
         """Accept the original Queue marker append.
@@ -315,7 +304,9 @@ class LegacyQueueFill:
         from spotify_manager.routines.review_artists import add_playlist_item
 
         self.retry(
-            partial(add_playlist_item, self.spotify, self.playlists.queue, track.uri),
+            partial(
+                add_playlist_item, self.spotify, self.options.playlists.queue, track.uri
+            ),
             f"adding {artist.name} to The Queue",
         )
 
@@ -331,11 +322,14 @@ class LegacyQueueFill:
 
         if not selected:
             append_event(
-                self.log_path, "fill_candidate", result=asdict(result), dry_run=preview
+                self.resources.log_path,
+                "fill_candidate",
+                result=asdict(result),
+                dry_run=preview,
             )
             return
         append_event(
-            self.log_path,
+            self.resources.log_path,
             "fill_candidate" if preview else "artist_added",
             lastfm_artist_key=result.recommendation.key,
             result=asdict(result),
@@ -350,9 +344,9 @@ class LegacyQueueFill:
             preview: Original preview behavior.
         """
         assert result.spotify_artist is not None and result.track is not None
-        self.echo(
-            f"{'Would add' if preview else 'Added'} {result.spotify_artist.name} - "
-            f"{result.track.name} to The Queue."
+        self.callbacks.echo(
+            f"{('Would add' if preview else 'Added')} {result.spotify_artist.name}"
+            f" - {result.track.name} to The Queue."
         )
 
     def progress(self, done: int, total: int, message: str) -> None:
@@ -363,5 +357,5 @@ class LegacyQueueFill:
             total: Original maximum examined count.
             message: Original status text.
         """
-        if self.callback is not None:
-            self.callback(done, total, message)
+        if self.callbacks.progress_callback is not None:
+            self.callbacks.progress_callback(done, total, message)

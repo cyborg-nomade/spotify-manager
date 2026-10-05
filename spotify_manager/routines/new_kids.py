@@ -51,7 +51,10 @@ from spotify_manager.domain.discovery_progression import (
 )
 from spotify_manager.domain.discovery_progression import LIVE_PATTERN as LIVE_PATTERN
 from spotify_manager.domain.releases import release_identity
-from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
+from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
+from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
+from spotify_manager.interfaces.requests.discovery import DiscoveryResources
+from spotify_manager.interfaces.requests.discovery import DiscoveryReviewMode
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
@@ -1284,240 +1287,81 @@ def _plan_result(
 
 def _flush_review_playlist(
     sp: Spotify,
-    new_kids_playlist_id: str,
-    queue_2_playlist_id: str,
-    great_discoveries_2026_playlist_id: str,
-    unlucky_ones_playlist_id: str,
-    newfoundland_playlist_id: str,
-    choice_reader: ReleaseChoiceReader,
-    *,
-    dry_run: bool = False,
-    year: int | None = None,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    artists_path: Path = DEFAULT_ARTISTS_PATH,
-    removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
-    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
-    lastfm: scrobble_history.LastFmReader | None = None,
-    lastfm_username: str | None = None,
-    _playlist_label: str = "New Kids",
-    _active_run_key: str = "active_run",
-    _blocking_active_run_key: str = "queue_2_active_run",
-    _fill_from_queue: bool = True,
-    _initial_tracks: list[new_wine.PlaylistTrack] | None = None,
-    _live_tracks: list[new_wine.PlaylistTrack] | None = None,
+    options: DiscoveryOptions,
+    callbacks: DiscoveryCallbacks,
+    resources: DiscoveryResources | None = None,
+    mode: DiscoveryReviewMode | None = None,
 ) -> FlushSummary:
-    """Advance one playlist snapshot using the shared four-release rules."""
+    """Advance one playlist snapshot using the shared four-release rules.
+
+    Args:
+        sp: Caller-owned synchronous Spotify client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions and notifications.
+        resources: History, checkpoints, mirrors and audit files.
+        mode: Review label, checkpoint keys and accepted queue snapshot.
+
+    Returns:
+        The original review summary and ordered accepted effects.
+
+    Raises:
+        NewKidsError: Observations, decisions or checkpoints are invalid.
+    """
     from spotify_manager.interfaces.operations.new_kids import (
-        _flush_review_playlist as operation,
+        _flush_review_playlist as invoke,
     )
 
-    return operation(
-        sp,
-        new_kids_playlist_id,
-        queue_2_playlist_id,
-        great_discoveries_2026_playlist_id,
-        unlucky_ones_playlist_id,
-        newfoundland_playlist_id,
-        choice_reader,
-        dry_run=dry_run,
-        year=year,
-        echo=echo,
-        progress_callback=progress_callback,
-        retry_call=retry_call,
-        state_path=state_path,
-        state_service=state_service,
-        log_path=log_path,
-        albums_path=albums_path,
-        artists_path=artists_path,
-        removed_albums_log_path=removed_albums_log_path,
-        scrobbles_path=scrobbles_path,
-        lastfm=lastfm,
-        lastfm_username=lastfm_username,
-        _playlist_label=_playlist_label,
-        _active_run_key=_active_run_key,
-        _blocking_active_run_key=_blocking_active_run_key,
-        _fill_from_queue=_fill_from_queue,
-        _initial_tracks=_initial_tracks,
-        _live_tracks=_live_tracks,
-    )
+    return invoke(sp, options, callbacks, resources, mode)
 
 
 def flush_new_kids(
     sp: Spotify,
-    new_kids_playlist_id: str,
-    queue_2_playlist_id: str,
-    great_discoveries_2026_playlist_id: str,
-    unlucky_ones_playlist_id: str,
-    newfoundland_playlist_id: str,
-    choice_reader: ReleaseChoiceReader,
-    *,
-    dry_run: bool = False,
-    year: int | None = None,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    artists_path: Path = DEFAULT_ARTISTS_PATH,
-    removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
-    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
-    lastfm: scrobble_history.LastFmReader | None = None,
-    lastfm_username: str | None = None,
+    options: DiscoveryOptions,
+    callbacks: DiscoveryCallbacks,
+    resources: DiscoveryResources | None = None,
 ) -> FlushSummary:
     """Advance every snapshotted artist once, then refill New Kids to ten.
 
     Args:
         sp: Caller-owned synchronous Spotify client.
-        new_kids_playlist_id: Configured New Kids review destination.
-        queue_2_playlist_id: Configured Queue 2 source or review playlist.
-        great_discoveries_2026_playlist_id: Existing 2026 promotion playlist seed.
-        unlucky_ones_playlist_id: Destination for liked but nonqualifying artists.
-        newfoundland_playlist_id: Additional destination for qualifying artists.
-        choice_reader: Composer/release choice callback, including skip and quit.
-        dry_run: Project changes without playlist/library writes or state checkpoints.
-        year: Review year; false or absent values retain the local current-year default.
-        echo: Existing CLI or background-job output sink.
-        progress_callback: Optional original progress callback.
-        retry_call: Retry/cancellation callback, or direct execution when absent.
-        state_path: Explicit legacy state path or the default shared namespace selector.
-        state_service: Optional caller-supplied shared state service.
-        log_path: Existing routine audit destination, including preview events.
-        albums_path: Canonical album mirror used at completed-release boundaries.
-        artists_path: Canonical artist mirror used after accepted unfollowing.
-        removed_albums_log_path: Original removed-album recovery log.
-        scrobbles_path: Existing Last.fm history export.
-        lastfm: Optional history reader; requested refresh also runs during previews.
-        lastfm_username: Required expected username when a history reader is supplied.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions and notifications.
+        resources: History, checkpoints, mirrors and audit files.
 
     Returns:
-        Original public summary with accepted results, counts and pause/resume flags.
+        The original review summary and ordered accepted effects.
 
     Raises:
-        NewKidsConfigError: A requested history refresh lacks its expected username.
-        NewKidsStateError: Saved progress is invalid or another run blocks execution.
-        NewKidsError: Catalog observations or operator selections are invalid.
+        NewKidsError: Observations, decisions or checkpoints are invalid.
     """
-    from spotify_manager.interfaces.operations.new_kids import (
-        flush_new_kids as operation,
-    )
+    from spotify_manager.interfaces.operations.new_kids import flush_new_kids as invoke
 
-    return operation(
-        sp,
-        new_kids_playlist_id,
-        queue_2_playlist_id,
-        great_discoveries_2026_playlist_id,
-        unlucky_ones_playlist_id,
-        newfoundland_playlist_id,
-        choice_reader,
-        dry_run=dry_run,
-        year=year,
-        echo=echo,
-        progress_callback=progress_callback,
-        retry_call=retry_call,
-        state_path=state_path,
-        state_service=state_service,
-        log_path=log_path,
-        albums_path=albums_path,
-        artists_path=artists_path,
-        removed_albums_log_path=removed_albums_log_path,
-        scrobbles_path=scrobbles_path,
-        lastfm=lastfm,
-        lastfm_username=lastfm_username,
-    )
+    return invoke(sp, options, callbacks, resources)
 
 
 def flush_queue_2(
     sp: Spotify,
-    new_kids_playlist_id: str,
-    queue_2_playlist_id: str,
-    great_discoveries_2026_playlist_id: str,
-    unlucky_ones_playlist_id: str,
-    newfoundland_playlist_id: str,
-    choice_reader: ReleaseChoiceReader,
-    *,
-    dry_run: bool = False,
-    year: int | None = None,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_QUEUE_2_LOG_PATH,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    artists_path: Path = DEFAULT_ARTISTS_PATH,
-    removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
-    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
-    lastfm: scrobble_history.LastFmReader | None = None,
-    lastfm_username: str | None = None,
+    options: DiscoveryOptions,
+    callbacks: DiscoveryCallbacks,
+    resources: DiscoveryResources | None = None,
 ) -> Queue2Summary:
     """Fill New Kids, then advance the first ten remaining Queue 2 artists.
 
     Args:
         sp: Caller-owned synchronous Spotify client.
-        new_kids_playlist_id: Configured New Kids review destination.
-        queue_2_playlist_id: Configured Queue 2 source or review playlist.
-        great_discoveries_2026_playlist_id: Existing 2026 promotion playlist seed.
-        unlucky_ones_playlist_id: Destination for liked but nonqualifying artists.
-        newfoundland_playlist_id: Additional destination for qualifying artists.
-        choice_reader: Composer/release choice callback, including skip and quit.
-        dry_run: Project changes without playlist/library writes or state checkpoints.
-        year: Review year; false or absent values retain the local current-year default.
-        echo: Existing CLI or background-job output sink.
-        progress_callback: Optional original progress callback.
-        retry_call: Retry/cancellation callback, or direct execution when absent.
-        state_path: Explicit legacy state path or the default shared namespace selector.
-        state_service: Optional caller-supplied shared state service.
-        log_path: Existing routine audit destination, including preview events.
-        albums_path: Canonical album mirror used at completed-release boundaries.
-        artists_path: Canonical artist mirror used after accepted unfollowing.
-        removed_albums_log_path: Original removed-album recovery log.
-        scrobbles_path: Existing Last.fm history export.
-        lastfm: Optional history reader; requested refresh also runs during previews.
-        lastfm_username: Required expected username when a history reader is supplied.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions and notifications.
+        resources: History, checkpoints, mirrors and audit files.
 
     Returns:
-        Original public summary with accepted results, counts and pause/resume flags.
+        The original review summary and ordered accepted effects.
 
     Raises:
-        NewKidsConfigError: A requested history refresh lacks its expected username.
-        NewKidsStateError: Saved progress is invalid or another run blocks execution.
-        NewKidsError: Catalog observations or operator selections are invalid.
+        NewKidsError: Observations, decisions or checkpoints are invalid.
     """
-    from spotify_manager.interfaces.operations.new_kids import (
-        flush_queue_2 as operation,
-    )
+    from spotify_manager.interfaces.operations.new_kids import flush_queue_2 as invoke
 
-    return operation(
-        sp,
-        new_kids_playlist_id,
-        queue_2_playlist_id,
-        great_discoveries_2026_playlist_id,
-        unlucky_ones_playlist_id,
-        newfoundland_playlist_id,
-        choice_reader,
-        dry_run=dry_run,
-        year=year,
-        echo=echo,
-        progress_callback=progress_callback,
-        retry_call=retry_call,
-        state_path=state_path,
-        state_service=state_service,
-        log_path=log_path,
-        albums_path=albums_path,
-        artists_path=artists_path,
-        removed_albums_log_path=removed_albums_log_path,
-        scrobbles_path=scrobbles_path,
-        lastfm=lastfm,
-        lastfm_username=lastfm_username,
-    )
+    return invoke(sp, options, callbacks, resources)
 
 
 def _utc_now() -> datetime:

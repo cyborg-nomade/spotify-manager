@@ -38,7 +38,9 @@ from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import release_candidate
-from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
+from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
+from spotify_manager.interfaces.requests.queue_3 import Queue3Options
+from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_kids
@@ -580,60 +582,24 @@ def _result_from_plan(
 
 def flush_queue_3(
     sp: Spotify,
-    playlist_id: str,
-    transition_reader: ReleaseTransitionReader,
-    *,
-    composer_playlist_reader: ComposerPlaylistReader | None = None,
-    active_year: int | None = None,
-    dry_run: bool = False,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    options: Queue3Options,
+    callbacks: Queue3Callbacks,
+    resources: Queue3Resources | None = None,
 ) -> FlushSummary:
     """Import the previous year once, then advance the first ten Queue 3 artists.
 
     Args:
-        sp: Caller-owned Spotify client.
-        playlist_id: Configured Queue 3 destination.
-        transition_reader: Original release-boundary decision callback.
-        composer_playlist_reader: Optional owned works-playlist selection callback.
-        active_year: Explicit checkpoint year, or the current UTC year.
-        dry_run: Whether state is cloned and durable writes suppressed.
-        echo: Existing output sink.
-        progress_callback: Optional entry progress sink.
-        retry_call: Optional retry and cancellation callback.
-        state_path: Original legacy namespace path.
-        state_service: Optional shared state service.
-        log_path: Original Queue 3 audit destination.
-        albums_path: Original local album mirror.
-        removed_albums_log_path: Original removed-album recovery log.
+    sp: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original public Queue 3 summary with per-artist decisions and resume status.
+    The original typed summary and accepted effects.
 
     Raises:
-        Queue3Error: Configuration, state, planning or execution fails.
+    RuntimeError: Observations, selections or persistence cannot complete.
     """
     from spotify_manager.interfaces.operations.queue_3 import flush_queue_3 as operation
 
-    return operation(
-        sp,
-        playlist_id,
-        transition_reader,
-        composer_playlist_reader=composer_playlist_reader,
-        active_year=active_year,
-        dry_run=dry_run,
-        echo=echo,
-        progress_callback=progress_callback,
-        retry_call=retry_call,
-        state_path=state_path,
-        state_service=state_service,
-        log_path=log_path,
-        albums_path=albums_path,
-        removed_albums_log_path=removed_albums_log_path,
-    )
+    return operation(sp, options, callbacks, resources)

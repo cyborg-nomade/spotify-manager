@@ -3,7 +3,7 @@
 from datetime import datetime as datetime
 from pathlib import Path as Path
 
-from spotipy import Spotify as Spotify
+from spotipy import Spotify
 
 from spotify_manager.application.release_check_values import (
     ReleaseCheckConfigError as ReleaseCheckConfigError,
@@ -17,13 +17,12 @@ from spotify_manager.application.release_check_values import (
 from spotify_manager.application.release_check_values import (
     ReleaseCheckSummary as ReleaseCheckSummary,
 )
+from spotify_manager.bootstrap.artist_mapping import artist_mapping
 from spotify_manager.bootstrap.release_opening import release_opening
 from spotify_manager.bootstrap.release_run import release_review
 from spotify_manager.core.state.service import StateService as StateService
-from spotify_manager.domain.artist_mapping import (
-    SpotifyArtistCandidate as SpotifyArtistCandidate,
-)
-from spotify_manager.domain.release_check_values import RankedArtist as RankedArtist
+from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
+from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.domain.release_check_values import (
     ReleaseCandidate as ReleaseCandidate,
 )
@@ -31,6 +30,10 @@ from spotify_manager.domain.release_check_values import (
     ReleaseCheckResult as ReleaseCheckResult,
 )
 from spotify_manager.domain.release_check_values import ReleaseTrack as ReleaseTrack
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
+from spotify_manager.routines import release_check as legacy
 from spotify_manager.routines import scrobble_history as scrobble_history
 from spotify_manager.routines.release_check import CHOICE_ADD as CHOICE_ADD
 from spotify_manager.routines.release_check import CHOICE_PENDING as CHOICE_PENDING
@@ -75,74 +78,73 @@ from spotify_manager.routines.release_check import validate_state as validate_st
 def run_release_check(
     sp: Spotify,
     lastfm: LastFmReader,
-    playlists: ReleaseCheckPlaylists,
-    *,
-    expected_username: str | None,
-    artist_choice_reader: ArtistChoiceReader | None = None,
-    release_choice_reader: ReleaseChoiceReader | None = None,
-    dry_run: bool = False,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    export_path: Path = scrobble_history.DEFAULT_SCROBBLES_PATH,
-    legacy_delta_path: Path | None = scrobble_history.DEFAULT_LEGACY_DELTA_PATH,
-    backup_dir: Path = scrobble_history.DEFAULT_BACKUP_DIR,
-    history_log_path: Path = scrobble_history.DEFAULT_LOG_PATH,
-    now: datetime | None = None,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    options: ReleaseCheckOptions,
+    callbacks: ReleaseCheckCallbacks,
+    resources: ReleaseCheckResources | None = None,
 ) -> ReleaseCheckSummary:
     """Refresh history, resume release review, and present the completed outcome.
 
     Args:
-        sp: Caller-owned synchronous Spotify client.
-        lastfm: Caller-owned canonical history reader.
-        playlists: Existing Wine Cellar and New Vintage destinations.
-        expected_username: Expected owner of the history export.
-        artist_choice_reader: Optional artist-mapping interaction.
-        release_choice_reader: Optional release-review interaction.
-        dry_run: Preserve original preview semantics and checkpoints.
-        state_path: Existing release-review namespace location.
-        state_service: Optional shared namespace authority.
-        log_path: Original release audit destination.
-        export_path: Canonical history location.
-        legacy_delta_path: Optional recent-history delta.
-        backup_dir: Existing compressed-history backup directory.
-        history_log_path: Original history audit destination.
-        now: Optional effective UTC observation time.
-        progress_callback: Invocation-owned progress presenter.
-        retry_call: Caller-owned retry boundary for Spotify operations.
+        sp: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
 
     Returns:
-        The original release-check summary, including resume and pause results.
+        The original typed summary and accepted effects.
 
     Raises:
-        ReleaseCheckError: History, state, catalog or accepted effects fail.
+        RuntimeError: Observations, selections or persistence cannot complete.
     """
+    resources = resources or ReleaseCheckResources()
     workflow, effects = release_opening(
         lastfm,
-        expected_username,
-        state_path,
-        state_service,
-        log_path,
-        export_path,
-        legacy_delta_path,
-        backup_dir,
-        history_log_path,
-        now,
-        progress_callback,
+        options.expected_username,
+        resources.state_path,
+        resources.state_service,
+        resources.log_path,
+        resources.export_path,
+        resources.legacy_delta_path,
+        resources.backup_dir,
+        resources.history_log_path,
+        options.now,
+        callbacks.progress_callback,
     )
-    opening = workflow.run(dry_run)
+    opening = workflow.run(options.dry_run)
     configured = release_review(
         opening,
         effects.state_access,
         sp,
-        playlists,
-        log_path,
-        artist_choice_reader,
-        release_choice_reader,
-        progress_callback,
-        retry_call,
-        dry_run,
+        options.playlists,
+        resources.log_path,
+        callbacks.artist_choice_reader,
+        callbacks.release_choice_reader,
+        callbacks.progress_callback,
+        callbacks.retry_call,
+        options.dry_run,
     )
     return configured.run()
+
+
+def resolve_artist(
+    sp: Spotify,
+    artist: RankedArtist,
+    reader: legacy.ArtistChoiceReader | None,
+    retry: legacy.RetryCall,
+) -> SpotifyArtistCandidate | str | None:
+    """Retain original catalog retries, mapping controls and custom-query semantics.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Original ranked Last.fm evidence.
+        reader: Original interaction callback, when present.
+        retry: Original retry policy.
+
+    Returns:
+        Original mapping, control response or absent noninteractive result.
+
+    Raises:
+        ReleaseCheckSpotifyError: Original mapping or interaction is invalid.
+    """
+    return artist_mapping(sp, reader, retry).run(artist)

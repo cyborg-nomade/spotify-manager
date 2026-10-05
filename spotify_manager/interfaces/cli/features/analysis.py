@@ -13,17 +13,12 @@ from typing import Never
 import typer
 from rich.console import Console
 from rich.live import Live
-from rich.progress import BarColumn
-from rich.progress import MofNCompleteColumn
 from rich.progress import Progress
-from rich.progress import SpinnerColumn
 from rich.progress import TaskID
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
-from rich.table import Table
-from rich.text import Text
 from spotipy import Spotify
 
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.operations import analyse_library as library_sync
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -32,46 +27,23 @@ from spotify_manager.interfaces.operations import (
 
 @dataclass(kw_only=True)
 class AnalysisCLI:
-    """Execute and present analysis through explicit facade dependencies.
+    """Run one CLI feature with explicit interaction and presentation resources.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        create_live: Factory for live instances.
-        complete_column: Rich complete column constructor.
-        create_progress: Factory for progress instances.
-        spinner_column: Rich spinner column constructor.
-        create_table: Factory for table instances.
-        create_text: Factory for text instances.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        monotonic: Monotonic supplied by the caller.
-        print_library_analysis_summary: Original print library analysis summary boundary
-            supplied by the facade.
-        review_client: Original Spotify client factory supplied by the facade.
-        run_library_analysis: Original run library analysis boundary supplied by the
-            facade.
-        sleep: Original retry delay boundary supplied by the facade.
-        wait_for_library_retry: Original wait for library retry boundary supplied by the
-            facade.
+        progress_display: Caller-owned progress display.
+        display: Caller-owned display.
+        create_live: Caller-owned create live.
+        monotonic: Caller-owned monotonic.
+        review_client: Caller-owned review client.
+        sleep: Caller-owned sleep.
     """
 
-    bar_column: type[BarColumn]
-    create_console: type[Console]
+    progress_display: ProgressDisplay
+    display: ConsoleDisplay
     create_live: type[Live]
-    complete_column: type[MofNCompleteColumn]
-    create_progress: type[Progress]
-    spinner_column: type[SpinnerColumn]
-    create_table: type[Table]
-    create_text: type[Text]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
     monotonic: Callable[[], float]
-    print_library_analysis_summary: Callable[..., None]
     review_client: Callable[..., Spotify]
-    run_library_analysis: Callable[..., None]
     sleep: Callable[[float], None]
-    wait_for_library_retry: Callable[..., bool]
 
     def _wait_for_library_retry(
         self,
@@ -122,7 +94,7 @@ class AnalysisCLI:
             if summary.mode == "async"
             else "Live library mirror updated"
         )
-        table = self.create_table(title=title)
+        table = self.display.create_table(title=title)
         table.add_column("Resource")
         table.add_column("Source")
         table.add_column("Previous", justify="right")
@@ -144,7 +116,7 @@ class AnalysisCLI:
         console.print(f"Run: {summary.run_id}", style="bold")
         console.print(f"Undo backup: {summary.backup_dir}", style="dim")
         console.print(
-            (f"Audit manifest: {summary.backup_dir}/manifest.json"), style="dim"
+            f"Audit manifest: {summary.backup_dir}/manifest.json", style="dim"
         )
 
     def _run_library_analysis(self, mode: library_sync.AnalysisMode) -> None:
@@ -153,7 +125,7 @@ class AnalysisCLI:
         Args:
             mode: Mode supplied by the caller.
         """
-        self._run_library_analysis_console = self.create_console()
+        self._run_library_analysis_console = self.display.create_console()
         self._run_library_analysis_labels = {
             "albums": "Saved albums",
             "tracks": "Liked tracks",
@@ -161,12 +133,14 @@ class AnalysisCLI:
         }
         self._run_library_analysis_progress_ref: Progress | None = None
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._run_library_analysis_console,
                 transient=True,
             ) as self._run_library_analysis_progress:
@@ -183,7 +157,9 @@ class AnalysisCLI:
             self._report_run_library_analysis_interrupted_interrupted(exc)
         except library_sync.LibrarySyncError as exc:
             self._report_run_library_analysis_library_sync_failure(exc)
-        self.print_library_analysis_summary(self._run_library_analysis_console, summary)
+        self._render_library_analysis_summary(
+            self._run_library_analysis_console, summary
+        )
 
     def _run_library_analysis_update_progress(
         self, resource: str, completed: int, total: int | None, status: str
@@ -193,7 +169,7 @@ class AnalysisCLI:
             self._run_library_analysis_tasks[resource],
             completed=completed,
             total=display_total,
-            description=(f"{self._run_library_analysis_labels[resource]}: {status}"),
+            description=f"{self._run_library_analysis_labels[resource]}: {status}",
         )
 
     def _run_library_analysis_log(self, line: str) -> None:
@@ -204,7 +180,7 @@ class AnalysisCLI:
     def _run_library_analysis_wait_for_library_retry(
         self, notice: library_sync.RetryNotice
     ) -> bool:
-        return self.wait_for_library_retry(
+        return self._wait_for_library_retry(
             self._run_library_analysis_console,
             notice,
             self._run_library_analysis_spotify,
@@ -213,11 +189,11 @@ class AnalysisCLI:
 
     def _analyse_library_async(self) -> None:
         """Build suffixed mirrors exclusively from YourLibrary.json."""
-        self.run_library_analysis("async")
+        self._run_library_analysis("async")
 
     def _analyse_library_sync(self) -> None:
         """Build suffixed mirrors exclusively from the live Spotify API."""
-        self.run_library_analysis("sync")
+        self._run_library_analysis("sync")
 
     def _run_restore_library_sync(self, run_id: str, yes: bool) -> None:
         """Restore generated library files from an async or sync backup.
@@ -252,9 +228,9 @@ class AnalysisCLI:
     ) -> Never:
         self._run_library_analysis_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -296,19 +272,17 @@ class AnalysisCLI:
     ) -> None:
         retry_at = datetime.now().astimezone() + timedelta(seconds=notice.delay_seconds)
         failure = (
-            (f"Spotify HTTP {notice.http_status}")
+            f"Spotify HTTP {notice.http_status}"
             if notice.http_status is not None
             else "Spotify connection interrupted"
         )
         console.print(f"{failure} while {notice.operation}.", style="bold yellow")
         console.print(
             (
-                "Retry "
-                f"{notice.attempt}"
-                " at "
+                f"Retry {notice.attempt} at "
                 f"{retry_at.isoformat(timespec='seconds')}"
-                ". Press r to rotate credentials and retry now, "
-                "or q to save and quit."
+                f". Press r to rotate credentials and retry now, or q to save "
+                f"and quit."
             ),
             style="yellow",
         )
@@ -357,12 +331,8 @@ class AnalysisCLI:
             if remaining == 0:
                 return True
             live.update(
-                self.create_text(
-                    (
-                        "Retrying in "
-                        f"{remaining}"
-                        " seconds. Press r to rotate or q to quit."
-                    ),
+                self.display.create_text(
+                    f"Retrying in {remaining} seconds. Press r to rotate or q to quit.",
                     style="yellow",
                 )
             )
@@ -389,8 +359,8 @@ class AnalysisCLI:
         if not callable(rotate):
             console.print(
                 (
-                    "This Spotify client cannot rotate credentials; "
-                    "continuing the retry wait."
+                    "This Spotify client cannot rotate credentials; c"
+                    "ontinuing the retry wait."
                 ),
                 style="bold yellow",
             )
@@ -399,7 +369,7 @@ class AnalysisCLI:
             label = rotate()
         except Exception as exc:
             console.print(
-                (f"Could not rotate credentials: {exc} Continuing the retry wait."),
+                f"Could not rotate credentials: {exc} Continuing the retry wait.",
                 style="bold yellow",
             )
             return False

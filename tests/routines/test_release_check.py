@@ -9,12 +9,40 @@ from pathlib import Path
 import pytest
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.history_values import ScrobbleHistorySummary
+from spotify_manager.infrastructure.callbacks import call_direct
+from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import release_check
 from spotify_manager.routines import scrobble_history
-from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
-from spotify_manager.application.history_values import ScrobbleHistorySummary
 from tests.support.history_dependencies import release_history
+
+
+def _record_destinations(
+    prompts: list[tuple[str, ...]],
+    _artist: release_check.RankedArtist,
+    _release: release_check.ReleaseCandidate,
+    _track: release_check.ReleaseTrack,
+    destinations: tuple[str, ...],
+    _unattached: bool,
+) -> str:
+    prompts.append(destinations)
+    return release_check.CHOICE_ADD
+
+
+def _record_unattached_destinations(
+    prompts: list[tuple[tuple[str, ...], bool]],
+    _artist: release_check.RankedArtist,
+    _release: release_check.ReleaseCandidate,
+    _track: release_check.ReleaseTrack,
+    destinations: tuple[str, ...],
+    unattached: bool,
+) -> str:
+    prompts.append((destinations, unattached))
+    return release_check.CHOICE_ADD
 
 
 def raw_artist(spotify_id: str, name: str) -> dict[str, object]:
@@ -274,11 +302,13 @@ def test_artist_progress_is_batched_into_bounded_state_checkpoints(
     summary = release_check.run_release_check(
         FakeSpotify(),
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 8, 28, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 28, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
 
     assert summary.artists_processed == 60
@@ -319,12 +349,14 @@ def test_dry_run_artist_mappings_are_batched_into_bounded_state_checkpoints(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        dry_run=True,
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 8, 28, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            dry_run=True,
+            now=datetime(2026, 8, 28, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
 
     assert summary.artists_processed == 60
@@ -369,11 +401,13 @@ def test_release_decision_is_persisted_once_after_the_initial_checkpoint(
     release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 8, 28, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 28, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
 
     assert save_calls == 3
@@ -420,13 +454,18 @@ def test_classical_composer_skips_release_catalog_lookup(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        dry_run=True,
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 8, 28, tzinfo=UTC),
-        progress_callback=lambda _done, _total, detail: progress.append(detail),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            dry_run=True,
+            now=datetime(2026, 8, 28, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(
+            progress_callback=lambda _done, _total, detail: progress.append(detail)
+        ),
+        ReleaseCheckResources(
+            state_path=tmp_path / "state.json", log_path=tmp_path / "log.jsonl"
+        ),
     )
 
     assert summary.artists_processed == 1
@@ -634,7 +673,7 @@ def test_wine_cellar_deduplication_keeps_first_primary_artist_track() -> None:
         {"item": duplicate},
         {"item": first},
     ]
-    retry = lambda operation, _description: operation()
+    retry = call_direct
 
     snapshot = release_check._playlist_snapshot(spotify, "wine", retry)
     removed, membership = release_check._deduplicate_wine_cellar(
@@ -724,16 +763,17 @@ def test_existing_wine_cellar_artist_is_only_prompted_for_new_vintage(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        release_choice_reader=(
-            lambda _artist, _release, _track, destinations, _unattached: (
-                prompts.append(destinations) or release_check.CHOICE_ADD
-            )
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 9, 19, tzinfo=UTC),
         ),
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 9, 19, tzinfo=UTC),
+        ReleaseCheckCallbacks(
+            release_choice_reader=partial(_record_destinations, prompts)
+        ),
+        ReleaseCheckResources(
+            state_path=tmp_path / "state.json", log_path=tmp_path / "log.jsonl"
+        ),
     )
 
     assert prompts == [("New Vintage",)]
@@ -757,14 +797,19 @@ def test_existing_wine_cellar_artist_outside_top_fifty_skips_catalog(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        release_choice_reader=lambda *_args: pytest.fail(
-            "release prompt is not needed"
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 9, 19, tzinfo=UTC),
         ),
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 9, 19, tzinfo=UTC),
+        ReleaseCheckCallbacks(
+            release_choice_reader=lambda *_args: pytest.fail(
+                "release prompt is not needed"
+            )
+        ),
+        ReleaseCheckResources(
+            state_path=tmp_path / "state.json", log_path=tmp_path / "log.jsonl"
+        ),
     )
 
     assert summary.results == ()
@@ -802,11 +847,13 @@ def test_completed_check_rescans_current_year_to_recover_missed_release(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 9, 19, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 9, 19, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
 
     assert summary.checked_from == date(2026, 1, 1)
@@ -925,14 +972,17 @@ def test_real_run_adds_each_tier_correctly_and_reuses_mappings(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        artist_choice_reader=lambda artist, candidates: (
-            choices.append(artist.name) or candidates[1].spotify_id
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 6, tzinfo=UTC),
         ),
-        state_path=state_path,
-        log_path=log_path,
-        now=datetime(2026, 8, 6, tzinfo=UTC),
+        ReleaseCheckCallbacks(
+            artist_choice_reader=lambda artist, candidates: (
+                choices.append(artist.name) or candidates[1].spotify_id
+            )
+        ),
+        ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
     assert choices == ["Top Artist"]
@@ -960,12 +1010,15 @@ def test_real_run_adds_each_tier_correctly_and_reuses_mappings(
     second = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        artist_choice_reader=lambda *_args: pytest.fail("mapping should be reused"),
-        state_path=state_path,
-        log_path=log_path,
-        now=datetime(2026, 8, 7, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 7, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(
+            artist_choice_reader=lambda *_args: pytest.fail("mapping should be reused")
+        ),
+        ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
     assert second.results == ()
@@ -1012,12 +1065,13 @@ def test_release_prompt_can_permanently_skip_an_eligible_release(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        release_choice_reader=choose_release,
-        state_path=state_path,
-        log_path=log_path,
-        now=datetime(2026, 8, 6, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 6, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(release_choice_reader=choose_release),
+        ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
     assert prompts == [("Wine Cellar", "New Vintage")]
@@ -1059,16 +1113,15 @@ def test_unattached_single_can_be_added_to_wine_cellar(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        release_choice_reader=(
-            lambda _artist, _release, _track, destinations, unattached: (
-                prompts.append((destinations, unattached)) or release_check.CHOICE_ADD
-            )
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 6, tzinfo=UTC),
         ),
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 8, 6, tzinfo=UTC),
+        ReleaseCheckCallbacks(
+            release_choice_reader=partial(_record_unattached_destinations, prompts)
+        ),
+        ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
 
     assert prompts == [(("Wine Cellar",), True)]
@@ -1091,15 +1144,18 @@ def test_permanent_artist_skip_persists_during_dry_run_and_avoids_search(
     first = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        artist_choice_reader=lambda _artist, _candidates: (
-            release_check.CHOICE_SKIP_ARTIST
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            dry_run=True,
+            now=datetime(2026, 8, 6, tzinfo=UTC),
         ),
-        dry_run=True,
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 8, 6, tzinfo=UTC),
+        ReleaseCheckCallbacks(
+            artist_choice_reader=lambda _artist, _candidates: (
+                release_check.CHOICE_SKIP_ARTIST
+            )
+        ),
+        ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
 
     assert first.artists_processed == 1
@@ -1110,15 +1166,18 @@ def test_permanent_artist_skip_persists_during_dry_run_and_avoids_search(
     second = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        artist_choice_reader=lambda *_args: pytest.fail(
-            "permanently skipped artist should not be mapped again"
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            dry_run=True,
+            now=datetime(2026, 8, 7, tzinfo=UTC),
         ),
-        dry_run=True,
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        now=datetime(2026, 8, 7, tzinfo=UTC),
+        ReleaseCheckCallbacks(
+            artist_choice_reader=lambda *_args: pytest.fail(
+                "permanently skipped artist should not be mapped again"
+            )
+        ),
+        ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
 
     assert second.artists_processed == 1
@@ -1154,11 +1213,13 @@ def test_unconfirmed_single_is_reconsidered_when_future_album_appears(
     first = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        state_path=state_path,
-        log_path=log_path,
-        now=datetime(2026, 8, 6, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 6, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
     assert first.results[0].reason == "single kept pending for a future album or EP"
@@ -1181,11 +1242,13 @@ def test_unconfirmed_single_is_reconsidered_when_future_album_appears(
     second = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        state_path=state_path,
-        log_path=log_path,
-        now=datetime(2026, 8, 7, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 7, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
     assert len(second.results) == 1
@@ -1225,11 +1288,13 @@ def test_pending_single_closes_when_its_album_is_already_released(
     release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        state_path=state_path,
-        log_path=log_path,
-        now=datetime(2026, 8, 6, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 6, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
     album = raw_release(
@@ -1247,11 +1312,13 @@ def test_pending_single_closes_when_its_album_is_already_released(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        state_path=state_path,
-        log_path=log_path,
-        now=datetime(2026, 8, 7, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            now=datetime(2026, 8, 7, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
     pending_result = next(
@@ -1287,12 +1354,14 @@ def test_dry_run_persists_only_history_and_artist_mappings(
     summary = release_check.run_release_check(
         spotify,
         object(),
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="man-et-arms",
-        dry_run=True,
-        state_path=state_path,
-        log_path=log_path,
-        now=datetime(2026, 8, 6, tzinfo=UTC),
+        ReleaseCheckOptions(
+            playlists=release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="man-et-arms",
+            dry_run=True,
+            now=datetime(2026, 8, 6, tzinfo=UTC),
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
     assert summary.results[0].wine_cellar_action == "would add"

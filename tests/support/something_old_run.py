@@ -16,6 +16,9 @@ from spotipy import Spotify
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.history_matching import PlaylistState
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import something_old as legacy
 from tests.support.golden_oldies import plays
 from tests.support.history_dependencies import LegacySomethingOld
@@ -297,13 +300,18 @@ def _run(edge: OldObservations, preview: bool) -> object:
         result = legacy.run_something_old(
             cast(Spotify, edge),
             cast(legacy.LastFmReader, edge),
-            "destination",
-            expected_username="listener",
-            mode_reader=edge.mode,
-            album_choice_reader=edge.album_choice,
-            dry_run=preview,
-            now=NOW,
-            progress_callback=edge.progress,
+            SomethingOldOptions(
+                playlist_id="destination",
+                expected_username="listener",
+                dry_run=preview,
+                now=NOW,
+            ),
+            SomethingOldCallbacks(
+                mode_reader=edge.mode,
+                album_choice_reader=edge.album_choice,
+                progress_callback=edge.progress,
+            ),
+            SomethingOldResources(),
         )
     return asdict(result)
 

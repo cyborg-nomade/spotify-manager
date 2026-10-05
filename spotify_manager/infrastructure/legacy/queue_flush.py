@@ -327,21 +327,21 @@ def _action_message(
 ) -> str:
     if action == "unfollow":
         return (
-            f"{'Would unfollow' if preview else 'Unfollowed'} "
+            f"{('Would unfollow' if preview else 'Unfollowed')} "
             f"{source.primary_artist_name}."
         )
     assert target is not None
     if action == "advance":
         return (
-            f"{'Would advance' if preview else 'Advanced'} "
+            f"{('Would advance' if preview else 'Advanced')} "
             f"{source.primary_artist_name} to {target.name}."
         )
     if action == "promote":
         return (
-            f"{'Would promote' if preview else 'Promoted'} "
+            f"{('Would promote' if preview else 'Promoted')} "
             f"{source.primary_artist_name} to Queue 2 with {target.name}."
         )
     return (
-        f"{'Would add' if preview else 'Added'} "
-        f"{source.primary_artist_name} to Unlucky Ones with {target.name}."
+        f"{('Would add' if preview else 'Added')} {source.primary_artist_name}"
+        f" to Unlucky Ones with {target.name}."
     )

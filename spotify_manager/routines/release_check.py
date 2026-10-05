@@ -64,6 +64,9 @@ from spotify_manager.domain.release_check_values import (
     ReleaseCheckResult as ReleaseCheckResult,
 )
 from spotify_manager.domain.release_check_values import ReleaseTrack as ReleaseTrack
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 
@@ -240,7 +243,7 @@ def resolve_spotify_artist(
     Raises:
         ReleaseCheckSpotifyError: Original mapping or choice is invalid.
     """
-    from spotify_manager.bootstrap.artist_mapping import resolve_artist
+    from spotify_manager.interfaces.operations.release_check import resolve_artist
 
     return resolve_artist(sp, artist, choice_reader, retry_call)
 
@@ -908,47 +911,30 @@ def _summary(
 def run_release_check(
     sp: Spotify,
     lastfm: LastFmReader,
-    playlists: ReleaseCheckPlaylists,
-    *,
-    expected_username: str | None,
-    artist_choice_reader: ArtistChoiceReader | None = None,
-    release_choice_reader: ReleaseChoiceReader | None = None,
-    dry_run: bool = False,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    export_path: Path = scrobble_history.DEFAULT_SCROBBLES_PATH,
-    legacy_delta_path: Path | None = scrobble_history.DEFAULT_LEGACY_DELTA_PATH,
-    backup_dir: Path = scrobble_history.DEFAULT_BACKUP_DIR,
-    history_log_path: Path = scrobble_history.DEFAULT_LOG_PATH,
-    now: datetime | None = None,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    options: ReleaseCheckOptions,
+    callbacks: ReleaseCheckCallbacks,
+    resources: ReleaseCheckResources | None = None,
 ) -> ReleaseCheckSummary:
-    """Refresh Last.fm, discover releases, and update both playlists safely."""
+    """Refresh Last.fm, discover releases, and update both playlists safely.
+
+    Args:
+    sp: Caller-owned client.
+    lastfm: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
+
+    Returns:
+    The original typed summary and accepted effects.
+
+    Raises:
+    RuntimeError: Observations, selections or persistence cannot complete.
+    """
     from spotify_manager.interfaces.operations.release_check import (
         run_release_check as operation,
     )
 
-    return operation(
-        sp,
-        lastfm,
-        playlists,
-        expected_username=expected_username,
-        artist_choice_reader=artist_choice_reader,
-        release_choice_reader=release_choice_reader,
-        dry_run=dry_run,
-        state_path=state_path,
-        state_service=state_service,
-        log_path=log_path,
-        export_path=export_path,
-        legacy_delta_path=legacy_delta_path,
-        backup_dir=backup_dir,
-        history_log_path=history_log_path,
-        now=now,
-        progress_callback=progress_callback,
-        retry_call=retry_call,
-    )
+    return operation(sp, lastfm, options, callbacks, resources)
 
 
 def _read_playlist_page(

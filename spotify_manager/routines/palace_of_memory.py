@@ -50,6 +50,9 @@ from spotify_manager.domain.palace_values import SpotifyFirstTrack as SpotifyFir
 from spotify_manager.infrastructure import palace_catalog
 from spotify_manager.infrastructure import palace_cursor
 from spotify_manager.infrastructure import palace_files
+from spotify_manager.interfaces.requests.palace import PalaceCallbacks
+from spotify_manager.interfaces.requests.palace import PalaceOptions
+from spotify_manager.interfaces.requests.palace import PalaceResources
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
@@ -504,71 +507,29 @@ def _append_log(path: Path, summary: PalaceOfMemorySummary) -> None:
 
 def fill_palace_of_memory(
     spotify: Spotify,
-    playlist_id: str,
-    *,
-    dry_run: bool = False,
-    alphabetical_start: str | None = None,
-    today: date | None = None,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    album_backups_dir: Path = DEFAULT_ALBUM_BACKUPS_DIR,
-    album_refresh_log_path: Path = DEFAULT_ALBUM_REFRESH_LOG_PATH,
-    random_index_reader: RandomIndexReader = blast_from_past.fetch_random_indexes,
-    retry_call: RetryCall | None = None,
-    progress_callback: ProgressCallback | None = None,
-    echo: Echo = print,
+    options: PalaceOptions,
+    callbacks: PalaceCallbacks,
+    resources: PalaceResources | None = None,
 ) -> PalaceOfMemorySummary:
     """Gather original alphabetical and historical markers and apply live authority.
 
     Args:
-        spotify: Caller-owned Spotify client.
-        playlist_id: Original destination identity.
-        dry_run: Original preview behavior, including live mirror publication.
-        alphabetical_start: Original optional manual starting reference.
-        today: Original optional effective local date.
-        albums_path: Original canonical saved mirror location.
-        scrobbles_path: Original full scrobble export location.
-        state_path: Original cursor location.
-        state_service: Original optional shared cursor authority.
-        log_path: Original successful completion audit location.
-        album_backups_dir: Original mirror backup directory.
-        album_refresh_log_path: Original preflight audit location.
-        random_index_reader: Original caller-owned historical index reader.
-        retry_call: Original retry policy, including append retries.
-        progress_callback: Original optional stage presenter.
-        echo: Original accepted-append presenter.
+    spotify: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original complete ordered selection, live classification and refresh outcome.
+    The original typed summary and accepted effects.
 
     Raises:
-        PalaceOfMemoryError: Original preflight, selection, checkpoint or audit fails.
+    RuntimeError: Observations, selections or persistence cannot complete.
     """
     from spotify_manager.interfaces.operations.palace_of_memory import (
         fill_palace_of_memory as operation,
     )
 
-    return operation(
-        spotify,
-        playlist_id,
-        dry_run=dry_run,
-        alphabetical_start=alphabetical_start,
-        today=today,
-        albums_path=albums_path,
-        scrobbles_path=scrobbles_path,
-        state_path=state_path,
-        state_service=state_service,
-        log_path=log_path,
-        album_backups_dir=album_backups_dir,
-        album_refresh_log_path=album_refresh_log_path,
-        random_index_reader=random_index_reader,
-        retry_call=retry_call,
-        progress_callback=progress_callback,
-        echo=echo,
-    )
+    return operation(spotify, options, callbacks, resources)
 
 
 def _direct_retry(operation: Callable[[], object], _description: str) -> object:

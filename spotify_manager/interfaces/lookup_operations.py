@@ -5,6 +5,7 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.album_review import AlbumReviewRequest
 from spotify_manager.application.album_review import review_album
 from spotify_manager.application.library_lookup_run import artist_statistics
 from spotify_manager.application.scrobble_lookup_run import status
@@ -43,14 +44,8 @@ def evaluate_live_album(
         RuntimeError: A Spotify response fails existing validation.
     """
     catalog, membership = album_review_ports(client)
-    review = review_album(
-        catalog,
-        membership,
-        name=name,
-        album_id=album_id,
-        artist=artist,
-        threshold=threshold,
-    )
+    request = AlbumReviewRequest(name, album_id, artist, threshold)
+    review = review_album(catalog, membership, request)
     return album_evaluation(review)
 
 

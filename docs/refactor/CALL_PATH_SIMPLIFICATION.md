@@ -39,12 +39,19 @@ HTML, CSS and JavaScript is reserved for a future targeted refactor.
 
 ## Following a request and its result
 
-Start with the frontend's request URL in `frontend/index.html`. Match it in
-`interfaces/http/routers/`, then follow the named `api.py` registration into
-`interfaces/http/handlers/`. A job handler reserves its handle and dispatches
-its feature worker; that worker supplies its own choice, retry, progress and
-cancellation callbacks to the operation below. CLI commands in `main.py` supply
-the same operation to `interfaces/cli/features/`.
+Start with the frontend's request URL in `frontend/index.html`. Match its
+`@app.api_route` declaration in `api.py`, immediately above the endpoint. The
+endpoint calls a named feature function in `interfaces/http/handlers/`, or the
+application operation directly for album evaluation. Handler functions validate
+input and call the explicit job starter in `interfaces/http/jobs.py`. The starter
+reserves a handle and dispatches its named worker. Follow the worker's `_execute`
+method into the shared invocation and then its named application stages. There
+are no router factories or injected handler-function containers.
+
+CLI commands in `main.py` construct adapters in `interfaces/cli/features/`.
+Adapters call the same shared invocation and their own prompt/render methods
+directly. Public `main.py` helpers remain external compatibility entries; normal
+execution does not return through them.
 
 `interfaces/operations/` contains invocation functions shared by CLI and HTTP.
 They assemble existing typed dependencies and call application stages. The
@@ -58,10 +65,10 @@ For album evaluation, follow this complete path:
 
 ```text
 frontend/index.html: album request
-  → interfaces/http/routers/lookups.py
-  → api.album_evaluation → LookupsHandlers.album_evaluation
-  → interfaces/lookup_operations.evaluate_live_album
-      constructs catalog and membership through bootstrap.listening
+  → api.py: @app.api_route("/albums/evaluation", methods=["GET"])
+  → api.album_evaluation
+      validates AlbumReviewRequest through handlers.lookups.album_request
+      constructs catalog and membership through bootstrap.listening.album_review_ports
   → application.album_review.review_album
   → domain.albums.assess_album
   ← AlbumReview
@@ -69,7 +76,8 @@ frontend/index.html: album request
   ← AlbumEvaluation → HTTP response
 ```
 
-The CLI's `LookupsCLI` uses the same `evaluate_live_album` invocation and result.
+The CLI's `LookupsCLI` calls `lookup_operations.evaluate_live_album`, which
+constructs the same ports and calls `review_album` with `AlbumReviewRequest`.
 The public processor helper remains an external compatibility entry; normal
 CLI/HTTP execution does not call it.
 
@@ -83,7 +91,7 @@ interface mechanics, separate from policy execution.
 
 | Family / feature adapter | Shared operation | Application stages and domain rules | Return path |
 | --- | --- | --- | --- |
-| Album, artist and track lookups: `lookups` | `lookup_operations.py`: `evaluate_live_album`, `get_live_artist_library_stats`, `get_track_scrobble_status` | `album_review`, `library_lookup_run`, `scrobble_lookup_run`; `albums`, `lookup_selection`, `lookup_seasons` | `AlbumReview` → album presenter → `AlbumEvaluation`; existing statistics/status wire models → handler or CLI |
+| Album, artist and track lookups: `lookups` | HTTP album: direct `review_album`; CLI album and remaining lookups: `lookup_operations.py` | `album_review`, `library_lookup_run`, `scrobble_lookup_run`; `albums`, `lookup_selection`, `lookup_seasons` | `AlbumReview` → album presenter → `AlbumEvaluation`; existing statistics/status wire models → handler or CLI |
 | Blast: `historical`, `blast` | `operations/blast_from_past.py` | `BlastSelection`, `BlastPlaylist`, `HistoricalResolution`; calendar and historical matching policies | Historical summary → `http/presenters/historical.py` → job snapshot; CLI historical renderer |
 | Daily Mind Radio: `daily_mind_radio`, `historical` | `operations/daily_mind_radio.py` | `AnniversarySelection`, `AnniversaryPlaylist`, `HistoricalResolution`; anniversary and matching rules | Daily summary → historical presenter → job snapshot; CLI historical renderer |
 | Dormant artists: `dormant`, `blast_artist`, `historical` | `operations/blast_from_past_artists.py` | `DormantRecovery`, `DormantLikedTrack`; dormant-year intersection and preferred liked track | Dormant summary → historical presenter → job snapshot; CLI historical renderer |
@@ -92,7 +100,7 @@ interface mechanics, separate from policy execution.
 | Queue fill: `queue_fill`, `queue` | `operations/the_queue.py`: `fill_queue_from_lastfm` | `QueueFill`, `QueueSeeds`, `QueueRecommendations`, artist mapping; seed/ranking/exclusion rules | Fill summary → queue presenter → job snapshot; CLI queue renderer |
 | Queue flush: `queue_flush`, `queue` | `operations/the_queue.py`: `flush_queue` | `QueueFlush`, planning/execution; artist assessment, top-track progression and accepted-effect rules | Flush summary → queue presenter → job snapshot; CLI queue renderer |
 | New Kids and Queue 2: `discovery`, `new_kids`, `queue_2` | `operations/new_kids.py` | Review inputs → discovery session/planner/execution → `DiscoveryReview`; Queue 2 prefill retains its separate stage | Discovery/Queue 2 summary → discovery presenter → job snapshot; CLI discovery renderer |
-| Queue 3: `queue_3` | `operations/queue_3.py` | Annual input observations/import → `Queue3Run`/`Queue3Review` → completion; annual import and studio progression policies | Annual/flush summary → queue presenter → job snapshot; CLI Queue 3 presenter |
+| Queue 3: `queue_3` | `operations/queue_3.py` | Annual input observations/import → `Queue3Run`/`Queue3Review` → completion; annual import and studio progression policies | Annual/flush summary → discovery presenter → job snapshot; CLI Queue 3 presenter |
 | New Wine: `wine`, `new_wine` | `operations/new_wine.py` | New Wine planning/observations/execution, Wine Cellar refill; release progression and library affinity | New Wine summary → wine presenter → job snapshot; CLI wine renderer |
 | Slow Listening: `slow_listening` | `operations/slow_listening.py` | Slow-listening plan/run/state; chronological studio-release progression | Slow summary → slow-listening presenter → job snapshot; CLI slow renderer |
 | Something Old: `something_old` | `operations/something_old.py` | `SomethingOld`, golden selection and artist mapping; Golden Oldies and track-selection rules | Golden summary → Something Old presenter → job snapshot; CLI golden renderer |
@@ -136,6 +144,31 @@ by that invocation. Do not turn synchronous resources into new global singletons
 or change when clocks, settings, source snapshots or credentials are observed.
 Async client/task ownership remains Items 8–9.
 
+## Cohesive inputs and concrete resource owners
+
+Request values, interaction callbacks and persistence resources are separate
+frozen models in `interfaces/requests/`. An invocation normally takes a client,
+options, callbacks and resources. No production function has more than 13
+parameters; generated delivery/request constructors have the same ceiling.
+Grouping follows a shared purpose rather than wrapping an arbitrary dependency
+list. `NewWineOptions`, for example, describes selection/dry-run values,
+`NewWineCallbacks` describes decisions and notifications, and `NewWineStorage`
+describes state/mirror/audit locations.
+
+`PlaylistContext` owns the registry, lock, log formatter, clock and logger used
+by one worker. Workers call concrete presenters and `PlaylistRetry` methods
+directly. They retain their original signals and callback-restoration order.
+`ConsoleDisplay` and `ProgressDisplay` group terminal rendering constructors;
+they do not select or execute business stages.
+
+`bootstrap/clients.py` is the sole constructor owner for `LastFmClient`.
+HTTP and CLI adapters provide `LastFmCredentials` there; routine files are no
+longer part of client construction. Bootstrap only builds dependencies.
+Discovery input acquisition lives in `operations/discovery_inputs.py`,
+discography observations in `infrastructure/discography_observations.py`,
+and annual resource effects in `infrastructure/legacy/new_year_resources.py`.
+Their reads, clocks and effects retain the original stage order.
+
 ## Acceptance and evidence
 
 - Every command/routine family has an explicit entry, use case, policy and return
@@ -146,7 +179,7 @@ Async client/task ownership remains Items 8–9.
 - Each retained wrapper performs distinct validation, construction, interaction,
   business sequencing or presentation. Meaningful application stages remain;
   helper count and file count are not success metrics.
-- Public entry points, signatures, imports, override behavior and all 11 frozen
+- HTTP/CLI entry points, signatures, imports, override behavior and all 11 frozen
   artifacts remain compatible. Original fixtures and their expected effects
   remain unchanged; internal test wiring may migrate only with equal or stronger
   coverage of the same behavior.
@@ -165,10 +198,12 @@ Async client/task ownership remains Items 8–9.
 
 ## Retained boundaries and removal decisions
 
-- **Public compatibility entries:** keep original routine/processor imports,
-  signatures, defaults and schema text. Entry functions delegate to the shared
-  operation. These wrappers serve external callers; bootstrap and infrastructure
-  must not call them. The dependency regression guard enforces that distinction.
+- **Public compatibility entries:** keep routine/processor imports and unchanged
+  HTTP/CLI signatures, defaults and schema text. As approved in the 2026-10-05
+  review, Python callers of the oversized execution signatures now supply typed
+  request/callback/resource models. These wrappers serve external callers;
+  bootstrap and infrastructure must not call their execution facades. The
+  dependency regression guard enforces that distinction.
 - **Original SDK source contract:** concrete read/write leaves remain in their
   original source files because the frozen SDK inventory includes source paths
   and receiver expressions. Explicit imports bind those implementations. Keep
@@ -188,6 +223,10 @@ Async client/task ownership remains Items 8–9.
 - **Threaded job ownership:** workers still own choice/cancellation signals and
   callback cleanup. Keep these meaningful contexts under ADR 002. Native async
   clients and tasks belong to Items 8–9.
+- **Unexpected job failure boundary:** retain the existing outer worker catches
+  that publish a failed status and restore callbacks. Removing them would change
+  the frozen unexpected-error/cleanup contract. No new blanket business catches
+  are introduced.
 
 The [named helper inventory](RETAINED_LEGACY_HELPERS.md) identifies every explicit
 legacy helper binding, its family contract and retention decision. These are
@@ -202,14 +241,14 @@ recordings were not changed. New tests reject execution-facade dependencies and
 mutable facade-function lookup, prove aliases/re-exports are detected, and cover
 fresh-process entry import orders.
 
-Final verification on the complete implementation:
+Final verification of the 2026-10-05 revision:
 
-- **10,387 tests passed**, randomized seed `20261013`.
-- Package statement coverage: **96.16%** (30,965 / 32,203); branch coverage:
-  **92.54%** (5,371 / 5,804). Both exceed the approved 95% / 90% gates.
+- **10,393 tests passed**, randomized seed `20261016`.
+- Package statement coverage: **96.14%** (30,958 / 32,200); branch coverage:
+  **92.53%** (5,376 / 5,810). Both exceed the approved 95% / 90% gates.
 - Domain/application statement and branch coverage remains **100%**. Separate
   isolated gates passed **1,201 domain** and **3,622 application** tests.
-- Ruff and formatting pass; package mypy passes **605 files**. The six new
+- Ruff and formatting pass; package mypy passes **596 files**. The nine
   dependency/fixture modules also pass strict mypy.
 - The structural audit reports no local functions/classes, compound or multiline
   comprehensions, missing annotations, functions above 25 executable statements,
@@ -217,9 +256,12 @@ Final verification on the complete implementation:
   imports and docstrings are excluded from executable-statement counts.
 - A fresh capture matches all **11 frozen public artifacts**, without modifying
   baseline artifacts, SDK inventories or existing expected behavior fixtures.
-- The 14 new dependency/startup checks pass as part of the full randomized suite.
+- The 20 dependency/startup/structure checks pass in the full randomized suite.
   They reject inward execution through legacy facades and mutable function
   lookups, including re-exported file functions and deferred aliases.
+  Added checks enforce the 13-parameter ceiling, small delivery/request
+  constructors, colocated routes, plain handlers, construction-only bootstrap,
+  and a single concrete Last.fm client constructor.
 - Local review server: **http://127.0.0.1:8766/**, restarted on the final branch.
   Health is online, **4 / 4 sources** and shared state load, and all **20 job
   reconnect endpoints** return 200 with no active jobs. Unlock, reload and job

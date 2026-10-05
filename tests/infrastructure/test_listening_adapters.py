@@ -16,6 +16,7 @@ import pytest
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.album_review import AlbumReviewRequest
 from spotify_manager.application.album_review import review_album
 from spotify_manager.application.music import Track
 from spotify_manager.application.ports.listening import RetryCall
@@ -103,7 +104,9 @@ def test_membership_keeps_original_batch_boundaries(count: int) -> None:
     for start in range(0, count, 20):
         batches.append([True] * min(20, count - start))
     client.current_user_saved_tracks_contains.side_effect = batches
-    result = review_album(*album_review_ports(client), album_id="album")
+    result = review_album(
+        *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
+    )
     expected = []
     for start in range(0, count, 20):
         expected.append([str(index) for index in range(start, min(start + 20, count))])
@@ -133,7 +136,9 @@ def test_album_pagination_preserves_filtered_items_and_page_order() -> None:
     client = _client([None, _track("a")], [True, False])
     client.album_tracks.return_value["next"] = "next"
     client.next.return_value = {"items": [_track("b")], "next": None}
-    result = review_album(*album_review_ports(client), album_id="album")
+    result = review_album(
+        *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
+    )
     assert [track.spotify_id for track in result.tracks] == ["a", "b"]
     client.album_tracks.assert_called_once_with("album", limit=50)
     client.next.assert_called_once()
@@ -152,7 +157,9 @@ def test_malformed_track_pages_keep_legacy_errors(page: object) -> None:
     client = _client([], [])
     client.album_tracks.return_value = page
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        review_album(*album_review_ports(client), album_id="album")
+        review_album(
+            *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
+        )
     client.current_user_saved_tracks_contains.assert_not_called()
 
 
@@ -168,7 +175,9 @@ def test_catalog_preserves_sdk_error_translation(status: int) -> None:
     client.album.side_effect = error
     expected = library_lookups.AlbumNotFoundError if status == 404 else SpotifyException
     with pytest.raises(expected) as caught:
-        review_album(*album_review_ports(client), album_id="missing")
+        review_album(
+            *album_review_ports(client), request=AlbumReviewRequest(album_id="missing")
+        )
     assert caught.value is error or caught.value.__cause__ is error
     client.album_tracks.assert_not_called()
 
@@ -177,7 +186,10 @@ def test_catalog_search_uses_existing_exact_match_and_query() -> None:
     """Retain exact name matching and the existing search parameters."""
     client = _client([_track("x")], [True])
     client.search.return_value = {"albums": {"items": [ALBUM]}}
-    result = review_album(*album_review_ports(client), name="Album", artist="Artist")
+    result = review_album(
+        *album_review_ports(client),
+        request=AlbumReviewRequest(name="Album", artist="Artist"),
+    )
     assert result.album.spotify_id == "album"
     client.search.assert_called_once_with(
         q='album:"Album" artist:"Artist"', type="album", limit=10, offset=0

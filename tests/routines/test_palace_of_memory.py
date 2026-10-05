@@ -9,6 +9,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from spotify_manager.interfaces.requests.palace import PalaceCallbacks
+from spotify_manager.interfaces.requests.palace import PalaceOptions
+from spotify_manager.interfaces.requests.palace import PalaceResources
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory
@@ -286,17 +289,17 @@ def test_dry_run_plans_ten_unique_first_tracks_without_writes(
     spotify = FakeSpotify()
 
     summary = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        dry_run=True,
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=log_path,
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(playlist_id="palace", dry_run=True, today=date(2026, 8, 4)),
+        PalaceCallbacks(random_index_reader=fixed_random_indexes),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=log_path,
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.cutoff_date == date(2025, 12, 31)
@@ -353,16 +356,17 @@ def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None
     spotify = FakeSpotify()
 
     summary = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=log_path,
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+        PalaceCallbacks(random_index_reader=fixed_random_indexes),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=log_path,
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.added == 10
@@ -384,16 +388,17 @@ def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None
 
     spotify.posts.clear()
     second = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=log_path,
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+        PalaceCallbacks(random_index_reader=fixed_random_indexes),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=log_path,
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert second.alphabetical_start_index == 5
@@ -423,17 +428,21 @@ def test_manual_alphabetical_start_overrides_and_replaces_cursor(
     spotify = FakeSpotify()
 
     summary = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        alphabetical_start="spotify:album:album-2",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(
+            playlist_id="palace",
+            alphabetical_start="spotify:album:album-2",
+            today=date(2026, 8, 4),
+        ),
+        PalaceCallbacks(random_index_reader=fixed_random_indexes),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=tmp_path / "log.jsonl",
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.alphabetical_cursor_overridden is True
@@ -460,18 +469,22 @@ def test_manual_alphabetical_start_dry_run_does_not_change_cursor(
     state_path.write_text(original_state)
 
     summary = palace_of_memory.fill_palace_of_memory(
-        FakeSpotify(),  # type: ignore[arg-type]
-        "palace",
-        dry_run=True,
-        alphabetical_start="6",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        FakeSpotify(),
+        PalaceOptions(
+            playlist_id="palace",
+            dry_run=True,
+            alphabetical_start="6",
+            today=date(2026, 8, 4),
+        ),
+        PalaceCallbacks(random_index_reader=fixed_random_indexes),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=tmp_path / "log.jsonl",
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.alphabetical_start_index == 5
@@ -528,16 +541,17 @@ def test_real_run_rechecks_playlist_and_avoids_new_duplicate(tmp_path: Path) -> 
     ]
 
     summary = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "log.jsonl",
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+        PalaceCallbacks(random_index_reader=fixed_random_indexes),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=tmp_path / "state.json",
+            log_path=tmp_path / "log.jsonl",
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.playlist_length_before == 1
@@ -557,16 +571,17 @@ def test_failed_playlist_write_does_not_advance_cursor(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="post failed"):
         palace_of_memory.fill_palace_of_memory(
-            spotify,  # type: ignore[arg-type]
-            "palace",
-            today=date(2026, 8, 4),
-            albums_path=albums_path,
-            scrobbles_path=history_path,
-            state_path=state_path,
-            log_path=tmp_path / "log.jsonl",
-            album_backups_dir=tmp_path / "album-backups",
-            album_refresh_log_path=tmp_path / "refresh.jsonl",
-            random_index_reader=fixed_random_indexes,
+            spotify,
+            PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+            PalaceCallbacks(random_index_reader=fixed_random_indexes),
+            PalaceResources(
+                albums_path=albums_path,
+                scrobbles_path=history_path,
+                state_path=state_path,
+                log_path=tmp_path / "log.jsonl",
+                album_backups_dir=tmp_path / "album-backups",
+                album_refresh_log_path=tmp_path / "refresh.jsonl",
+            ),
         )
 
     assert not state_path.exists()

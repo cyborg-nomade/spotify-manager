@@ -1,18 +1,17 @@
 """Explicit callbacks and wire presentation for SomethingOldWorker."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
 from datetime import timedelta
-from threading import Lock
 
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
@@ -31,6 +30,11 @@ from spotify_manager.interfaces.http.models.something_old import (
     SomethingOldReleaseOption,
 )
 from spotify_manager.interfaces.http.models.something_old import SomethingOldTrackResult
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.presenters.something_old import scrobble_date
+from spotify_manager.interfaces.http.presenters.something_old import (
+    something_old_track_result as _something_old_track_result,
+)
 from spotify_manager.interfaces.http.workers.errors import (
     _SomethingOldJobCancelledError,
 )
@@ -40,44 +44,28 @@ from spotify_manager.interfaces.operations import (
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
 from spotify_manager.interfaces.operations import something_old as something_old
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 
 
 @dataclass(kw_only=True)
 class SomethingOldWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job with invocation-owned inputs.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        spotify: Explicit spotify input or adapter boundary.
-        playlist_id: Explicit playlist id input or adapter boundary.
-        api_key: Explicit api key input or adapter boundary.
-        username: Explicit username input or adapter boundary.
-        dry_run: Explicit dry run input or adapter boundary.
-        create_lastfm: Explicit create lastfm input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        _something_old_date: Explicit something old date input or adapter boundary.
-        _something_old_track_result: Explicit something old track result input or
-            adapter boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        credentials: Caller-owned credentials.
+        options: Caller-owned options.
+        context: Caller-owned context.
+        job_id: Caller-owned job id.
+        spotify: Caller-owned spotify.
     """
 
+    credentials: LastFmCredentials
+    options: SomethingOldOptions
+    context: PlaylistContext
     job_id: str
     spotify: Spotify
-    playlist_id: str
-    api_key: str
-    username: str
-    dry_run: bool
-    create_lastfm: Callable[..., LastFmClient]
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    _something_old_date: Callable[[int], str]
-    _something_old_track_result: Callable[..., SomethingOldTrackResult]
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     lastfm: LastFmClient = field(init=False)
     spotify_event_setter: EventSetter | None = field(init=False)
@@ -115,9 +103,9 @@ class SomethingOldWorker:
         Args:
             message: Original routine-supplied message.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def wait_for_submission(
         self, pending: SomethingOldPendingChoice, detail: str
@@ -131,7 +119,7 @@ class SomethingOldWorker:
         Returns:
             The original accepted routine callback result.
         """
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _SomethingOldJobCancelledError
             self.job.submitted_choice = None
@@ -139,7 +127,7 @@ class SomethingOldWorker:
             self.job.result.something_old_pending_choice = pending
             self.job.result.status = "waiting"
             self.job.result.detail = detail
-            self.append(self.job, detail)
+            self.context.append(self.job, detail)
         return await_submission(
             self.job.choice_event, self._consume_wait_for_submission
         )
@@ -158,8 +146,8 @@ class SomethingOldWorker:
         Returns:
             The original accepted routine callback result.
         """
-        average_date = self._something_old_date(artist.average_scrobble_ms)
-        with self.lock:
+        average_date = scrobble_date(artist.average_scrobble_ms)
+        with self.context.lock:
             self.job.result.something_old_artist = artist.artist
             self.job.result.something_old_average_scrobble_date = average_date
         return self.wait_for_submission(
@@ -170,7 +158,7 @@ class SomethingOldWorker:
                 average_scrobble_date=average_date,
                 artist_candidates=self._something_old_artist_options(candidates),
             ),
-            (f"Choose the exact Spotify artist for {artist.artist}."),
+            f"Choose the exact Spotify artist for {artist.artist}.",
         )
 
     def mode_reader(
@@ -187,10 +175,10 @@ class SomethingOldWorker:
         Returns:
             The original accepted routine callback result.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.something_old_artist = artist.artist
-            self.job.result.something_old_average_scrobble_date = (
-                self._something_old_date(artist.average_scrobble_ms)
+            self.job.result.something_old_average_scrobble_date = scrobble_date(
+                artist.average_scrobble_ms
             )
             self.job.result.something_old_spotify_artist = spotify_artist.name
         return self.wait_for_submission(
@@ -198,12 +186,10 @@ class SomethingOldWorker:
                 kind="mode",
                 artist=artist.artist,
                 scrobbles=artist.scrobbles,
-                average_scrobble_date=self._something_old_date(
-                    artist.average_scrobble_ms
-                ),
+                average_scrobble_date=scrobble_date(artist.average_scrobble_ms),
                 spotify_artist=spotify_artist.name,
             ),
-            (f"Choose what to add for {artist.artist}."),
+            f"Choose what to add for {artist.artist}.",
         )
 
     def album_choice_reader(
@@ -225,13 +211,11 @@ class SomethingOldWorker:
                 kind="album",
                 artist=artist.artist,
                 scrobbles=artist.scrobbles,
-                average_scrobble_date=self._something_old_date(
-                    artist.average_scrobble_ms
-                ),
+                average_scrobble_date=scrobble_date(artist.average_scrobble_ms),
                 spotify_artist=self.job.result.something_old_spotify_artist,
                 releases=self._something_old_release_options(releases),
             ),
-            (f"Choose one album or EP by {artist.artist}."),
+            f"Choose one album or EP by {artist.artist}.",
         )
 
     def interruptible_sleep(self, seconds: float) -> None:
@@ -263,46 +247,51 @@ class SomethingOldWorker:
         )
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="something_old")
-        with self.lock:
+        self.job = self.context.lookup(self.job_id, command="something_old")
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Something Old started"
-            self.append(
+            self.context.append(
                 self.job,
                 (
-                    "Something Old started"
-                    f"{(' in dry-run mode' if self.dry_run else '')}"
-                    "."
+                    f"Something Old started"
+                    f"{(' in dry-run mode' if self.options.dry_run else '')}."
                 ),
             )
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
         self.previous_spotify_event_callback = None
         if callable(self.spotify_event_setter):
             self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
-        self.lastfm = self.create_lastfm(
-            self.api_key, self.username, event_callback=self.echo
+        self.lastfm = lastfm_client(
+            LastFmCredentials(self.credentials.api_key, self.credentials.username),
+            self.echo,
         )
 
     def _execute(self) -> something_old.SomethingOldSummary:
         summary = something_old.run_something_old(
             self.spotify,
             self.lastfm,
-            self.playlist_id,
-            expected_username=self.username,
-            mode_reader=self.mode_reader,
-            album_choice_reader=self.album_choice_reader,
-            artist_choice_reader=self.artist_choice_reader,
-            dry_run=self.dry_run,
-            progress_callback=self.echo,
-            retry_call=self.retry_call,
+            SomethingOldOptions(
+                playlist_id=self.options.playlist_id,
+                expected_username=self.credentials.username,
+                dry_run=self.options.dry_run,
+            ),
+            SomethingOldCallbacks(
+                mode_reader=self.mode_reader,
+                album_choice_reader=self.album_choice_reader,
+                artist_choice_reader=self.artist_choice_reader,
+                progress_callback=self.echo,
+                retry_call=self.retry_call,
+            ),
+            SomethingOldResources(),
         )
         return summary
 
     def _completed(self, summary: something_old.SomethingOldSummary) -> None:
         ranking = self._something_old_ranking_entrys(summary)
-        tracks = [self._something_old_track_result(track) for track in summary.tracks]
-        with self.lock:
+        tracks = [_something_old_track_result(track) for track in summary.tracks]
+        with self.context.lock:
             self.job.result.status = (
                 "cancelled" if summary.action == "cancelled" else "completed"
             )
@@ -319,64 +308,65 @@ class SomethingOldWorker:
     def _finish(self) -> None:
         if callable(self.spotify_event_setter):
             self.spotify_event_setter(self.previous_spotify_event_callback)
-        with self.lock:
+        with self.context.lock:
             self.job.result.something_old_pending_choice = None
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "cancelled"
             self.job.result.something_old_pending_choice = None
             self.job.result.detail = "Something Old stopped. Spotify was unchanged."
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _rate_limited(self, exc: review_album_limits.SpotifyRateLimitError) -> None:
         retry_at = None
         if exc.retry_after_seconds is not None:
-            retry_at = self.clock.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with self.lock:
+            retry_at = self.context.clock.now(UTC) + timedelta(
+                seconds=exc.retry_after_seconds
+            )
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.something_old_pending_choice = None
             self.job.result.retry_at = retry_at.isoformat() if retry_at else None
             self.job.result.detail = (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _temporarily_unavailable(
         self, exc: review_album_limits.SpotifyTransientServerError
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.something_old_pending_choice = None
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc) + "."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _spotify_failed(self, exc: SpotifyException) -> None:
-        with self.lock:
+        with self.context.lock:
             if exc.http_status == 429:
                 retry_after = review_album_limits.get_retry_after_seconds(exc)
                 retry_at = (
-                    self.clock.now(UTC) + timedelta(seconds=retry_after)
+                    self.context.clock.now(UTC) + timedelta(seconds=retry_after)
                     if retry_after is not None
                     else None
                 )
                 self.job.result.status = "paused"
                 self.job.result.retry_at = retry_at.isoformat() if retry_at else None
                 self.job.result.detail = (
-                    "Spotify rate limit reached. "
-                    f"{review_album_limits.format_retry_after(retry_after)}"
-                    "."
+                    f"Spotify rate limit reached. "
+                    f"{review_album_limits.format_retry_after(retry_after)}."
                 )
             else:
                 self.job.result.status = "failed"
                 self.job.result.detail = str(exc)
             self.job.result.something_old_pending_choice = None
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _failed(
         self,
@@ -384,22 +374,22 @@ class SomethingOldWorker:
         | scrobble_history.ScrobbleHistoryError
         | LastFmError,
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.something_old_pending_choice = None
             self.job.result.detail = str(exc)
-            self.append(self.job, f"Something Old failed: {exc}")
+            self.context.append(self.job, f"Something Old failed: {exc}")
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected Something Old error")
-        with self.lock:
+        self.context.logger.exception("Unexpected Something Old error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.something_old_pending_choice = None
             self.job.result.detail = f"Unexpected Something Old error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _consume_wait_for_submission(self) -> str | None:
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _SomethingOldJobCancelledError
             choice = self.job.submitted_choice
@@ -410,7 +400,7 @@ class SomethingOldWorker:
             self.job.result.something_old_pending_choice = None
             self.job.result.status = "running"
             self.job.result.detail = "Applying Something Old choice"
-            self.append(self.job, f"Something Old choice received: {choice}.")
+            self.context.append(self.job, f"Something Old choice received: {choice}.")
             return choice
 
     def _something_old_artist_options(
@@ -455,9 +445,7 @@ class SomethingOldWorker:
                 SomethingOldRankingEntry(
                     artist=entry.artist,
                     scrobbles=entry.scrobbles,
-                    average_scrobble_date=self._something_old_date(
-                        entry.average_scrobble_ms
-                    ),
+                    average_scrobble_date=scrobble_date(entry.average_scrobble_ms),
                 )
             )
         return entries
@@ -472,8 +460,8 @@ class SomethingOldWorker:
             self.job.result.history_scrobbles = summary.history_refresh.total_scrobbles
         if summary.artist is not None:
             self.job.result.something_old_artist = summary.artist.artist
-            self.job.result.something_old_average_scrobble_date = (
-                self._something_old_date(summary.artist.average_scrobble_ms)
+            self.job.result.something_old_average_scrobble_date = scrobble_date(
+                summary.artist.average_scrobble_ms
             )
         if summary.spotify_artist is not None:
             self.job.result.something_old_spotify_artist = summary.spotify_artist.name
@@ -489,39 +477,27 @@ class SomethingOldWorker:
     ) -> None:
         if summary.action == "playlist not empty":
             self.job.result.detail = (
-                "Something Old already contains "
-                f"{summary.playlist_length_before}"
-                " item(s); nothing was changed."
+                f"Something Old already contains {summary.playlist_length_before}"
+                f" item(s); nothing was changed."
             )
         elif summary.action == "cancelled":
             self.job.result.detail = "Something Old was cancelled."
         elif summary.action == "would add":
             self.job.result.detail = (
-                "Dry run: would add "
-                f"{len(tracks)}"
-                " track(s) for "
-                f"{self.job.result.something_old_artist}"
-                "."
+                f"Dry run: would add {len(tracks)} track(s) for "
+                f"{self.job.result.something_old_artist}."
             )
         else:
             self.job.result.detail = (
-                "Added "
-                f"{len(tracks)}"
-                " track(s) for "
-                f"{self.job.result.something_old_artist}"
-                "."
+                f"Added {len(tracks)} track(s) for "
+                f"{self.job.result.something_old_artist}."
             )
         for track in tracks:
-            self.append(
+            self.context.append(
                 self.job,
                 (
-                    "Selected "
-                    f"{', '.join(track.artists)}"
-                    " - "
-                    f"{track.track}"
-                    " ("
-                    f"{track.album or 'no album'}"
-                    ")."
+                    f"Selected {', '.join(track.artists)} - {track.track} ("
+                    f"{track.album or 'no album'})."
                 ),
             )
-        self.append(self.job, self.job.result.detail)
+        self.context.append(self.job, self.job.result.detail)

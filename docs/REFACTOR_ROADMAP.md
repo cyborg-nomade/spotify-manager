@@ -244,6 +244,15 @@ and type improvements accompany every slice, not just the final milestone.
 This additional item was approved on 2026-10-03. Keep the existing item numbers
 and finish the Item 7 release workflow before creating Item 7a's dedicated branch.
 
+The 2026-10-05 review tightens the implementation: declare routes beside their
+endpoint functions, use direct named application/presenter calls, and keep client
+creation outside routines. Limit every function to at most 13 parameters, usually
+two or three; use cohesive typed option, callback and resource models, including
+small generated constructors. Keep bootstrap construction outside execution.
+These requirements supplement the Python readability rules in `AGENTS.md`.
+Python callers may adopt the typed records; frozen HTTP/CLI behavior, metadata
+and ordered effects remain unchanged.
+
 1. Inventory HTTP, CLI and background execution paths by routine family. Identify
    each wrapper's responsibility and distinguish public compatibility seams from
    forwarding-only internals. Record any necessary exception explicitly.

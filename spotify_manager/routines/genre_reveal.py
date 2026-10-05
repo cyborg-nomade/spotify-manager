@@ -231,7 +231,9 @@ def _persist_update(
     update: GenreRevealStateUpdate,
 ) -> GenreRevealState:
     """Replace user-editable progress while preserving server metadata."""
-    from spotify_manager.bootstrap.genre_progress import update_genre_progress
+    from spotify_manager.interfaces.operations.genre_progress import (
+        update_genre_progress,
+    )
 
     return update_genre_progress(state_access, update)
 

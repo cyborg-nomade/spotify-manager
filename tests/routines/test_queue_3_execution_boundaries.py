@@ -11,6 +11,9 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
+from spotify_manager.interfaces.requests.queue_3 import Queue3Options
+from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.routines import queue_3
 from tests.routines.test_queue_3 import FakeSpotify
 from tests.routines.test_queue_3 import automatic_transition
@@ -147,12 +150,13 @@ def _access(path: Path, service: queue_3.StateService | None) -> queue_3.Routine
 def _run(spotify: FakeSpotify, memory: ExecutionBoundaries) -> queue_3.FlushSummary:
     return queue_3.flush_queue_3(
         cast(Spotify, spotify),
-        "queue3",
-        automatic_transition,
-        active_year=2026,
-        retry_call=memory.retry,
-        echo=memory.echo,
-        state_service=cast(queue_3.StateService, memory),
+        Queue3Options(playlist_id="queue3", active_year=2026),
+        Queue3Callbacks(
+            transition_reader=automatic_transition,
+            echo=memory.echo,
+            retry_call=memory.retry,
+        ),
+        Queue3Resources(state_service=cast(queue_3.StateService, memory)),
     )
 
 

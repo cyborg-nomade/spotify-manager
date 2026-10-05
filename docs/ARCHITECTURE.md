@@ -93,6 +93,12 @@ summary → CLI rendering
 lookups, legacy maintenance endpoints, and background-job adapters for the
 interactive routines. Pydantic response models make the job protocol explicit.
 
+Each route declaration sits beside its endpoint. Named feature handlers own
+validation and response translation; `interfaces/http/jobs.py` owns runtime
+resources and job launch construction. Album evaluation calls the named
+application function and presenter directly. This keeps editor navigation from
+URL to policy visible in source.
+
 The pure API does not add the shared-password middleware or serve the frontend.
 It is intended for loopback development, tests, or another trusted wrapper.
 
@@ -126,10 +132,11 @@ nearest-neighbor route with server-backed completion state.
 | Authentication and clients | `spotify_manager/client/`, `spotify_manager/_auth.py` | Spotify OAuth, credential rotation, Last.fm HTTP calls, and web password enforcement. |
 | Stable entry points | `spotify_manager/main.py`, `spotify_manager/api.py`, `spotify_manager/web.py` | Preserve command/endpoint signatures, overrides, composition and web delivery. |
 | Feature interfaces | `spotify_manager/interfaces/cli/`, `spotify_manager/interfaces/http/` | Validate input, own job signals, present results and translate interface errors. |
+| Invocation inputs | `spotify_manager/interfaces/requests/` | Cohesive typed options, interaction callbacks and persistence resources with small constructors. |
 | Shared invocations | `spotify_manager/interfaces/operations/`, `lookup_operations.py`, `sauvignon_operations.py` | Construct invocation dependencies and invoke named application stages for CLI and HTTP. |
 | Application | `spotify_manager/application/` | Sequence observations, decisions, accepted effects, checkpoints and recovery. |
 | Domain | `spotify_manager/domain/` | Pure listening, ranking, progression, selection and state rules. |
-| Composition | `spotify_manager/bootstrap/` | Construct explicit dependencies at their original observation scope. |
+| Composition | `spotify_manager/bootstrap/` | Construct explicit dependencies without advancing application stages; `clients.py` owns Last.fm client creation. |
 | Compatibility and SDK leaves | `spotify_manager/routines/`, `spotify_manager/processors/` | Keep public imports and concrete SDK/file/validation helpers whose contracts remain frozen. Internal code skips their primary workflow forwarding entries. |
 | Models | `spotify_manager/models/` | Pydantic models for exports, mirrors, lookups, albums, artists, tracks, and statistics. |
 | Persistence helpers | `spotify_manager/loaders_savers/` | Load and save canonical and legacy JSON files. |
@@ -179,7 +186,8 @@ in a private dataset, while `JsonStateStore` provides isolated local/test use.
 ### Threaded web jobs
 
 Long-running web commands are represented by in-memory job objects in
-`spotify_manager/api.py` and run in background threads. A typical interactive
+`interfaces/http/job_records.py`, registered through `interfaces/http/jobs.py`,
+and run in background threads. A typical interactive
 job follows this state machine:
 
 ```mermaid
@@ -312,7 +320,7 @@ spotify-manager/
 |-- docs/                        Architecture and operator guides
 |-- spotify_manager/
 |   |-- _auth.py                 Shared-password middleware
-|   |-- api.py                   FastAPI routes and threaded job adapters
+|   |-- api.py                   FastAPI route declarations and endpoints
 |   |-- main.py                  Typer CLI and Rich prompt adapters
 |   |-- settings.py              Pydantic environment settings
 |   |-- web.py                   Gated frontend deployment wrapper
@@ -320,10 +328,14 @@ spotify-manager/
 |   |-- core/state/              Central state service and contracts
 |   |-- frontend/                Cockpit and Genre Reveal HTML applications
 |   |-- infrastructure/          Hugging Face and local persistence adapters
+|   |-- interfaces/              Feature adapters, typed invocation inputs and presenters
+|   |-- application/             Named business workflows and integration ports
+|   |-- bootstrap/               Concrete dependency and client construction
+|   |-- domain/                  Pure listening policies
 |   |-- loaders_savers/          Canonical JSON persistence helpers
 |   |-- models/                  Pydantic data models
 |   |-- processors/              Shared transformations and lookups
-|   |-- routines/                Domain workflows
+|   |-- routines/                Compatibility entries and preserved SDK/file leaves
 |   |-- utils/                   Sorting and calculations
 |   `-- files/                   Exports, mirrors, caches, logs, and staging
 `-- tests/                       Unit, CLI, API, web, and routine tests
@@ -363,8 +375,9 @@ coverage at `tests/` root.
 ### Adding or changing a routine
 
 1. Update the listening-rules document when the behavior itself changes.
-2. Put domain planning, validation, mutation order, state, and logs in a routine
-   module. Keep prompts and HTML out of that layer.
+2. Put pure decisions in `domain/` and workflow/effect sequencing in
+   `application/`. Bind concrete integrations at the outer boundary and keep
+   prompts and HTML in feature adapters.
 3. Add or update the Typer adapter and its `justfile` recipe.
 4. Add API request/response models and a background-job adapter when the routine
    belongs in the web cockpit.
@@ -377,9 +390,9 @@ coverage at `tests/` root.
 
 ## Known architectural constraints
 
-- `api.py` contains many job adapters and models in one large module. This is a
-  deliberate monolith today, but new cross-routine job behavior should be
-  factored into shared helpers rather than duplicated.
+- `api.py` lists the 115 stable application routes with their endpoint signatures.
+  Runtime administration lives in `interfaces/http/jobs.py`; feature workers own
+  execution. Keep future shared job behavior cohesive and directly named.
 - Background jobs and their displayed logs are process-local. Durable routine
   state handles restarts, but there is no distributed worker or job database.
 - Runtime persistence is file-based. Concurrent writes outside the application

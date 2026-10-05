@@ -122,14 +122,14 @@ def something_old_history(
     """
     return observe(
         resources.lastfm,
-        expected_username=resources.username,
-        export_path=resources.export_path,
-        legacy_delta_path=resources.legacy_delta_path,
-        backup_dir=resources.backup_dir,
-        log_path=resources.history_log_path,
+        expected_username=resources.options.expected_username,
+        export_path=resources.resources.export_path,
+        legacy_delta_path=resources.resources.legacy_delta_path,
+        backup_dir=resources.resources.backup_dir,
+        log_path=resources.resources.history_log_path,
         dry_run=preview,
         now=now,
-        progress_callback=resources.callback,
+        progress_callback=resources.callbacks.progress_callback,
     )
 
 
@@ -150,11 +150,15 @@ def queue_history(
     Returns:
         The original ordered plays and live addition count.
     """
-    progress = resources._history_progress if resources.callback is not None else None
+    progress = (
+        resources._history_progress
+        if resources.callbacks.progress_callback is not None
+        else None
+    )
     return observe(
         resources.lastfm,
-        export_path=resources.export_path,
-        recent_path=resources.recent_path,
+        export_path=resources.resources.export_path,
+        recent_path=resources.resources.recent_path,
         dry_run=preview,
         now=now,
         progress_callback=progress,

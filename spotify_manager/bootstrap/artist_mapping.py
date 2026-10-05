@@ -18,29 +18,6 @@ def _search(
     return search_spotify_artists(sp, artist, retry, text)
 
 
-def resolve_artist(
-    sp: Spotify,
-    artist: RankedArtist,
-    reader: legacy.ArtistChoiceReader | None,
-    retry: legacy.RetryCall,
-) -> SpotifyArtistCandidate | str | None:
-    """Retain original catalog retries, mapping controls and custom-query semantics.
-
-    Args:
-        sp: Caller-owned Spotify client.
-        artist: Original ranked Last.fm evidence.
-        reader: Original interaction callback, when present.
-        retry: Original retry policy.
-
-    Returns:
-        Original mapping, control response or absent noninteractive result.
-
-    Raises:
-        ReleaseCheckSpotifyError: Original mapping or interaction is invalid.
-    """
-    return artist_mapping(sp, reader, retry).run(artist)
-
-
 def artist_mapping(
     sp: Spotify,
     reader: legacy.ArtistChoiceReader | None,

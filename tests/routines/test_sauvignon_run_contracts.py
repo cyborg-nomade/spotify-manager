@@ -8,6 +8,9 @@ import pytest
 from spotipy import Spotify
 
 from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
+from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
+from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
+from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 from spotify_manager.routines import sauvignon as legacy
 from tests.support.sauvignon_run import STAMP
 from tests.support.sauvignon_run import RunObservations
@@ -71,16 +74,20 @@ def _run(
     return legacy.fill_sauvignon_from_lastfm(
         cast(Spotify, RunSpotify(observations)),
         cast(legacy.LastFmReader, object()),
-        "destination",
-        None,
-        count=count,
-        max_playlist_length=None,
-        now=STAMP,
-        log_path=tmp_path / "audit",
-        dry_run=dry_run,
-        echo=observations.echo,
-        progress_callback=observations.progress,
-        retry_call=_immediate,
+        SauvignonOptions(
+            playlist_id="destination",
+            count=count,
+            max_playlist_length=None,
+            dry_run=dry_run,
+            now=STAMP,
+        ),
+        SauvignonCallbacks(
+            choice_reader=None,
+            echo=observations.echo,
+            progress_callback=observations.progress,
+            retry_call=_immediate,
+        ),
+        SauvignonResources(log_path=tmp_path / "audit"),
     )
 
 
@@ -235,13 +242,11 @@ def test_sauvignon_invalid_request_precedes_retry_configuration(tmp_path: Path) 
         legacy.fill_sauvignon_from_lastfm(
             cast(Spotify, object()),
             cast(legacy.LastFmReader, object()),
-            "destination",
-            None,
-            count=0,
-            max_playlist_length=None,
-            retry_call=FalseyRetry(events),
-            log_path=tmp_path / "audit",
-            now=STAMP,
+            SauvignonOptions(
+                playlist_id="destination", count=0, max_playlist_length=None, now=STAMP
+            ),
+            SauvignonCallbacks(choice_reader=None, retry_call=FalseyRetry(events)),
+            SauvignonResources(log_path=tmp_path / "audit"),
         )
     assert events == []
 
@@ -261,14 +266,18 @@ def test_sauvignon_falsey_retry_is_resolved_before_history(
     legacy.fill_sauvignon_from_lastfm(
         cast(Spotify, RunSpotify(observed)),
         cast(legacy.LastFmReader, object()),
-        "destination",
-        None,
-        count=1,
-        max_playlist_length=None,
-        retry_call=FalseyRetry(observed.events),
-        dry_run=True,
-        now=STAMP,
-        log_path=tmp_path / "audit",
-        progress_callback=observed.progress,
+        SauvignonOptions(
+            playlist_id="destination",
+            count=1,
+            max_playlist_length=None,
+            dry_run=True,
+            now=STAMP,
+        ),
+        SauvignonCallbacks(
+            choice_reader=None,
+            progress_callback=observed.progress,
+            retry_call=FalseyRetry(observed.events),
+        ),
+        SauvignonResources(log_path=tmp_path / "audit"),
     )
     assert observed.events == ["retry:boolean"] + SUCCESS[:7] + ["audit"]

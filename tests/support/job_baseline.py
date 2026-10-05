@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from spotipy import Spotify
 
 from spotify_manager import api
+from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines.release_check import ReleaseCheckPlaylists
 from spotify_manager.routines.the_queue import QueuePlaylists
 from tests.support.effects import FixedDatetime
@@ -55,30 +56,38 @@ class StartCase:
 
 
 CASES = (
-    StartCase("analysis-async", "analysis", partial(api.start_analysis_job, "async")),
     StartCase(
-        "analysis-sync", "analysis", partial(api.start_analysis_job, "sync", SPOTIFY)
+        "analysis-async", "analysis", partial(http_jobs.start_analysis_job, "async")
+    ),
+    StartCase(
+        "analysis-sync",
+        "analysis",
+        partial(http_jobs.start_analysis_job, "sync", SPOTIFY),
     ),
     StartCase(
         "analysis-mirrors",
         "analysis",
-        partial(api.start_analysis_job, "mirrors", SPOTIFY),
+        partial(http_jobs.start_analysis_job, "mirrors", SPOTIFY),
     ),
     StartCase(
         "mirror-albums",
         "analysis",
-        partial(api.start_analysis_job, "mirrors", SPOTIFY, mirror_resource="albums"),
+        partial(
+            http_jobs.start_analysis_job, "mirrors", SPOTIFY, mirror_resource="albums"
+        ),
     ),
     StartCase(
         "mirror-tracks",
         "analysis",
-        partial(api.start_analysis_job, "mirrors", SPOTIFY, mirror_resource="tracks"),
+        partial(
+            http_jobs.start_analysis_job, "mirrors", SPOTIFY, mirror_resource="tracks"
+        ),
     ),
     StartCase(
         "mirror-artists",
         "analysis",
         partial(
-            api.start_analysis_job,
+            http_jobs.start_analysis_job,
             "mirrors",
             SPOTIFY,
             mirror_resource="artists",
@@ -88,28 +97,28 @@ CASES = (
     StartCase(
         "blast",
         "playlist",
-        partial(api.start_blast_job, SPOTIFY, "playlist", 5, None, False),
+        partial(http_jobs.start_blast_job, SPOTIFY, "playlist", 5, None, False),
     ),
     StartCase(
         "dormant",
         "playlist",
-        partial(api.start_blast_artist_job, SPOTIFY, "playlist", 5, True),
+        partial(http_jobs.start_blast_artist_job, SPOTIFY, "playlist", 5, True),
     ),
     StartCase(
         "daily",
         "playlist",
-        partial(api.start_daily_mind_radio_job, SPOTIFY, "playlist", False),
+        partial(http_jobs.start_daily_mind_radio_job, SPOTIFY, "playlist", False),
     ),
     StartCase(
         "found",
         "playlist",
-        partial(api.start_found_art_job, SPOTIFY, "playlist", "key", "user", 20),
+        partial(http_jobs.start_found_art_job, SPOTIFY, "playlist", "key", "user", 20),
     ),
     StartCase(
         "sauvignon",
         "playlist",
         partial(
-            api.start_sauvignon_job,
+            http_jobs.start_sauvignon_job,
             SPOTIFY,
             "playlist",
             "key",
@@ -124,7 +133,7 @@ CASES = (
         "queue-fill",
         "playlist",
         partial(
-            api.start_queue_fill_job,
+            http_jobs.start_queue_fill_job,
             SPOTIFY,
             QUEUE,
             "key",
@@ -138,13 +147,13 @@ CASES = (
     StartCase(
         "queue-flush",
         "playlist",
-        partial(api.start_queue_flush_job, SPOTIFY, QUEUE, dry_run=True),
+        partial(http_jobs.start_queue_flush_job, SPOTIFY, QUEUE, dry_run=True),
     ),
     StartCase(
         "new-kids",
         "playlist",
         partial(
-            api.start_new_kids_job,
+            http_jobs.start_new_kids_job,
             SPOTIFY,
             "kids",
             "queue2",
@@ -158,7 +167,7 @@ CASES = (
         "queue2",
         "playlist",
         partial(
-            api.start_queue_2_job,
+            http_jobs.start_queue_2_job,
             SPOTIFY,
             "kids",
             "queue2",
@@ -171,20 +180,24 @@ CASES = (
     StartCase(
         "queue3",
         "playlist",
-        partial(api.start_queue_3_job, SPOTIFY, "playlist", dry_run=False),
+        partial(http_jobs.start_queue_3_job, SPOTIFY, "playlist", dry_run=False),
     ),
     StartCase(
         "queue3-import",
         "playlist",
         partial(
-            api.start_queue_3_job, SPOTIFY, "playlist", dry_run=True, annual_only=True
+            http_jobs.start_queue_3_job,
+            SPOTIFY,
+            "playlist",
+            dry_run=True,
+            annual_only=True,
         ),
     ),
     StartCase(
         "new-wine",
         "playlist",
         partial(
-            api.start_new_wine_job,
+            http_jobs.start_new_wine_job,
             SPOTIFY,
             "wine",
             "sauvignon",
@@ -197,13 +210,13 @@ CASES = (
     StartCase(
         "slow",
         "playlist",
-        partial(api.start_slow_listening_job, SPOTIFY, "playlist", dry_run=True),
+        partial(http_jobs.start_slow_listening_job, SPOTIFY, "playlist", dry_run=True),
     ),
     StartCase(
         "old",
         "playlist",
         partial(
-            api.start_something_old_job,
+            http_jobs.start_something_old_job,
             SPOTIFY,
             "playlist",
             "key",
@@ -215,14 +228,19 @@ CASES = (
         "releases",
         "playlist",
         partial(
-            api.start_release_check_job, SPOTIFY, RELEASES, "key", "user", dry_run=True
+            http_jobs.start_release_check_job,
+            SPOTIFY,
+            RELEASES,
+            "key",
+            "user",
+            dry_run=True,
         ),
     ),
     StartCase(
         "discography",
         "playlist",
         partial(
-            api.start_discography_job,
+            http_jobs.start_discography_job,
             SPOTIFY,
             {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
             "queue3",
@@ -232,13 +250,15 @@ CASES = (
     StartCase(
         "requeue",
         "playlist",
-        partial(api.start_requeue_for_a_dream_job, SPOTIFY, "playlist", dry_run=True),
+        partial(
+            http_jobs.start_requeue_for_a_dream_job, SPOTIFY, "playlist", dry_run=True
+        ),
     ),
     StartCase(
         "palace",
         "playlist",
         partial(
-            api.start_palace_of_memory_job,
+            http_jobs.start_palace_of_memory_job,
             SPOTIFY,
             "playlist",
             dry_run=False,
@@ -250,7 +270,7 @@ CASES = (
         "palace-cursor",
         "playlist",
         partial(
-            api.start_palace_of_memory_job,
+            http_jobs.start_palace_of_memory_job,
             SPOTIFY,
             None,
             dry_run=True,
@@ -262,7 +282,7 @@ CASES = (
         "history",
         "playlist",
         partial(
-            api.start_scrobble_history_job,
+            http_jobs.start_scrobble_history_job,
             "key",
             "user",
             dry_run=False,
@@ -331,7 +351,10 @@ class ThreadCapture:
             AssertionError: The job was not registered before dispatch.
         """
         identifier = str(self.args[0])
-        registered = identifier in api._blast_jobs or identifier in api._analysis_jobs
+        registered = (
+            identifier in http_jobs._blast_jobs
+            or identifier in http_jobs._analysis_jobs
+        )
         assert registered
         self.observations.append(
             {
@@ -352,10 +375,10 @@ def _arguments(values: tuple[object, ...]) -> list[Json]:
 
 def reset() -> None:
     """Clear only the synthetic process-local registries and captured dispatches."""
-    with api._analysis_jobs_lock:
-        api._analysis_jobs.clear()
-    with api._blast_jobs_lock:
-        api._blast_jobs.clear()
+    with http_jobs._analysis_jobs_lock:
+        http_jobs._analysis_jobs.clear()
+    with http_jobs._blast_jobs_lock:
+        http_jobs._blast_jobs.clear()
     ThreadCapture.observations.clear()
 
 
@@ -366,9 +389,9 @@ def bind(patch: pytest.MonkeyPatch) -> None:
         patch: Scope owning the replacement lifetime.
     """
     reset()
-    patch.setattr(api, "Thread", ThreadCapture)
-    patch.setattr(api, "uuid4", Identities())
-    patch.setattr(api, "datetime", FixedDatetime)
+    patch.setattr(http_jobs, "Thread", ThreadCapture)
+    patch.setattr(http_jobs, "uuid4", Identities())
+    patch.setattr(http_jobs, "datetime", FixedDatetime)
 
 
 def queued(case: StartCase) -> dict[str, Json]:
@@ -409,9 +432,9 @@ def conflict(first: StartCase, second: StartCase, status: JobStatus) -> dict[str
 
 def _set_status(case: StartCase, identifier: str, status: JobStatus) -> None:
     if case.family == "analysis":
-        api._analysis_jobs[identifier].result.status = status
+        http_jobs._analysis_jobs[identifier].result.status = status
         return
-    api._blast_jobs[identifier].result.status = status
+    http_jobs._blast_jobs[identifier].result.status = status
 
 
 def _attempt(case: StartCase) -> dict[str, Json]:

@@ -6,10 +6,8 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.palace_cursor import PalaceCursor
-from spotify_manager.application.palace_values import SavedAlbumRefresh
 from spotify_manager.bootstrap.palace_mirror import saved_mirror
 from spotify_manager.core.state.service import StateService
-from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import palace_of_memory as legacy
 
 
@@ -48,29 +46,17 @@ def palace_cursor(
     from spotify_manager.routines.palace_of_memory import _state_access
 
     retry = retry_call or _direct_retry
-    refresh = partial(
-        _refresh,
+    refresh = saved_mirror(
         spotify,
         albums_path,
         backups,
         refresh_log,
         retry,
         callback,
-    )
+    ).run
     return PalaceCursor(
         partial(_present, callback),
         refresh,
         partial(_state_access, state_path, state_service),
         _cursor_payload,
     )
-
-
-def _refresh(
-    spotify: Spotify,
-    path: Path,
-    backups: Path,
-    log_path: Path,
-    retry: legacy.RetryCall,
-    callback: legacy.ProgressCallback | None,
-) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
-    return saved_mirror(spotify, path, backups, log_path, retry, callback).run()

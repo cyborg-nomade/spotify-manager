@@ -6,14 +6,9 @@ from typing import Never
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn
-from rich.progress import MofNCompleteColumn
-from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
 from spotipy import Spotify
 
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
 from spotify_manager.interfaces.operations import (
     recover_removed_albums as recover_removed_albums,
@@ -25,26 +20,16 @@ from spotify_manager.interfaces.operations import (
 
 @dataclass(kw_only=True)
 class RecoveryCLI:
-    """Execute and present recovery through explicit facade dependencies.
+    """Run one CLI feature with explicit interaction and presentation resources.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        complete_column: Rich complete column constructor.
-        create_progress: Factory for progress instances.
-        spinner_column: Rich spinner column constructor.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        review_client: Original Spotify client factory supplied by the facade.
+        progress_display: Caller-owned progress display.
+        create_console: Caller-owned create console.
+        review_client: Caller-owned review client.
     """
 
-    bar_column: type[BarColumn]
+    progress_display: ProgressDisplay
     create_console: type[Console]
-    complete_column: type[MofNCompleteColumn]
-    create_progress: type[Progress]
-    spinner_column: type[SpinnerColumn]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
     review_client: Callable[..., Spotify]
 
     def _run_recover_removed_albums(self, dry_run: bool, limit: int | None) -> None:
@@ -56,12 +41,14 @@ class RecoveryCLI:
         """
         self._recover_removed_albums_console = self.create_console()
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._recover_removed_albums_console,
                 transient=True,
             ) as self._recover_removed_albums_progress:
@@ -120,9 +107,9 @@ class RecoveryCLI:
     ) -> Never:
         self._recover_removed_albums_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )

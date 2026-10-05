@@ -22,6 +22,9 @@ from spotify_manager.domain.queue_values import (
     ArtistRecommendation as ArtistRecommendation,
 )
 from spotify_manager.domain.queue_values import ArtistSeed as ArtistSeed
+from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
+from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
+from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
 from spotify_manager.routines.the_queue import CHOICE_QUIT as CHOICE_QUIT
 from spotify_manager.routines.the_queue import (
     CHOICE_SEARCH_PREFIX as CHOICE_SEARCH_PREFIX,
@@ -92,74 +95,36 @@ def gather_artist_recommendations(
 def fill_queue_from_lastfm(
     sp: Spotify,
     lastfm: LastFmReader,
-    playlists: QueuePlaylists,
-    choice_reader: ArtistChoiceReader | None,
-    *,
-    count: int | None = DEFAULT_COUNT,
-    max_playlist_length: int | None = None,
-    seed_count: int = DEFAULT_SEED_COUNT,
-    dry_run: bool = False,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    export_path: Path = DEFAULT_SCROBBLES_PATH,
-    recent_path: Path = DEFAULT_RECENT_PATH,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    cache_path: Path = DEFAULT_CACHE_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
-    now: datetime | None = None,
+    options: QueueFillOptions,
+    callbacks: QueueFillCallbacks,
+    resources: QueueFillResources | None = None,
 ) -> FillSummary:
     """Add unheard Last.fm artist recommendations to The Queue.
 
     Args:
-        sp: Caller-owned original Spotify client.
-        lastfm: Caller-owned original Last.fm reader.
-        playlists: Original parsed destination identities.
-        choice_reader: Original optional mapping interaction.
-        count: Original optional requested additions.
-        max_playlist_length: Original optional maximum Queue length.
-        seed_count: Original requested weekly seeds.
-        dry_run: Original preview behavior.
-        echo: Original text presenter.
-        progress_callback: Original optional progress presenter.
-        retry_call: Original optional retry boundary.
-        export_path: Original history export location.
-        recent_path: Original recent-history location.
-        state_path: Original state location.
-        state_service: Original optional shared state authority.
-        cache_path: Original neighborhood cache location.
-        log_path: Original audit location.
-        now: Original optional timestamp.
+        sp: Caller-owned client.
+        lastfm: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original complete ordered fill outcome.
+        The original typed summary and accepted effects.
 
     Raises:
-        QueueConfigError: Original limits conflict or are invalid.
-        QueueStateError: Original history, cache or state is unusable.
-        QueueSpotifyError: Original follow or liked response is invalid.
+        RuntimeError: Observations, selections or persistence cannot complete.
     """
+    resources = resources or QueueFillResources()
     from spotify_manager.application.queue_fill_values import QueueFillRequest
 
-    configured = queue_fill(
-        sp,
-        lastfm,
-        playlists,
-        choice_reader,
-        echo,
-        progress_callback,
-        retry_call,
-        export_path,
-        recent_path,
-        state_path,
-        state_service,
-        cache_path,
-        log_path,
-        now,
-    )
+    configured = queue_fill(sp, lastfm, options, callbacks, resources)
     return configured.run(
-        QueueFillRequest(count, max_playlist_length, seed_count, dry_run)
+        QueueFillRequest(
+            options.count,
+            options.max_playlist_length,
+            options.seed_count,
+            options.dry_run,
+        )
     )
 
 

@@ -3,57 +3,40 @@
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
-from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.palace_effects import PalaceStateAccess
 from spotify_manager.application.palace_values import PalaceOfMemorySummary
 from spotify_manager.application.palace_values import SavedAlbumRefresh
-from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.palace_values import HistoricalAlbumSelection
 from spotify_manager.domain.palace_values import SpotifyAlbum
 from spotify_manager.domain.palace_values import SpotifyFirstTrack
+from spotify_manager.interfaces.requests.palace import PalaceCallbacks
+from spotify_manager.interfaces.requests.palace import PalaceOptions
+from spotify_manager.interfaces.requests.palace import PalaceResources
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import palace_of_memory as legacy
 
 
 @dataclass(frozen=True)
 class LegacyPalace:
-    """Retain caller-owned synchronous resources and original configuration.
+    """Bind application stages to caller-owned clients and storage.
 
     Args:
-        spotify: Original caller-owned client.
-        playlist_id: Original destination identity.
-        today: Original optional effective date.
-        albums_path: Original canonical mirror location.
-        scrobbles_path: Original history location.
-        state_path: Original cursor location.
-        state_service: Original optional shared authority.
-        log_path: Original completion audit location.
-        backups_dir: Original mirror backup directory.
-        refresh_log: Original mirror preflight audit location.
-        random_reader: Original Random.org boundary.
-        retry: Original retry policy, including append retry behavior.
-        callback: Original optional stage presenter.
-        output: Original accepted-append presenter.
+        spotify: Caller-owned spotify.
+        options: Caller-owned options.
+        callbacks: Caller-owned callbacks.
+        resources: Caller-owned resources.
+        retry: Effective retry policy.
     """
 
     spotify: Spotify
-    playlist_id: str
-    today: date | None
-    albums_path: Path
-    scrobbles_path: Path
-    state_path: Path
-    state_service: StateService | None
-    log_path: Path
-    backups_dir: Path
-    refresh_log: Path
-    random_reader: legacy.RandomIndexReader
+    options: PalaceOptions
+    callbacks: PalaceCallbacks
+    resources: PalaceResources
     retry: legacy.RetryCall
-    callback: legacy.ProgressCallback | None
-    output: legacy.Echo
 
     def progress(self, message: str) -> None:
         """Retain original optional progress delivery.
@@ -61,8 +44,8 @@ class LegacyPalace:
         Args:
             message: Original visible stage.
         """
-        if self.callback is not None:
-            self.callback(message)
+        if self.callbacks.progress_callback is not None:
+            self.callbacks.progress_callback(message)
 
     def refresh(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
         """Retain original live mirror preflight and publication even in preview.
@@ -74,11 +57,11 @@ class LegacyPalace:
 
         workflow = saved_mirror(
             self.spotify,
-            self.albums_path,
-            self.backups_dir,
-            self.refresh_log,
+            self.resources.albums_path,
+            self.resources.album_backups_dir,
+            self.resources.album_refresh_log_path,
             self.retry,
-            self.callback,
+            self.callbacks.progress_callback,
         )
         return workflow.run()
 
@@ -90,7 +73,7 @@ class LegacyPalace:
         """
         from spotify_manager.routines.palace_of_memory import _state_access
 
-        return _state_access(self.state_path, self.state_service)
+        return _state_access(self.resources.state_path, self.resources.state_service)
 
     def start_index(
         self,
@@ -126,7 +109,10 @@ class LegacyPalace:
         from spotify_manager.bootstrap.palace_history import palace_history
 
         workflow = palace_history(
-            self.scrobbles_path, self.today, self.random_reader, self.callback
+            self.resources.scrobbles_path,
+            self.options.today,
+            self.callbacks.random_index_reader,
+            self.callbacks.progress_callback,
         )
         return workflow.run(legacy.HISTORY_COUNT)
 
@@ -142,7 +128,7 @@ class LegacyPalace:
         from spotify_manager.routines.palace_of_memory import _read_palace_playlist
 
         return _read_palace_playlist(
-            self.spotify, self.playlist_id, self.retry, recheck
+            self.spotify, self.options.playlist_id, self.retry, recheck
         )
 
     def first_track(self, album: SpotifyAlbum) -> SpotifyFirstTrack:
@@ -180,7 +166,9 @@ class LegacyPalace:
         """
         from spotify_manager.routines.palace_of_memory import _append_first_tracks
 
-        _append_first_tracks(self.spotify, self.playlist_id, pending, self.retry)
+        _append_first_tracks(
+            self.spotify, self.options.playlist_id, pending, self.retry
+        )
 
     def echo(self, message: str) -> None:
         """Retain original accepted-write presentation.
@@ -188,7 +176,7 @@ class LegacyPalace:
         Args:
             message: Original completion text.
         """
-        self.output(message)
+        self.callbacks.echo(message)
 
     def cursor_payload(
         self, next_index: int, last: YourLibraryAlbum
@@ -214,4 +202,4 @@ class LegacyPalace:
         """
         from spotify_manager.routines.palace_of_memory import _append_log
 
-        _append_log(self.log_path, summary)
+        _append_log(self.resources.log_path, summary)

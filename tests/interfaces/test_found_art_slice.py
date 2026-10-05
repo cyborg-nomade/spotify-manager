@@ -19,9 +19,10 @@ from fastapi.testclient import TestClient
 from spotipy import Spotify
 from typer.testing import CliRunner
 
-from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.bootstrap import clients
 from spotify_manager.client.lastfm import LastFmSimilarTrack
+from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import found_art
 from tests.interfaces.test_discovery_slice import _wait
@@ -122,13 +123,13 @@ def found_art_environment(
     spotify, lastfm = _spotify(), _lastfm()
     threads: list[Thread] = []
     monkeypatch.setattr(found_art, "datetime", RecommendationClock)
-    monkeypatch.setattr(api, "Settings", _settings)
+    monkeypatch.setattr(http_jobs, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
     monkeypatch.setattr(main, "client", Mock(return_value=spotify))
-    monkeypatch.setattr(api, "LastFmClient", Mock(return_value=lastfm))
-    monkeypatch.setattr(main, "LastFmClient", Mock(return_value=lastfm))
-    monkeypatch.setattr(api, "_blast_jobs", {})
-    monkeypatch.setattr(api, "Thread", partial(_thread, threads))
+    monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=lastfm))
+    monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=lastfm))
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {})
+    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
     try:
         yield FoundArtEnvironment(
             _http_client(monkeypatch, cast(Spotify, spotify)),

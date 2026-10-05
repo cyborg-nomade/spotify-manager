@@ -22,6 +22,15 @@ callable for external compatibility but are excluded from default dependency
 bindings. Helpers can still call cohesive application parsing/catalog services
 when they add their concrete IO, validation or conversion responsibility.
 
+After the 2026-10-05 revision, client creation has one concrete owner in
+`bootstrap/clients.py`. Discovery input acquisition belongs to
+`interfaces/operations/discovery_inputs.py`; discography observations and annual
+resource effects belong to `infrastructure/discography_observations.py` and
+`infrastructure/legacy/new_year_resources.py`. Genre progress, queue planning
+and Wine Cellar invocations belong to `interfaces/operations/`. Their bootstrap
+forwarders were removed; bootstrap only constructs dependencies. The existing
+SDK leaves below retain their recorded source paths and effect order.
+
 ## Named bindings by original source
 
 All module names below are relative to `spotify_manager`. Each list is
@@ -346,6 +355,7 @@ searchable by exact function name and uses the contracts/decisions above.
 
 - `_append_recommendation_albums`
 - `load_first_track`
+- `parse_playlist_id`
 - `search_candidate_albums`
 
 ### `routines.scrobble_history`

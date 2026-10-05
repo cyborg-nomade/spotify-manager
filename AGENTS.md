@@ -23,6 +23,14 @@ Python, including tests and tooling:
    helpers may omit docstrings when their names and types fully explain them.
 5. Follow PEP 8 and Ruff formatting. Catch specific exception types; do not add
    catch-all `except Exception:` blocks.
+6. Keep function signatures at an absolute maximum of 13 parameters, normally
+   two or three. Group cohesive request values, paths and interaction callbacks
+   in explicit typed models; do not use an untyped options dictionary or merely
+   move a large dependency list into a generated constructor.
+7. Make HTTP execution statically navigable: route declaration, endpoint,
+   named application use case, domain decision, and presenter. Keep bootstrap
+   construction outside business execution and client creation outside legacy
+   routine modules. Prefer direct named calls over injected forwarding callbacks.
 
 Apply these rules throughout the approved incremental refactor, preserving the
 frozen behavior contracts. Existing legacy code is brought into compliance as

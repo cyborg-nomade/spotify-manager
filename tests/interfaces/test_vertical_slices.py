@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 
 from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.interfaces.http import jobs as http_jobs
 from tests.infrastructure.test_listening_adapters import _client
 from tests.infrastructure.test_listening_adapters import _recorded_album
 from tests.infrastructure.test_listening_adapters import _track
@@ -129,11 +130,11 @@ def _configure_requeue(monkeypatch: pytest.MonkeyPatch) -> FakeSpotify:
     settings = Mock(
         return_value=SimpleNamespace(reqeueue_for_a_dream_playlist=PLAYLIST_ID)
     )
-    monkeypatch.setattr(api, "Settings", settings)
+    monkeypatch.setattr(http_jobs, "Settings", settings)
     monkeypatch.setattr(main, "Settings", settings)
     monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
-    monkeypatch.setattr(api, "Thread", InlineThread)
-    monkeypatch.setattr(api, "_blast_jobs", {})
+    monkeypatch.setattr(http_jobs, "Thread", InlineThread)
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {})
     return spotify
 
 

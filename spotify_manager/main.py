@@ -55,6 +55,8 @@ from spotify_manager.core.state.models import StateDocumentError as StateDocumen
 from spotify_manager.core.state.models import StateError as StateError
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.features.album_review import (
     AlbumReviewCLI as AlbumReviewCLI,
 )
@@ -204,140 +206,131 @@ def _library_data_cli() -> LibraryDataCLI:
     return LibraryDataCLI(
         create_console=Console,
         create_table=Table,
-        format_file_size=format_file_size,
         get_library_data_service=get_library_data_service,
-        selected_artifacts=selected_artifacts,
         validate_artifact_name=validate_artifact_name,
     )
 
 
 def _album_review_cli() -> AlbumReviewCLI:
     return AlbumReviewCLI(
-        bar_column=BarColumn,
         create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
         prompt=Prompt,
         REVIEW_ACTION_CHOICES=REVIEW_ACTION_CHOICES,
-        spinner_column=SpinnerColumn,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_review_action=ask_review_action,
         review_client=review_client,
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _artist_review_cli() -> ArtistReviewCLI:
     return ArtistReviewCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
         configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_artist_release_choice=ask_artist_release_choice,
-        ask_artist_track_choice=ask_artist_track_choice,
         review_client=review_client,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _wine_cli() -> WineCLI:
     return WineCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
         configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_new_wine_endpoint_choice=ask_new_wine_endpoint_choice,
-        ask_new_wine_release_choice=ask_new_wine_release_choice,
         review_client=review_client,
         sleep=sleep,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _discovery_cli() -> DiscoveryCLI:
     return DiscoveryCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
         configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_new_kids_release_choice=ask_new_kids_release_choice,
-        print_album_discovery_decisions=print_album_discovery_decisions,
         review_client=review_client,
         sleep=sleep,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _slow_listening_cli() -> SlowListeningCLI:
     return SlowListeningCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
         configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        acknowledge_slow_listening_completion=acknowledge_slow_listening_completion,
-        ask_slow_listening_action=ask_slow_listening_action,
-        ask_slow_listening_release_order=ask_slow_listening_release_order,
         review_client=review_client,
         sleep=sleep,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _queue_3_cli() -> Queue3CLI:
     return Queue3CLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
         configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        _render_queue_3_annual_import=_render_queue_3_annual_import,
-        ask_queue_3_composer_playlist=ask_queue_3_composer_playlist,
-        ask_queue_3_release_transition=ask_queue_3_release_transition,
         review_client=review_client,
         sleep=sleep,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _discography_cli() -> DiscographyCLI:
     return DiscographyCLI(
-        create_console=Console,
-        prompt=Prompt,
         configuration=Settings,
-        create_table=Table,
-        _print_discography_plan=_print_discography_plan,
-        ask_discography_release_selection=ask_discography_release_selection,
         ask_something_old_artist=ask_something_old_artist,
         review_client=review_client,
         sleep=sleep,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
     )
 
 
@@ -366,115 +359,97 @@ def _library_upload_cli() -> LibraryUploadCLI:
 
 def _found_art_cli() -> FoundArtCLI:
     return FoundArtCLI(
-        create_console=Console,
-        create_lastfm=LastFmClient,
         configuration=Settings,
-        create_table=Table,
-        create_text=Text,
         client=client,
-        print_found_art_table=print_found_art_table,
+        display=ConsoleDisplay(
+            create_console=Console, create_table=Table, create_text=Text
+        ),
     )
 
 
 def _sauvignon_cli() -> SauvignonCLI:
     return SauvignonCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        create_progress=Progress,
-        prompt=Prompt,
         configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_sauvignon_album=ask_sauvignon_album,
-        print_sauvignon_table=print_sauvignon_table,
         review_client=review_client,
         sleep=sleep,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _queue_cli() -> QueueCLI:
     return QueueCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
         configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_queue_artist=ask_queue_artist,
-        configured_queue_playlists=configured_queue_playlists,
-        print_queue_fill_table=print_queue_fill_table,
-        print_queue_flush_table=print_queue_flush_table,
         review_client=review_client,
         sleep=sleep,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _historical_cli() -> HistoricalCLI:
     return HistoricalCLI(
-        create_console=Console,
         configuration=Settings,
-        create_table=Table,
         client=client,
-        print_scrobble_selection_table=print_scrobble_selection_table,
         review_client=review_client,
         sleep=sleep,
-        create_text=Text,
+        display=ConsoleDisplay(
+            create_console=Console, create_table=Table, create_text=Text
+        ),
     )
 
 
 def _something_old_cli() -> SomethingOldCLI:
     return SomethingOldCLI(
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        prompt=Prompt,
         configuration=Settings,
-        create_table=Table,
         _scrobble_date=_scrobble_date,
-        ask_something_old_album=ask_something_old_album,
-        ask_something_old_artist=ask_something_old_artist,
-        ask_something_old_mode=ask_something_old_mode,
         client=client,
         print_scrobble_history_summary=print_scrobble_history_summary,
-        print_something_old_summary=print_something_old_summary,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
     )
 
 
 def _releases_cli() -> ReleasesCLI:
     return ReleasesCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
         configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_release_check_artist=ask_release_check_artist,
-        ask_release_check_release=ask_release_check_release,
         client=client,
-        print_release_check_summary=print_release_check_summary,
         print_scrobble_history_summary=print_scrobble_history_summary,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _new_year_cli() -> NewYearCLI:
     return NewYearCLI(
         create_console=Console,
-        create_lastfm=LastFmClient,
         configuration=Settings,
         client=client,
     )
@@ -492,12 +467,12 @@ def _requeue_cli() -> RequeueCLI:
 
 def _palace_cli() -> PalaceCLI:
     return PalaceCLI(
-        create_console=Console,
         configuration=Settings,
-        create_table=Table,
-        create_text=Text,
         review_client=review_client,
         sleep=sleep,
+        display=ConsoleDisplay(
+            create_console=Console, create_table=Table, create_text=Text
+        ),
     )
 
 
@@ -512,22 +487,21 @@ def _genre_cli() -> GenreCLI:
 
 def _analysis_cli() -> AnalysisCLI:
     return AnalysisCLI(
-        bar_column=BarColumn,
-        create_console=Console,
         create_live=Live,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
         monotonic=monotonic,
-        print_library_analysis_summary=print_library_analysis_summary,
         review_client=review_client,
-        run_library_analysis=run_library_analysis,
         sleep=sleep,
-        wait_for_library_retry=wait_for_library_retry,
+        display=ConsoleDisplay(
+            create_console=Console, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
@@ -541,14 +515,16 @@ def _lookups_cli() -> LookupsCLI:
 
 def _recovery_cli() -> RecoveryCLI:
     return RecoveryCLI(
-        bar_column=BarColumn,
         create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        spinner_column=SpinnerColumn,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
         review_client=review_client,
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
@@ -1090,7 +1066,6 @@ def update_scrobble_history_command(
         console=Console(),
         configuration=Settings(),
         validate=found_art.validate_lastfm_configuration,
-        create_client=LastFmClient,
         refresh=scrobble_history.refresh_scrobble_history,
         present=print_scrobble_history_summary,
     ).run(full_rebuild, dry_run)

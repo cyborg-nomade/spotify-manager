@@ -18,6 +18,9 @@ import pytest
 from spotipy import Spotify
 
 from spotify_manager.domain.history import Scrobble
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
 from spotify_manager.routines import release_check as legacy
 from spotify_manager.routines import scrobble_history
 from tests.support.history_dependencies import LegacyReleaseOpening
@@ -192,13 +195,16 @@ def _invoke(tmp_path: Path, preview: bool, effects: OpeningEffects) -> None:
     legacy.run_release_check(
         cast(Spotify, object()),
         cast(legacy.LastFmReader, object()),
-        legacy.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="user",
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "audit.jsonl",
-        now=STAMP,
-        dry_run=preview,
-        progress_callback=effects.progress,
+        ReleaseCheckOptions(
+            playlists=legacy.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="user",
+            dry_run=preview,
+            now=STAMP,
+        ),
+        ReleaseCheckCallbacks(progress_callback=effects.progress),
+        ReleaseCheckResources(
+            state_path=tmp_path / "state.json", log_path=tmp_path / "audit.jsonl"
+        ),
     )
 
 

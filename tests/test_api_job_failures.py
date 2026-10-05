@@ -12,6 +12,8 @@ from types import SimpleNamespace
 import pytest
 
 from spotify_manager import api
+from tests.support.feature_invocation import FeatureInvocation
+from tests.support.wine_invocation import WineInvocation
 
 
 class CallbackSpotify:
@@ -709,7 +711,7 @@ def test_new_wine_retries_rate_limited_operation_automatically(
         retry_call(operation, "refilling New Wine from Wine Cellar")
         return _success_result(spec)
 
-    monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(flush))
     try:
         spec.run(job.result.job_id, CallbackSpotify())
     finally:
@@ -748,7 +750,20 @@ def test_new_kids_retries_rate_limited_operation_automatically(
         retry_call(operation, "loading releases for New Kids")
         return _success_result(spec)
 
-    monkeypatch.setattr(api.new_kids, "flush_new_kids", flush)
+    monkeypatch.setattr(
+        api.new_kids,
+        "flush_new_kids",
+        FeatureInvocation(
+            flush,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
     try:
         spec.run(job.result.job_id, CallbackSpotify())
     finally:
@@ -785,7 +800,7 @@ def test_new_wine_rate_limit_wait_can_be_cancelled(
         retry_call(operation, "refilling New Wine from Wine Cellar")
         return _success_result(spec)
 
-    monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(flush))
     try:
         spec.run(job.result.job_id, CallbackSpotify())
     finally:
@@ -821,7 +836,20 @@ def test_new_kids_rate_limit_wait_can_be_cancelled(
         retry_call(operation, "loading releases for New Kids")
         return _success_result(spec)
 
-    monkeypatch.setattr(api.new_kids, "flush_new_kids", flush)
+    monkeypatch.setattr(
+        api.new_kids,
+        "flush_new_kids",
+        FeatureInvocation(
+            flush,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
     try:
         spec.run(job.result.job_id, CallbackSpotify())
     finally:

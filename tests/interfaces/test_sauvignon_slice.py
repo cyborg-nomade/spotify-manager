@@ -9,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from spotify_manager.bootstrap import clients
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import found_art
 from spotify_manager.routines import sauvignon
@@ -53,7 +54,7 @@ def _environment(monkeypatch: pytest.MonkeyPatch) -> AlbumSpotify:
     lastfm = _lastfm()
     monkeypatch.setattr(main, "Settings", _settings)
     monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
-    monkeypatch.setattr(main, "LastFmClient", Mock(return_value=lastfm))
+    monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=lastfm))
     monkeypatch.setattr(found_art, "datetime", RecommendationClock)
     monkeypatch.setattr(sauvignon, "datetime", RecommendationClock)
     return spotify

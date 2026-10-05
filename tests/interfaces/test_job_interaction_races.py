@@ -9,6 +9,7 @@ import pytest
 from fastapi import HTTPException
 
 from spotify_manager import api
+from spotify_manager.interfaces.http import jobs as http_jobs
 
 
 @dataclass(frozen=True)
@@ -150,7 +151,7 @@ def test_choice_cancel_race_has_only_original_atomic_outcomes(
     """
     owner = api._BlastJob(result=interaction.create())
     other = api._BlastJob(result=api.BlastJobResult(job_id=f"other-{iteration}"))
-    monkeypatch.setattr(api, "_blast_jobs", {"owner": owner, "other": other})
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {"owner": owner, "other": other})
     barrier = Barrier(2)
     with ThreadPoolExecutor(max_workers=2) as pool:
         submit = pool.submit(_invoke, interaction.submit, barrier, "owner")
@@ -176,7 +177,7 @@ def test_accepted_then_cancelled_choice_preserves_detached_submission_view(
         monkeypatch: Isolate the original process-local registry.
     """
     job = api._BlastJob(result=interaction.create())
-    monkeypatch.setattr(api, "_blast_jobs", {"owner": job})
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {"owner": job})
     submitted = interaction.submit("owner")
     interaction.cancel("owner")
     assert submitted.status == "running" and not submitted.logs

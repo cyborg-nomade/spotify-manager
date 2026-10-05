@@ -24,6 +24,9 @@ from spotify_manager.domain.queue_values import ArtistSeed
 from spotify_manager.domain.recommendation_history import TrackHistory
 from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.infrastructure.legacy.queue_fill import LegacyQueueFill
+from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
+from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
+from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import release_check
@@ -357,13 +360,18 @@ def _run(edge: FillObservations, preview: bool) -> object:
         result = legacy.fill_queue_from_lastfm(
             cast(Spotify, edge),
             cast(legacy.LastFmReader, edge),
-            legacy.QueuePlaylists("queue", "queue2", "new-kids", "queue3", "unlucky"),
-            None,
-            count=1,
-            dry_run=preview,
-            now=NOW,
-            echo=edge.echo,
-            progress_callback=edge.progress,
+            QueueFillOptions(
+                playlists=legacy.QueuePlaylists(
+                    "queue", "queue2", "new-kids", "queue3", "unlucky"
+                ),
+                count=1,
+                dry_run=preview,
+                now=NOW,
+            ),
+            QueueFillCallbacks(
+                choice_reader=None, echo=edge.echo, progress_callback=edge.progress
+            ),
+            QueueFillResources(),
         )
     return asdict(result)
 
@@ -412,12 +420,12 @@ def _gather(
         resources.lastfm,
         seeds,
         heard,
-        cache_path=resources.cache_path,
-        log_path=resources.log_path,
+        cache_path=resources.resources.cache_path,
+        log_path=resources.resources.log_path,
         week_start=week,
         candidate_pool_size=limit,
         now=now,
-        progress_callback=resources.callback,
+        progress_callback=resources.callbacks.progress_callback,
     )
 
 
@@ -429,7 +437,9 @@ def _resolve(
     artist = release_check.RankedArtist(
         recommendation.key, recommendation.artist, 0, recommendation.base_rank
     )
-    reader = legacy._mapping_choice_reader(resources.choice, recommendation)
+    reader = legacy._mapping_choice_reader(
+        resources.callbacks.choice_reader, recommendation
+    )
     return edge.resolve(resources.spotify, artist, reader, resources.retry)
 
 

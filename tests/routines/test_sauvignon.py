@@ -8,6 +8,9 @@ import pytest
 
 from spotify_manager.infrastructure.legacy import sauvignon as sauvignon_integration
 from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
+from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
+from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
+from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import sauvignon
@@ -410,15 +413,14 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
 
     summary = sauvignon.fill_sauvignon_from_lastfm(
         spotify,
-        object(),  # type: ignore[arg-type]
-        "sauvignon",
-        None,
-        count=1,
-        max_playlist_length=None,
-        retry_call=immediate,
-        log_path=tmp_path / "sauvignon.jsonl",
-        export_path=tmp_path / "history.json",
-        recent_path=tmp_path / "recent.jsonl",
+        object(),
+        SauvignonOptions(playlist_id="sauvignon", count=1, max_playlist_length=None),
+        SauvignonCallbacks(choice_reader=None, retry_call=immediate),
+        SauvignonResources(
+            export_path=tmp_path / "history.json",
+            recent_path=tmp_path / "recent.jsonl",
+            log_path=tmp_path / "sauvignon.jsonl",
+        ),
     )
 
     assert summary.selected == 1
@@ -517,13 +519,14 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
 
     summary = sauvignon.fill_sauvignon_from_lastfm(
         spotify,
-        object(),  # type: ignore[arg-type]
-        "sauvignon",
-        lambda _recommendation, _options: sauvignon.CHOICE_QUIT,
-        count=3,
-        max_playlist_length=None,
-        dry_run=True,
-        log_path=tmp_path / "dry.jsonl",
+        object(),
+        SauvignonOptions(
+            playlist_id="sauvignon", count=3, max_playlist_length=None, dry_run=True
+        ),
+        SauvignonCallbacks(
+            choice_reader=lambda _recommendation, _options: sauvignon.CHOICE_QUIT
+        ),
+        SauvignonResources(log_path=tmp_path / "dry.jsonl"),
     )
 
     assert [result.action for result in summary.results] == [
@@ -548,11 +551,11 @@ def test_fill_sauvignon_full_playlist_and_invalid_limits(
         lambda *_args, **_kwargs: tuple(object() for _ in range(20)),
     )
     summary = sauvignon.fill_sauvignon_from_lastfm(
-        object(),  # type: ignore[arg-type]
-        object(),  # type: ignore[arg-type]
-        "sauvignon",
-        None,
-        log_path=tmp_path / "full.jsonl",
+        object(),
+        object(),
+        SauvignonOptions(playlist_id="sauvignon"),
+        SauvignonCallbacks(choice_reader=None),
+        SauvignonResources(log_path=tmp_path / "full.jsonl"),
     )
     assert summary.requested_count == 0
     assert summary.results == ()
@@ -565,10 +568,9 @@ def test_fill_sauvignon_full_playlist_and_invalid_limits(
     ):
         with pytest.raises(sauvignon.SauvignonConfigError):
             sauvignon.fill_sauvignon_from_lastfm(
-                object(),  # type: ignore[arg-type]
-                object(),  # type: ignore[arg-type]
-                "sauvignon",
-                None,
-                log_path=tmp_path / "invalid.jsonl",
-                **kwargs,  # type: ignore[arg-type]
+                object(),
+                object(),
+                SauvignonOptions(playlist_id="sauvignon", **kwargs),
+                SauvignonCallbacks(choice_reader=None),
+                SauvignonResources(log_path=tmp_path / "invalid.jsonl"),
             )

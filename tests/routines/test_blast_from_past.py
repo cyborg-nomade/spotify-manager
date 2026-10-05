@@ -18,8 +18,9 @@ from urllib.parse import urlparse
 import pytest
 
 from spotify_manager.bootstrap import historical_playlists as historical_composition
+from spotify_manager.interfaces.operations import blast_from_past as blast_execution
 from spotify_manager.routines import blast_from_past
-from tests.support.direct_dependencies import blast_batch
+from tests.support.direct_dependencies import ObservedBlastSelection
 
 
 def make_scrobble(number: int) -> blast_from_past.Scrobble:
@@ -767,8 +768,11 @@ def test_spotify_routine_prefers_liked_match_and_adds_it(
     sp.liked_ids = {"liked"}
     monkeypatch.setattr(
         historical_composition,
-        "_blast_batch",
-        partial(blast_batch, lambda **_kwargs: batch),
+        "blast_selection",
+        partial(ObservedBlastSelection, lambda **_kwargs: batch),
+    )
+    monkeypatch.setattr(
+        blast_execution, "blast_selection", historical_composition.blast_selection
     )
 
     summary = blast_from_past.add_blast_from_past_to_spotify(
@@ -813,7 +817,12 @@ def test_maximum_playlist_length_only_selects_open_slots(
         return batch
 
     monkeypatch.setattr(
-        historical_composition, "_blast_batch", partial(blast_batch, select)
+        historical_composition,
+        "blast_selection",
+        partial(ObservedBlastSelection, select),
+    )
+    monkeypatch.setattr(
+        blast_execution, "blast_selection", historical_composition.blast_selection
     )
 
     summary = blast_from_past.add_blast_from_past_to_spotify(
@@ -853,8 +862,11 @@ def test_dry_run_resolves_tracks_without_updating_playlist(
     ]
     monkeypatch.setattr(
         historical_composition,
-        "_blast_batch",
-        partial(blast_batch, lambda **_kwargs: batch),
+        "blast_selection",
+        partial(ObservedBlastSelection, lambda **_kwargs: batch),
+    )
+    monkeypatch.setattr(
+        blast_execution, "blast_selection", historical_composition.blast_selection
     )
 
     summary = blast_from_past.add_blast_from_past_to_spotify(

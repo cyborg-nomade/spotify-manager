@@ -51,6 +51,9 @@ from spotify_manager.infrastructure.library_records import (
 from spotify_manager.interfaces.presenters.queue_3 import (
     Queue3Presenter as Queue3Presenter,
 )
+from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
+from spotify_manager.interfaces.requests.queue_3 import Queue3Options
+from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.routines import queue_3 as legacy
 from spotify_manager.routines.queue_3 import CHOICE_ADVANCE as CHOICE_ADVANCE
 from spotify_manager.routines.queue_3 import CHOICE_QUIT as CHOICE_QUIT
@@ -73,66 +76,68 @@ from spotify_manager.routines.queue_3 import validate_state as validate_state
 
 def flush_queue_3(
     sp: Spotify,
-    playlist_id: str,
-    transition_reader: ReleaseTransitionReader,
-    *,
-    composer_playlist_reader: ComposerPlaylistReader | None = None,
-    active_year: int | None = None,
-    dry_run: bool = False,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    options: Queue3Options,
+    callbacks: Queue3Callbacks,
+    resources: Queue3Resources | None = None,
 ) -> FlushSummary:
     """Import the previous year once, then advance the first ten Queue 3 artists.
 
     Args:
-        sp: Caller-owned Spotify client.
-        playlist_id: Configured Queue 3 destination.
-        transition_reader: Original release-boundary decision callback.
-        composer_playlist_reader: Optional owned works-playlist selection callback.
-        active_year: Explicit checkpoint year, or the current UTC year.
-        dry_run: Whether state is cloned and durable writes suppressed.
-        echo: Existing output sink.
-        progress_callback: Optional entry progress sink.
-        retry_call: Optional retry and cancellation callback.
-        state_path: Original legacy namespace path.
-        state_service: Optional shared state service.
-        log_path: Original Queue 3 audit destination.
-        albums_path: Original local album mirror.
-        removed_albums_log_path: Original removed-album recovery log.
+        sp: Caller-owned client.
+        options: Destinations and execution mode.
+        callbacks: Operator decisions, notifications and retry ownership.
+        resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original public Queue 3 summary with per-artist decisions and resume status.
+        The original typed summary and accepted effects.
 
     Raises:
-        Queue3Error: Configuration, state, planning or execution fails.
+        RuntimeError: Observations, selections or persistence cannot complete.
     """
-    retry = retry_call or _direct_call
-    year = active_year or legacy.datetime.now(UTC).year
+    resources = resources or Queue3Resources()
+    retry = callbacks.retry_call or _direct_call
+    year = options.active_year or legacy.datetime.now(UTC).year
     inputs = annual_inputs(
-        sp, playlist_id, retry, dry_run, state_path, state_service, log_path, echo
+        sp,
+        options.playlist_id,
+        retry,
+        options.dry_run,
+        resources.state_path,
+        resources.state_service,
+        resources.log_path,
+        callbacks.echo,
     )
     current, annual = inputs.importer.run(
-        playlist_id, inputs.current, inputs.state, inputs.owned, year, dry_run
+        options.playlist_id,
+        inputs.current,
+        inputs.state,
+        inputs.owned,
+        year,
+        options.dry_run,
     )
     queue = Queue3LiveQueue(
-        playlist_id, current, {track.spotify_id for track in current}
+        options.playlist_id, current, {track.spotify_id for track in current}
     )
     session = Queue3Run(
-        inputs.state, inputs.state_access, _datetime, dry_run, legacy.DAILY_ARTIST_LIMIT
+        inputs.state,
+        inputs.state_access,
+        _datetime,
+        options.dry_run,
+        legacy.DAILY_ARTIST_LIMIT,
     )
     snapshot = session.start(queue)
     liked: dict[str, bool] = {}
     planner = review_planner(
-        sp, retry, {}, liked, snapshot.orders, session.save, transition_reader
+        sp, retry, {}, liked, snapshot.orders, session.save, callbacks.transition_reader
     )
     execution = review_execution(
-        sp, retry, albums_path, removed_albums_log_path, log_path, echo, dry_run
+        sp,
+        retry,
+        resources.albums_path,
+        resources.removed_albums_log_path,
+        resources.log_path,
+        callbacks.echo,
+        options.dry_run,
     )
     catalog = LegacyQueue3Catalog(sp, retry, liked)
     observations = Queue3Observations(catalog.discography, inputs.access.read)
@@ -144,13 +149,13 @@ def flush_queue_3(
         execution,
         observations,
         inputs.owned,
-        composer_playlist_reader,
+        callbacks.composer_playlist_reader,
         inputs.access.audit,
-        Queue3Presenter(echo, progress_callback),
+        Queue3Presenter(callbacks.echo, callbacks.progress_callback),
     )
     results, paused = review.run()
     session.finish(snapshot, paused)
-    return run_summary(snapshot, results, annual, paused, dry_run)
+    return run_summary(snapshot, results, annual, paused, options.dry_run)
 
 
 def import_previous_year_discoveries(

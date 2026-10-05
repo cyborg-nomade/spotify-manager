@@ -8,11 +8,10 @@ from typing import Never
 
 import typer
 from rich.console import Console
-from rich.table import Table
-from rich.text import Text
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import (
     blast_from_past_artists as blast_from_past_artists,
@@ -27,26 +26,19 @@ from spotify_manager.settings import Settings
 
 @dataclass(kw_only=True)
 class HistoricalCLI:
-    """Execute and present historical through explicit facade dependencies.
+    """Run one CLI feature with explicit interaction and presentation resources.
 
     Args:
-        create_text: Rich text constructor for historical result cells.
-        create_console: Factory for console instances.
-        configuration: Original settings factory supplied by the facade.
-        create_table: Factory for table instances.
-        client: Client supplied by the caller.
-        print_scrobble_selection_table: Original print scrobble selection table boundary
-            supplied by the facade.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        display: Caller-owned display.
+        configuration: Caller-owned configuration.
+        client: Caller-owned client.
+        review_client: Caller-owned review client.
+        sleep: Caller-owned sleep.
     """
 
-    create_text: type[Text]
-    create_console: type[Console]
+    display: ConsoleDisplay
     configuration: type[Settings]
-    create_table: type[Table]
     client: Callable[..., Spotify]
-    print_scrobble_selection_table: Callable[..., None]
     review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
@@ -73,7 +65,7 @@ class HistoricalCLI:
             max_playlist_length: Max playlist length supplied by the caller.
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        console = self.create_console()
+        console = self.display.create_console()
         if count is not None and max_playlist_length is not None:
             raise typer.BadParameter(
                 "use either --count or --max-playlist-length, not both"
@@ -106,49 +98,36 @@ class HistoricalCLI:
         if summary.batch is None:
             console.print(
                 (
-                    "Playlist already contains "
-                    f"{summary.playlist_length_before}"
-                    " items; nothing was added."
+                    f"Playlist already contains {summary.playlist_length_before}"
+                    f" items; nothing was added."
                 ),
                 style="bold green",
             )
             return
         console.print(
             (
-                "Random.org timestamp: "
+                f"Random.org timestamp: "
                 f"{summary.batch.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}"
             ),
             style="bold cyan",
         )
         console.print(
             (
-                "Eligible dates: "
-                f"{summary.batch.available_dates}"
-                " ("
-                f"{blast_from_past.FIRST_ELIGIBLE_DATE.isoformat()}"
-                " through "
-                f"{summary.batch.cutoff_date.isoformat()}"
-                ")"
+                f"Eligible dates: {summary.batch.available_dates} ("
+                f"{blast_from_past.FIRST_ELIGIBLE_DATE.isoformat()} through "
+                f"{summary.batch.cutoff_date.isoformat()})"
             ),
             style="dim",
         )
-        self.print_scrobble_selection_table(
+        self._render_scrobble_selection_table(
             console, "A blast from the past", summary.results
         )
         verb = "would add" if dry_run else "added"
         console.print(
             (
-                "Playlist: "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                " items; "
-                f"{verb}"
-                " "
-                f"{summary.added}"
-                " of "
-                f"{summary.requested_count}"
-                " selections."
+                f"Playlist: {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after} items; {verb} {summary.added} of "
+                f"{summary.requested_count} selections."
             ),
             style="bold cyan" if dry_run else "bold",
         )
@@ -160,7 +139,7 @@ class HistoricalCLI:
             count: Count supplied by the caller.
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._blast_from_the_past_artists_console = self.create_console()
+        self._blast_from_the_past_artists_console = self.display.create_console()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
                 self.configuration().blast_from_the_past_playlist
@@ -190,7 +169,9 @@ class HistoricalCLI:
             self._report_blast_from_the_past_artists_blast_from_past_failure(exc)
         except SpotifyException as exc:
             self._report_blast_from_the_past_artists_spotify_spotify_failure(exc)
-        table = self.create_table(title="A blast from the past · dormant artists")
+        table = self.display.create_table(
+            title="A blast from the past · dormant artists"
+        )
         table.add_column("Last.fm artist", style="bold")
         table.add_column("Scrobbles", justify="right")
         table.add_column("Spotify artist")
@@ -201,8 +182,8 @@ class HistoricalCLI:
             table.add_row(
                 result.artist,
                 str(result.scrobbles),
-                result.spotify_artist or ("-"),
-                result.track or ("-"),
+                result.spotify_artist or "-",
+                result.track or "-",
                 str(result.popularity) if result.popularity is not None else "-",
                 "would add" if dry_run and result.action == "added" else result.action,
             )
@@ -210,25 +191,12 @@ class HistoricalCLI:
         verb = "would add" if dry_run else "added"
         self._blast_from_the_past_artists_console.print(
             (
-                "History years: "
-                f"{summary.history_years[0]}"
-                "-"
-                f"{summary.history_years[-1]}"
-                "; excluded "
-                f"{summary.current_year}"
-                ". Candidates: "
-                f"{summary.candidate_count}"
-                "; playlist "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                "; "
-                f"{verb}"
-                " "
-                f"{summary.added}"
-                " of "
-                f"{summary.requested_count}"
-                "."
+                f"History years: {summary.history_years[0]}-"
+                f"{summary.history_years[-1]}; excluded {summary.current_year}"
+                f". Candidates: {summary.candidate_count}; playlist "
+                f"{summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}; {verb} {summary.added} of "
+                f"{summary.requested_count}."
             ),
             style="bold cyan" if dry_run else "bold",
         )
@@ -261,7 +229,7 @@ class HistoricalCLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        console = self.create_console()
+        console = self.display.create_console()
         configuration = self.configuration()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
@@ -300,7 +268,7 @@ class HistoricalCLI:
         self, exc: SpotifyException, console: Console
     ) -> Never:
         console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -319,9 +287,9 @@ class HistoricalCLI:
     ) -> Never:
         self._blast_from_the_past_artists_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -348,7 +316,7 @@ class HistoricalCLI:
         self, exc: SpotifyException
     ) -> Never:
         self._blast_from_the_past_artists_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -370,7 +338,7 @@ class HistoricalCLI:
         self, exc: SpotifyException, console: Console
     ) -> Never:
         console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -404,26 +372,18 @@ class HistoricalCLI:
         if generated_at is None:
             raise RuntimeError("A populated Daily Mind Radio batch has no timestamp.")
         console.print(
-            (f"Random.org timestamp: {generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}"),
+            f"Random.org timestamp: {generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}",
             style="bold cyan",
         )
-        self.print_scrobble_selection_table(
+        self._render_scrobble_selection_table(
             console, "Daily mind radio", summary.results
         )
         verb = "would add" if dry_run else "added"
         console.print(
             (
-                "Playlist: "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                " items; "
-                f"{verb}"
-                " "
-                f"{summary.added}"
-                " of "
-                f"{len(summary.batch.selections)}"
-                " populated anniversary dates."
+                f"Playlist: {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after} items; {verb} {summary.added} of "
+                f"{len(summary.batch.selections)} populated anniversary dates."
             ),
             style="bold cyan" if dry_run else "bold",
         )
@@ -447,7 +407,7 @@ class HistoricalCLI:
             title: Title supplied by the caller.
             results: Results supplied by the caller.
         """
-        table = self.create_table(title=title)
+        table = self.display.create_table(title=title)
         table.add_column("#", justify="right")
         table.add_column("Date")
         table.add_column("Rule")
@@ -467,46 +427,34 @@ class HistoricalCLI:
                 f"{selection.scrobble.artist} - {selection.scrobble.track} - {album}"
             )
             if result.match is None:
-                match_text = self.create_text("No qualifying result", style="red")
+                match_text = self.display.create_text(
+                    "No qualifying result", style="red"
+                )
             else:
                 match_album = result.match.album or "(no album)"
                 liked = "liked" if result.match.liked else "unliked"
                 album_score = (
                     "n/a"
                     if result.match.album_similarity is None
-                    else (f"{result.match.album_similarity:.0%}")
+                    else f"{result.match.album_similarity:.0%}"
                 )
-                match_text = self.create_text(
-                    f"{', '.join(result.match.artists)}"
-                    " - "
-                    f"{result.match.track}"
-                    " - "
-                    f"{match_album}"
-                    "\n"
-                    f"{liked}"
-                    "; track "
-                    f"{result.match.track_similarity:.0%}"
-                    ", album "
-                    f"{album_score}"
-                    "; "
-                    f"{result.qualifying_matches}"
-                    " qualified"
+                match_text = self.display.create_text(
+                    f"{', '.join(result.match.artists)} - {result.match.track} - "
+                    f"{match_album}\n{liked}; track "
+                    f"{result.match.track_similarity:.0%}, album {album_score}; "
+                    f"{result.qualifying_matches} qualified"
                 )
             table.add_row(
                 str(number),
                 selection.selected_date.isoformat(),
                 (
-                    "page "
-                    f"{selection.page}"
-                    "/"
-                    f"{selection.total_pages}"
-                    ", "
-                    f"{selection.direction}"
-                    ", #"
-                    f"{selection.position}"
+                    f"page {selection.page}/{selection.total_pages}, "
+                    f"{selection.direction}, #{selection.position}"
                 ),
-                self.create_text(scrobble_text),
+                self.display.create_text(scrobble_text),
                 match_text,
-                self.create_text(result.action, style=action_styles[result.action]),
+                self.display.create_text(
+                    result.action, style=action_styles[result.action]
+                ),
             )
         console.print(table)

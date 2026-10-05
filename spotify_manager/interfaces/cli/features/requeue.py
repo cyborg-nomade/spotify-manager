@@ -102,9 +102,9 @@ class RequeueCLI:
     ) -> Never:
         self._flush_requeue_for_a_dream_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -172,11 +172,8 @@ class RequeueCLI:
         self._flush_requeue_for_a_dream_console.print(table)
         self._flush_requeue_for_a_dream_console.print(
             (
-                "Playlist: "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                " tracks"
+                f"Playlist: {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after} tracks"
             )
             + (" (preview only)." if dry_run else "."),
             style="bold cyan" if dry_run else "bold green",

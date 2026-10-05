@@ -1,6 +1,7 @@
 """Preserve observed callback arguments when fixtures inject explicit ports."""
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -20,15 +21,9 @@ from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
 
 
-def blast_batch(
-    observe: Callable[..., blast.BlastFromPastBatch],
-    path: Path,
-    today: date | None,
-    random: blast.RandomIndexReader,
-    progress: blast.ProgressCallback | None,
-    count: int,
-) -> blast.BlastFromPastBatch:
-    """Call the original observed selection with its keyword arguments.
+@dataclass(frozen=True)
+class ObservedBlastSelection:
+    """Bind an existing batch oracle to the concrete selection boundary.
 
     Args:
         observe: Existing selection fixture.
@@ -36,28 +31,35 @@ def blast_batch(
         today: Effective date override.
         random: Caller-owned random source.
         progress: Original presenter.
-        count: Requested open slots.
-
-    Returns:
-        The fixture's original batch.
     """
-    return observe(
-        count=count,
-        path=path,
-        today=today,
-        random_index_reader=random,
-        progress_callback=progress,
-    )
+
+    observe: Callable[..., blast.BlastFromPastBatch]
+    path: Path
+    today: date | None
+    random: blast.RandomIndexReader
+    progress: blast.ProgressCallback | None
+
+    def run(self, count: int) -> blast.BlastFromPastBatch:
+        """Observe selection when execution requests its original open slots.
+
+        Args:
+            count: Requested open slots.
+
+        Returns:
+            The fixture's original batch.
+        """
+        return self.observe(
+            count=count,
+            path=self.path,
+            today=self.today,
+            random_index_reader=self.random,
+            progress_callback=self.progress,
+        )
 
 
-def radio_batch(
-    observe: Callable[..., radio.DailyMindRadioBatch],
-    path: Path,
-    today: date | None,
-    random: radio.RandomTimestampReader,
-    progress: blast.ProgressCallback | None,
-) -> radio.DailyMindRadioBatch:
-    """Call the observed anniversary selection with its original arguments.
+@dataclass(frozen=True)
+class ObservedRadioSelection:
+    """Bind an existing anniversary oracle to the concrete selection boundary.
 
     Args:
         observe: Existing selection fixture.
@@ -66,15 +68,26 @@ def radio_batch(
         random: Caller-owned timestamp source.
         progress: Original presenter.
 
-    Returns:
-        The fixture's original batch.
     """
-    return observe(
-        path=path,
-        today=today,
-        random_timestamp_reader=random,
-        progress_callback=progress,
-    )
+
+    observe: Callable[..., radio.DailyMindRadioBatch]
+    path: Path
+    today: date | None
+    random: radio.RandomTimestampReader
+    progress: blast.ProgressCallback | None
+
+    def run(self) -> radio.DailyMindRadioBatch:
+        """Observe anniversary selection when execution reaches that boundary.
+
+        Returns:
+            The fixture's original batch.
+        """
+        return self.observe(
+            path=self.path,
+            today=self.today,
+            random_timestamp_reader=self.random,
+            progress_callback=self.progress,
+        )
 
 
 def dormant_track(

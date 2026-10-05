@@ -10,7 +10,6 @@ from dataclasses import field
 from datetime import date
 from datetime import datetime
 from datetime import tzinfo
-from functools import partial
 from functools import partialmethod
 from pathlib import Path
 from typing import cast
@@ -18,12 +17,16 @@ from unittest.mock import patch
 
 from spotipy import Spotify
 
-from spotify_manager.bootstrap import palace_cursor
+from spotify_manager.application.palace_mirror import SavedMirror
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.history import HistoricalAlbum
 from spotify_manager.domain.history_matching import PlaylistState
+from spotify_manager.infrastructure.legacy.palace_mirror import LegacySavedMirror
 from spotify_manager.infrastructure.legacy.palace_run import LegacyPalace
+from spotify_manager.interfaces.requests.palace import PalaceCallbacks
+from spotify_manager.interfaces.requests.palace import PalaceOptions
+from spotify_manager.interfaces.requests.palace import PalaceResources
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory as legacy
@@ -335,7 +338,7 @@ class PalaceObservations:
 
 def _patches(edge: PalaceObservations) -> tuple[tuple[object, str, object], ...]:
     return (
-        (palace_cursor, "_refresh", partial(_cursor_refresh, edge)),
+        (SavedMirror, "run", partialmethod(_cursor_refresh, edge)),
         (LegacyPalace, "refresh", partialmethod(_refresh, edge)),
         (legacy, "_state_access", edge.state),
         (LegacyPalace, "historical", partialmethod(_historical, edge)),
@@ -356,17 +359,21 @@ def _run(edge: PalaceObservations, preview: bool) -> object:
             stack.enter_context(patch.object(module, name, callback))
         result = legacy.fill_palace_of_memory(
             cast(Spotify, edge),
-            "destination",
-            dry_run=preview,
-            alphabetical_start=override,
-            today=date(2026, 8, 8),
-            albums_path=Path("albums"),
-            scrobbles_path=Path("history"),
-            state_path=Path("cursor"),
-            log_path=Path("audit"),
-            retry_call=edge.retry,
-            progress_callback=edge.progress,
-            echo=edge.echo,
+            PalaceOptions(
+                playlist_id="destination",
+                dry_run=preview,
+                alphabetical_start=override,
+                today=date(2026, 8, 8),
+            ),
+            PalaceCallbacks(
+                retry_call=edge.retry, progress_callback=edge.progress, echo=edge.echo
+            ),
+            PalaceResources(
+                albums_path=Path("albums"),
+                scrobbles_path=Path("history"),
+                state_path=Path("cursor"),
+                log_path=Path("audit"),
+            ),
         )
     return asdict(result)
 
@@ -467,11 +474,11 @@ def _refresh(
 ) -> tuple[tuple[YourLibraryAlbum, ...], legacy.SavedAlbumRefresh]:
     return edge.refresh(
         resources.spotify,
-        path=resources.albums_path,
-        backups_dir=resources.backups_dir,
-        log_path=resources.refresh_log,
+        path=resources.resources.albums_path,
+        backups_dir=resources.resources.album_backups_dir,
+        log_path=resources.resources.album_refresh_log_path,
         retry_call=resources.retry,
-        progress_callback=resources.callback,
+        progress_callback=resources.callbacks.progress_callback,
     )
 
 
@@ -480,27 +487,23 @@ def _historical(
     edge: PalaceObservations,
 ) -> tuple[datetime, date, int, tuple[legacy.HistoricalAlbumSelection, ...]]:
     return edge.historical(
-        path=resources.scrobbles_path,
-        today=resources.today,
-        random_index_reader=resources.random_reader,
-        progress_callback=resources.callback,
+        path=resources.resources.scrobbles_path,
+        today=resources.options.today,
+        random_index_reader=resources.callbacks.random_index_reader,
+        progress_callback=resources.callbacks.progress_callback,
     )
 
 
 def _cursor_refresh(
+    workflow: SavedMirror,
     edge: PalaceObservations,
-    spotify: Spotify,
-    path: Path,
-    backups: Path,
-    log_path: Path,
-    retry: legacy.RetryCall,
-    callback: legacy.ProgressCallback | None,
 ) -> tuple[tuple[YourLibraryAlbum, ...], legacy.SavedAlbumRefresh]:
+    effects = cast(LegacySavedMirror, workflow.effects)
     return edge.refresh(
-        spotify,
-        path=path,
-        backups_dir=backups,
-        log_path=log_path,
-        retry_call=retry,
-        progress_callback=callback,
+        effects.spotify,
+        path=effects.path,
+        backups_dir=effects.backups,
+        log_path=effects.log_path,
+        retry_call=effects.retry,
+        progress_callback=effects.callback,
     )

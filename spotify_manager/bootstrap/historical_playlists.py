@@ -12,7 +12,6 @@ from spotify_manager.application.historical_playlists import HistoricalPlaylistE
 from spotify_manager.application.historical_resolution import HistoricalResolution
 from spotify_manager.application.historical_selection import AnniversarySelection
 from spotify_manager.application.historical_selection import BlastSelection
-from spotify_manager.application.historical_values import BlastFromPastBatch
 from spotify_manager.infrastructure.legacy.historical_playlists import (
     LegacyHistoricalPlaylist,
 )
@@ -113,16 +112,6 @@ def anniversary_selection(
     return workflow
 
 
-def _blast_batch(
-    path: Path,
-    today: date | None,
-    random: blast.RandomIndexReader,
-    progress: blast.ProgressCallback | None,
-    count: int,
-) -> BlastFromPastBatch:
-    return blast_selection(path, today, random, progress).run(count)
-
-
 def blast_playlist(
     sp: Spotify,
     playlist_id: str,
@@ -148,7 +137,7 @@ def blast_playlist(
     Returns:
         The configured application dependencies or workflow.
     """
-    select = partial(_blast_batch, path, today, random, progress)
+    select = blast_selection(path, today, random, progress).run
     workflow = BlastPlaylist(_effects(sp, playlist_id, progress, retry, cancel), select)
     return workflow
 
@@ -178,7 +167,7 @@ def anniversary_playlist(
     Returns:
         The configured application dependencies or workflow.
     """
-    select = partial(_anniversary_batch, path, today, random, progress)
+    select = anniversary_selection(path, today, random, progress).run
     workflow = AnniversaryPlaylist(
         _effects(sp, playlist_id, progress, retry, cancel), select
     )
@@ -216,12 +205,3 @@ def historical_resolution(
         blast.ALBUM_MATCH_THRESHOLD,
     )
     return workflow
-
-
-def _anniversary_batch(
-    path: Path,
-    today: date | None,
-    random: radio.RandomTimestampReader,
-    progress: blast.ProgressCallback | None,
-) -> radio.DailyMindRadioBatch:
-    return anniversary_selection(path, today, random, progress).run()

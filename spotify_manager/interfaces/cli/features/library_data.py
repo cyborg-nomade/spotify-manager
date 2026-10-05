@@ -34,9 +34,7 @@ class LibraryDataCLI:
 
     create_console: type[Console]
     create_table: type[Table]
-    format_file_size: Callable[..., str]
     get_library_data_service: Callable[..., LibraryDataService]
-    selected_artifacts: Callable[..., tuple[ArtifactName, ...]]
     validate_artifact_name: Callable[..., ArtifactName]
 
     def _selected_artifacts(self, values: Iterable[str]) -> tuple[ArtifactName, ...]:
@@ -91,7 +89,7 @@ class LibraryDataCLI:
             table.add_row(
                 item.filename,
                 item.updated_at or ("Not published"),
-                self.format_file_size(item.size_bytes)
+                self._format_file_size(item.size_bytes)
                 if item.size_bytes is not None
                 else "-",
                 item.source or ("-"),
@@ -119,7 +117,7 @@ class LibraryDataCLI:
         service = self.get_library_data_service()
         try:
             statuses = self._hydrate_artifacts(
-                service, self.selected_artifacts(artifact or ())
+                service, self._selected_artifacts(artifact or ())
             )
         except LibraryDataError as exc:
             self._report_library_data_pull_library_data_failure(exc, console)
@@ -147,7 +145,7 @@ class LibraryDataCLI:
             artifact: Artifact supplied by the caller.
             yes: Yes supplied by the caller.
         """
-        names = self.selected_artifacts(artifact or ())
+        names = self._selected_artifacts(artifact or ())
         if not yes and (
             not typer.confirm(
                 "Publish local canonical files for " + ", ".join(names) + "?"

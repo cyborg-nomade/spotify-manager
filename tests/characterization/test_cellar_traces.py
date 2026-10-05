@@ -8,7 +8,10 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.core.state.runtime import reset_state_service
+from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
+from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 from spotify_manager.routines import new_wine
 from tests.characterization.scenarios import Scenario
 from tests.characterization.scenarios import effects
@@ -85,23 +88,29 @@ def _scenario(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
         "current_user_saved_tracks_contains",
     ):
         trace.watch(patch, spotify, name, f"spotify.{name}")
-    operation = partial(
-        new_wine.flush_new_wine,
-        cast(Spotify, spotify),
-        "new",
-        "sauv",
-        trace.choices("choice"),
-        wine_cellar_playlist_id="cellar",
-        no_discovery=True,
-        state_path=root / "state.json",
-        log_path=root / "audit.jsonl",
-        albums_path=root / "albums.json",
-        liked_tracks_path=root / "liked.json",
-        removed_albums_log_path=root / "removed.jsonl",
-        year=2026,
-        echo=partial(trace.record, "echo", "message"),
-    )
+    operation = partial(_run_cellar, cast(Spotify, spotify), root, trace)
     return Scenario(operation, partial(_remote, spotify))
+
+
+def _run_cellar(
+    spotify: Spotify, root: Path, trace: Trace, dry_run: bool
+) -> new_wine.FlushSummary:
+    return new_wine.flush_new_wine(
+        spotify,
+        NewWineOptions("new", "sauv", "cellar", True, False, dry_run),
+        NewWineCallbacks(
+            choose=trace.choices("choice"),
+            echo=partial(trace.record, "echo", "message"),
+        ),
+        NewWineStorage(
+            state_path=root / "state.json",
+            log_path=root / "audit.jsonl",
+            albums_path=root / "albums.json",
+            liked_tracks_path=root / "liked.json",
+            removed_albums_log_path=root / "removed.jsonl",
+        ),
+        year=2026,
+    )
 
 
 @pytest.mark.parametrize("dry_run", [False, True])

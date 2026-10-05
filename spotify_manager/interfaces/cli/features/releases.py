@@ -7,72 +7,43 @@ from typing import Never
 import typer
 from requests.exceptions import RequestException
 from rich.console import Console
-from rich.progress import BarColumn
-from rich.progress import MofNCompleteColumn
 from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
-from rich.prompt import Prompt
 from rich.table import Table
-from rich.text import Text
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.client.lastfm import LastFmClient
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.release_check_values import ReleaseCheckResult
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import release_check as release_check
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
 from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class ReleasesCLI:
-    """Execute and present releases through explicit facade dependencies.
+    """Run one CLI feature with explicit interaction and presentation resources.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        create_lastfm: Factory for lastfm instances.
-        complete_column: Rich complete column constructor.
-        create_progress: Factory for progress instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        configuration: Original settings factory supplied by the facade.
-        spinner_column: Rich spinner column constructor.
-        create_table: Factory for table instances.
-        create_text: Factory for text instances.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        ask_release_check_artist: Original ask release check artist boundary supplied by
-            the facade.
-        ask_release_check_release: Original ask release check release boundary supplied
-            by the facade.
-        client: Client supplied by the caller.
-        print_release_check_summary: Original print release check summary boundary
-            supplied by the facade.
-        print_scrobble_history_summary: Original print scrobble history summary boundary
-            supplied by the facade.
+        progress_display: Caller-owned progress display.
+        display: Caller-owned display.
+        configuration: Caller-owned configuration.
+        client: Caller-owned client.
+        print_scrobble_history_summary: Caller-owned print scrobble history summary.
     """
 
-    bar_column: type[BarColumn]
-    create_console: type[Console]
-    create_lastfm: type[LastFmClient]
-    complete_column: type[MofNCompleteColumn]
-    create_progress: type[Progress]
-    prompt: type[Prompt]
+    progress_display: ProgressDisplay
+    display: ConsoleDisplay
     configuration: type[Settings]
-    spinner_column: type[SpinnerColumn]
-    create_table: type[Table]
-    create_text: type[Text]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
-    ask_release_check_artist: Callable[..., str]
-    ask_release_check_release: Callable[..., str]
     client: Callable[..., Spotify]
-    print_release_check_summary: Callable[..., None]
     print_scrobble_history_summary: Callable[..., None]
 
     def _prompt_release_check_artist(
@@ -128,8 +99,8 @@ class ReleasesCLI:
         progress.stop()
         try:
             tags = release_check.release_tags(release)
-            table = self.create_table(
-                title=(f"Review release from #{artist.rank} {artist.name}")
+            table = self.display.create_table(
+                title=f"Review release from #{artist.rank} {artist.name}"
             )
             table.add_column("Release")
             table.add_column("Type")
@@ -150,12 +121,12 @@ class ReleasesCLI:
             default = "a"
             if unattached_single:
                 prompt = (
-                    "[a]dd to Wine Cellar / keep [p]ending / [s]kip "
-                    "permanently / [q]uit and resume later"
+                    "[a]dd to Wine Cellar / keep [p]ending / [s]kip p"
+                    "ermanently / [q]uit and resume later"
                 )
                 choices.insert(1, "p")
                 default = "p"
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 prompt, choices=choices, default=default, console=console
             )
             return {
@@ -183,47 +154,36 @@ class ReleasesCLI:
         resumed = " · resumed" if summary.resumed else ""
         console.print(
             (
-                f"{mode}"
-                f"{resumed}"
-                ": "
-                f"{summary.artists_processed}"
-                "/"
-                f"{summary.artists_total}"
-                " artists complete; "
-                f"{len(summary.results)}"
-                " release decision(s)."
+                f"{mode}{resumed}: {summary.artists_processed}/"
+                f"{summary.artists_total} artists complete; {len(summary.results)}"
+                f" release decision(s)."
             ),
             style="bold cyan" if summary.dry_run else "bold green",
         )
         cleanup_verb = "Would remove" if summary.dry_run else "Removed"
         console.print(
             (
-                f"{cleanup_verb}"
-                " "
-                f"{summary.wine_cellar_duplicates_removed}"
-                " duplicate Wine Cellar track(s), keeping each "
-                "artist's first occurrence."
+                f"{cleanup_verb} {summary.wine_cellar_duplicates_removed}"
+                f" duplicate Wine Cellar track(s), keeping each artist's "
+                f"first occurrence."
             ),
             style="cyan" if summary.dry_run else "green",
         )
         if summary.dry_run:
             console.print(
                 (
-                    "Spotify, release decisions, and the audit log "
-                    "were unchanged. Last.fm history, artist "
-                    "mappings, and permanent artist skips were "
-                    "persisted."
+                    "Spotify, release decisions, and the audit log we"
+                    "re unchanged. Last.fm history, artist mappings, "
+                    "and permanent artist skips were persisted."
                 ),
                 style="cyan",
             )
         else:
             console.print(
                 (
-                    "Added "
-                    f"{summary.wine_cellar_added}"
-                    " track(s) to Wine Cellar and "
-                    f"{summary.new_vintage_added}"
-                    " to New Vintage."
+                    f"Added {summary.wine_cellar_added}"
+                    f" track(s) to Wine Cellar and {summary.new_vintage_added}"
+                    f" to New Vintage."
                 ),
                 style="green",
             )
@@ -241,7 +201,7 @@ class ReleasesCLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._check_new_releases_console = self.create_console()
+        self._check_new_releases_console = self.display.create_console()
         configuration = self.configuration()
         try:
             playlists = release_check.ReleaseCheckPlaylists.from_references(
@@ -255,16 +215,18 @@ class ReleasesCLI:
             found_art.FoundArtConfigError,
         ) as exc:
             self._report_check_new_releases_configuration_failure(exc)
-        lastfm_client = self.create_lastfm(
-            api_key, username, event_callback=self._check_new_releases_log
+        lastfm_client = create_lastfm_client(
+            LastFmCredentials(api_key, username), self._check_new_releases_log
         )
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._check_new_releases_console,
                 transient=True,
             ) as self._check_new_releases_progress:
@@ -277,12 +239,15 @@ class ReleasesCLI:
                 summary = release_check.run_release_check(
                     self.client(),
                     lastfm_client,
-                    playlists,
-                    expected_username=username,
-                    artist_choice_reader=self._check_new_releases_ask_release_check_artist,
-                    release_choice_reader=self._check_new_releases_choose_release,
-                    dry_run=dry_run,
-                    progress_callback=self._check_new_releases_update_progress,
+                    ReleaseCheckOptions(
+                        playlists=playlists, expected_username=username, dry_run=dry_run
+                    ),
+                    ReleaseCheckCallbacks(
+                        artist_choice_reader=self._check_new_releases_ask_release_check_artist,
+                        release_choice_reader=self._check_new_releases_choose_release,
+                        progress_callback=self._check_new_releases_update_progress,
+                    ),
+                    ReleaseCheckResources(),
                 )
         except KeyboardInterrupt as exc:
             self._report_check_new_releases_interrupted_interrupted(exc, dry_run)
@@ -299,7 +264,7 @@ class ReleasesCLI:
         finally:
             if progress_ref is not None:
                 progress_ref.stop()
-        self.print_release_check_summary(self._check_new_releases_console, summary)
+        self._render_release_check_summary(self._check_new_releases_console, summary)
 
     def _check_new_releases_update_progress(
         self, completed: int, total: int, status: str
@@ -319,7 +284,7 @@ class ReleasesCLI:
         destinations: tuple[str, ...],
         unattached: bool,
     ) -> str:
-        return self.ask_release_check_release(
+        return self._prompt_release_check_release(
             self._check_new_releases_console,
             artist,
             release,
@@ -337,7 +302,7 @@ class ReleasesCLI:
         artist: release_check.RankedArtist,
         candidates: tuple[release_check.SpotifyArtistCandidate, ...],
     ) -> str:
-        return self.ask_release_check_artist(
+        return self._prompt_release_check_artist(
             self._check_new_releases_console,
             artist,
             candidates,
@@ -354,8 +319,7 @@ class ReleasesCLI:
         self._check_new_releases_console.print(str(exc), style="bold red", markup=False)
         if not dry_run:
             self._check_new_releases_console.print(
-                "Completed artist and release boundaries remain saved.",
-                style="yellow",
+                "Completed artist and release boundaries remain saved.", style="yellow"
             )
         raise typer.Exit(code=1) from exc
 
@@ -363,7 +327,7 @@ class ReleasesCLI:
         self, exc: SpotifyException, dry_run: bool
     ) -> Never:
         self._check_new_releases_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -377,7 +341,7 @@ class ReleasesCLI:
         self, exc: RequestException, dry_run: bool
     ) -> Never:
         self._check_new_releases_console.print(
-            (f"Spotify connection failed: {exc}"), style="bold red", markup=False
+            f"Spotify connection failed: {exc}", style="bold red", markup=False
         )
         if not dry_run:
             self._check_new_releases_console.print(
@@ -424,10 +388,10 @@ class ReleasesCLI:
             The original value selected or formatted by this adapter.
         """
         self._show_artist_options(console, artist, candidates)
-        response = self.prompt.ask(
+        response = self.display.prompt.ask(
             (
-                "Artist number / [n]ew search / [s]kip this run "
-                "/ [p]ermanently skip / [q]uit and resume later"
+                "Artist number / [n]ew search / [s]kip this run /"
+                " [p]ermanently skip / [q]uit and resume later"
             ),
             choices=[
                 *(str(index) for index in range(1, len(candidates) + 1)),
@@ -453,28 +417,20 @@ class ReleasesCLI:
         self, action_styles: dict[str, str], result: ReleaseCheckResult, table: Table
     ) -> None:
         note = result.reason or (
-            (f"part of upcoming {result.linked_future_release}")
+            f"part of upcoming {result.linked_future_release}"
             if result.linked_future_release
             else ""
         )
         table.add_row(
-            (
-                "#"
-                f"{result.artist_rank}"
-                " "
-                f"{result.artist}"
-                "\n"
-                f"{result.artist_scrobbles:,}"
-                " plays"
-            ),
-            (f"{result.release}\n{result.release_type}"),
+            f"#{result.artist_rank} {result.artist}\n{result.artist_scrobbles:,} plays",
+            f"{result.release}\n{result.release_type}",
             result.release_date,
-            result.first_track or ("-"),
-            self.create_text(
+            result.first_track or "-",
+            self.display.create_text(
                 result.wine_cellar_action,
                 style=action_styles[result.wine_cellar_action],
             ),
-            self.create_text(
+            self.display.create_text(
                 result.new_vintage_action,
                 style=action_styles[result.new_vintage_action],
             ),
@@ -489,7 +445,7 @@ class ReleasesCLI:
             candidate.name,
             "yes" if candidate.exact_name else "no",
             str(candidate.popularity) if candidate.popularity is not None else "?",
-            (f"{candidate.followers:,}") if candidate.followers is not None else "?",
+            f"{candidate.followers:,}" if candidate.followers is not None else "?",
             candidate.spotify_id,
             style=None if candidate.exact_name else "dim",
         )
@@ -503,11 +459,9 @@ class ReleasesCLI:
             console: Rich console receiving this command's output.
             summary: Completed routine outcome to render.
         """
-        table = self.create_table(
+        table = self.display.create_table(
             title=(
-                "Release check · "
-                f"{summary.checked_from.isoformat()}"
-                " through "
+                f"Release check · {summary.checked_from.isoformat()} through "
                 f"{summary.checked_through.isoformat()}"
             )
         )
@@ -543,15 +497,10 @@ class ReleasesCLI:
             artist: Artist supplied by the caller.
             candidates: Ordered choices offered by the routine.
         """
-        table = self.create_table(
+        table = self.display.create_table(
             title=(
-                "Map Last.fm artist #"
-                f"{artist.rank}"
-                ": "
-                f"{artist.name}"
-                " ("
-                f"{artist.scrobbles:,}"
-                " scrobbles)"
+                f"Map Last.fm artist #{artist.rank}: {artist.name} ("
+                f"{artist.scrobbles:,} scrobbles)"
             )
         )
         table.add_column("#", justify="right")
@@ -562,7 +511,7 @@ class ReleasesCLI:
         table.add_column("Spotify id")
         if not candidates:
             console.print(
-                (f"No Spotify artists matched the current search for {artist.name}."),
+                f"No Spotify artists matched the current search for {artist.name}.",
                 style="bold yellow",
             )
         for index, candidate in enumerate(candidates, start=1):
@@ -571,7 +520,7 @@ class ReleasesCLI:
 
     def _read_artist_search(self, console: Console) -> str:
         while True:
-            search_text = self.prompt.ask(
+            search_text = self.display.prompt.ask(
                 "New Spotify artist search", console=console
             ).strip()
             if search_text:

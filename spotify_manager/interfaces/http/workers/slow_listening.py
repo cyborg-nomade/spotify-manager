@@ -1,13 +1,10 @@
 """Explicit callbacks and wire presentation for SlowListeningWorker."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
 from datetime import timedelta
-from threading import Lock
 
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
@@ -22,10 +19,11 @@ from spotify_manager.interfaces.http.models.slow_listening import (
 from spotify_manager.interfaces.http.models.slow_listening import (
     SlowListeningReleaseOption,
 )
-from spotify_manager.interfaces.http.models.slow_listening import (
-    SlowListeningTrackResult,
-)
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.presenters.collections import present_entries
+from spotify_manager.interfaces.http.presenters.slow_listening import (
+    slow_listening_track_result as _slow_listening_track_result,
+)
 from spotify_manager.interfaces.http.workers.errors import (
     _SlowListeningJobCancelledError,
 )
@@ -38,32 +36,21 @@ from spotify_manager.interfaces.operations import slow_listening as slow_listeni
 
 @dataclass(kw_only=True)
 class SlowListeningWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        spotify: Explicit spotify input or adapter boundary.
-        playlist_id: Explicit playlist id input or adapter boundary.
-        dry_run: Explicit dry run input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        _slow_listening_track_result: Explicit slow listening track result input or
-            adapter boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        context: Invocation-owned context.
+        job_id: Invocation-owned job id.
+        spotify: Invocation-owned spotify.
+        playlist_id: Invocation-owned playlist id.
+        dry_run: Invocation-owned dry run.
     """
 
+    context: PlaylistContext
     job_id: str
     spotify: Spotify
     playlist_id: str
     dry_run: bool
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    _slow_listening_track_result: Callable[..., SlowListeningTrackResult]
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     spotify_event_setter: EventSetter | None = field(init=False)
     previous_spotify_event_callback: EventCallback | None = field(init=False)
@@ -94,9 +81,9 @@ class SlowListeningWorker:
         Args:
             message: Original routine-supplied message.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def progress_callback(
         self, completed: int, total: int, progress_status: str
@@ -110,7 +97,7 @@ class SlowListeningWorker:
         """
         if self.job.cancel_event.is_set():
             raise _SlowListeningJobCancelledError
-        with self.lock:
+        with self.context.lock:
             self.job.result.processed = completed
             self.job.result.total = total
             self.job.result.detail = progress_status
@@ -127,7 +114,7 @@ class SlowListeningWorker:
         Returns:
             The original accepted routine callback result.
         """
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _SlowListeningJobCancelledError
             self.job.submitted_choice = None
@@ -136,7 +123,7 @@ class SlowListeningWorker:
             self.job.result.slow_listening_pending_choice = pending
             self.job.result.status = "waiting"
             self.job.result.detail = detail
-            self.append(self.job, detail)
+            self.context.append(self.job, detail)
         return await_submission(
             self.job.choice_event, self._consume_wait_for_submission
         )
@@ -167,15 +154,8 @@ class SlowListeningWorker:
                 target_release=target_release.name,
             ),
             (
-                "Add "
-                f"{target.name}"
-                " ("
-                f"{target_release.name}"
-                ") after "
-                f"{source.primary_artist_name}"
-                " - "
-                f"{source.name}"
-                "?"
+                f"Add {target.name} ({target_release.name}) after "
+                f"{source.primary_artist_name} - {source.name}?"
             ),
         )
         return choice
@@ -202,7 +182,7 @@ class SlowListeningWorker:
                 release_date=release_date,
                 releases=self._slow_listening_release_options(candidates),
             ),
-            (f"Order {artist}'s releases dated {release_date}."),
+            f"Order {artist}'s releases dated {release_date}.",
         )
         if choice != "order" or order is None:
             raise slow_listening.SlowListeningError(
@@ -225,8 +205,8 @@ class SlowListeningWorker:
             ),
             (
                 f"{source.primary_artist_name}"
-                " completed Slow Listening. Add a replacement "
-                "artist, then continue."
+                f" completed Slow Listening. Add a replacement artist, then "
+                f"continue."
             ),
         )
         if choice != "continue":
@@ -263,17 +243,16 @@ class SlowListeningWorker:
         )
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="flush_slow_listening")
-        with self.lock:
+        self.job = self.context.lookup(self.job_id, command="flush_slow_listening")
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Slow Listening flush started"
-            self.append(
+            self.context.append(
                 self.job,
                 (
-                    "Slow Listening flush started"
-                    f"{(' in dry-run mode' if self.dry_run else '')}"
-                    "."
+                    f"Slow Listening flush started"
+                    f"{(' in dry-run mode' if self.dry_run else '')}."
                 ),
             )
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
@@ -296,8 +275,8 @@ class SlowListeningWorker:
         return summary
 
     def _completed(self, summary: slow_listening.FlushSummary) -> None:
-        results = present_entries(summary.results, self._slow_listening_track_result)
-        with self.lock:
+        results = present_entries(summary.results, _slow_listening_track_result)
+        with self.context.lock:
             self.job.result.status = "paused" if summary.paused else "completed"
             self.job.result.processed = summary.processed
             self.job.result.total = summary.total
@@ -312,28 +291,21 @@ class SlowListeningWorker:
                 )
             else:
                 self.job.result.detail = (
-                    f"{summary.processed}"
-                    "/"
-                    f"{summary.total}"
-                    " processed; "
-                    f"{summary.advanced}"
-                    " advanced, "
-                    f"{summary.completed_artists}"
-                    " artists completed, "
-                    f"{summary.skipped}"
-                    " skipped."
+                    f"{summary.processed}/{summary.total} processed; "
+                    f"{summary.advanced} advanced, {summary.completed_artists}"
+                    f" artists completed, {summary.skipped} skipped."
                 )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
         if callable(self.spotify_event_setter):
             self.spotify_event_setter(self.previous_spotify_event_callback)
-        with self.lock:
+        with self.context.lock:
             self.job.result.slow_listening_pending_choice = None
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "cancelled"
             self.job.result.slow_listening_pending_choice = None
             self.job.result.detail = (
@@ -341,54 +313,56 @@ class SlowListeningWorker:
                 if not self.dry_run
                 else "Slow Listening dry run stopped."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _rate_limited(self, exc: review_album_limits.SpotifyRateLimitError) -> None:
         retry_at = None
         if exc.retry_after_seconds is not None:
-            retry_at = self.clock.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with self.lock:
+            retry_at = self.context.clock.now(UTC) + timedelta(
+                seconds=exc.retry_after_seconds
+            )
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.slow_listening_pending_choice = None
             self.job.result.retry_at = retry_at.isoformat() if retry_at else None
             self.job.result.detail = (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _temporarily_unavailable(
         self, exc: review_album_limits.SpotifyTransientServerError
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.slow_listening_pending_choice = None
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
                 + ". Progress was saved."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _failed(
         self, exc: slow_listening.SlowListeningError | SpotifyException
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.slow_listening_pending_choice = None
             self.job.result.detail = str(exc)
-            self.append(self.job, f"Slow Listening flush failed: {exc}")
+            self.context.append(self.job, f"Slow Listening flush failed: {exc}")
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected Slow Listening flush error")
-        with self.lock:
+        self.context.logger.exception("Unexpected Slow Listening flush error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.slow_listening_pending_choice = None
             self.job.result.detail = f"Unexpected Slow Listening error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _consume_wait_for_submission(self) -> tuple[str, tuple[str, ...] | None] | None:
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _SlowListeningJobCancelledError
             choice = self.job.submitted_choice
@@ -401,7 +375,7 @@ class SlowListeningWorker:
             self.job.result.slow_listening_pending_choice = None
             self.job.result.status = "running"
             self.job.result.detail = "Applying Slow Listening choice"
-            self.append(self.job, f"Slow Listening choice received: {choice}.")
+            self.context.append(self.job, f"Slow Listening choice received: {choice}.")
             return (choice, order)
 
     def _slow_listening_release_options(

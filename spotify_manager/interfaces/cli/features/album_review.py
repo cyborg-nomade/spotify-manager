@@ -6,15 +6,11 @@ from typing import Never
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn
-from rich.progress import MofNCompleteColumn
 from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
 from rich.prompt import Prompt
 from spotipy import Spotify
 
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
@@ -22,32 +18,20 @@ from spotify_manager.interfaces.operations import (
 
 @dataclass(kw_only=True)
 class AlbumReviewCLI:
-    """Execute and present album review through explicit facade dependencies.
+    """Run one CLI feature with explicit interaction and presentation resources.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        complete_column: Rich complete column constructor.
-        create_progress: Factory for progress instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        REVIEW_ACTION_CHOICES: Review action choices supplied by the caller.
-        spinner_column: Rich spinner column constructor.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        ask_review_action: Original ask review action boundary supplied by the facade.
-        review_client: Original Spotify client factory supplied by the facade.
+        progress_display: Caller-owned progress display.
+        create_console: Caller-owned create console.
+        prompt: Caller-owned prompt.
+        REVIEW_ACTION_CHOICES: Caller-owned REVIEW ACTION CHOICES.
+        review_client: Caller-owned review client.
     """
 
-    bar_column: type[BarColumn]
+    progress_display: ProgressDisplay
     create_console: type[Console]
-    complete_column: type[MofNCompleteColumn]
-    create_progress: type[Progress]
     prompt: type[Prompt]
     REVIEW_ACTION_CHOICES: list[str]
-    spinner_column: type[SpinnerColumn]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
-    ask_review_action: Callable[..., str]
     review_client: Callable[..., Spotify]
 
     def _prompt_review_action(
@@ -94,12 +78,14 @@ class AlbumReviewCLI:
         self._review_album_limits_console = self.create_console()
         self._review_album_limits_progress_ref: Progress | None = None
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._review_album_limits_console,
                 transient=True,
             ) as self._review_album_limits_progress:
@@ -155,7 +141,7 @@ class AlbumReviewCLI:
     def _review_album_limits_read_action(
         self, _album: object, evaluation: object
     ) -> str:
-        return self.ask_review_action(
+        return self._prompt_review_action(
             self._review_album_limits_console,
             evaluation,
             self._review_album_limits_progress_ref,
@@ -171,9 +157,9 @@ class AlbumReviewCLI:
     ) -> Never:
         self._review_album_limits_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )

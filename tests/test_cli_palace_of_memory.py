@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from tests.support.feature_invocation import FeatureInvocation
 
 
 def test_fill_palace_dry_run_uses_configured_playlist(monkeypatch) -> None:
@@ -75,7 +76,11 @@ def test_fill_palace_dry_run_uses_configured_playlist(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(main.palace_of_memory, "fill_palace_of_memory", fill)
+    monkeypatch.setattr(
+        main.palace_of_memory,
+        "fill_palace_of_memory",
+        FeatureInvocation(fill, ("playlist_id",)),
+    )
 
     result = CliRunner().invoke(
         main.app,
@@ -135,8 +140,11 @@ def test_fill_palace_can_only_persist_the_alphabetical_cursor(monkeypatch) -> No
     monkeypatch.setattr(
         main.palace_of_memory,
         "fill_palace_of_memory",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("the playlist routine must not run")
+        FeatureInvocation(
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("the playlist routine must not run")
+            ),
+            ("playlist_id",),
         ),
     )
     monkeypatch.setattr(

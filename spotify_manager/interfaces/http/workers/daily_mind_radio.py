@@ -1,13 +1,9 @@
 """Explicit callbacks and wire presentation for DailyMindRadioWorker."""
 
-import logging
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
 from datetime import timedelta
-from threading import Lock
 
 from requests.exceptions import RequestException
 from spotipy import Spotify
@@ -16,9 +12,13 @@ from spotipy.exceptions import SpotifyException
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
-from spotify_manager.interfaces.http.models.historical import BlastSelectionResult
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.playlist_retry import PlaylistRetry
 from spotify_manager.interfaces.http.presenters.collections import date_strings
 from spotify_manager.interfaces.http.presenters.collections import present_entries
+from spotify_manager.interfaces.http.presenters.historical import (
+    blast_selection_result as _blast_selection_result,
+)
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
 from spotify_manager.interfaces.operations import (
@@ -28,38 +28,23 @@ from spotify_manager.interfaces.operations import (
 
 @dataclass(kw_only=True)
 class DailyMindRadioWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        spotify: Explicit spotify input or adapter boundary.
-        playlist_id: Explicit playlist id input or adapter boundary.
-        dry_run: Explicit dry run input or adapter boundary.
-        connection_failure: Explicit connection failure input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        _blast_selection_result: Explicit blast selection result input or adapter
-            boundary.
-        _playlist_job_retry: Explicit playlist job retry input or adapter boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        context: Invocation-owned context.
+        job_id: Invocation-owned job id.
+        spotify: Invocation-owned spotify.
+        playlist_id: Invocation-owned playlist id.
+        dry_run: Invocation-owned dry run.
+        connection_failure: Invocation-owned connection failure.
     """
 
+    context: PlaylistContext
     job_id: str
     spotify: Spotify
     playlist_id: str
     dry_run: bool
     connection_failure: str
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    _blast_selection_result: Callable[..., BlastSelectionResult]
-    _playlist_job_retry: Callable[
-        [_BlastJob, Callable[[str], None]], blast_from_past.RetryCall
-    ]
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     spotify_event_setter: EventSetter | None = field(init=False)
     previous_spotify_event_callback: EventCallback | None = field(init=False)
@@ -92,17 +77,17 @@ class DailyMindRadioWorker:
         Args:
             message: Original routine-supplied message.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="daily_mind_radio")
-        with self.lock:
+        self.job = self.context.lookup(self.job_id, command="daily_mind_radio")
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Playlist routine started"
-            self.append(
+            self.context.append(
                 self.job,
                 "Daily Mind Radio started"
                 + (" in dry-run mode." if self.dry_run else "."),
@@ -117,7 +102,7 @@ class DailyMindRadioWorker:
             self.spotify,
             self.playlist_id,
             progress_callback=self.echo,
-            retry_call=self._playlist_job_retry(self.job, self.echo),
+            retry_call=PlaylistRetry(self.job, self.echo).call,
             cancel_check=self.job.cancel_event.is_set,
             dry_run=self.dry_run,
         )
@@ -126,8 +111,8 @@ class DailyMindRadioWorker:
     def _completed(
         self, summary: daily_mind_radio.DailyMindRadioSpotifySummary
     ) -> None:
-        selections = present_entries(summary.results, self._blast_selection_result)
-        with self.lock:
+        selections = present_entries(summary.results, _blast_selection_result)
+        with self.context.lock:
             self.job.result.status = "completed"
             self.job.result.requested_count = len(summary.batch.selections)
             self.job.result.playlist_length_before = summary.playlist_length_before
@@ -147,89 +132,77 @@ class DailyMindRadioWorker:
             else:
                 verb = "Would add" if self.dry_run else "Added"
                 self.job.result.detail = (
-                    f"{verb}"
-                    " "
-                    f"{summary.added}"
-                    " of "
-                    f"{len(summary.batch.selections)}"
-                    " populated dates; playlist "
-                    f"{summary.playlist_length_before}"
-                    " -> "
-                    f"{summary.playlist_length_after}"
-                    "."
+                    f"{verb} {summary.added} of {len(summary.batch.selections)}"
+                    f" populated dates; playlist {summary.playlist_length_before}"
+                    f" -> {summary.playlist_length_after}."
                 )
             for selection in selections:
                 target = selection.spotify_match or "no qualifying Spotify match"
                 liked_label = " liked" if selection.liked else ""
-                self.append(
+                self.context.append(
                     self.job,
                     (
-                        f"{selection.selected_date}"
-                        ": "
-                        f"{selection.lastfm_scrobble}"
-                        " -> "
-                        f"{target}"
-                        " ("
-                        f"{selection.action}"
-                        f"{liked_label}"
-                        ")."
+                        f"{selection.selected_date}: {selection.lastfm_scrobble}"
+                        f" -> {target} ({selection.action}{liked_label})."
                     ),
                 )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
         if callable(self.spotify_event_setter):
             self.spotify_event_setter(self.previous_spotify_event_callback)
-        with self.lock:
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+        with self.context.lock:
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "cancelled"
             self.job.result.detail = "Daily Mind Radio was cancelled."
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _rate_limited(self, exc: review_album_limits.SpotifyRateLimitError) -> None:
         retry_at = None
         if exc.retry_after_seconds is not None:
-            retry_at = self.clock.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with self.lock:
+            retry_at = self.context.clock.now(UTC) + timedelta(
+                seconds=exc.retry_after_seconds
+            )
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.retry_at = retry_at.isoformat() if retry_at else None
             self.job.result.detail = (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _temporarily_unavailable(
         self, exc: review_album_limits.SpotifyTransientServerError
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _failed(
         self, exc: blast_from_past.BlastFromPastError | SpotifyException
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = str(exc)
-            self.append(self.job, f"Playlist routine failed: {exc}")
+            self.context.append(self.job, f"Playlist routine failed: {exc}")
 
     def _connection_failed(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = self.connection_failure
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected Daily Mind Radio error")
-        with self.lock:
+        self.context.logger.exception("Unexpected Daily Mind Radio error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = f"Unexpected playlist error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)

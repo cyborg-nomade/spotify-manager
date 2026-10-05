@@ -26,6 +26,9 @@ from spotify_manager.domain.release_check_values import ReleaseCandidate
 from spotify_manager.domain.release_check_values import ReleaseTrack
 from spotify_manager.infrastructure.legacy.release_run import LegacyReleaseRun
 from spotify_manager.interfaces.operations import release_check as release_operations
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import release_check as legacy
 from tests.support.release_run import PROFILES
@@ -234,12 +237,16 @@ def observe(
         summary = legacy.run_release_check(
             cast(Spotify, object()),
             cast(legacy.LastFmReader, object()),
-            legacy.ReleaseCheckPlaylists("wine", "vintage"),
-            expected_username="user",
-            dry_run="preview" in profile,
-            release_choice_reader=effects.choice,
-            progress_callback=effects.progress,
-            now=STAMP,
+            ReleaseCheckOptions(
+                playlists=legacy.ReleaseCheckPlaylists("wine", "vintage"),
+                expected_username="user",
+                dry_run="preview" in profile,
+                now=STAMP,
+            ),
+            ReleaseCheckCallbacks(
+                release_choice_reader=effects.choice, progress_callback=effects.progress
+            ),
+            ReleaseCheckResources(),
         )
         outcome = asdict(summary)
     except (EffectFailureError, legacy.ReleaseCheckError) as exc:

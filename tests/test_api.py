@@ -22,10 +22,13 @@ from spotify_manager.api import get_client
 from spotify_manager.api import get_interactive_client
 from spotify_manager.api import get_library
 from spotify_manager.core.library_data.service import ArtifactStatus
+from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
+from tests.support.feature_invocation import FeatureInvocation
+from tests.support.wine_invocation import WineInvocation
 
 
 def _library() -> YourLibraryFile:
@@ -341,7 +344,7 @@ def test_release_check_state_restore_rejects_an_active_job(
     tmp_path: Path,
 ) -> None:
     state_path = tmp_path / "release-check-state.json"
-    monkeypatch.setattr(api, "RELEASE_CHECK_STATE_PATH", state_path)
+    monkeypatch.setattr(http_jobs, "RELEASE_CHECK_STATE_PATH", state_path)
     state = api.release_check._default_state()
     api.release_check.save_state(state, state_path)
     snapshot = client.get("/commands/check-new-releases-state").json()
@@ -397,7 +400,7 @@ def test_library_mirror_status_reports_server_timestamps(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     albums = tmp_path / "albums_total_new.json"
     tracks = tmp_path / "liked_tracks_total.json"
@@ -407,7 +410,7 @@ def test_library_mirror_status_reports_server_timestamps(
     artists.write_text("[]")
     scrobbles.write_text("{}")
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "LIBRARY_MIRROR_FILE_PATHS",
         (albums, tracks, artists, scrobbles),
     )
@@ -451,7 +454,7 @@ def test_library_mirror_status_prefers_durable_manifest(
                 ),
             )
 
-    monkeypatch.setattr(api, "get_library_data_service", DurableData)
+    monkeypatch.setattr(http_jobs, "get_library_data_service", DurableData)
 
     response = client.get("/library-mirrors/status")
 
@@ -541,6 +544,7 @@ def test_track_scrobble_endpoint_accepts_spotify_share_link(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     captured: dict[str, object] = {}
 
@@ -558,7 +562,7 @@ def test_track_scrobble_endpoint_accepts_spotify_share_link(
             source="spotify-live + lastfm-history",
         )
 
-    monkeypatch.setattr(api, "get_track_scrobble_status", lookup)
+    monkeypatch.setattr(http_jobs, "get_track_scrobble_status", lookup)
 
     response = client.get(
         "/tracks/scrobbles",
@@ -587,6 +591,7 @@ def test_track_scrobble_ambiguity_returns_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     def fail(*_args: object, **_kwargs: object) -> None:
         raise api.AmbiguousTrackError(
@@ -594,7 +599,7 @@ def test_track_scrobble_ambiguity_returns_candidates(
             [{"track": "Song", "artist": "Artist", "album": "Album", "id": "id"}],
         )
 
-    monkeypatch.setattr(api, "get_track_scrobble_status", fail)
+    monkeypatch.setattr(http_jobs, "get_track_scrobble_status", fail)
 
     response = client.get("/tracks/scrobbles", params={"name": "Song"})
 
@@ -637,9 +642,9 @@ def test_live_lookup_connection_failure_is_reported_as_bad_gateway(
 
 
 def test_count_artists_endpoint(client: TestClient, monkeypatch) -> None:
-    from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
-    monkeypatch.setattr(api, "count_artists_in_library", lambda: 42)
+    monkeypatch.setattr(http_jobs, "count_artists_in_library", lambda: 42)
     resp = client.get("/commands/count-artists")
     assert resp.json() == {"count": 42}
 
@@ -659,38 +664,38 @@ def test_legacy_command_endpoints_delegate_to_workflows(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     calls: list[tuple[str, object | None]] = []
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "compare_your_library_and_all_albums",
         lambda: calls.append(("compare", None)),
     )
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "convert_your_library_file",
         lambda spotify: calls.append(("convert", spotify)),
     )
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "run_monthly_routines",
         lambda spotify: calls.append(("monthly", spotify)),
     )
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "update_total_album_list",
         lambda spotify, just_update: (
             calls.append((f"update:{just_update}", spotify)) or [1, 2]
         ),
     )
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "restore_your_library_from_file",
         lambda spotify: calls.append(("restore", spotify)),
     )
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "analyse_comparison",
         lambda spotify: calls.append(("analyse", spotify)),
     )
@@ -747,12 +752,12 @@ def test_artist_lookup_domain_errors_use_structured_responses(
     status_code: int,
     candidates: list[dict[str, str]] | None,
 ) -> None:
-    from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     def fail(*_args: object, **_kwargs: object) -> None:
         raise error
 
-    monkeypatch.setattr(api, "get_live_artist_library_stats", fail)
+    monkeypatch.setattr(http_jobs, "get_live_artist_library_stats", fail)
 
     response = client.get("/artists/stats", params={"name": "Artist"})
 
@@ -785,7 +790,7 @@ def test_album_lookup_domain_errors_use_structured_responses(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise error
 
-    monkeypatch.setattr(api, "evaluate_album_live", fail)
+    monkeypatch.setattr(api, "review_album", fail)
 
     response = client.get("/albums/evaluation", params={"name": "Album"})
 
@@ -805,12 +810,12 @@ def test_spotify_lookup_error_preserves_only_safe_client_statuses(
     status_code: int,
     expected_status: int,
 ) -> None:
-    from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     def fail(*_args: object, **_kwargs: object) -> None:
         raise SpotifyException(status_code, -1, "Spotify failed")
 
-    monkeypatch.setattr(api, "get_live_artist_library_stats", fail)
+    monkeypatch.setattr(http_jobs, "get_live_artist_library_stats", fail)
 
     response = client.get("/artists/stats", params={"name": "Artist"})
 
@@ -822,7 +827,7 @@ def test_spotify_lookup_rate_limit_returns_retry_header(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     def fail(*_args: object, **_kwargs: object) -> None:
         raise SpotifyException(
@@ -832,7 +837,7 @@ def test_spotify_lookup_rate_limit_returns_retry_header(
             headers={"Retry-After": "120"},
         )
 
-    monkeypatch.setattr(api, "get_live_artist_library_stats", fail)
+    monkeypatch.setattr(http_jobs, "get_live_artist_library_stats", fail)
 
     response = client.get("/artists/stats", params={"name": "Artist"})
 
@@ -877,7 +882,7 @@ def test_album_evaluation_connection_failure_is_reported_as_bad_gateway(
     def fail(*_args: object, **_kwargs: object) -> None:
         raise RequestsConnectionError("connection reset")
 
-    monkeypatch.setattr(api, "evaluate_album_live", fail)
+    monkeypatch.setattr(api, "review_album", fail)
 
     response = client.get("/albums/evaluation", params={"name": "Album"})
 
@@ -891,11 +896,11 @@ def test_cached_dependency_factories_use_expected_client_modes(
     calls: list[dict[str, object]] = []
     clients = iter([object(), object(), object()])
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "get_spotipy_client",
         lambda **kwargs: calls.append(kwargs) or next(clients),
     )
-    monkeypatch.setattr(api, "load_your_library_file", _library)
+    monkeypatch.setattr(http_jobs, "load_your_library_file", _library)
     for dependency in (
         api.get_client,
         api.get_analysis_client,
@@ -946,8 +951,8 @@ def test_job_helpers_copy_bound_logs_and_reject_unknown_ids(
     blast = api._BlastJob(
         result=api.BlastJobResult(job_id="blast"),
     )
-    monkeypatch.setattr(api, "_MAX_ANALYSIS_LOGS", 2)
-    monkeypatch.setattr(api, "_MAX_BLAST_LOGS", 2)
+    monkeypatch.setattr(http_jobs, "_MAX_ANALYSIS_LOGS", 2)
+    monkeypatch.setattr(http_jobs, "_MAX_BLAST_LOGS", 2)
 
     api._append_job_log_locked(analysis, "")
     api._append_blast_log_locked(blast, "")
@@ -1169,7 +1174,7 @@ def test_routine_endpoints_report_missing_configuration(
         reqeueue_for_a_dream_playlist=None,
         palace_of_memory_playlist=None,
     )
-    monkeypatch.setattr(api, "Settings", lambda: settings)
+    monkeypatch.setattr(http_jobs, "Settings", lambda: settings)
 
     response = client.post(path)
 
@@ -1182,6 +1187,7 @@ def test_blast_from_the_past_endpoint_runs_background_job(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     received = {}
     scrobble = api.blast_from_past.Scrobble(
@@ -1245,7 +1251,7 @@ def test_blast_from_the_past_endpoint_runs_background_job(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(blast_from_the_past_playlist="spotify:playlist:blast"),
     )
@@ -1324,7 +1330,7 @@ def test_blast_from_the_past_artists_endpoint_runs_background_job(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(blast_from_the_past_playlist="blast"),
     )
@@ -1368,6 +1374,7 @@ def test_daily_mind_radio_endpoint_runs_background_job(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     scrobble = api.blast_from_past.Scrobble(
         track="Track",
@@ -1423,7 +1430,7 @@ def test_daily_mind_radio_endpoint_runs_background_job(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(daily_mind_radio_playlist="spotify:playlist:daily"),
     )
@@ -1461,6 +1468,7 @@ def test_active_daily_mind_radio_job_can_be_restored(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     release = api.Event()
     batch = api.daily_mind_radio.DailyMindRadioBatch(
@@ -1482,7 +1490,7 @@ def test_active_daily_mind_radio_job_can_be_restored(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(daily_mind_radio_playlist="daily"),
     )
@@ -1515,6 +1523,7 @@ def test_found_art_endpoint_runs_background_job_with_requested_count(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     received = {}
     candidate = api.found_art.FoundArtCandidate(
@@ -1572,7 +1581,7 @@ def test_found_art_endpoint_runs_background_job_with_requested_count(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             found_art_playlist="spotify:playlist:found",
@@ -1701,7 +1710,7 @@ def test_sauvignon_web_job_waits_for_album_choice_and_completes(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             sauvignon_terre_neuve_playlist="spotify:playlist:sauvignon",
@@ -1709,7 +1718,11 @@ def test_sauvignon_web_job_waits_for_album_choice_and_completes(
             lastfm_username="lastfm-user",
         ),
     )
-    monkeypatch.setattr(api.sauvignon, "fill_sauvignon_from_lastfm", complete)
+    monkeypatch.setattr(
+        api.sauvignon,
+        "fill_sauvignon_from_lastfm",
+        FeatureInvocation(complete, ("playlist_id",)),
+    )
 
     response = client.post(
         "/commands/fill-sauvignon-from-lastfm",
@@ -1763,7 +1776,7 @@ def test_sauvignon_endpoint_validates_limits_and_configuration(
     assert conflict.status_code == 400
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             sauvignon_terre_neuve_playlist=None,
@@ -1781,6 +1794,7 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     release = api.new_kids.RankedRelease(
         spotify_id="release",
@@ -1858,7 +1872,7 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             new_kids_on_the_block_playlist="spotify:playlist:newkids",
@@ -1870,7 +1884,20 @@ def test_new_kids_web_job_waits_for_and_applies_release_choice(
             lastfm_username="lastfm-user",
         ),
     )
-    monkeypatch.setattr(api.new_kids, "flush_new_kids", flush)
+    monkeypatch.setattr(
+        api.new_kids,
+        "flush_new_kids",
+        FeatureInvocation(
+            flush,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
 
     started = client.post(
         "/commands/flush-new-kids",
@@ -2005,7 +2032,7 @@ def test_queue_fill_web_job_waits_for_artist_mapping(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             the_queue_playlist="spotify:playlist:queue",
@@ -2017,7 +2044,9 @@ def test_queue_fill_web_job_waits_for_artist_mapping(
             lastfm_username="lastfm-user",
         ),
     )
-    monkeypatch.setattr(api.the_queue, "fill_queue_from_lastfm", fill)
+    monkeypatch.setattr(
+        api.the_queue, "fill_queue_from_lastfm", FeatureInvocation(fill, ("playlists",))
+    )
 
     started = client.post(
         "/commands/fill-queue-from-lastfm",
@@ -2138,7 +2167,7 @@ def test_queue_flush_web_job_returns_live_decisions(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             the_queue_playlist="spotify:playlist:queue",
@@ -2175,6 +2204,7 @@ def test_queue_2_web_job_waits_for_and_applies_release_choice(
 ) -> None:
     """Queue 2 should expose its shared release prompt and both list counts."""
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     release = api.new_kids.RankedRelease(
         spotify_id="release",
@@ -2245,7 +2275,7 @@ def test_queue_2_web_job_waits_for_and_applies_release_choice(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             new_kids_on_the_block_playlist="spotify:playlist:newkids",
@@ -2257,7 +2287,20 @@ def test_queue_2_web_job_waits_for_and_applies_release_choice(
             lastfm_username="lastfm-user",
         ),
     )
-    monkeypatch.setattr(api.new_kids, "flush_queue_2", flush)
+    monkeypatch.setattr(
+        api.new_kids,
+        "flush_queue_2",
+        FeatureInvocation(
+            flush,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
 
     started = client.post(
         "/commands/flush-queue-2",
@@ -2305,6 +2348,7 @@ def test_queue_3_web_job_handles_release_and_composer_choices(
 ) -> None:
     """Queue 3 should reconnect across both of its interactive choice types."""
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     source_release = api.new_wine.ReleaseCandidate(
         spotify_id="current",
@@ -2411,13 +2455,17 @@ def test_queue_3_web_job_handles_release_and_composer_choices(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             the_queue_3_playlist="spotify:playlist:queue3",
         ),
     )
-    monkeypatch.setattr(api.queue_3, "flush_queue_3", flush)
+    monkeypatch.setattr(
+        api.queue_3,
+        "flush_queue_3",
+        FeatureInvocation(flush, ("playlist_id", "transition_reader")),
+    )
 
     started = client.post(
         "/commands/flush-queue-3",
@@ -2476,6 +2524,7 @@ def test_queue_3_previous_year_import_has_a_separate_web_action(
 ) -> None:
     """The annual-only job should import without invoking the Queue 3 flush."""
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     received: dict[str, object] = {}
 
@@ -2505,7 +2554,7 @@ def test_queue_3_previous_year_import_has_a_separate_web_action(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(the_queue_3_playlist="spotify:playlist:queue3"),
     )
@@ -2517,7 +2566,10 @@ def test_queue_3_previous_year_import_has_a_separate_web_action(
     monkeypatch.setattr(
         api.queue_3,
         "flush_queue_3",
-        lambda *_args, **_kwargs: pytest.fail("Queue 3 flush must not run"),
+        FeatureInvocation(
+            lambda *_args, **_kwargs: pytest.fail("Queue 3 flush must not run"),
+            ("playlist_id", "transition_reader"),
+        ),
     )
 
     started = client.post(
@@ -2548,6 +2600,7 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     current = api.new_wine.ReleaseCandidate(
         spotify_id="current",
@@ -2654,7 +2707,7 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             new_wine_from_old_bottles_playlist="spotify:playlist:new",
@@ -2662,7 +2715,7 @@ def test_new_wine_web_job_waits_for_and_applies_release_choice(
             wine_cellar_playlist="spotify:playlist:cellar",
         ),
     )
-    monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(flush))
 
     started = client.post(
         "/commands/flush-new-wine",
@@ -2731,6 +2784,7 @@ def test_new_wine_web_job_accepts_canonical_album_endpoint(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     release = api.new_wine.ReleaseCandidate(
         spotify_id="album",
@@ -2800,7 +2854,7 @@ def test_new_wine_web_job_accepts_canonical_album_endpoint(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             new_wine_from_old_bottles_playlist="new",
@@ -2808,7 +2862,7 @@ def test_new_wine_web_job_accepts_canonical_album_endpoint(
             wine_cellar_playlist="cellar",
         ),
     )
-    monkeypatch.setattr(api.new_wine, "flush_new_wine", flush)
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(flush))
 
     started = client.post(
         "/commands/flush-new-wine",
@@ -2921,6 +2975,7 @@ def test_slow_listening_web_job_handles_all_interactive_choices(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     source_release = api.new_wine.ReleaseCandidate(
         spotify_id="source-release",
@@ -3022,7 +3077,7 @@ def test_slow_listening_web_job_handles_all_interactive_choices(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             slow_listening_playlist="spotify:playlist:slow",
@@ -3130,6 +3185,7 @@ def test_slow_listening_web_job_retries_a_connection_reset(
     from requests.exceptions import ConnectionError as RequestsConnectionError
 
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     attempts = 0
     retry_spotify_server_errors = api.review_album_limits.retry_spotify_server_errors
@@ -3168,7 +3224,7 @@ def test_slow_listening_web_job_retries_a_connection_reset(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             slow_listening_playlist="spotify:playlist:slow",
@@ -3210,6 +3266,7 @@ def test_something_old_web_job_handles_all_interactive_choices(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     artist = api.something_old.GoldenOldieArtist(
         artist="Old Artist",
@@ -3317,7 +3374,7 @@ def test_something_old_web_job_handles_all_interactive_choices(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             something_old_new_playlist=("spotify:playlist:0000000000000000000000"),
@@ -3325,7 +3382,9 @@ def test_something_old_web_job_handles_all_interactive_choices(
             lastfm_username="man-et-arms",
         ),
     )
-    monkeypatch.setattr(api.something_old, "run_something_old", run)
+    monkeypatch.setattr(
+        api.something_old, "run_something_old", FeatureInvocation(run, ("playlist_id",))
+    )
 
     started = client.post(
         "/commands/something-old",
@@ -3399,6 +3458,7 @@ def test_release_check_web_job_handles_search_mapping_and_release_choice(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     artist = api.release_check.RankedArtist(
         key="lastfm artist",
@@ -3501,7 +3561,7 @@ def test_release_check_web_job_handles_search_mapping_and_release_choice(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             wine_cellar_playlist="spotify:playlist:0000000000000000000001",
@@ -3510,7 +3570,9 @@ def test_release_check_web_job_handles_search_mapping_and_release_choice(
             lastfm_username="man-et-arms",
         ),
     )
-    monkeypatch.setattr(api.release_check, "run_release_check", run)
+    monkeypatch.setattr(
+        api.release_check, "run_release_check", FeatureInvocation(run, ("playlists",))
+    )
 
     started = client.post(
         "/commands/check-new-releases",
@@ -3580,6 +3642,7 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     received: dict[str, object] = {}
     artist = api.discography.QueueArtist("artist", "Artist", "requeue")
@@ -3667,7 +3730,7 @@ def test_discography_web_job_collects_releases_and_confirms_removal(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             discography_newfoundland_playlist="nf",
@@ -3766,6 +3829,7 @@ def test_requeue_for_a_dream_web_job_reports_transition_and_reconnects(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     entered = Event()
     release_worker = Event()
@@ -3797,7 +3861,7 @@ def test_requeue_for_a_dream_web_job_reports_transition_and_reconnects(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             reqeueue_for_a_dream_playlist=("spotify:playlist:0000000000000000000000"),
@@ -3850,6 +3914,7 @@ def test_palace_of_memory_web_job_reports_results_and_reconnects(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     entered = Event()
     release_worker = Event()
@@ -3912,13 +3977,17 @@ def test_palace_of_memory_web_job_reports_results_and_reconnects(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             palace_of_memory_playlist=("spotify:playlist:0000000000000000000000"),
         ),
     )
-    monkeypatch.setattr(api.palace_of_memory, "fill_palace_of_memory", run)
+    monkeypatch.setattr(
+        api.palace_of_memory,
+        "fill_palace_of_memory",
+        FeatureInvocation(run, ("playlist_id",)),
+    )
 
     started = client.post(
         "/commands/fill-palace-of-memory",
@@ -3959,6 +4028,7 @@ def test_palace_web_can_persist_only_cursor_without_playlist_config(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     def set_cursor(_spotify, position, **kwargs):
         kwargs["progress_callback"]("Refreshing the saved-album mirror")
@@ -3983,7 +4053,7 @@ def test_palace_web_can_persist_only_cursor_without_playlist_config(
 
     monkeypatch.setattr(api.palace_of_memory, "set_alphabetical_cursor", set_cursor)
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: (_ for _ in ()).throw(
             AssertionError("cursor-only mode must not load playlist settings")
@@ -4014,6 +4084,7 @@ def test_scrobble_history_web_job_reports_refresh_summary(
     monkeypatch,
 ) -> None:
     from spotify_manager import api
+    from spotify_manager.interfaces.http import jobs as http_jobs
 
     history = tuple(
         api.blast_from_past.Scrobble(
@@ -4042,7 +4113,7 @@ def test_scrobble_history_web_job_reports_refresh_summary(
         )
 
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(
             lastfm_api_key="lastfm-key",
@@ -4683,7 +4754,7 @@ def test_active_analysis_jobs_can_be_restored_after_reload(
 @pytest.mark.parametrize("outcome", ["completed", "failed", "cancelled"])
 def test_new_year_web_job_routes_and_errors(client, monkeypatch, outcome):
     monkeypatch.setattr(
-        api,
+        http_jobs,
         "Settings",
         lambda: SimpleNamespace(lastfm_api_key="key", lastfm_username="listener"),
     )
@@ -4720,7 +4791,7 @@ def test_new_year_web_job_routes_and_errors(client, monkeypatch, outcome):
 
 def test_new_year_job_conflicts_reconnects_and_cancels(client, monkeypatch):
     monkeypatch.setattr(
-        api, "Thread", lambda **kwargs: SimpleNamespace(start=lambda: None)
+        http_jobs, "Thread", lambda **kwargs: SimpleNamespace(start=lambda: None)
     )
     started = client.post("/commands/new-year")
     identity = started.json()["job_id"]

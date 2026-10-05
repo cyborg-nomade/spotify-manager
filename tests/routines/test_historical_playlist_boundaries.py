@@ -17,8 +17,12 @@ from spotify_manager.bootstrap import historical_playlists as composition
 from spotify_manager.infrastructure.legacy.historical_playlists import (
     LegacyHistoricalPlaylist,
 )
+from spotify_manager.interfaces.operations import blast_from_past as blast_execution
+from spotify_manager.interfaces.operations import daily_mind_radio as radio_execution
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
+from tests.support.direct_dependencies import ObservedBlastSelection
+from tests.support.direct_dependencies import ObservedRadioSelection
 
 
 def _selection() -> blast.ScrobbleSelection:
@@ -200,8 +204,12 @@ class HistoricalSteps:
 def _install(steps: HistoricalSteps, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(blast, "check_cancel", steps.cancel)
     monkeypatch.setattr(blast, "load_playlist_state", steps.playlist)
-    monkeypatch.setattr(composition, "_blast_batch", partial(_blast, steps))
-    monkeypatch.setattr(composition, "_anniversary_batch", partial(_radio, steps))
+    monkeypatch.setattr(composition, "blast_selection", partial(_blast, steps))
+    monkeypatch.setattr(composition, "anniversary_selection", partial(_radio, steps))
+    monkeypatch.setattr(blast_execution, "blast_selection", partial(_blast, steps))
+    monkeypatch.setattr(
+        radio_execution, "anniversary_selection", partial(_radio, steps)
+    )
     monkeypatch.setattr(
         LegacyHistoricalPlaylist, "resolve", partialmethod(_resolve, steps)
     )
@@ -312,15 +320,8 @@ def _blast(
     today: date | None,
     random: blast.RandomIndexReader,
     progress: blast.ProgressCallback | None,
-    count: int,
-) -> blast.BlastFromPastBatch:
-    return steps.select_blast(
-        count=count,
-        path=path,
-        today=today,
-        random_index_reader=random,
-        progress_callback=progress,
-    )
+) -> ObservedBlastSelection:
+    return ObservedBlastSelection(steps.select_blast, path, today, random, progress)
 
 
 def _radio(
@@ -329,13 +330,8 @@ def _radio(
     today: date | None,
     random: radio.RandomTimestampReader,
     progress: blast.ProgressCallback | None,
-) -> radio.DailyMindRadioBatch:
-    return steps.select_radio(
-        path=path,
-        today=today,
-        random_timestamp_reader=random,
-        progress_callback=progress,
-    )
+) -> ObservedRadioSelection:
+    return ObservedRadioSelection(steps.select_radio, path, today, random, progress)
 
 
 def _resolve(

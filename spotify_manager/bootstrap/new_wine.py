@@ -2,19 +2,16 @@
 
 from collections.abc import Callable
 from datetime import datetime
-from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.new_wine import NewWineDependencies
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_observations import WineObservations
-from spotify_manager.application.new_wine_values import EndpointChoiceReader
-from spotify_manager.application.new_wine_values import ReleaseChoiceReader
-from spotify_manager.application.ports.listening import RetryCall
-from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.new_wine import LegacyNewWine
 from spotify_manager.interfaces.presenters.new_wine import NewWinePresenter
+from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
+from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 
 
 def _direct(operation: Callable[[], object], description: str) -> object:
@@ -24,64 +21,45 @@ def _direct(operation: Callable[[], object], description: str) -> object:
 def new_wine_dependencies(
     client: Spotify,
     options: NewWineOptions,
-    choose: ReleaseChoiceReader,
-    endpoint: EndpointChoiceReader | None,
+    callbacks: NewWineCallbacks,
+    storage: NewWineStorage,
     year: int | None,
-    echo: Callable[[str], None],
-    progress: Callable[[int, int, str], None] | None,
-    retry: RetryCall | None,
-    state_path: Path,
-    state_service: StateService | None,
-    log_path: Path,
-    albums_path: Path,
-    liked_path: Path,
-    removed_path: Path,
     clock: Callable[[], datetime],
     local_year: Callable[[], int],
 ) -> NewWineDependencies:
-    """Construct the invocation dependencies without executing the use case.
+    """Bind the run-owned interactions and storage without executing a workflow.
 
     Args:
         client: Caller-owned synchronous Spotify client.
-        options: Original destinations and invocation modes.
-        choose: Release selection callback.
-        endpoint: Optional album endpoint callback.
-        year: Existing year override; falsey values use the original local clock.
-        echo: Existing message sink.
-        progress: Optional progress/cancellation callback.
-        retry: Existing retry callback, defaulting to direct invocation.
-        state_path: Original namespace path.
-        state_service: Optional shared state service.
-        log_path: Original audit destination.
-        albums_path: Canonical saved-album mirror.
-        liked_path: Canonical liked-track mirror.
-        removed_path: Removed-album recovery log.
-        clock: Original UTC timestamp source.
-        local_year: Original local-calendar year source.
+        options: Destinations and execution modes.
+        callbacks: Operator decisions, notifications and retry ownership.
+        storage: Namespace and persistent file locations.
+        year: Review year, or the original local-year fallback.
+        clock: UTC timestamp source.
+        local_year: Local-calendar year source.
 
     Returns:
-        The configured application dependencies or workflow.
+        Dependencies for the named New Wine application use case.
     """
     active_year = year or local_year()
     access = LegacyNewWine(
         client,
         options.destination,
-        retry or _direct,
-        state_path,
-        state_service,
-        log_path,
-        albums_path,
-        liked_path,
-        removed_path,
-        echo,
+        callbacks.retry or _direct,
+        storage.state_path,
+        storage.state_service,
+        storage.log_path,
+        storage.albums_path,
+        storage.liked_tracks_path,
+        storage.removed_albums_log_path,
+        callbacks.echo,
     )
-    dependencies = NewWineDependencies(
+    return NewWineDependencies(
         access,
         WineObservations(access, active_year),
-        choose,
-        endpoint,
-        NewWinePresenter(echo),
+        callbacks.choose,
+        callbacks.endpoint,
+        NewWinePresenter(callbacks.echo),
         clock,
-        progress,
+        callbacks.progress,
     )
-    return dependencies

@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from spotify_manager import main
 from spotify_manager.routines import composer_playlists
+from tests.support.feature_invocation import FeatureInvocation
 
 
 def release() -> main.new_kids.RankedRelease:
@@ -121,7 +122,20 @@ def test_flush_new_kids_dry_run_uses_all_configured_playlists(monkeypatch) -> No
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(main.new_kids, "flush_new_kids", run)
+    monkeypatch.setattr(
+        main.new_kids,
+        "flush_new_kids",
+        FeatureInvocation(
+            run,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
 
     result = CliRunner().invoke(main.app, ["flush-new-kids", "--dry-run"])
 
@@ -201,7 +215,20 @@ def test_flush_queue_2_dry_run_reports_both_playlist_transitions(monkeypatch) ->
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(main.new_kids, "flush_queue_2", run)
+    monkeypatch.setattr(
+        main.new_kids,
+        "flush_queue_2",
+        FeatureInvocation(
+            run,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
 
     result = CliRunner().invoke(main.app, ["flush-queue-2", "--dry-run"])
 

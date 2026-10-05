@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 
 from spotify_manager.client.lastfm import LastFmRecentTrack
+from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
+from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
+from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
@@ -505,15 +508,16 @@ def flush(
     """Run the routine with the standard fake playlist ids."""
     return new_kids.flush_new_kids(
         spotify,
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        choice_reader,
-        year=2026,
-        **isolated_paths(tmp_path),
-        **kwargs,
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            year=2026,
+        ),
+        DiscoveryCallbacks(choose=choice_reader),
+        resources=DiscoveryResources(**isolated_paths(tmp_path), **kwargs),
     )
 
 
@@ -736,17 +740,23 @@ def test_queue_2_refreshes_history_before_touching_playlists(tmp_path: Path) -> 
     progress: list[str] = []
     summary = new_kids.flush_queue_2(
         spotify,
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        lambda *_args: pytest.fail("release prompt was unexpected"),
-        year=2026,
-        lastfm=CurrentHistory(),
-        lastfm_username="listener",
-        progress_callback=lambda _done, _total, detail: progress.append(detail),
-        **isolated_paths(tmp_path),
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            year=2026,
+        ),
+        DiscoveryCallbacks(
+            choose=lambda *_args: pytest.fail("release prompt was unexpected"),
+            progress=lambda _done, _total, detail: progress.append(detail),
+        ),
+        resources=DiscoveryResources(
+            lastfm=CurrentHistory(),
+            lastfm_username="listener",
+            **isolated_paths(tmp_path),
+        ),
     )
 
     assert summary.results == ()
@@ -938,15 +948,19 @@ def test_queue_2_uses_the_same_composer_playlist_progression(tmp_path: Path) -> 
         spotify.playlists["new"].append(tracks[0][0])
 
     summary = new_kids.flush_queue_2(
-        spotify,  # type: ignore[arg-type]
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        lambda *_args: pytest.fail("composer playlist choice was unexpected"),
-        year=2026,
-        **isolated_paths(tmp_path),
+        spotify,
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            year=2026,
+        ),
+        DiscoveryCallbacks(
+            choose=lambda *_args: pytest.fail("composer playlist choice was unexpected")
+        ),
+        resources=DiscoveryResources(**isolated_paths(tmp_path)),
     )
 
     assert summary.results[0].artist == "Johann Sebastian Bach"
@@ -1449,14 +1463,18 @@ def test_queue_2_fills_new_kids_then_advances_only_ten_artists(
 
     summary = new_kids.flush_queue_2(
         spotify,
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        lambda *_args: pytest.fail("release prompt was unexpected"),
-        year=2026,
-        **isolated_paths(tmp_path),
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            year=2026,
+        ),
+        DiscoveryCallbacks(
+            choose=lambda *_args: pytest.fail("release prompt was unexpected")
+        ),
+        resources=DiscoveryResources(**isolated_paths(tmp_path)),
     )
 
     assert summary.new_kids_length_before == 8
@@ -1490,15 +1508,19 @@ def test_queue_2_dry_run_excludes_simulated_new_kids_transfers(
 
     summary = new_kids.flush_queue_2(
         spotify,
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        lambda *_args: pytest.fail("release prompt was unexpected"),
-        dry_run=True,
-        year=2026,
-        **isolated_paths(tmp_path),
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            dry_run=True,
+            year=2026,
+        ),
+        DiscoveryCallbacks(
+            choose=lambda *_args: pytest.fail("release prompt was unexpected")
+        ),
+        resources=DiscoveryResources(**isolated_paths(tmp_path)),
     )
 
     assert summary.new_kids_length_after == 10
@@ -1535,14 +1557,18 @@ def test_queue_2_progress_carries_into_new_kids(tmp_path: Path) -> None:
 
     queue_summary = new_kids.flush_queue_2(
         spotify,
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        lambda *_args: pytest.fail("release prompt was unexpected"),
-        year=2026,
-        **isolated_paths(tmp_path),
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            year=2026,
+        ),
+        DiscoveryCallbacks(
+            choose=lambda *_args: pytest.fail("release prompt was unexpected")
+        ),
+        resources=DiscoveryResources(**isolated_paths(tmp_path)),
     )
     spotify.liked_ids.add("artist-r2-t3")
     new_summary = flush(
@@ -1592,14 +1618,18 @@ def test_queue_2_finishes_fourth_release_without_waiting_for_new_kids(
 
     summary = new_kids.flush_queue_2(
         spotify,
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        lambda *_args: pytest.fail("release prompt was unexpected"),
-        year=2026,
-        **isolated_paths(tmp_path),
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            year=2026,
+        ),
+        DiscoveryCallbacks(
+            choose=lambda *_args: pytest.fail("release prompt was unexpected")
+        ),
+        resources=DiscoveryResources(**isolated_paths(tmp_path)),
     )
 
     assert summary.results[0].action == "great discovery"
@@ -1622,14 +1652,18 @@ def test_queue_2_resumes_after_replacement_was_added(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="interrupted"):
         new_kids.flush_queue_2(
             spotify,
-            "new",
-            "queue",
-            "great",
-            "unlucky",
-            "newfoundland",
-            lambda *_args: pytest.fail("release prompt was unexpected"),
-            year=2026,
-            **isolated_paths(tmp_path),
+            DiscoveryOptions(
+                new_kids_playlist_id="new",
+                queue_2_playlist_id="queue",
+                great_discoveries_2026_playlist_id="great",
+                unlucky_ones_playlist_id="unlucky",
+                newfoundland_playlist_id="newfoundland",
+                year=2026,
+            ),
+            DiscoveryCallbacks(
+                choose=lambda *_args: pytest.fail("release prompt was unexpected")
+            ),
+            resources=DiscoveryResources(**isolated_paths(tmp_path)),
         )
 
     interrupted = json.loads((tmp_path / "state.json").read_text())
@@ -1642,14 +1676,18 @@ def test_queue_2_resumes_after_replacement_was_added(tmp_path: Path) -> None:
 
     summary = new_kids.flush_queue_2(
         spotify,
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        lambda *_args: pytest.fail("release prompt was unexpected"),
-        year=2026,
-        **isolated_paths(tmp_path),
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            year=2026,
+        ),
+        DiscoveryCallbacks(
+            choose=lambda *_args: pytest.fail("release prompt was unexpected")
+        ),
+        resources=DiscoveryResources(**isolated_paths(tmp_path)),
     )
 
     assert summary.resumed is True

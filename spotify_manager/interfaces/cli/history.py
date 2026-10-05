@@ -9,6 +9,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import scrobble_history as history
@@ -84,7 +86,6 @@ class HistoryCommand:
     console: Console
     configuration: Settings
     validate: Callable[[str | None, str | None], tuple[str, str]]
-    create_client: LastFmFactory
     refresh: HistoryRefresh
     present: Callable[[Console, history.ScrobbleHistorySummary], None]
 
@@ -128,7 +129,7 @@ class HistoryCommand:
             )
         except found_art.FoundArtConfigError as error:
             self._fail(error)
-        return self.create_client(key, username, event_callback=self.echo), username
+        return lastfm_client(LastFmCredentials(key, username), self.echo), username
 
     def _fail(
         self,
