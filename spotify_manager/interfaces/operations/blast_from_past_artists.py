@@ -48,8 +48,8 @@ def most_popular_liked_track(
     Raises:
         BlastFromPastArtistsError: Original liked/detail response is invalid.
     """
-    configured = dormant_tracks(sp, artist_id, retry_call)
-    return configured.run()
+    configured = dormant_tracks(sp, retry_call)
+    return configured.run(artist_id)
 
 
 def add_dormant_artists_to_blast_from_past(

@@ -56,9 +56,7 @@ def test_update_total_album_list(mocker) -> None:
         "spotify_manager.loaders_savers.load_total_albums_file",
         return_value=[album("stored", "Alpha")],
     )
-    save_albums = mocker.patch(
-        "spotify_manager.loaders_savers.save_total_albums_file"
-    )
+    save_albums = mocker.patch("spotify_manager.loaders_savers.save_total_albums_file")
 
     result = update_total_album_list(spotify, just_update=True)
 
@@ -131,9 +129,7 @@ def test_update_total_album_list_reads_all_pages_and_ignores_empty_items(
     }
     spotify.current_user_saved_albums.return_value = first_page
     spotify.next.return_value = second_page
-    save_albums = mocker.patch(
-        "spotify_manager.loaders_savers.save_total_albums_file"
-    )
+    save_albums = mocker.patch("spotify_manager.loaders_savers.save_total_albums_file")
 
     result = update_total_album_list(spotify, just_update=False)
 
@@ -179,9 +175,7 @@ def test_update_total_album_list_recovers_one_failed_next_page(mocker) -> None:
     }
     spotify.current_user_saved_albums.side_effect = [first_page, recovered_page]
     spotify.next.side_effect = RuntimeError("temporary")
-    mocker.patch(
-        "spotify_manager.loaders_savers.save_total_albums_file"
-    )
+    mocker.patch("spotify_manager.loaders_savers.save_total_albums_file")
 
     result = update_total_album_list(spotify, just_update=False)
 

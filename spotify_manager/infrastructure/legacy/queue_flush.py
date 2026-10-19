@@ -8,13 +8,11 @@ from pathlib import Path
 
 from spotipy import Spotify
 
-from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.application.queue_flush_values import FlushResult
 from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
-from spotify_manager.infrastructure.legacy.queue_planning import LegacyQueuePlanning
 from spotify_manager.routines import the_queue as legacy
 
 
@@ -53,6 +51,20 @@ class LegacyQueueFlush:
     def configure(self) -> None:
         """Resolve the original falsey retry boundary before state authority."""
         self.retry = self.configured_retry or _immediate
+
+    def retry_operation(
+        self, operation: Callable[[], object], description: str
+    ) -> object:
+        """Use the effective retry chosen at the original preflight boundary.
+
+        Args:
+            operation: Original concrete external request.
+            description: Original retry context.
+
+        Returns:
+            Accepted original response.
+        """
+        return self.retry(operation, description)
 
     def state(self) -> QueueStateAccess:
         """Resolve original state authority even during preview.
@@ -154,19 +166,6 @@ class LegacyQueueFlush:
         from spotify_manager.routines.the_queue import _catalog_track_from_record
 
         return _catalog_track_from_record(raw)
-
-    def plan(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
-        """Retain original live planning before its accepted checkpoint.
-
-        Args:
-            source: Original authoritative source marker.
-            uris: Original live or fallback source URIs.
-
-        Returns:
-            Original compatible plan record.
-        """
-        access = LegacyQueuePlanning(self.spotify, self.retry)
-        return asdict(QueuePlanning(access, legacy.TOP_TRACK_LIMIT).run(source, uris))
 
     def append(
         self, destination: str, source: PlaylistTrack, target: CatalogTrack

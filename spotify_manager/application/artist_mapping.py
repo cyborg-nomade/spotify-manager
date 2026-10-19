@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol
 
 from spotify_manager.application.release_check_values import ReleaseCheckSpotifyError
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
@@ -9,6 +10,23 @@ from spotify_manager.domain.release_check_values import RankedArtist
 
 
 ArtistChoiceReader = Callable[[RankedArtist, tuple[SpotifyArtistCandidate, ...]], str]
+
+
+class ArtistSearch(Protocol):
+    """Read exact or custom-query artist candidates."""
+
+    def search(
+        self, artist: RankedArtist, text: str | None
+    ) -> tuple[SpotifyArtistCandidate, ...]:
+        """Read candidates in original search order.
+
+        Args:
+            artist: Original ranked Last.fm evidence.
+            text: Optional explicit custom query.
+
+        Returns:
+            Original ordered candidates and exact-name facts.
+        """
 
 
 @dataclass(frozen=True)
@@ -27,13 +45,13 @@ class ArtistMapping:
     """Preserve initial exact mapping, original prompt lists and one-shot choices.
 
     Args:
-        search: Original ordered catalog search boundary.
+        catalog: Original ordered catalog search integration.
         reader: Optional original interaction callback.
         controls: Original skip, skip-artist and quit markers.
         search_prefix: Original custom-query marker.
     """
 
-    search: Callable[[RankedArtist, str | None], tuple[SpotifyArtistCandidate, ...]]
+    catalog: ArtistSearch
     reader: ArtistChoiceReader | None
     controls: frozenset[str] = frozenset({"skip", "skip-artist", "quit"})
     search_prefix: str = "search:"
@@ -52,7 +70,7 @@ class ArtistMapping:
         """
         search_text = None
         while True:
-            candidates = self.search(artist, search_text)
+            candidates = self.catalog.search(artist, search_text)
             exact = tuple(item for item in candidates if item.exact_name)
             if search_text is None and len(exact) == 1:
                 return exact[0]

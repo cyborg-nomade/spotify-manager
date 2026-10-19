@@ -8,7 +8,12 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.album_recommendations import AlbumGathering
 from spotify_manager.application.sauvignon_run import SauvignonRun
+from spotify_manager.application.sauvignon_run import SauvignonStages
+from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
+from spotify_manager.bootstrap.recommendations import candidate_gathering
+from spotify_manager.bootstrap.recommendations import recommendation_seeds
 from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
 from spotify_manager.routines import sauvignon as legacy
 
@@ -27,6 +32,19 @@ def _immediate(operation: Callable[[], object], description: str) -> object:
 def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
     if callback is not None:
         callback(message)
+
+
+def _stages(effects: LegacySauvignon) -> SauvignonStages:
+    return SauvignonStages(
+        recommendation_seeds(),
+        candidate_gathering(
+            effects.lastfm, effects.cache_path, None, None, effects.progress
+        ),
+        AlbumGathering(effects, partial(_progress, effects.progress)),
+        AlbumEditionChoice(
+            effects.choice_reader, legacy.CHOICE_SKIP, legacy.CHOICE_QUIT
+        ),
+    )
 
 
 def sauvignon_workflow(
@@ -62,9 +80,7 @@ def sauvignon_workflow(
     Returns:
         A workflow whose construction performs no observations or effects.
     """
-    from spotify_manager.infrastructure.recommendation_calendar import (
-        listening_week_start,
-    )
+    from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 
     effects = LegacySauvignon(
         spotify,
@@ -80,8 +96,9 @@ def sauvignon_workflow(
     )
     return SauvignonRun(
         effects,
+        _stages(effects),
         partial(_configure_retry_and_clock, now, retry, effects),
-        listening_week_start,
+        BerlinCalendar(),
         partial(_progress, progress),
         echo,
         legacy.DEFAULT_MAX_PLAYLIST_LENGTH,

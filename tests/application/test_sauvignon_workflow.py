@@ -4,14 +4,23 @@ from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
 from typing import Literal
+from typing import cast
 
 import pytest
 
+from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.application.sauvignon_run import SauvignonRun
+from spotify_manager.application.sauvignon_run import SauvignonStages
+from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
 from spotify_manager.application.sauvignon_values import SauvignonConfigError
 from spotify_manager.domain.album_recommendations import AlbumRecommendation
 from spotify_manager.domain.album_recommendations import SpotifyAlbumOption
 from spotify_manager.domain.album_selection import PendingAlbum
+from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
+from spotify_manager.domain.recommendation_history import TrackHistory
+from spotify_manager.domain.recommendation_seeds import FoundArtSeed
 from tests.support.sauvignon_run import STAMP
 from tests.support.sauvignon_run import WEEK
 from tests.support.sauvignon_run import RunObservations
@@ -35,6 +44,10 @@ class Effects(RunObservations):
         """
         self.accepted.extend(track.uri for _album, track in additions)
         self.record("append")
+
+    def local_date(self, value: datetime | date | None = None) -> date:
+        """Return the original scripted local date for the calendar boundary."""
+        return WEEK
 
     def choose(
         self, item: AlbumRecommendation, *args: object
@@ -60,12 +73,80 @@ def _clock() -> datetime:
     return STAMP
 
 
-def _week(stamp: datetime) -> date:
-    return WEEK
+@dataclass(frozen=True)
+class _ScriptedSeeds:
+    """Supply a scripted child-stage outcome at its original boundary.
+
+    Args:
+        source: Existing observations, scripted results and failures.
+    """
+
+    source: Effects
+
+    def run(
+        self, history: tuple[TrackHistory, ...], count: int, week: date
+    ) -> tuple[FoundArtSeed, ...]:
+        """Return the existing scripted result and retain its observations."""
+        return self.source.seeds(history, count, week)
+
+
+@dataclass(frozen=True)
+class _ScriptedTracks:
+    """Supply a scripted child-stage outcome at its original boundary.
+
+    Args:
+        source: Existing observations, scripted results and failures.
+    """
+
+    source: Effects
+
+    def run(
+        self,
+        seeds: tuple[FoundArtSeed, ...],
+        heard: set[tuple[str, str]],
+        week: date,
+        pool: int,
+        now: datetime,
+    ) -> tuple[FoundArtCandidate, ...]:
+        """Return the existing scripted result and retain its observations."""
+        return self.source.tracks(seeds, heard, week, pool, now)
+
+
+@dataclass(frozen=True)
+class _ScriptedAlbums:
+    """Supply a scripted child-stage outcome at its original boundary.
+
+    Args:
+        source: Existing observations, scripted results and failures.
+    """
+
+    source: Effects
+
+    def run(
+        self,
+        tracks: tuple[FoundArtCandidate, ...],
+        excluded: set[tuple[str, str]],
+        existing: set[str],
+        maximum: int,
+        week: date,
+    ) -> tuple[AlbumRecommendation, ...]:
+        """Return the existing scripted result and retain its observations."""
+        return self.source.albums(tracks, excluded, existing, maximum, week)
+
+
+def _stages(effects: Effects) -> SauvignonStages:
+    return SauvignonStages(
+        cast(RecommendationSeeds, _ScriptedSeeds(effects)),
+        cast(CandidateGathering, _ScriptedTracks(effects)),
+        cast(AlbumGathering, _ScriptedAlbums(effects)),
+        cast(AlbumEditionChoice, effects),
+    )
 
 
 def _workflow(effects: Effects) -> SauvignonRun:
-    return SauvignonRun(effects, _clock, _week, effects.progress, effects.echo)
+    return SauvignonRun(
+        effects, _stages(effects), _clock, effects, effects.progress, effects.echo
+    )
 
 
 EVENTS = [

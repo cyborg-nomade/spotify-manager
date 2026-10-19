@@ -29,15 +29,12 @@ def queue_recommendations(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.infrastructure.recommendation_calendar import (
-        listening_week_start,
-    )
+    from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 
     edge = LegacyQueueNeighborhoods(reader, cache_path, log_path, now, progress)
     return QueueRecommendations(
         edge,
-        edge.neighbors,
         edge.clock,
-        listening_week_start,
+        BerlinCalendar(),
         edge.progress,
     )

@@ -95,16 +95,6 @@ class ReleaseEffects(Protocol):
             The observed previously stored mapping, when present.
         """
 
-    def resolve(self, artist: RankedArtist) -> SpotifyArtistCandidate | str | None:
-        """Observe artist interaction before catalog reads.
-
-        Args:
-            artist: Frozen ranked artist.
-
-        Returns:
-            Scenario's mapping, control choice or no match.
-        """
-
     def catalog(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate, start: date
     ) -> tuple[ReleaseCandidate, ...]:
@@ -137,23 +127,6 @@ class ReleaseEffects(Protocol):
 
         Returns:
             Original marker, or no playable track.
-        """
-
-    def match(
-        self,
-        track: ReleaseTrack,
-        records: tuple[ReleaseCandidate, ...],
-        cache: dict[str, tuple[ReleaseTrack, ...]],
-    ) -> ReleaseCandidate | None:
-        """Observe future/current matching with its run-scoped cache.
-
-        Args:
-            track: Single marker.
-            records: Ordered containing-record candidates.
-            cache: Shared per-artist track cache.
-
-        Returns:
-            The observed matching record, if present.
         """
 
     def add(

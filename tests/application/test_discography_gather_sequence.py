@@ -29,7 +29,7 @@ class MemoryCatalog:
     reads: list[int] = field(default_factory=list)
     saved_reads: list[list[str]] = field(default_factory=list)
 
-    def page(self, offset: int) -> DiscographyPage:
+    def page(self, artist: str, offset: int) -> DiscographyPage:
         """Read typed facts at the original raw offset.
 
         Args:
@@ -63,9 +63,7 @@ def test_discography_catalog_offsets_count_skipped_rows_and_replace_duplicate_id
     edge = MemoryCatalog(
         {0: DiscographyPage((first,), 2, True), 2: DiscographyPage((last,), 1, False)}
     )
-    assert DiscographyCatalog(edge.page, edge.saved).run() == (
-        replace(last, saved=True),
-    )
+    assert DiscographyCatalog(edge).run("artist") == (replace(last, saved=True),)
     assert edge.reads == [0, 2]
     assert edge.saved_reads == [["a"]]
 
@@ -74,7 +72,7 @@ def test_discography_catalog_reads_all_candidates_before_saved_batches() -> None
     """Retain twenty-release membership batches and complete catalog order."""
     releases = tuple(release(f"id-{index}") for index in range(43))
     edge = MemoryCatalog({0: DiscographyPage(releases, 43, False)})
-    result = DiscographyCatalog(edge.page, edge.saved).run()
+    result = DiscographyCatalog(edge).run("artist")
     assert len(result) == 43
     assert [len(batch) for batch in edge.saved_reads] == [20, 20, 3]
     assert all(item.saved for item in result)
@@ -90,12 +88,12 @@ def test_discography_empty_catalog_obeys_original_next_authority(
         has_next: Original next-page truthiness.
     """
     edge = MemoryCatalog({0: DiscographyPage((), 0, has_next)})
-    owner = DiscographyCatalog(edge.page, edge.saved)
+    owner = DiscographyCatalog(edge)
     if has_next:
         with pytest.raises(DiscographyError, match="empty artist release page"):
-            owner.run()
+            owner.run("artist")
         return
-    assert owner.run() == ()
+    assert owner.run("artist") == ()
     assert edge.saved_reads == []
 
 
@@ -137,7 +135,7 @@ def test_discography_reads_sources_before_optional_auxiliary_markers(
     """
     edge = MemoryQueues()
     queues, markers = DiscographyQueues(
-        edge.read, {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"}, extra
+        edge, {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"}, extra
     ).run()
     expected = ["nf", "ml", "rq"]
     if extra is not None:

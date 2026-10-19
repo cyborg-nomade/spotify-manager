@@ -2,8 +2,6 @@
 
 from spotify_manager import loaders_savers as files
 from spotify_manager.bootstrap import legacy_library as composition
-from spotify_manager.processors import control_file_processors as control_processors
-from spotify_manager.processors import your_library_processors as export_processors
 from spotify_manager.interfaces.operations import legacy_library as operations
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
@@ -12,6 +10,8 @@ from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
+from spotify_manager.processors import control_file_processors as control_processors
+from spotify_manager.processors import your_library_processors as export_processors
 from spotify_manager.routines import convert_library_file
 from spotify_manager.routines import count_items
 from spotify_manager.routines import monthly_routine

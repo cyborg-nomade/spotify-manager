@@ -1,6 +1,5 @@
 """Synchronize annual charts before reconciling their ordered destination markers."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import Literal
@@ -10,8 +9,7 @@ from spotify_manager.application.new_year_membership import AnnualMembership
 from spotify_manager.application.new_year_membership import RetryCall
 from spotify_manager.application.new_year_sources import named_playlist
 from spotify_manager.application.new_year_values import RetrospectivePlan
-from spotify_manager.domain.catalog import PlaylistTrack
-from spotify_manager.domain.composers import OwnedPlaylist
+from spotify_manager.application.ports.annual import AnnualChartCatalog
 
 
 type ChartKind = Literal["tracks", "albums"]
@@ -22,18 +20,12 @@ class AnnualCharts:
     """Bind original chart ownership, creation, membership and synchronization facts.
 
     Args:
-        owned: Original current owned playlist reader.
-        create: Original owner read and direct private-chart creation boundary.
-        playlist: Original complete fresh marker facts.
-        replace: Original retried exact chart replacement.
+        catalog: Named external catalog observations used by this stage.
         membership: Original retry-aware destination membership reconciler.
         retry: Original caller retry around complete ensure-chart attempts.
     """
 
-    owned: Callable[[], tuple[OwnedPlaylist, ...]]
-    create: Callable[[str, ChartKind, int], str]
-    playlist: Callable[[str], tuple[PlaylistTrack, ...]]
-    replace: Callable[[str, list[str]], None]
+    catalog: AnnualChartCatalog
     membership: AnnualMembership
     retry: RetryCall
 
@@ -64,13 +56,13 @@ class AnnualCharts:
         )
         uris = [item["uri"] for item in plan[kind]]
         uris = list(dict.fromkeys(uris))
-        current = [track.uri for track in self.playlist(playlist)]
+        current = [track.uri for track in self.catalog.playlist(playlist)]
         if current != uris:
-            self.replace(playlist, uris)
+            self.catalog.replace(playlist, uris)
         self.membership.run(destination, uris)
 
     def _ensure(self, name: str, kind: ChartKind, year: int) -> str:
-        existing = named_playlist(self.owned(), name)
+        existing = named_playlist(self.catalog.owned(), name)
         if existing is not None:
             return existing
-        return self.create(name, kind, year)
+        return self.catalog.create(name, kind, year)

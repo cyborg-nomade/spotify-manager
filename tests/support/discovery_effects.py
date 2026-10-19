@@ -260,3 +260,30 @@ class RunPlaylists(MemoryQueue):
         self._record("playlist", playlist_id)
         responses = self.reads.get(playlist_id, [])
         return responses.pop(0) if responses else ()
+
+
+@dataclass(frozen=True)
+class ScriptedGreatDiscoveries:
+    """Supply the original isolated yearly destination stage oracle.
+
+    Args:
+        effects: Original destination observations and accepted effects.
+    """
+
+    effects: MemoryEffects
+
+    def resolve(
+        self, state: dict[str, object], year: int, seed: str, preview: bool
+    ) -> str | None:
+        """Observe the original yearly destination boundary.
+
+        Args:
+            state: Original mutable namespace.
+            year: Original invocation year.
+            seed: Original configured 2026 destination.
+            preview: Original preview behavior.
+
+        Returns:
+            Original accepted or preview-only destination.
+        """
+        return self.effects.great_playlist(state, preview)

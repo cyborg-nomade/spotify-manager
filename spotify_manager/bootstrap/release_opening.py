@@ -7,8 +7,10 @@ from functools import partial
 from pathlib import Path
 
 from spotify_manager.application.release_opening import ReleaseRunOpening
+from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
+from spotify_manager.infrastructure.legacy.release_opening import _history_progress
 from spotify_manager.routines import release_check as legacy
 
 
@@ -36,17 +38,17 @@ def release_opening(
     """Construct release startup with caller-owned history and checkpoint resources.
 
     Args:
-    lastfm: Caller-owned history reader.
-    expected_username: Expected canonical history account.
-    state_path: Existing namespace location.
-    state_service: Optional shared state authority.
-    log_path: Original release audit destination.
-    export_path: Canonical history export.
-    legacy_delta_path: Optional history delta.
-    backup_dir: Original history backup location.
-    history_log_path: Original history audit destination.
-    now: Optional effective UTC timestamp.
-    progress: Optional progress callback.
+        lastfm: Caller-owned history reader.
+        expected_username: Expected canonical history account.
+        state_path: Existing namespace location.
+        state_service: Optional shared state authority.
+        log_path: Original release audit destination.
+        export_path: Canonical history export.
+        legacy_delta_path: Optional history delta.
+        backup_dir: Original history backup location.
+        history_log_path: Original history audit destination.
+        now: Optional effective UTC timestamp.
+        progress: Optional progress callback.
 
     Returns:
     The application opening stage and its state acquisition boundary.
@@ -65,8 +67,23 @@ def release_opening(
         history_log_path,
         progress,
     )
+    history_progress = (
+        None if progress is None else partial(_history_progress, progress)
+    )
+    history = history_refresh(
+        lastfm,
+        export_path,
+        legacy_delta_path,
+        backup_dir,
+        history_log_path,
+        None,
+        history_progress,
+        None,
+    )
     opening = ReleaseRunOpening(
         effects,
+        history,
+        expected_username,
         partial(_clock, now),
         _local_date,
         _run_id,

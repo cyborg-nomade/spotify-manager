@@ -38,6 +38,7 @@ from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import routine_state
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import release_candidate
+from spotify_manager.infrastructure.callbacks import LegacyCheckpoint
 from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
 from spotify_manager.interfaces.requests.queue_3 import Queue3Options
 from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
@@ -502,7 +503,13 @@ def _transition_plan(
     from spotify_manager.bootstrap.queue_3 import review_planner
 
     planner = review_planner(
-        sp, retry_call, track_cache, {}, {}, _no_checkpoint, transition_reader
+        sp,
+        retry_call,
+        track_cache,
+        {},
+        {},
+        LegacyCheckpoint(_no_checkpoint),
+        transition_reader,
     )
     return planner.transition(
         source, current_release, next_release, evaluation=evaluation, reason=reason
@@ -528,7 +535,7 @@ def _build_plan(
         track_cache,
         liked_cache,
         release_orders,
-        order_saved,
+        LegacyCheckpoint(order_saved),
         transition_reader,
     )
     return planner.plan(source, discography)

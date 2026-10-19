@@ -15,9 +15,10 @@ from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
-from spotify_manager.infrastructure.legacy.queue_flush import LegacyQueueFlush
+from spotify_manager.infrastructure.legacy.queue_planning import LegacyQueuePlanning
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import review_artists
@@ -321,7 +322,7 @@ class FlushObservations:
 def _patches(edge: FlushObservations) -> tuple[tuple[object, str, object], ...]:
     return (
         (new_wine, "load_playlist_tracks", edge.playlist),
-        (LegacyQueueFlush, "plan", partialmethod(_plan, edge)),
+        (QueuePlanning, "record", partialmethod(_plan, edge)),
         (review_artists, "add_playlist_item", edge.append),
         (review_artists, "remove_playlist_items", edge.remove),
         (review_artists, "remove_library_artists", edge.unfollow),
@@ -417,9 +418,10 @@ def restart_cases() -> list[tuple[str, dict[str, object]]]:
 
 
 def _plan(
-    access: LegacyQueueFlush,
+    workflow: QueuePlanning,
     edge: FlushObservations,
     source: PlaylistTrack,
     uris: list[str],
 ) -> dict[str, object]:
+    access = cast(LegacyQueuePlanning, workflow.access)
     return edge.plan(access.spotify, source, uris, access.retry)

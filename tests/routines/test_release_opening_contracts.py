@@ -17,13 +17,13 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
 from spotify_manager.routines import release_check as legacy
 from spotify_manager.routines import scrobble_history
-from tests.support.history_dependencies import LegacyReleaseOpening
 from tests.support.history_dependencies import release_history
 
 
@@ -161,7 +161,7 @@ def _bind(monkeypatch: pytest.MonkeyPatch, effects: OpeningEffects) -> None:
     monkeypatch.setattr(legacy, "save_state", effects.save)
     monkeypatch.setattr(legacy, "append_event", effects.audit)
     monkeypatch.setattr(
-        LegacyReleaseOpening, "refresh", partialmethod(release_history, effects.refresh)
+        HistoryRefresh, "run", partialmethod(release_history, effects.refresh)
     )
 
 

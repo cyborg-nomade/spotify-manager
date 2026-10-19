@@ -84,6 +84,9 @@ test-application:
         --cov=spotify_manager.application.recommendation_candidates \
         --cov=spotify_manager.application.recommendation_resolution \
         --cov=spotify_manager.application.recommendation_run \
+        --cov=spotify_manager.application.checkpoints \
+        --cov=spotify_manager.application.queue_artist_mapping \
+        --cov=spotify_manager.application.new_year_discoveries \
         --cov=spotify_manager.application.album_recommendations \
         --cov=spotify_manager.application.sauvignon_values \
         --cov=spotify_manager.application.sauvignon_selection \

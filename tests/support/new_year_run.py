@@ -16,7 +16,9 @@ from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
+from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
 from spotify_manager.core.state.service import StateNamespace
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
@@ -35,7 +37,6 @@ from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import something_old
 from spotify_manager.settings import Settings
 from tests.support.discography_boundaries import marker
-from tests.support.history_dependencies import AnnualResources
 from tests.support.history_dependencies import annual_discoveries
 from tests.support.history_dependencies import annual_history
 from tests.support.queue_neighbors import NOW
@@ -620,11 +621,11 @@ def original_run(
         (queue_3, "parse_playlist_id", edge.parse),
         (queue_3, "load_owned_playlists", edge.owned),
         (
-            AnnualResources,
-            "discoveries",
+            AnnualDiscoveries,
+            "run",
             partialmethod(annual_discoveries, edge.discoveries),
         ),
-        (AnnualResources, "history", partialmethod(annual_history, edge.history)),
+        (HistoryRefresh, "run", partialmethod(annual_history, edge.history)),
         (new_wine, "load_playlist_tracks", edge.playlist),
         (blast_from_past, "search_spotify_matches", edge.search),
         (palace_of_memory, "search_spotify_album", edge.album),

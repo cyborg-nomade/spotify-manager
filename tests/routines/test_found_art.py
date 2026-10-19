@@ -9,6 +9,11 @@ from pathlib import Path
 
 import pytest
 
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_resolution import (
+    RecommendationResolution,
+)
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
 from spotify_manager.infrastructure.legacy.recommendations import (
@@ -768,14 +773,14 @@ def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
         LegacyRecommendationRun, "refresh", lambda *_args, **_kwargs: (history, 1)
     )
     monkeypatch.setattr(
-        LegacyRecommendationRun, "seeds", lambda *_args, **_kwargs: (chosen_seed,)
+        RecommendationSeeds, "run", lambda *_args, **_kwargs: (chosen_seed,)
     )
     monkeypatch.setattr(
-        LegacyRecommendationRun, "gather", lambda *_args, **_kwargs: (chosen_candidate,)
+        CandidateGathering, "run", lambda *_args, **_kwargs: (chosen_candidate,)
     )
     monkeypatch.setattr(
-        LegacyRecommendationRun,
-        "resolve",
+        RecommendationResolution,
+        "run",
         lambda *_args, **_kwargs: (
             (found_art.FoundArtResult(chosen_candidate, match, "added"),),
             (match,),

@@ -128,7 +128,7 @@ def flush_queue_3(
     snapshot = session.start(queue)
     liked: dict[str, bool] = {}
     planner = review_planner(
-        sp, retry, {}, liked, snapshot.orders, session.save, callbacks.transition_reader
+        sp, retry, {}, liked, snapshot.orders, session, callbacks.transition_reader
     )
     execution = review_execution(
         sp,
@@ -140,7 +140,7 @@ def flush_queue_3(
         options.dry_run,
     )
     catalog = LegacyQueue3Catalog(sp, retry, liked)
-    observations = Queue3Observations(catalog.discography, inputs.access.read)
+    observations = Queue3Observations(catalog, inputs.access)
     review = Queue3Review(
         session,
         snapshot,
@@ -150,7 +150,7 @@ def flush_queue_3(
         observations,
         inputs.owned,
         callbacks.composer_playlist_reader,
-        inputs.access.audit,
+        inputs.access,
         Queue3Presenter(callbacks.echo, callbacks.progress_callback),
     )
     results, paused = review.run()

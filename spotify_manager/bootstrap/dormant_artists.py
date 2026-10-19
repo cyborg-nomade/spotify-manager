@@ -8,8 +8,8 @@ from spotipy import Spotify
 
 from spotify_manager.application.dormant_recovery import DormantRecovery
 from spotify_manager.application.dormant_tracks import DormantLikedTrack
-from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.infrastructure.legacy.dormant_artists import LegacyDormantRecovery
+from spotify_manager.infrastructure.legacy.dormant_tracks import LegacyDormantCatalog
 from spotify_manager.routines import blast_from_past_artists as legacy
 
 
@@ -24,53 +24,17 @@ def _progress(
         callback(done, count, message)
 
 
-def _top(
-    sp: Spotify, artist_id: str, retry: legacy.RetryCall
-) -> tuple[CatalogTrack, ...]:
-    from spotify_manager.routines.new_kids import load_top_track_data
-
-    _ranks, tracks = load_top_track_data(sp, artist_id, retry)
-    return tracks
-
-
-def _liked(
-    sp: Spotify, retry: legacy.RetryCall, tracks: tuple[CatalogTrack, ...]
-) -> dict[str, bool]:
-    from spotify_manager.routines.blast_from_past_artists import _liked_statuses
-
-    return _liked_statuses(sp, tracks, retry)
-
-
-def _populate(
-    sp: Spotify, retry: legacy.RetryCall, tracks: tuple[CatalogTrack, ...]
-) -> tuple[CatalogTrack, ...]:
-    from spotify_manager.routines.blast_from_past_artists import _track_popularities
-
-    return _track_popularities(sp, tracks, retry)
-
-
-def dormant_tracks(
-    sp: Spotify, artist_id: str, retry: legacy.RetryCall
-) -> DormantLikedTrack:
-    """Construct the invocation dependencies without executing the use case.
+def dormant_tracks(sp: Spotify, retry: legacy.RetryCall) -> DormantLikedTrack:
+    """Construct original dormant-track resources without executing selection.
 
     Args:
-        sp: Caller-owned Spotify client.
-        artist_id: Original mapped identity.
-        retry: Original retry policy.
+        sp: Caller-owned synchronous Spotify client.
+        retry: Original retry and cancellation boundary.
 
     Returns:
-        The configured application dependencies or workflow.
+        Named liked-track application stage.
     """
-    from spotify_manager.routines.blast_from_past_artists import _catalog_tracks
-
-    workflow = DormantLikedTrack(
-        partial(_top, sp, artist_id, retry),
-        partial(_liked, sp, retry),
-        partial(_catalog_tracks, sp, artist_id, retry),
-        partial(_populate, sp, retry),
-    )
-    return workflow
+    return DormantLikedTrack(LegacyDormantCatalog(sp, retry))
 
 
 def dormant_recovery(
@@ -103,6 +67,7 @@ def dormant_recovery(
     effects = LegacyDormantRecovery(sp, playlist_id, path, retry, cancel)
     workflow = DormantRecovery(
         effects,
+        dormant_tracks(sp, retry),
         partial(_clock, today),
         partial(check_cancel, cancel),
         partial(_progress, progress),

@@ -50,7 +50,7 @@ def history_refresh(
     storage = LegacyHistoryStorage(export_path, legacy_delta_path, backup_dir, log_path)
     workflow = HistoryRefresh(
         storage,
-        LegacyHistoryReader(lastfm).fetch,
+        LegacyHistoryReader(lastfm),
         partial(_checked_at, now),
         partial(check_cancel, cancel_check),
         partial(_progress, progress_callback),

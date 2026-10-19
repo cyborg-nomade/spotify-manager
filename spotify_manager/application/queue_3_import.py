@@ -1,10 +1,10 @@
 """Import annual discovery artists with the original write and checkpoint order."""
 
 from collections.abc import Callable
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import cast
 
+from spotify_manager.application.ports.queue_playlists import ImportAccess
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.application.queue_3_values import AnnualImportResult
 from spotify_manager.application.queue_3_values import Queue3ConfigError
@@ -65,17 +65,13 @@ class AnnualDiscoveryImport:
     """Coordinate annual import effects without owning SDK or storage details.
 
     Args:
-        read: Read parsed playlist markers using the existing retry boundary.
-        append: Append all selected markers using the original batch behavior.
-        audit: Record one original event and its fields.
+        access: Named original playlist observations and accepted effects.
         state_access: Persist the complete working namespace.
         present: Explain completion after writes, audits and checkpoint succeed.
         now: Read the completion timestamp only when recording a real import.
     """
 
-    read: Callable[[str], Sequence[PlaylistTrack]]
-    append: Callable[[str, list[PlaylistTrack], str], None]
-    audit: Callable[[str, dict[str, object]], None]
+    access: ImportAccess
     state_access: RoutineState
     present: Callable[[int, int, int, bool], None]
     now: Callable[[], str]
@@ -114,10 +110,10 @@ class AnnualDiscoveryImport:
             return current, ()
         source_year = active_year - 1
         source_id = resolve_yearly_playlist(owned, source_year)
-        selection = select_import(current, self.read(source_id))
+        selection = select_import(current, self.access.read(source_id))
         results = _results(selection, source_year, dry_run)
         if selection.additions and not dry_run:
-            self.append(
+            self.access.append(
                 playlist_id,
                 list(selection.additions),
                 f"importing {source_year} Great Discoveries into Queue 3",
@@ -138,7 +134,7 @@ class AnnualDiscoveryImport:
         dry_run: bool,
     ) -> None:
         for track, result in zip(selection.considered, results, strict=True):
-            self.audit(
+            self.access.audit(
                 "annual_import_artist",
                 {
                     "active_year": active_year,

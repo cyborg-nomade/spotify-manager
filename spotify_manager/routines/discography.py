@@ -254,7 +254,9 @@ def select_historical_artist(
     Returns:
         Original complete compatible result.
     """
-    return composition.historical(path, today, random_index_reader, progress_callback)
+    return composition.history_stage(
+        path, today, random_index_reader, progress_callback
+    ).run()
 
 
 def resolve_historical_artist(
@@ -277,7 +279,9 @@ def resolve_historical_artist(
     Raises:
         DiscographyError: Original mapping fails or is cancelled.
     """
-    return composition.resolve_artist(spotify, selection, choice_reader, retry_call)
+    return composition.historical_mapping(spotify, choice_reader, retry_call).resolve(
+        selection
+    )
 
 
 def _load_artist_queues(
@@ -290,7 +294,9 @@ def _load_artist_queues(
     dict[str, tuple[ArtistMarkers, ...]],
 ]:
     """Load ordered, primary-artist queues and every matching marker URI."""
-    return composition.queues(spotify, playlist_ids, retry_call, queue_3_playlist_id)
+    return composition.queue_stage(
+        spotify, playlist_ids, retry_call, queue_3_playlist_id
+    ).run()
 
 
 def _positive_int(value: object) -> int:
@@ -323,7 +329,7 @@ def load_release_catalog(
     Returns:
         Original complete compatible result.
     """
-    return composition.catalog(spotify, artist_id, retry_call)
+    return composition.catalog_stage(spotify, retry_call).run(artist_id)
 
 
 def parse_release_indexes(value: str, total: int) -> tuple[int, ...]:

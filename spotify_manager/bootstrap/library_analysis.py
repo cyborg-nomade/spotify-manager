@@ -22,7 +22,6 @@ from spotify_manager.application.library_analysis_values import Echo
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import ProgressCallback
 from spotify_manager.application.library_analysis_values import Sleep
-from spotify_manager.application.library_analysis_values import resource_config
 from spotify_manager.bootstrap.library_data import publish_managed_path
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.domain.library_analysis_values import RetryWait
@@ -184,7 +183,6 @@ def analysis_publication() -> AnalysisPublication:
         current_stats_history_key,
         backups.manifest_summaries,
         backups.resource_manifest_summary,
-        resource_config,
     )
 
 

@@ -8,14 +8,11 @@ from dataclasses import replace
 import pytest
 
 from spotify_manager.application.queue_3_planner import Queue3Planner
-from spotify_manager.application.queue_3_planner import stable_release_order
 from spotify_manager.application.queue_3_values import Queue3Error
-from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
-from spotify_manager.models.lookups import AlbumEvaluation
 from tests.support.listening_values import playlist_track
 from tests.support.listening_values import release_track
 from tests.support.listening_values import studio_release
@@ -48,7 +45,7 @@ class PlannerMemory:
         if self.failure == name:
             raise OSError(name)
 
-    def read(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Observe a track read.
 
         Args:
@@ -60,9 +57,9 @@ class PlannerMemory:
         self._record("read", release.spotify_id)
         return self.observed.get(release.spotify_id, ())
 
-    def evaluate(
+    def memberships(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
-    ) -> AlbumEvaluation:
+    ) -> dict[str, bool]:
         """Observe live evaluation before ordering or prompting a successor.
 
         Args:
@@ -73,7 +70,7 @@ class PlannerMemory:
             A live all-unliked evaluation with the original public model.
         """
         self._record("evaluate", release.spotify_id)
-        return evaluate_release(playlist_track("unused", release).release, tracks, {})
+        return {}
 
     def choose(
         self,
@@ -100,8 +97,8 @@ class PlannerMemory:
 
 
 def _planner(memory: PlannerMemory) -> Queue3Planner:
-    ordering = ReleaseOrdering(stable_release_order, {}, memory.save)
-    return Queue3Planner(memory.read, memory.evaluate, {}, ordering, memory.choose)
+    ordering = ReleaseOrdering(None, {}, memory)
+    return Queue3Planner(memory, {}, ordering, memory.choose)
 
 
 @pytest.mark.parametrize("cached", [False, True])

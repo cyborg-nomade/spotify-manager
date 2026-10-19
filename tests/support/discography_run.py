@@ -7,14 +7,17 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
-from functools import partial
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
 from spotipy import Spotify
 
-from spotify_manager.bootstrap import discography as composition
+from spotify_manager.application.discography_catalog import DiscographyCatalog
+from spotify_manager.application.discography_history import DiscographyArtistMapping
+from spotify_manager.application.discography_history import DiscographyHistory
+from spotify_manager.application.discography_planning import DiscographyReads
+from spotify_manager.application.discography_queues import DiscographyQueues
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import discography as legacy
@@ -305,6 +308,123 @@ def markers() -> dict[str, tuple[legacy.ArtistMarkers, ...]]:
     }
 
 
+@dataclass(frozen=True)
+class ScriptedPriority:
+    """Supply original priority resolution and read observations.
+
+    Args:
+        edge: Original scripted observations and failures.
+    """
+
+    edge: PlanReads
+
+    def load(self) -> dict[str, object]:
+        """Resolve and read the original priority in order."""
+        self.edge.state(Path("state"), None)
+        return self.edge.load()
+
+
+@dataclass(frozen=True)
+class ScriptedQueues:
+    """Supply the original source-gathering stage.
+
+    Args:
+        edge: Original scripted observations and failures.
+    """
+
+    edge: PlanReads
+
+    def run(
+        self,
+    ) -> tuple[
+        dict[legacy.QueueName, tuple[legacy.QueueArtist, ...]],
+        dict[str, tuple[legacy.ArtistMarkers, ...]],
+    ]:
+        """Return original queues and marker groups with their observation."""
+        return self.edge.queues()
+
+
+@dataclass(frozen=True)
+class ScriptedHistory:
+    """Supply the original lazy history-selection stage.
+
+    Args:
+        edge: Original scripted observations and failures.
+    """
+
+    edge: PlanReads
+
+    def run(self) -> legacy.HistoricalArtistSelection:
+        """Return the original complete historical selection."""
+        return self.edge.history()
+
+
+@dataclass(frozen=True)
+class ScriptedCatalog:
+    """Supply the original per-artist catalog stage.
+
+    Args:
+        edge: Original scripted observations and failures.
+    """
+
+    edge: PlanReads
+
+    def run(self, artist: str) -> tuple[legacy.CatalogRelease, ...]:
+        """Return the original complete artist catalog.
+
+        Args:
+            artist: Original requested Spotify identity.
+
+        Returns:
+            Original ordered releases.
+        """
+        return self.edge.catalog(legacy.QueueArtist(artist, artist, self.edge.start))
+
+
+@dataclass(frozen=True)
+class ScriptedMapping:
+    """Supply the original historical artist-mapping stage.
+
+    Args:
+        edge: Original scripted observations and failures.
+    """
+
+    edge: PlanReads
+
+    def resolve(
+        self, selection: legacy.HistoricalArtistSelection
+    ) -> legacy.QueueArtist:
+        """Return the original mapped fallback candidate.
+
+        Args:
+            selection: Original complete historical facts.
+
+        Returns:
+            Original accepted Memory Lane candidate.
+        """
+        return self.edge.map(selection)
+
+
+def scripted_reads(edge: PlanReads) -> DiscographyReads:
+    """Bind named child-stage doubles without changing fixture oracles.
+
+    Args:
+        edge: Original scripted facts, observations and failures.
+
+    Returns:
+        Typed planning dependencies retaining original observation order.
+    """
+    return DiscographyReads(
+        ScriptedPriority(edge),
+        cast(DiscographyQueues, ScriptedQueues(edge)),
+        cast(DiscographyHistory, ScriptedHistory(edge)),
+        cast(DiscographyArtistMapping, ScriptedMapping(edge)),
+        cast(DiscographyCatalog, ScriptedCatalog(edge)),
+        edge.choose,
+        edge.progress,
+    )
+
+
 def original_plan(edge: PlanReads) -> legacy.DiscographyPlan:
     """Run the original public coordinator through observed seams.
 
@@ -318,14 +438,20 @@ def original_plan(edge: PlanReads) -> legacy.DiscographyPlan:
         "_state_access": edge.state,
     }
     with ExitStack() as stack:
-        stack.enter_context(patch.object(composition, "queues", edge.legacy_queues))
         stack.enter_context(
-            patch.object(composition, "_catalog", partial(_catalog, edge))
+            patch.object(DiscographyQueues, "run", ScriptedQueues(edge).run)
         )
         stack.enter_context(
-            patch.object(composition, "historical", partial(_history, edge))
+            patch.object(DiscographyCatalog, "run", ScriptedCatalog(edge).run)
         )
-        stack.enter_context(patch.object(composition, "_resolve", edge.map))
+        stack.enter_context(
+            patch.object(DiscographyHistory, "run", ScriptedHistory(edge).run)
+        )
+        stack.enter_context(
+            patch.object(
+                DiscographyArtistMapping, "resolve", ScriptedMapping(edge).resolve
+            )
+        )
         for name, callback in bindings.items():
             stack.enter_context(patch.object(legacy, name, callback))
         return legacy.build_discography_plan(

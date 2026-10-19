@@ -2,11 +2,8 @@
 
 from dataclasses import dataclass
 from dataclasses import field
-from datetime import datetime
-from functools import partial
 from pathlib import Path
 
-from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.release_opening import ReleaseState
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
@@ -34,6 +31,7 @@ class LegacyReleaseOpening:
         backup_dir: Original history backup location.
         history_log_path: Original history audit location.
         progress: Original progress observer.
+        state_access: Namespace access acquired after the effective clock observations.
     """
 
     lastfm: legacy.LastFmReader
@@ -58,32 +56,6 @@ class LegacyReleaseOpening:
 
         self.state_access = _state_access(self.state_path, self.state_service)
         return self.state_access.load()
-
-    def refresh(self, stamp: datetime) -> ScrobbleHistorySummary:
-        """Refresh actual history and forward optional progress.
-
-        Args:
-            stamp: Original effective UTC timestamp.
-
-        Returns:
-            Original accepted canonical history outcome.
-        """
-        progress = (
-            None if self.progress is None else partial(_history_progress, self.progress)
-        )
-        from spotify_manager.bootstrap.history import history_refresh
-
-        workflow = history_refresh(
-            self.lastfm,
-            self.export_path,
-            self.legacy_delta_path,
-            self.backup_dir,
-            self.history_log_path,
-            stamp,
-            progress,
-            None,
-        )
-        return workflow.run(self.expected_username, False, False)
 
     def rank(self, history: tuple[Scrobble, ...]) -> tuple[RankedArtist, ...]:
         """Retain the original ranking compatibility seam.

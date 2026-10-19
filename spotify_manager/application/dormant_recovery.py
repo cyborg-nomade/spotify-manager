@@ -6,6 +6,7 @@ from dataclasses import field
 from datetime import date
 from typing import Protocol
 
+from spotify_manager.application.dormant_tracks import DormantLikedTrack
 from spotify_manager.application.dormant_values import DormantArtistSummary
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
@@ -47,16 +48,6 @@ class DormantEffects(Protocol):
             Unique mapping or no unambiguous match.
         """
 
-    def track(self, artist_id: str) -> CatalogTrack | None:
-        """Read the original most popular live-liked primary-credit track.
-
-        Args:
-            artist_id: Mapped artist identity.
-
-        Returns:
-            Preferred marker or no live-liked track.
-        """
-
     def append(self, tracks: list[CatalogTrack]) -> None:
         """Accept original ordered markers.
 
@@ -79,6 +70,7 @@ class _Selection:
     """
 
     effects: DormantEffects
+    tracks: DormantLikedTrack
     playlist: PlaylistState
     echo: Callable[[str], None]
     represented: set[str]
@@ -101,7 +93,7 @@ class _Selection:
                 )
             )
             return
-        track = self.effects.track(mapped.spotify_id)
+        track = self.tracks.run(mapped.spotify_id)
         if track is None:
             self.echo(f"Skipped {candidate.name}: no liked primary-artist track.")
             self.results.append(
@@ -148,6 +140,7 @@ class DormantRecovery:
 
     Args:
         effects: Original observations and writes.
+        tracks: Named preferred liked-track selection stage.
         clock: Resolve original local date after validation.
         cancel: Original per-candidate safe boundary.
         progress: Original candidate and completion presentation.
@@ -156,6 +149,7 @@ class DormantRecovery:
     """
 
     effects: DormantEffects
+    tracks: DormantLikedTrack
     clock: Callable[[], date]
     cancel: Callable[[], None]
     progress: Callable[[int, int, str], None]
@@ -186,7 +180,9 @@ class DormantRecovery:
         represented_count = sum(
             candidate.key in represented for candidate in candidates
         )
-        selection = _Selection(self.effects, playlist, self.echo, represented)
+        selection = _Selection(
+            self.effects, self.tracks, playlist, self.echo, represented
+        )
         self._select(candidates, count, selection)
         if selection.pending and not dry_run:
             self.effects.append(selection.pending)

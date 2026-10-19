@@ -3,6 +3,8 @@
 from spotipy import Spotify
 
 from spotify_manager.application.palace_run import Palace
+from spotify_manager.bootstrap.palace_history import palace_history
+from spotify_manager.bootstrap.palace_mirror import saved_mirror
 from spotify_manager.infrastructure.legacy.palace_run import LegacyPalace
 from spotify_manager.interfaces.requests.palace import PalaceCallbacks
 from spotify_manager.interfaces.requests.palace import PalaceOptions
@@ -31,4 +33,25 @@ def palace(
 
     retry = callbacks.retry_call or _direct_retry
     edge = LegacyPalace(spotify, options, callbacks, resources, retry)
-    return Palace(edge, legacy.ALPHABETICAL_COUNT, legacy.ALBUM_MATCH_THRESHOLD)
+    mirror = saved_mirror(
+        spotify,
+        resources.albums_path,
+        resources.album_backups_dir,
+        resources.album_refresh_log_path,
+        retry,
+        callbacks.progress_callback,
+    )
+    history = palace_history(
+        resources.scrobbles_path,
+        options.today,
+        callbacks.random_index_reader,
+        callbacks.progress_callback,
+    )
+    return Palace(
+        edge,
+        mirror,
+        history,
+        legacy.HISTORY_COUNT,
+        legacy.ALPHABETICAL_COUNT,
+        legacy.ALBUM_MATCH_THRESHOLD,
+    )

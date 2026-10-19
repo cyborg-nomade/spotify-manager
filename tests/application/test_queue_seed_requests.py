@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
+from datetime import datetime
 
 import pytest
 
@@ -36,7 +37,7 @@ class Observations:
         self.events.append("history")
         yield ARTIST
 
-    def week(self) -> date:
+    def local_date(self, value: datetime | date | None = None) -> date:
         """Observe the original effective-week boundary.
 
         Returns:
@@ -50,7 +51,7 @@ def test_queue_invalid_count_precedes_history_consumption_and_week() -> None:
     """Reject an invalid count before any external or iterable observation."""
     observations = Observations()
     with pytest.raises(QueueConfigError, match="at least 1"):
-        QueueSeeds(observations.week).select(observations, 0, None)
+        QueueSeeds(observations).select(observations, 0, None)
     assert observations.events == []
 
 
@@ -58,7 +59,7 @@ def test_queue_insufficient_history_precedes_week_resolution() -> None:
     """Check available history before asking for the effective listening week."""
     observations = Observations()
     with pytest.raises(QueueStateError, match="Only 1 seed artists.*2 requested"):
-        QueueSeeds(observations.week).select(observations, 2, None)
+        QueueSeeds(observations).select(observations, 2, None)
     assert observations.events == ["history"]
 
 
@@ -70,8 +71,6 @@ def test_queue_effective_week_is_resolved_once_only_when_needed(explicit: bool) 
         explicit: Supply the original effective week directly.
     """
     observations = Observations()
-    seeds = QueueSeeds(observations.week).select(
-        observations, 1, WEEK if explicit else None
-    )
+    seeds = QueueSeeds(observations).select(observations, 1, WEEK if explicit else None)
     assert seeds[0].artist == "Artist"
     assert observations.events == (["history"] if explicit else ["history", "week"])

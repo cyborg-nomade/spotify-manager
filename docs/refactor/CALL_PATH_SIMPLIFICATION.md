@@ -169,6 +169,62 @@ discography observations in `infrastructure/discography_observations.py`,
 and annual resource effects in `infrastructure/legacy/new_year_resources.py`.
 Their reads, clocks and effects retain the original stage order.
 
+## Application-to-domain revision (2026-10-19)
+
+Fixed domain functions are imported and called at their decision sites. Historical
+selection calls the calendar and scrobble rules directly; recommendation and
+Queue stages call listening-week, ranking and release-evaluation rules directly.
+The listening calendar now only observes/converts dates. It does not choose a
+business week on behalf of the application.
+
+Coordinators receive concrete named stages, rather than `stage.run` or
+`stage.plan` callbacks. `RecommendationStages`, `SauvignonStages` and
+`QueueFillStages` group actual application objects, with explicit concrete types
+that support editor definition lookup. Catalog, playlist, state and history
+boundaries expose named methods; their implementations perform external reads
+and writes rather than running selection stages behind an adapter method.
+
+For example, follow these calls in source:
+
+```text
+BlastPlaylist.run
+  → BlastSelection.run → eligible_dates / select_scrobble
+  → HistoricalResolution.run → qualifying_matches / preferred_match
+  ← historical summary → interface presenter
+
+QueueFill.run
+  → QueueSeeds.select → listening_week_start / select_seeds
+  → QueueRecommendations.run → recommendation ranking rules
+  → QueueArtistMapping.resolve → ArtistMapping.run → artist mapping rules
+  ← fill summary → queue presenter
+
+NewYear.run
+  → AnnualPlanning.run → HistoryRefresh.run → rank_year
+  → AnnualExecution.run → AnnualCharts.run / AnnualMembership.run
+  → AnnualDiscoveries.run → AnnualImportReview.run → annual import rules
+  ← retrospective result → annual presenter
+```
+
+Palace calls its mirror and history stages directly. New Wine calls its cellar
+stage directly. Queue flush calls its planning stage, which directly invokes
+artist assessment. Release checking calls named mapping and containing-record
+stages. Discography planning calls queue, history, mapping and catalog stages
+without an infrastructure detour. The annual execution sequence has five explicit
+calls and accepted checkpoints instead of a tuple of executable callbacks.
+
+Callbacks remain appropriate for operator choices, progress, cancellation,
+external time and retry operations. `LegacyCheckpoint` only adapts retained
+callback-based Python compatibility entries into the named checkpoint port.
+Existing low-level codec and legacy maintenance override contracts remain
+listed in the retained-helper inventory; fixed domain functions are never
+supplied as executable constructor dependencies. A source guard checks this
+rule, including aliased imports, while allowing ordinary collection keys and
+real external clocks.
+
+The original expected results, ordered effects and failure/restart traces are
+unchanged. Unit coordinators use typed child-stage doubles; the actual named
+stages also execute in isolated application tests and compatibility tests.
+
 ## Acceptance and evidence
 
 - Every command/routine family has an explicit entry, use case, policy and return
@@ -241,34 +297,33 @@ recordings were not changed. New tests reject execution-facade dependencies and
 mutable facade-function lookup, prove aliases/re-exports are detected, and cover
 fresh-process entry import orders.
 
-Final verification of the 2026-10-05 revision:
+Final verification of the 2026-10-19 revision:
 
-- **10,393 tests passed**, randomized seed `20261016`.
-- Package statement coverage: **96.14%** (30,958 / 32,200); branch coverage:
-  **92.53%** (5,376 / 5,810). Both exceed the approved 95% / 90% gates.
-- Domain/application statement and branch coverage remains **100%**. Separate
-  isolated gates passed **1,201 domain** and **3,622 application** tests.
-- Ruff and formatting pass; package mypy passes **596 files**. The nine
-  dependency/fixture modules also pass strict mypy.
-- The structural audit reports no local functions/classes, compound or multiline
+- **10,417 tests passed**, randomized seed `20261019`.
+- Package statement coverage: **96.20%** (31,241 / 32,475); branch coverage:
+  **92.49%** (5,385 / 5,822). Both exceed the approved 95% / 90% gates.
+- Domain/application statement and branch coverage is **100%**. Separate isolated
+  gates passed **1,201 domain** and **3,635 application** tests. The application
+  gate now also includes the new checkpoint, Queue mapping and annual discovery
+  stages.
+- Ruff and formatting pass; package mypy passes **611 source files**. Strict
+  domain/application typing and the nine dependency/fixture modules pass.
+- The structural audit reports no local functions/classes, compound
   comprehensions, missing annotations, functions above 25 executable statements,
-  or control nesting above two in changed/new production functions. Declaration
-  imports and docstrings are excluded from executable-statement counts.
-- A fresh capture matches all **11 frozen public artifacts**, without modifying
-  baseline artifacts, SDK inventories or existing expected behavior fixtures.
-- The 20 dependency/startup/structure checks pass in the full randomized suite.
-  They reject inward execution through legacy facades and mutable function
-  lookups, including re-exported file functions and deferred aliases.
-  Added checks enforce the 13-parameter ceiling, small delivery/request
-  constructors, colocated routes, plain handlers, construction-only bootstrap,
-  and a single concrete Last.fm client constructor.
-- Local review server: **http://127.0.0.1:8766/**, restarted on the final branch.
-  Health is online, **4 / 4 sources** and shared state load, and all **20 job
-  reconnect endpoints** return 200 with no active jobs. Unlock, reload and job
-  polling were checked in the browser. This local loopback preview has no
-  configured password; enter any non-empty text to unlock. Offline integration
-  tests preserve the configured-password, choices and cancellation contracts.
-  No live routine or Spotify mutation was initiated by these smoke checks.
+  or control nesting above two in changed/new production functions. Ordinary
+  `elif` clauses are measured at their actual source indentation. Public
+  signatures retain the 13-parameter ceiling and cohesive typed inputs.
+- A fresh capture matches all **11 frozen public artifacts**. Baseline source
+  locations may move; route metadata, SDK expressions/source ownership, schemas,
+  defaults, imports and CLI contracts retain their approved comparison rules.
+  Baseline files, frontend source and expected behavior fixtures are unchanged.
+- Dependency checks reject inward execution through legacy facades, mutable
+  facade-function lookup and injected fixed domain rules. Fresh-process import
+  checks also cover the shared dated-history and discography adapters.
+- Local review server: **http://127.0.0.1:8766/** on the revised branch. Local
+  unlock uses any non-empty text. Review smoke checks cover health, source and
+  state loading, job reconnection and browser unlock/reload. No live routine or
+  Spotify mutation is part of these checks.
 
 The four hydrated local runtime-data files are excluded from the implementation
 commit and retained for review. The previous Item 7 release stashes remain intact.

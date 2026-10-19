@@ -2,7 +2,6 @@
 
 from typing import Protocol
 
-from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.new_wine_values import FlushResult
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
@@ -12,6 +11,14 @@ from spotify_manager.models.lookups import AlbumEvaluation
 
 class NewWineAccess(Protocol):
     """Read live playlists and perform each original effect at its boundary."""
+
+    @property
+    def refill_limit(self) -> int:
+        """Observe the original destination limit when refill is reached.
+
+        Returns:
+            Current configured New Wine marker limit.
+        """
 
     def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read ordered live markers.
@@ -112,29 +119,6 @@ class NewWineAccess(Protocol):
         Args:
             run_id: Original execution identifier.
             result: Original public result value.
-        """
-
-    def refill(
-        self,
-        cellar_id: str,
-        no_discovery: bool,
-        dry_run: bool,
-        state: dict[str, object],
-        run: dict[str, object],
-        projected: set[str] | None,
-    ) -> CellarRefillSummary:
-        """Compose the established cellar use case at the post-flush boundary.
-
-        Args:
-            cellar_id: Effective cellar source from saved state or current settings.
-            no_discovery: Effective library-affinity requirement.
-            dry_run: Whether to preview transfers.
-            state: Complete namespace.
-            run: Active run within the namespace.
-            projected: Preview destination membership after planned transitions.
-
-        Returns:
-            Existing refill summary.
         """
 
 

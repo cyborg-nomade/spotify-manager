@@ -3,6 +3,7 @@
 from spotipy import Spotify
 
 from spotify_manager.application.something_old_run import SomethingOld
+from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.infrastructure.legacy.something_old_run import LegacySomethingOld
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
@@ -30,4 +31,16 @@ def something_old(
         The configured application workflow.
     """
     edge = LegacySomethingOld(spotify, lastfm, options, callbacks, resources)
-    return SomethingOld(edge, legacy.MIN_ARTIST_SCROBBLES)
+    history = history_refresh(
+        lastfm,
+        resources.export_path,
+        resources.legacy_delta_path,
+        resources.backup_dir,
+        resources.history_log_path,
+        None,
+        callbacks.progress_callback,
+        None,
+    )
+    return SomethingOld(
+        edge, history, options.expected_username, legacy.MIN_ARTIST_SCROBBLES
+    )

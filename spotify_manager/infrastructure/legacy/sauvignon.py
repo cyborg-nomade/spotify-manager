@@ -1,27 +1,20 @@
 """Bind Sauvignon effects to the existing catalog, history and storage seams."""
 
 from dataclasses import dataclass
-from datetime import date
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Literal
 
 from spotipy import Spotify
 
-from spotify_manager.application.album_recommendations import choose_album
 from spotify_manager.application.sauvignon_values import SauvignonSummary
 from spotify_manager.domain.album_recommendations import AlbumKey
-from spotify_manager.domain.album_recommendations import AlbumRecommendation
 from spotify_manager.domain.album_recommendations import FirstTrack
 from spotify_manager.domain.album_recommendations import SpotifyAlbumOption
 from spotify_manager.domain.album_selection import PendingAlbum
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
-from spotify_manager.domain.recommendation_history import TrackHistory
-from spotify_manager.domain.recommendation_history import aggregate_track_history
-from spotify_manager.domain.recommendation_seeds import FoundArtSeed
 from spotify_manager.infrastructure import sauvignon_data
 from spotify_manager.infrastructure.recommendation_history import refresh_history
 from spotify_manager.routines import sauvignon as legacy
@@ -54,7 +47,6 @@ class LegacySauvignon:
     cache_path: Path
     log_path: Path
     progress: legacy.ProgressCallback | None
-    history: tuple[TrackHistory, ...] = ()
 
     def refresh(
         self, generated_at: datetime, dry_run: bool
@@ -93,51 +85,6 @@ class LegacySauvignon:
         except legacy.new_wine.NewWineError as exc:
             raise legacy.SauvignonSpotifyError(str(exc)) from exc
 
-    def seeds(
-        self, history: list[Scrobble], count: int, week: date
-    ) -> tuple[FoundArtSeed, ...]:
-        """Aggregate once and select the original weighted seeds.
-
-        Args:
-            history: Ordered canonical plays.
-            count: Requested seed count.
-            week: Effective listening week.
-
-        Returns:
-            Original ordered seeds.
-        """
-        from spotify_manager.bootstrap.recommendations import recommendation_seeds
-
-        self.history = aggregate_track_history(history)
-        return recommendation_seeds().run(self.history, count, week)
-
-    def tracks(
-        self,
-        seeds: tuple[FoundArtSeed, ...],
-        history: list[Scrobble],
-        week: date,
-        pool: int,
-        generated_at: datetime,
-    ) -> tuple[FoundArtCandidate, ...]:
-        """Gather neighborhoods with the original heard-track exclusions.
-
-        Args:
-            seeds: Selected seeds.
-            history: Canonical history, already aggregated during seed selection.
-            week: Effective listening week.
-            pool: Original candidate bound.
-            generated_at: Effective UTC time.
-
-        Returns:
-            Original ranked track candidates.
-        """
-        from spotify_manager.bootstrap.recommendations import candidate_gathering
-
-        workflow = candidate_gathering(
-            self.lastfm, self.cache_path, None, generated_at, self.progress
-        )
-        return workflow.run(seeds, {track.key for track in self.history}, week, pool)
-
     def previous(self) -> set[AlbumKey]:
         """Read original accepted-addition exclusions.
 
@@ -146,45 +93,18 @@ class LegacySauvignon:
         """
         return sauvignon_data.previously_added_album_keys(self.log_path)
 
-    def albums(
-        self,
-        candidates: tuple[FoundArtCandidate, ...],
-        excluded: set[AlbumKey],
-        existing: set[str],
-        maximum: int,
-        week: date,
-    ) -> tuple[AlbumRecommendation, ...]:
-        """Observe original ranked catalog evidence.
+    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+        """Read eligible editions through the original retry boundary.
 
         Args:
-            candidates: Original track candidates.
-            excluded: Original album exclusions.
-            existing: Represented album identities.
-            maximum: Original search bound.
-            week: Effective listening week.
+            candidate: Ranked track evidence.
 
         Returns:
-            Ordered album recommendations.
+            Original eligible catalog observations.
         """
-        from spotify_manager.bootstrap.album_recommendations import album_gathering
+        from spotify_manager.routines.sauvignon import search_candidate_albums
 
-        workflow = album_gathering(self.spotify, self.retry, self.progress)
-        return workflow.run(candidates, excluded, existing, maximum, week)
-
-    def choose(
-        self, item: AlbumRecommendation
-    ) -> SpotifyAlbumOption | Literal["skip", "quit"]:
-        """Retain the original edition choice seam.
-
-        Args:
-            item: Ranked evidence.
-
-        Returns:
-            Selected edition or control response.
-        """
-        return choose_album(
-            item, self.choice_reader, legacy.CHOICE_SKIP, legacy.CHOICE_QUIT
-        )
+        return search_candidate_albums(self.spotify, candidate, self.retry)
 
     def first(self, album: SpotifyAlbumOption) -> FirstTrack:
         """Retain the original first-track observation.

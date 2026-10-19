@@ -17,11 +17,8 @@ from spotify_manager.application.queue_values import QueueStateError
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.history import Scrobble
-from spotify_manager.domain.queue_values import ArtistHistory
-from spotify_manager.domain.queue_values import ArtistRecommendation
-from spotify_manager.domain.queue_values import ArtistSeed
 from spotify_manager.domain.release_check_values import RankedArtist
-from spotify_manager.infrastructure.recommendation_calendar import listening_week_start
+from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 from spotify_manager.infrastructure.recommendation_history import refresh_history
 from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
 from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
@@ -43,6 +40,7 @@ class LegacyQueueFill:
         options: Caller-owned options.
         callbacks: Caller-owned callbacks.
         resources: Caller-owned resources.
+        retry: Effective request retry resolved at the original validation boundary.
     """
 
     spotify: Spotify
@@ -64,7 +62,7 @@ class LegacyQueueFill:
         """
         return (self.options.now or datetime.now(UTC)).astimezone(UTC)
 
-    def week(self, now: datetime) -> date:
+    def local_date(self, now: datetime) -> date:
         """Resolve the original local listening calendar.
 
         Args:
@@ -73,7 +71,7 @@ class LegacyQueueFill:
         Returns:
             Original effective listening week.
         """
-        return listening_week_start(now)
+        return BerlinCalendar().local_date(now)
 
     def history(self, preview: bool, now: datetime) -> tuple[Sequence[Scrobble], int]:
         """Preserve original refresh parameters and narrowed error translation.
@@ -120,57 +118,21 @@ class LegacyQueueFill:
             load_playlist_tracks(self.spotify, self.options.playlists.queue, self.retry)
         )
 
-    def seeds(
-        self, history: tuple[ArtistHistory, ...], count: int, week: date
-    ) -> tuple[ArtistSeed, ...]:
-        """Retain the original seed selection seam.
+    def search(
+        self, artist: RankedArtist, text: str | None
+    ) -> tuple[SpotifyArtistCandidate, ...]:
+        """Read original artist candidates using the configured retry boundary.
 
         Args:
-            history: Original aggregated history facts.
-            count: Original requested seed count.
-            week: Original effective listening week.
+            artist: Original ranked Last.fm evidence.
+            text: Optional explicit custom query.
 
         Returns:
-            Original ordered weighted seeds.
+            Original ordered Spotify artist candidates.
         """
-        from spotify_manager.application.queue_seeds import QueueSeeds
+        from spotify_manager.routines.release_check import search_spotify_artists
 
-        return QueueSeeds(listening_week_start, legacy.SEED_POOL_MULTIPLIER).select(
-            history, count, week
-        )
-
-    def candidates(
-        self,
-        seeds: tuple[ArtistSeed, ...],
-        heard: set[str],
-        week: date,
-        limit: int,
-        now: datetime,
-    ) -> tuple[ArtistRecommendation, ...]:
-        """Retain the original recommendation gathering seam and parameters.
-
-        Args:
-            seeds: Original ordered weighted seeds.
-            heard: Original heard identities.
-            week: Original effective listening week.
-            limit: Original candidate pool size.
-            now: Original effective timestamp.
-
-        Returns:
-            Original ordered weekly recommendations.
-        """
-        from spotify_manager.bootstrap.queue_recommendations import (
-            queue_recommendations,
-        )
-
-        workflow = queue_recommendations(
-            self.lastfm,
-            self.resources.cache_path,
-            self.resources.log_path,
-            now,
-            self.callbacks.progress_callback,
-        )
-        return workflow.run(seeds, heard, week, limit)
+        return search_spotify_artists(self.spotify, artist, self.retry, text)
 
     def represented(self) -> set[str]:
         """Retain original destination read order before state loading.
@@ -213,26 +175,6 @@ class LegacyQueueFill:
         from spotify_manager.routines.the_queue import _mapped_artist
 
         return _mapped_artist(raw)
-
-    def resolve(
-        self, recommendation: ArtistRecommendation
-    ) -> SpotifyArtistCandidate | str | None:
-        """Preserve original ranked facts and interaction adaptation.
-
-        Args:
-            recommendation: Original current recommendation.
-
-        Returns:
-            Original mapping, skip, quit or no-match outcome.
-        """
-        from spotify_manager.bootstrap.artist_mapping import artist_mapping
-        from spotify_manager.routines.the_queue import _mapping_choice_reader
-
-        ranked = RankedArtist(
-            recommendation.key, recommendation.artist, 0, recommendation.base_rank
-        )
-        reader = _mapping_choice_reader(self.callbacks.choice_reader, recommendation)
-        return artist_mapping(self.spotify, reader, self.retry).run(ranked)
 
     def top_tracks(self, artist: SpotifyArtistCandidate) -> tuple[CatalogTrack, ...]:
         """Read original ordered top tracks.

@@ -8,6 +8,7 @@ from typing import cast
 
 from spotify_manager.application.queue_flush_effects import QueueFlushEffects
 from spotify_manager.application.queue_flush_execution import QueueFlushExecution
+from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.application.queue_flush_values import FlushResult
 from spotify_manager.application.queue_flush_values import FlushSummary
 from spotify_manager.application.queue_flush_values import QueueFlushFacts
@@ -55,9 +56,11 @@ class QueueFlush:
 
     Args:
         effects: Original caller-owned storage, catalog and effect boundaries.
+        planning: Named catalog observation and Queue decision stage.
     """
 
     effects: QueueFlushEffects
+    planning: QueuePlanning
 
     def run(self, preview: bool) -> FlushSummary:
         """Open or resume the original daily snapshot and process unfinished entries.
@@ -170,7 +173,7 @@ class QueueFlush:
         raw_plan = entry.get("plan")
         if isinstance(raw_plan, dict):
             return raw_plan
-        plan = self.effects.plan(source, source_uris(facts.tracks, source))
+        plan = self.planning.record(source, source_uris(facts.tracks, source))
         entry["plan"] = plan
         if not preview:
             access.save(state)

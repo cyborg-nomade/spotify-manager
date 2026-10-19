@@ -228,3 +228,87 @@ def _matched_aliases(aliases: dict[str, str], functions: set[str]) -> list[str]:
         if target in functions:
             matched.append(alias)
     return matched
+
+
+def injected_policies(source: str, policies: set[str]) -> list[str]:
+    """Find fixed domain functions supplied as executable dependencies.
+
+    Args:
+        source: Python source inspected without importing the application.
+        policies: Qualified domain functions that must be called directly.
+
+    Returns:
+        Original line numbers and qualified injected functions.
+    """
+    tree = ast.parse(source)
+    outer = _import_bindings(tree.body)
+    result = []
+    for node in tree.body:
+        result.extend(_node_policies(node, outer, policies))
+    return sorted(set(result))
+
+
+def _node_policies(node: ast.AST, outer: Bindings, policies: set[str]) -> list[str]:
+    if isinstance(node, ast.FunctionDef):
+        return _policy_arguments(node, _function_bindings(node, outer), policies)
+    if not isinstance(node, ast.ClassDef):
+        return _policy_arguments(node, outer, policies)
+    result = []
+    for child in node.body:
+        result.extend(_node_policies(child, outer, policies))
+    return result
+
+
+def _policy_arguments(
+    tree: ast.AST, bindings: Bindings, policies: set[str]
+) -> list[str]:
+    result = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or _collection_operation(node):
+            continue
+        result.extend(_call_policies(node, bindings, policies))
+    return result
+
+
+def _call_policies(call: ast.Call, bindings: Bindings, policies: set[str]) -> list[str]:
+    arguments = [*call.args, *(item.value for item in call.keywords)]
+    result = []
+    for argument in arguments:
+        target = _target(argument, bindings)
+        if target in policies:
+            result.append(f"{argument.lineno}: {target}")
+    return result
+
+
+def _collection_operation(node: ast.Call) -> bool:
+    return isinstance(node.func, ast.Name) and node.func.id in {
+        "sorted",
+        "min",
+        "max",
+        "map",
+        "filter",
+    }
+
+
+def domain_functions(root: Path) -> set[str]:
+    """Inventory fixed domain functions without importing configuration or clients.
+
+    Args:
+        root: Repository root containing the production domain package.
+
+    Returns:
+        Qualified module-level domain functions, excluding data constructors.
+    """
+    result = set()
+    for path in (root / "spotify_manager/domain").rglob("*.py"):
+        result.update(_module_functions(path, root))
+    return result
+
+
+def _module_functions(path: Path, root: Path) -> set[str]:
+    module = ".".join(path.relative_to(root).with_suffix("").parts)
+    result = set()
+    for node in ast.parse(path.read_text()).body:
+        if isinstance(node, ast.FunctionDef):
+            result.add(f"{module}.{node.name}")
+    return result

@@ -5,12 +5,12 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.checkpoints import StateWriter
 from spotify_manager.application.library_affinity import library_affinity
 from spotify_manager.application.new_wine_values import CellarRefillResult
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.wine_cellar import Inventory
 from spotify_manager.application.wine_cellar import LibraryCounts
-from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.routines import new_wine as legacy
@@ -31,7 +31,7 @@ class WineCellarAccess:
 
     client: Spotify
     retry: RetryCall
-    state_access: RoutineState
+    state_access: StateWriter
     log_path: Path
     liked_path: Path
     albums_path: Path

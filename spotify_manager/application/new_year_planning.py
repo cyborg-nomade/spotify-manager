@@ -4,14 +4,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import tzinfo
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.new_year_resolution import AnnualResolution
 from spotify_manager.application.new_year_values import NewYearError
 from spotify_manager.application.new_year_values import RetrospectivePlan
+from spotify_manager.application.ports.annual import AnnualPlaylist
 from spotify_manager.domain.annual_history import YearEntry
 from spotify_manager.domain.annual_history import rank_year
 from spotify_manager.domain.annual_selection import existing_primary_marker
 from spotify_manager.domain.catalog import PlaylistTrack
-from spotify_manager.domain.history import Scrobble
 
 
 @dataclass(frozen=True)
@@ -20,14 +21,16 @@ class AnnualPlanning:
 
     Args:
         history: Original full rebuild, retaining preview publication semantics.
-        playlist: Original complete fresh playlist marker facts.
+        username: Original expected canonical history account.
+        catalog: Named external catalog observations used by this stage.
         resolution: Original track, album and primary artist lookup boundaries.
         echo: Original visible planning presenter.
         timezone: Original annual calendar timezone.
     """
 
-    history: Callable[[bool], tuple[Scrobble, ...]]
-    playlist: Callable[[str], tuple[PlaylistTrack, ...]]
+    history: HistoryRefresh
+    username: str | None
+    catalog: AnnualPlaylist
     resolution: AnnualResolution
     echo: Callable[[str], None]
     timezone: tzinfo
@@ -52,7 +55,8 @@ class AnnualPlanning:
         self.echo(
             "Rebuilding complete Last.fm history before ranking the previous year"
         )
-        ranked = rank_year(self.history(preview), year, self.timezone)
+        history = self.history.run(self.username, preview, True).history
+        ranked = rank_year(history, year, self.timezone)
         if not ranked["tracks"]:
             raise NewYearError(f"No scrobbles found for {year}.")
         plan: RetrospectivePlan = {
@@ -60,11 +64,11 @@ class AnnualPlanning:
             "albums": ranked["albums"][:20],
             "artists": ranked["artists"][:5],
             "destinations": destinations,
-            "obsessions": [track.uri for track in self.playlist(obsessions)],
+            "obsessions": [track.uri for track in self.catalog.playlist(obsessions)],
         }
         self._tracks(plan["tracks"])
         self._albums(plan["albums"])
-        memory = self.playlist(destinations["memory"])
+        memory = self.catalog.playlist(destinations["memory"])
         self._artists(plan["artists"], ranked["tracks"], memory)
         return plan
 
@@ -102,6 +106,6 @@ class AnnualPlanning:
             if candidate["artist"].casefold() != artist["artist"].casefold():
                 continue
             uri = self.resolution.track(candidate)
-            if self.resolution.primary(uri) == identity:
+            if self.resolution.catalog.primary(uri) == identity:
                 return uri
         raise NewYearError(f"No primary-artist track for {artist['artist']}.")

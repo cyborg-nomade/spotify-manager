@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import cast
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.something_old_effects import SomethingOldEffects
 from spotify_manager.application.something_old_values import SomethingOldError
@@ -86,10 +87,14 @@ class SomethingOld:
 
     Args:
         effects: Original caller-owned observations, choices and accepted effects.
+        history: Named complete canonical history or historical-selection stage.
+        username: Original expected canonical history account.
         minimum_plays: Original configured eligibility threshold for error text.
     """
 
     effects: SomethingOldEffects
+    history: HistoryRefresh
+    username: str | None
     minimum_plays: int = 50
 
     def run(self, playlist: str, preview: bool) -> SomethingOldSummary:
@@ -111,7 +116,7 @@ class SomethingOld:
         size = self.effects.playlist_length(False)
         if size:
             return _nonempty(now, playlist, size, preview)
-        history = self.effects.history(now, preview)
+        history = self.history.run(self.username, preview, False, now)
         self.effects.progress("Calculating Golden Oldies average scrobble dates")
         ranking = self.effects.ranking(history.history)
         if not ranking:

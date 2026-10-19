@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Protocol
 from typing import cast
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.release_check_values import ReleaseCheckError
 from spotify_manager.application.release_check_values import ReleaseCheckStateError
@@ -27,16 +28,6 @@ class ReleaseOpeningEffects(Protocol):
 
         Returns:
             Original normalized payload, including unknown fields.
-        """
-
-    def refresh(self, stamp: datetime) -> ScrobbleHistorySummary:
-        """Perform original actual history refresh even during a release preview.
-
-        Args:
-            stamp: Original effective UTC timestamp.
-
-        Returns:
-            Original accepted history outcome.
         """
 
     def rank(self, history: tuple[Scrobble, ...]) -> tuple[RankedArtist, ...]:
@@ -157,6 +148,8 @@ class ReleaseRunOpening:
 
     Args:
         effects: Original history, durable state and accepted-start boundaries.
+        history: Named complete canonical history or historical-selection stage.
+        username: Original expected canonical history account.
         clock: Original effective UTC clock.
         local_date: Original local calendar conversion.
         run_id: Original sortable run identifier.
@@ -164,6 +157,8 @@ class ReleaseRunOpening:
     """
 
     effects: ReleaseOpeningEffects
+    history: HistoryRefresh
+    username: str | None
     clock: Callable[[], datetime]
     local_date: Callable[[datetime], date]
     run_id: Callable[[datetime], str]
@@ -225,7 +220,7 @@ class ReleaseRunOpening:
         state: ReleaseState,
         dry_run: bool,
     ) -> OpenedReleaseRun:
-        refreshed = self.effects.refresh(stamp)
+        refreshed = self.history.run(self.username, False, False, stamp)
         artists = self.effects.rank(refreshed.history)
         if not artists:
             raise ReleaseCheckError(

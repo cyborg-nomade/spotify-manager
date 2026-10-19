@@ -3,10 +3,12 @@
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
 from spotify_manager.application.discovery_completion import DiscoveryCompletion
+from spotify_manager.application.discovery_destinations import GreatDiscoveries
 from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.discovery_observations import DiscoveryObservations
 from spotify_manager.application.discovery_review import DiscoveryReview
@@ -15,6 +17,7 @@ from spotify_manager.application.new_kids_planner import NewKidsPlanner
 from spotify_manager.application.new_kids_values import NewKidsStateError
 from spotify_manager.domain.composers import OwnedPlaylist
 from tests.support.discovery_effects import MemoryEffects
+from tests.support.discovery_effects import ScriptedGreatDiscoveries
 from tests.support.discovery_memory import MemoryDiscovery
 from tests.support.discovery_values import release
 from tests.support.discovery_values import track
@@ -63,7 +66,15 @@ def _case(
     }
     library = DiscoveryLibraryReconciliation(effects, effects, effects, preview)
     completion = DiscoveryCompletion(
-        effects, effects, state, 2026, "newfoundland", "unlucky", preview
+        effects,
+        effects,
+        state,
+        2026,
+        "newfoundland",
+        "unlucky",
+        preview,
+        cast(GreatDiscoveries, ScriptedGreatDiscoveries(effects)),
+        "great",
     )
     execution = NewKidsExecution(
         effects,

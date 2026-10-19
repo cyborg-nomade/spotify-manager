@@ -37,17 +37,6 @@ class DiscoveryEffects(Protocol):
             Mutable artist and track identifier sets from live markers.
         """
 
-    def great_playlist(self, state: dict[str, object], dry_run: bool) -> str | None:
-        """Resolve the current-year destination using existing creation/checkpoints.
-
-        Args:
-            state: Mutable complete review namespace.
-            dry_run: Whether creation is previewed.
-
-        Returns:
-            Accepted playlist identifier or None for a preview of creation.
-        """
-
     def followed(self, artist_id: str, artist_name: str) -> bool:
         """Read the original tolerant artist-follow response.
 

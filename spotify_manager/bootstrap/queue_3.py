@@ -9,13 +9,13 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.checkpoints import Checkpoint
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.application.queue_3_execution import Queue3Execution
 from spotify_manager.application.queue_3_import import AnnualDiscoveryImport
 from spotify_manager.application.queue_3_planner import Queue3Planner
 from spotify_manager.application.queue_3_planner import TransitionReader
-from spotify_manager.application.queue_3_planner import stable_release_order
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
 from spotify_manager.bootstrap.new_kids import library_reconciliation
 from spotify_manager.core.state.service import StateService
@@ -54,9 +54,7 @@ def annual_import(
     access = LegacyAnnualImport(client, retry, log_path)
     presentation = Queue3Presenter(echo)
     return AnnualDiscoveryImport(
-        access.read,
-        access.append,
-        access.audit,
+        access,
         state_access,
         presentation.imported,
         _now,
@@ -73,7 +71,7 @@ def review_planner(
     tracks: dict[str, tuple[ReleaseTrack, ...]],
     liked: dict[str, bool],
     orders: dict[str, object],
-    persist: Callable[[], None],
+    persist: Checkpoint,
     choose: TransitionReader,
 ) -> Queue3Planner:
     """Compose chronological planning with caller-owned observations and checkpoints.
@@ -91,8 +89,8 @@ def review_planner(
         Injected planner retaining original request and choice ordering.
     """
     catalog = LegacyQueue3Catalog(client, retry, liked)
-    ordering = ReleaseOrdering(stable_release_order, orders, persist)
-    return Queue3Planner(catalog.tracks, catalog.evaluate, tracks, ordering, choose)
+    ordering = ReleaseOrdering(None, orders, persist)
+    return Queue3Planner(catalog, tracks, ordering, choose)
 
 
 def _no_checkpoint() -> None:
@@ -130,9 +128,7 @@ def review_execution(
     library = library_reconciliation(
         client, retry, albums_path, removed_path, log_path, echo, dry_run
     )
-    return Queue3Execution(
-        access.append, access.remove, library.reconcile, Queue3Presenter(echo), dry_run
-    )
+    return Queue3Execution(access, library, Queue3Presenter(echo), dry_run)
 
 
 @dataclass(frozen=True)

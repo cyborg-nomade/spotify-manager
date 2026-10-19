@@ -4,12 +4,10 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
-from spotify_manager.application.future_release import matching_future_record
 from spotify_manager.application.release_check_values import ReleaseCheckSpotifyError
 from spotify_manager.application.release_opening import ReleaseState
 from spotify_manager.core.state.compat import RoutineState
@@ -159,19 +157,6 @@ class LegacyReleaseRun:
 
         return _mapped_artist(raw)
 
-    def resolve(self, artist: RankedArtist) -> SpotifyArtistCandidate | str | None:
-        """Retain original artist interaction and synchronous search seam.
-
-        Args:
-            artist: Original frozen ranked artist.
-
-        Returns:
-            Original mapping, control choice or no search result.
-        """
-        from spotify_manager.bootstrap.artist_mapping import artist_mapping
-
-        return artist_mapping(self.spotify, self.artist_reader, self.retry).run(artist)
-
     def catalog(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate, start: date
     ) -> tuple[ReleaseCandidate, ...]:
@@ -215,27 +200,6 @@ class LegacyReleaseRun:
 
         tracks = load_release_tracks(self.spotify, release, self.retry, first_only=True)
         return tracks[0] if tracks else None
-
-    def match(
-        self,
-        track: ReleaseTrack,
-        records: tuple[ReleaseCandidate, ...],
-        cache: dict[str, tuple[ReleaseTrack, ...]],
-    ) -> ReleaseCandidate | None:
-        """Retain ordered containing-record matching and the original shared cache.
-
-        Args:
-            track: Original single marker.
-            records: Original ordered candidate records.
-            cache: Original per-artist track cache.
-
-        Returns:
-            Original first containing record or no match.
-        """
-        from spotify_manager.routines.release_check import load_release_tracks
-
-        reader = partial(load_release_tracks, self.spotify, retry_call=self.retry)
-        return matching_future_record(reader, track, records, cache)
 
     def add(
         self,

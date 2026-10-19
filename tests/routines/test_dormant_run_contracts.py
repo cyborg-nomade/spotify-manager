@@ -4,13 +4,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
+from functools import partialmethod
 from typing import cast
 
 import pytest
-from functools import partialmethod
-from spotify_manager.infrastructure.legacy.dormant_artists import LegacyDormantRecovery
 from spotipy import Spotify
 
+from spotify_manager.application.dormant_tracks import DormantLikedTrack
+from spotify_manager.infrastructure.legacy.dormant_tracks import LegacyDormantCatalog
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import blast_from_past_artists as legacy
 from spotify_manager.routines import new_kids
@@ -142,7 +143,7 @@ def _bind(monkeypatch: pytest.MonkeyPatch, effects: Observations) -> None:
     monkeypatch.setattr(legacy, "dormant_artists", effects.candidates)
     monkeypatch.setattr(blast, "load_playlist_state", effects.read)
     monkeypatch.setattr(legacy, "_spotify_artist", effects.mapping)
-    monkeypatch.setattr(LegacyDormantRecovery, "track", partialmethod(_track, effects))
+    monkeypatch.setattr(DormantLikedTrack, "run", partialmethod(_track, effects))
     monkeypatch.setattr(blast, "add_spotify_matches", effects.append)
 
 
@@ -213,8 +214,9 @@ def test_original_dormant_preview(
 
 
 def _track(
-    resources: LegacyDormantRecovery,
+    resources: DormantLikedTrack,
     effects: Observations,
     artist: str,
 ) -> new_kids.CatalogTrack:
-    return effects.track(resources.spotify, artist, resources.retry)
+    catalog = cast(LegacyDormantCatalog, resources.catalog)
+    return effects.track(catalog.spotify, artist, catalog.retry)

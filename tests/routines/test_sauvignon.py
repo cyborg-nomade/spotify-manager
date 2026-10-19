@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from spotify_manager.infrastructure.legacy import sauvignon as sauvignon_integration
+from spotify_manager.application import sauvignon_run as sauvignon_integration
+from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
 from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
 from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
@@ -393,9 +396,9 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
             ),
         ),
     )
-    monkeypatch.setattr(LegacySauvignon, "seeds", lambda *_args, **_kwargs: (seed,))
+    monkeypatch.setattr(RecommendationSeeds, "run", lambda *_args, **_kwargs: (seed,))
     monkeypatch.setattr(
-        LegacySauvignon, "tracks", lambda *_args, **_kwargs: (candidate,)
+        CandidateGathering, "run", lambda *_args, **_kwargs: (candidate,)
     )
     monkeypatch.setattr(
         sauvignon.new_wine,
@@ -403,7 +406,7 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        LegacySauvignon, "albums", lambda *_args, **_kwargs: (album_recommendation,)
+        AlbumGathering, "run", lambda *_args, **_kwargs: (album_recommendation,)
     )
     monkeypatch.setattr(
         sauvignon,
@@ -482,8 +485,8 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         ),
     )
     monkeypatch.setattr(
-        LegacySauvignon,
-        "seeds",
+        RecommendationSeeds,
+        "run",
         lambda *_args, **_kwargs: (
             found_art.FoundArtSeed(
                 "Seed",
@@ -497,7 +500,7 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         ),
     )
     monkeypatch.setattr(
-        LegacySauvignon, "tracks", lambda *_args, **_kwargs: (track_candidate(),)
+        CandidateGathering, "run", lambda *_args, **_kwargs: (track_candidate(),)
     )
     monkeypatch.setattr(
         sauvignon.new_wine,
@@ -505,7 +508,7 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        LegacySauvignon, "albums", lambda *_args, **_kwargs: recommendations
+        AlbumGathering, "run", lambda *_args, **_kwargs: recommendations
     )
     monkeypatch.setattr(
         sauvignon,

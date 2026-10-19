@@ -7,7 +7,6 @@ from functools import partial
 
 from spotipy import Spotify
 
-from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.something_old_values import SomethingOldSummary
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
@@ -77,30 +76,6 @@ class LegacySomethingOld:
             self.callbacks.retry_call,
             description,
         ).total_items
-
-    def history(self, now: datetime, preview: bool) -> ScrobbleHistorySummary:
-        """Retain original refresh parameters and history publication behavior.
-
-        Args:
-            now: Original effective timestamp.
-            preview: Original preview behavior.
-
-        Returns:
-            Original complete history refresh summary.
-        """
-        from spotify_manager.bootstrap.history import history_refresh
-
-        workflow = history_refresh(
-            self.lastfm,
-            self.resources.export_path,
-            self.resources.legacy_delta_path,
-            self.resources.backup_dir,
-            self.resources.history_log_path,
-            now,
-            self.callbacks.progress_callback,
-            None,
-        )
-        return workflow.run(self.options.expected_username, preview, False)
 
     def ranking(self, history: tuple[Scrobble, ...]) -> tuple[GoldenOldieArtist, ...]:
         """Retain the original configured Golden Oldies ranking seam.

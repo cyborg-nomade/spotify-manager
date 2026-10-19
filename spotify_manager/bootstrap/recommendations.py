@@ -12,7 +12,11 @@ from spotify_manager.application.recommendation_resolution import (
     RecommendationResolution,
 )
 from spotify_manager.application.recommendation_run import RecommendationRun
+from spotify_manager.application.recommendation_run import RecommendationStages
 from spotify_manager.application.recommendation_seeds import RecommendationSeeds
+from spotify_manager.infrastructure.legacy.recommendation_matches import (
+    LegacyRecommendationMatches,
+)
 from spotify_manager.infrastructure.legacy.recommendations import LegacyNeighborhoods
 from spotify_manager.infrastructure.legacy.recommendations import (
     LegacyRecommendationRun,
@@ -26,12 +30,10 @@ def recommendation_seeds() -> RecommendationSeeds:
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.infrastructure.recommendation_calendar import (
-        listening_week_start,
-    )
+    from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 
     workflow = RecommendationSeeds(
-        listening_week_start,
+        BerlinCalendar(),
         legacy.WEEKLY_SEED_POOL_MULTIPLIER,
         legacy.MAX_SEEDS_PER_ARTIST,
     )
@@ -66,16 +68,13 @@ def candidate_gathering(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.infrastructure.recommendation_calendar import (
-        listening_week_start,
-    )
+    from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 
     observations = LegacyNeighborhoods(lastfm, cache_path, log_path)
     workflow = CandidateGathering(
         observations,
-        observations.neighbors,
         partial(_generated_at, now),
-        listening_week_start,
+        BerlinCalendar(),
         partial(_progress, progress),
     )
     return workflow
@@ -93,12 +92,8 @@ def recommendation_resolution(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.routines.blast_from_past import liked_spotify_track_ids
-    from spotify_manager.routines.blast_from_past import search_spotify_matches
-
     workflow = RecommendationResolution(
-        partial(search_spotify_matches, sp),
-        partial(liked_spotify_track_ids, sp),
+        LegacyRecommendationMatches(sp),
         partial(_progress, progress),
         legacy.SPOTIFY_RESOLUTION_BATCH_SIZE,
         legacy.SPOTIFY_CANDIDATE_MULTIPLIER,
@@ -133,9 +128,7 @@ def recommendation_run(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.infrastructure.recommendation_calendar import (
-        listening_week_start,
-    )
+    from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 
     effects = LegacyRecommendationRun(
         sp,
@@ -149,8 +142,13 @@ def recommendation_run(
     )
     workflow = RecommendationRun(
         effects,
+        RecommendationStages(
+            recommendation_seeds(),
+            candidate_gathering(lastfm, cache_path, log_path, None, progress),
+            recommendation_resolution(sp, progress),
+        ),
         partial(_generated_at, now),
-        listening_week_start,
+        BerlinCalendar(),
         partial(_progress, progress),
         legacy.DEFAULT_COUNT,
         legacy.MIN_WEEKLY_CANDIDATE_POOL,

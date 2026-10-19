@@ -9,8 +9,13 @@ from datetime import date
 from datetime import datetime
 from typing import cast
 
+from spotify_manager.application.artist_mapping import ArtistMapping
+from spotify_manager.application.future_release import FutureRecordMatching
 from spotify_manager.application.release_opening import OpenedReleaseRun
 from spotify_manager.application.release_opening import ReleaseState
+from spotify_manager.application.release_progress import ReleaseProgress
+from spotify_manager.application.release_review import ReleaseChoiceReader
+from spotify_manager.application.release_run import ReleaseRun
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.release_check import membership
@@ -478,3 +483,82 @@ class Effects:
         destination_membership.track_ids.add(track.spotify_id)
         self._event("add:" + destination, track.spotify_id, preview)
         return "would add" if preview else "added"
+
+
+@dataclass(frozen=True)
+class ScriptedMapping:
+    """Supply the existing isolated artist-mapping stage oracle.
+
+    Args:
+        effects: Original accepted effects and scripted artist choices.
+    """
+
+    effects: Effects
+
+    def run(self, artist: RankedArtist) -> SpotifyArtistCandidate | str | None:
+        """Observe the original mapping stage.
+
+        Args:
+            artist: Original frozen ranked artist.
+
+        Returns:
+            Original accepted mapping or operator control.
+        """
+        return self.effects.resolve(artist)
+
+
+@dataclass(frozen=True)
+class ScriptedMatching:
+    """Supply the existing isolated containing-record stage oracle.
+
+    Args:
+        effects: Original scripted catalog and accepted reads.
+    """
+
+    effects: Effects
+
+    def run(
+        self,
+        track: ReleaseTrack,
+        records: tuple[ReleaseCandidate, ...],
+        cache: dict[str, tuple[ReleaseTrack, ...]],
+    ) -> ReleaseCandidate | None:
+        """Observe the original containing-record stage.
+
+        Args:
+            track: Original selected single marker.
+            records: Ordered eligible records.
+            cache: Shared observed release-track lists.
+
+        Returns:
+            Original matching record or no match.
+        """
+        return self.effects.match(track, records, cache)
+
+
+def release_workflow(
+    progress: ReleaseProgress,
+    wine: str,
+    vintage: str,
+    reader: ReleaseChoiceReader | None,
+) -> ReleaseRun:
+    """Bind the original isolated coordinator to explicit named child stages.
+
+    Args:
+        progress: Original accepted restart authority.
+        wine: Original destination identity.
+        vintage: Original alternate destination identity.
+        reader: Original optional operator choices.
+
+    Returns:
+        Coordinator retaining every existing scripted stage observation.
+    """
+    effects = cast(Effects, progress.effects)
+    return ReleaseRun(
+        progress,
+        wine,
+        vintage,
+        reader,
+        cast(ArtistMapping, ScriptedMapping(effects)),
+        cast(FutureRecordMatching, ScriptedMatching(effects)),
+    )

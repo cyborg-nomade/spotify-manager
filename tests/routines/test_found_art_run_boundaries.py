@@ -11,6 +11,11 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_resolution import (
+    RecommendationResolution,
+)
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.infrastructure.legacy.recommendations import (
     LegacyRecommendationRun,
 )
@@ -192,9 +197,9 @@ class RunSteps:
 def _install(steps: RunSteps, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(LegacyRecommendationRun, "refresh", steps.history)
     monkeypatch.setattr(LegacyRecommendationRun, "read", steps.read)
-    monkeypatch.setattr(LegacyRecommendationRun, "seeds", steps.seeds)
-    monkeypatch.setattr(LegacyRecommendationRun, "gather", steps.gather)
-    monkeypatch.setattr(LegacyRecommendationRun, "resolve", steps.resolve)
+    monkeypatch.setattr(RecommendationSeeds, "run", steps.seeds)
+    monkeypatch.setattr(CandidateGathering, "run", steps.gather)
+    monkeypatch.setattr(RecommendationResolution, "run", steps.resolve)
     monkeypatch.setattr(LegacyRecommendationRun, "append", steps.append)
     monkeypatch.setattr(LegacyRecommendationRun, "audit", steps.audit)
 

@@ -10,7 +10,6 @@ from spotify_manager.application.queue_3_values import Queue3Error
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
-from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import new_wine
 
 
@@ -125,20 +124,18 @@ class LegacyQueue3Catalog:
 
         return load_release_tracks(self.client, release, self.retry)
 
-    def evaluate(
+    def memberships(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
-    ) -> AlbumEvaluation:
-        """Observe live liked statuses before evaluating a completed edition.
+    ) -> dict[str, bool]:
+        """Observe live liked statuses for a completed edition.
 
         Args:
             release: Completed preferred edition.
             tracks: Previously observed complete ordered track list.
 
         Returns:
-            Original album evaluation with per-track live memberships.
+            Original run-scoped liked statuses, without applying retention policy.
         """
-        from spotify_manager.application.release_evaluation import evaluate_release
-        from spotify_manager.domain.catalog import release_candidate
         from spotify_manager.routines.new_wine import get_liked_statuses
 
         get_liked_statuses(
@@ -147,4 +144,15 @@ class LegacyQueue3Catalog:
             self.liked,
             self.retry,
         )
-        return evaluate_release(release_candidate(release), tracks, self.liked)
+        return self.liked
+
+    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+        """Read the selected edition through the original catalog boundary.
+
+        Args:
+            release: Preferred studio edition.
+
+        Returns:
+            Original playable tracks in disc and track order.
+        """
+        return self.tracks(release)

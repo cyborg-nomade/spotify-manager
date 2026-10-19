@@ -149,6 +149,16 @@ callbacks to the shared operation. Application workflows retain Spotify mutation
 order and persistence/recovery sequencing; domain policies retain eligibility and
 selection. Results return to CLI or HTTP presenters. Concrete infrastructure
 bindings use explicit imports rather than mutable routine-module function lookup.
+Fixed domain rules are direct imports and calls in the application. Concrete
+stage objects expose named `run`, `plan` or `resolve` methods; coordinators call
+those methods directly instead of receiving bound-method callbacks. Cohesive
+external resource objects expose catalog, playlist, history and state methods.
+Application stages stay visible in the application path, including child history
+refreshes, annual imports, release matching and Wine Cellar refill. Genuine
+operator, notification, cancellation, retry and clock callbacks remain at their
+interaction boundaries. The [call-path guide](refactor/CALL_PATH_SIMPLIFICATION.md)
+shows the entry, decision and result paths by family.
+
 The [retained helper inventory](refactor/RETAINED_LEGACY_HELPERS.md) records the
 remaining compatibility and frozen SDK source boundaries.
 

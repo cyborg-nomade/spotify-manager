@@ -1,10 +1,14 @@
 """Typed in-memory Queue planning ports for frozen original fact scenarios."""
 
 import json
-from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import replace
+from functools import partial
+from typing import cast
+from unittest.mock import patch
 
+from spotify_manager.application import queue_flush_planning as queue_planning
+from spotify_manager.application.artist_assessment import AssessmentCatalog
 from spotify_manager.application.new_kids_values import ArtistAssessment
 from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.domain.discovery import CatalogTrack
@@ -122,5 +126,19 @@ def application_outcome(case: dict[str, object]) -> object:
         JSON-compatible original plan and ordered read observations.
     """
     edge = observations(case)
-    plan = QueuePlanning(MemoryQueuePlanning(edge)).run(SOURCE, [SOURCE.uri])
-    return json.loads(json.dumps({"plan": asdict(plan), "trace": edge.trace}))
+    memory = MemoryQueuePlanning(edge)
+    with patch.object(queue_planning, "assess_artist", partial(_assessment, memory)):
+        plan = QueuePlanning(memory, cast(AssessmentCatalog, memory)).record(
+            SOURCE, [SOURCE.uri]
+        )
+    return json.loads(json.dumps({"plan": plan, "trace": edge.trace}))
+
+
+def _assessment(
+    memory: MemoryQueuePlanning,
+    access: AssessmentCatalog,
+    artist: str,
+    catalog: tuple[RankedRelease, ...],
+    cache: dict[str, tuple[CatalogTrack, ...]],
+) -> ArtistAssessment:
+    return memory.assessment(artist, catalog, cache)

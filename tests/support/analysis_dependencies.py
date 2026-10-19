@@ -47,5 +47,4 @@ def observed_analysis_publication() -> AnalysisPublication:
         legacy.current_stats_history_key,
         backups.manifest_summaries,
         backups.resource_manifest_summary,
-        legacy._live_resource_config,
     )

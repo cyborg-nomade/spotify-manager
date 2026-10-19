@@ -29,6 +29,16 @@ a future targeted refactor; its current integration contracts still apply.
 
 ## Decision
 
+The owner approved a further application-to-domain simplification on 2026-10-19.
+Fixed domain rules are direct imports and calls, not constructor-supplied
+functions. Application stages are named functions or concrete stage objects;
+do not pass their bound methods as dependencies. External reads/writes use
+cohesive objects with meaningful methods. Keep callbacks for actual operator
+choices, notifications, cancellation, retry and time observations. Integration
+adapters must not execute a hidden application stage. Tests use fake boundary
+objects and named child-stage doubles while preserving existing behavior oracles.
+This extends Item 7a and does not approve its deployment or merge.
+
 The owner's 2026-10-05 review tightens this decision before any async work:
 route declarations must sit beside their endpoint functions, and the normal
 path through named application functions, domain rules and presenters must be

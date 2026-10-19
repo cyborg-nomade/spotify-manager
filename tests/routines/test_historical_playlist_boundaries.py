@@ -13,9 +13,10 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.historical_resolution import HistoricalResolution
 from spotify_manager.bootstrap import historical_playlists as composition
 from spotify_manager.infrastructure.legacy.historical_playlists import (
-    LegacyHistoricalPlaylist,
+    LegacyHistoricalMatches,
 )
 from spotify_manager.interfaces.operations import blast_from_past as blast_execution
 from spotify_manager.interfaces.operations import daily_mind_radio as radio_execution
@@ -210,9 +211,7 @@ def _install(steps: HistoricalSteps, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         radio_execution, "anniversary_selection", partial(_radio, steps)
     )
-    monkeypatch.setattr(
-        LegacyHistoricalPlaylist, "resolve", partialmethod(_resolve, steps)
-    )
+    monkeypatch.setattr(HistoricalResolution, "run", partialmethod(_resolve, steps))
     monkeypatch.setattr(blast, "add_spotify_matches", steps.append)
 
 
@@ -335,16 +334,17 @@ def _radio(
 
 
 def _resolve(
-    resources: LegacyHistoricalPlaylist,
+    resources: HistoricalResolution,
     steps: HistoricalSteps,
     selections: tuple[blast.ScrobbleSelection, ...],
     playlist: blast.PlaylistState,
 ) -> blast.SpotifySelectionResolution:
+    catalog = cast(LegacyHistoricalMatches, resources.catalog)
     return steps.resolve(
-        resources.client,
+        catalog.client,
         selections,
         playlist,
         resources.progress,
-        resources.retry,
-        resources.cancel,
+        catalog.retry,
+        catalog.cancel,
     )

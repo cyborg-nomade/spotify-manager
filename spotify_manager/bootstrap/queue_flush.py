@@ -5,8 +5,13 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.queue_flush import QueueFlush
+from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.core.state.service import StateService
+from spotify_manager.infrastructure.legacy.artist_assessment import (
+    LegacyAssessmentCatalog,
+)
 from spotify_manager.infrastructure.legacy.queue_flush import LegacyQueueFlush
+from spotify_manager.infrastructure.legacy.queue_planning import LegacyQueuePlanning
 from spotify_manager.routines import the_queue as legacy
 
 
@@ -48,4 +53,9 @@ def queue_flush(
         log_path,
         artists_path,
     )
-    return QueueFlush(edge)
+    planning = QueuePlanning(
+        LegacyQueuePlanning(spotify, edge.retry_operation),
+        LegacyAssessmentCatalog(spotify, edge.retry_operation),
+        legacy.TOP_TRACK_LIMIT,
+    )
+    return QueueFlush(edge, planning)

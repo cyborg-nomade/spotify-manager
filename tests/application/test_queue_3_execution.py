@@ -2,9 +2,11 @@
 
 from dataclasses import asdict
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
+from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.queue_3_execution import Queue3Execution
 from spotify_manager.application.queue_3_execution import Queue3LiveQueue
 from spotify_manager.application.queue_3_execution import Queue3Transition
@@ -24,7 +26,10 @@ TARGET = release_track("target")
 
 def _service(memory: ExecutionMemory, preview: bool = False) -> Queue3Execution:
     return Queue3Execution(
-        memory.append, memory.remove, memory.reconcile, memory, preview
+        memory,
+        cast(DiscoveryLibraryReconciliation, memory),
+        memory,
+        preview,
     )
 
 

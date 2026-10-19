@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.history_matching import PlaylistState
@@ -21,7 +22,6 @@ from spotify_manager.interfaces.requests.something_old import SomethingOldOption
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import something_old as legacy
 from tests.support.golden_oldies import plays
-from tests.support.history_dependencies import LegacySomethingOld
 from tests.support.history_dependencies import something_old_history
 from tests.support.queue_neighbors import NOW
 
@@ -280,8 +280,8 @@ def _patches(edge: OldObservations) -> tuple[tuple[object, str, object], ...]:
     return (
         (legacy, "_load_playlist_state", edge.playlist),
         (
-            LegacySomethingOld,
-            "history",
+            HistoryRefresh,
+            "run",
             partialmethod(something_old_history, edge.history),
         ),
         (legacy, "resolve_spotify_artist", edge.resolve),

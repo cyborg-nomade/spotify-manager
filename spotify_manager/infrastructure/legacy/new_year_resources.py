@@ -3,18 +3,16 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import datetime
 
 from spotipy import Spotify
 
+from spotify_manager.application.new_year_discoveries import AnnualDiscoveryInputs
 from spotify_manager.application.new_year_effects import AnnualStateAccess
 from spotify_manager.application.new_year_membership import RetryCall
-from spotify_manager.application.queue_3_import_review import AnnualImportReview
-from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.composers import OwnedPlaylist
-from spotify_manager.domain.history import Scrobble
 from spotify_manager.infrastructure.legacy.new_year_state import LegacyAnnualState
-from spotify_manager.interfaces.presenters.queue_3 import Queue3Presenter
 from spotify_manager.routines import queue_3
 from spotify_manager.routines import scrobble_history
 from spotify_manager.settings import Settings
@@ -97,42 +95,37 @@ class AnnualResources:
 
         return load_owned_playlists(self.sp, self.retry, self.playlists["queue3"])
 
-    def history(self, preview: bool) -> tuple[Scrobble, ...]:
-        """Rebuild original complete canonical history with caller account and preview.
-
-        Args:
-            preview: Original annual preview publication behavior.
+    def clock(self) -> datetime:
+        """Read the original effective calendar time before other boundaries.
 
         Returns:
-            Original complete ordered canonical plays.
+            Current timestamp in the configured Berlin timezone.
         """
-        workflow = history_refresh(
-            self.lastfm,
-            scrobble_history.DEFAULT_SCROBBLES_PATH,
-            scrobble_history.DEFAULT_LEGACY_DELTA_PATH,
-            scrobble_history.DEFAULT_BACKUP_DIR,
-            scrobble_history.DEFAULT_LOG_PATH,
-            None,
-            self.echo,
-            self.cancel_check,
-        )
-        refreshed = workflow.run(self.configuration.lastfm_username, preview, True)
-        return refreshed.history
+        from spotify_manager.routines import new_year
 
-    def discoveries(self, active_year: int, preview: bool) -> None:
-        """Import original previous-year discoveries through the original public seam.
+        return new_year.datetime.now(new_year.BERLIN)
+
+    def cancel(self) -> None:
+        """Check original operator cancellation at an accepted annual boundary."""
+        from spotify_manager.routines.scrobble_history import check_cancel
+
+        check_cancel(self.cancel_check)
+
+    def discovery_inputs(self, preview: bool) -> AnnualDiscoveryInputs:
+        """Observe annual import inputs without running another application stage.
 
         Args:
-            active_year: Original source year plus one.
-            preview: Original discovery import preview behavior.
+            preview: Whether original namespace authority is preview-cloned.
+
+        Returns:
+            Original complete import observations and configured import stage.
         """
         from spotify_manager.bootstrap.queue_3 import annual_inputs
 
-        presentation = Queue3Presenter(self.echo)
-        presentation.loading(active_year - 1)
+        playlist = self.playlists["queue3"]
         inputs = annual_inputs(
             self.sp,
-            self.playlists["queue3"],
+            playlist,
             self.retry,
             preview,
             queue_3.DEFAULT_STATE_PATH,
@@ -140,11 +133,6 @@ class AnnualResources:
             queue_3.DEFAULT_LOG_PATH,
             self.echo,
         )
-        AnnualImportReview(inputs.importer, presentation).run(
-            self.playlists["queue3"],
-            inputs.current,
-            inputs.state,
-            inputs.owned,
-            active_year,
-            preview,
+        return AnnualDiscoveryInputs(
+            playlist, inputs.current, inputs.state, inputs.owned, inputs.importer
         )

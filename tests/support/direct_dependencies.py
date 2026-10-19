@@ -4,20 +4,27 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import cast
 
-from spotipy import Spotify
-
+from spotify_manager.application.discography_catalog import DiscographyCatalog
+from spotify_manager.application.discography_history import DiscographyArtistMapping
+from spotify_manager.application.discography_history import DiscographyHistory
+from spotify_manager.application.dormant_tracks import DormantLikedTrack
 from spotify_manager.domain.discography_values import CatalogRelease
 from spotify_manager.domain.discography_values import HistoricalArtistSelection
 from spotify_manager.domain.discography_values import QueueArtist
 from spotify_manager.domain.discovery import CatalogTrack
-from spotify_manager.infrastructure.legacy.dormant_artists import LegacyDormantRecovery
+from spotify_manager.infrastructure.discography_observations import (
+    DiscographyArtistCatalog,
+)
+from spotify_manager.infrastructure.discography_observations import DiscographySpotify
+from spotify_manager.infrastructure.legacy.dated_history import LegacyDatedHistory
+from spotify_manager.infrastructure.legacy.dormant_tracks import LegacyDormantCatalog
 from spotify_manager.infrastructure.legacy.recommendations import (
     LegacyRecommendationRun,
 )
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
-from spotify_manager.routines import discography
 from spotify_manager.routines import found_art
 
 
@@ -91,7 +98,7 @@ class ObservedRadioSelection:
 
 
 def dormant_track(
-    resources: LegacyDormantRecovery,
+    workflow: DormantLikedTrack,
     observe: Callable[..., CatalogTrack | None],
     artist_id: str,
 ) -> CatalogTrack | None:
@@ -105,73 +112,68 @@ def dormant_track(
     Returns:
         The fixture's preferred track, if any.
     """
+    resources = cast(LegacyDormantCatalog, workflow.catalog)
     return observe(resources.spotify, artist_id, resources.retry)
 
 
 def catalog(
+    resources: DiscographyCatalog,
     observe: Callable[..., tuple[CatalogRelease, ...]],
-    spotify: Spotify,
-    retry: discography.RetryCall,
-    candidate: QueueArtist,
+    artist: str,
 ) -> tuple[CatalogRelease, ...]:
-    """Preserve catalog fixture arguments through direct planning reads.
+    """Retain the original catalog oracle's client and retry arguments.
 
     Args:
-        observe: Existing catalog fixture.
-        spotify: Caller-owned client.
-        retry: Caller-owned retry policy.
-        candidate: Original queue candidate.
+        resources: Named catalog application stage.
+        observe: Existing scripted catalog boundary.
+        artist: Original requested Spotify identity.
 
     Returns:
-        The fixture's original ordered releases.
+        Original ordered catalog facts.
     """
-    return observe(spotify, candidate.spotify_id, retry)
+    source = cast(DiscographySpotify, resources.source)
+    return observe(source.spotify, artist, source.retry)
 
 
 def historical_artist(
+    resources: DiscographyHistory,
     observe: Callable[..., HistoricalArtistSelection],
-    path: Path,
-    today: date | None,
-    random: discography.RandomIndexReader,
-    progress: discography.ProgressCallback | None,
 ) -> HistoricalArtistSelection:
-    """Preserve the historical fixture's original keyword arguments.
+    """Retain the original history oracle's observation context.
 
     Args:
-        observe: Existing historical selection fixture.
-        path: Original export path.
-        today: Effective date override.
-        random: Caller-owned random source.
-        progress: Original presenter.
+        resources: Named historical-selection application stage.
+        observe: Existing scripted history boundary.
 
     Returns:
-        The fixture's original historical selection.
+        Original complete historical selection.
     """
+    source = cast(LegacyDatedHistory, resources.source)
     return observe(
-        path=path, today=today, random_index_reader=random, progress_callback=progress
+        path=source.path,
+        today=source.date_override,
+        random_index_reader=source.index_reader,
+        progress_callback=resources.progress,
     )
 
 
 def resolve_artist(
+    resources: DiscographyArtistMapping,
     observe: Callable[..., QueueArtist],
-    spotify: Spotify,
-    choice: discography.HistoricalArtistChoiceReader | None,
-    retry: discography.RetryCall,
     selection: HistoricalArtistSelection,
 ) -> QueueArtist:
-    """Preserve the historical mapping fixture's original argument order.
+    """Retain the original mapping oracle's complete context.
 
     Args:
-        observe: Existing mapping fixture.
-        spotify: Caller-owned client.
-        choice: Original mapping interaction.
-        retry: Caller-owned retry policy.
-        selection: Original historical selection.
+        resources: Named historical artist-mapping application stage.
+        observe: Existing scripted mapping boundary.
+        selection: Original complete historical facts.
 
     Returns:
-        The fixture's original mapped queue artist.
+        Original accepted Memory Lane candidate.
     """
-    return observe(spotify, selection, choice, retry)
+    source = cast(DiscographyArtistCatalog, resources.catalog)
+    return observe(source.spotify, selection, source.choice, source.retry)
 
 
 def audit(

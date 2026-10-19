@@ -12,10 +12,10 @@ from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application import queue_flush_planning as queue_planning
 from spotify_manager.application.new_kids_values import ArtistAssessment
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
-from spotify_manager.infrastructure.legacy import queue_planning as composition
 from spotify_manager.infrastructure.legacy.artist_assessment import (
     LegacyAssessmentCatalog,
 )
@@ -224,7 +224,7 @@ def original_outcome(case: dict[str, object]) -> object:
         patch.object(new_kids, "load_top_track_data", edge.top),
         patch.object(legacy, "_liked_statuses", edge.liked),
         patch.object(new_kids, "load_ranked_catalog", edge.catalog),
-        patch.object(composition, "assess_artist", partial(_assessment, edge)),
+        patch.object(queue_planning, "assess_artist", partial(_assessment, edge)),
         patch.object(new_kids, "load_release_tracks", edge.release_tracks),
     ):
         plan = legacy._plan_flush_entry(

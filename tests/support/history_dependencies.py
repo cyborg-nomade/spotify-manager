@@ -3,45 +3,51 @@
 from collections.abc import Callable
 from datetime import datetime
 from functools import partial
+from typing import cast
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
+from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
 from spotify_manager.bootstrap.new_year import AnnualResources
 from spotify_manager.core.library_data.service import LibraryDataService
 from spotify_manager.domain.history import Scrobble
+from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryReader
 from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryStorage
 from spotify_manager.infrastructure.legacy.queue_fill import LegacyQueueFill
-from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
-from spotify_manager.infrastructure.legacy.something_old_run import LegacySomethingOld
 
 
 def annual_history(
-    resources: AnnualResources,
+    workflow: HistoryRefresh,
     observe: Callable[..., ScrobbleHistorySummary],
+    username: str | None,
     preview: bool,
-) -> tuple[Scrobble, ...]:
-    """Supply the same observed annual history through the resource boundary.
+    rebuild: bool,
+) -> ScrobbleHistorySummary:
+    """Supply original annual history through its explicit named stage.
 
     Args:
-        resources: Original caller-owned annual resources.
-        observe: Existing observed history callback.
-        preview: Original publication preview flag.
+        workflow: Configured complete history stage.
+        observe: Existing frozen observation boundary.
+        username: Original expected account.
+        preview: Original publication behavior.
+        rebuild: Original full-rebuild flag.
 
     Returns:
-        The original ordered canonical plays.
+        Original complete refresh result.
     """
-    summary = observe(
-        resources.lastfm,
-        expected_username=resources.configuration.lastfm_username,
-        full_rebuild=True,
+    reader = cast(LegacyHistoryReader, workflow.reader)
+    return observe(
+        reader.client,
+        expected_username=username,
+        full_rebuild=rebuild,
         dry_run=preview,
-        progress_callback=resources.echo,
-        cancel_check=resources.cancel_check,
+        progress_callback=cast(partial[None], workflow.progress).args[0],
+        cancel_check=cast(partial[None], workflow.check_cancel).args[0],
     )
-    return summary.history
 
 
 def annual_discoveries(
-    resources: AnnualResources,
+    workflow: AnnualDiscoveries,
     observe: Callable[..., object],
     active_year: int,
     preview: bool,
@@ -54,6 +60,7 @@ def annual_discoveries(
         active_year: Original source year plus one.
         preview: Original discovery preview flag.
     """
+    resources = cast(AnnualResources, workflow.source)
     options: dict[str, object] = {}
     if preview:
         options["dry_run"] = True
@@ -73,64 +80,43 @@ def _release_progress(callback: Callable[[int, int, str], None], message: str) -
 
 
 def release_history(
-    resources: LegacyReleaseOpening,
+    workflow: HistoryRefresh,
     observe: Callable[..., ScrobbleHistorySummary],
+    username: str | None,
+    preview: bool,
+    rebuild: bool,
     stamp: datetime,
 ) -> ScrobbleHistorySummary:
-    """Supply the same observed release history at its acquisition boundary.
+    """Supply original refresh observations through the explicit named stage.
 
     Args:
-        resources: Original release startup resources.
-        observe: Existing observed canonical history callback.
+        workflow: Configured original history stage.
+        observe: Existing frozen refresh observation.
+        username: Original expected account.
+        preview: Original history preview behavior.
+        rebuild: Original full rebuild behavior.
         stamp: Original effective UTC timestamp.
 
     Returns:
-        The original complete canonical history summary.
+        Original complete canonical refresh summary.
     """
-    progress = None
-    if resources.progress is not None:
-        progress = partial(_release_progress, resources.progress)
+    storage = cast(LegacyHistoryStorage, workflow.storage)
+    reader = cast(LegacyHistoryReader, workflow.reader)
+    progress = cast(partial[None], workflow.progress).args[0]
     return observe(
-        resources.lastfm,
-        expected_username=resources.expected_username,
-        export_path=resources.export_path,
-        legacy_delta_path=resources.legacy_delta_path,
-        backup_dir=resources.backup_dir,
-        log_path=resources.history_log_path,
-        dry_run=False,
+        reader.client,
+        expected_username=username,
+        export_path=storage.export_path,
+        legacy_delta_path=storage.legacy_path,
+        backup_dir=storage.backup_dir,
+        log_path=storage.log_path,
+        dry_run=preview,
         now=stamp,
         progress_callback=progress,
     )
 
 
-def something_old_history(
-    resources: LegacySomethingOld,
-    observe: Callable[..., ScrobbleHistorySummary],
-    now: datetime,
-    preview: bool,
-) -> ScrobbleHistorySummary:
-    """Supply the same observed history before Something Old ranking.
-
-    Args:
-        resources: Original caller-owned routine resources.
-        observe: Existing observed history callback.
-        now: Original effective UTC timestamp.
-        preview: Original history publication preview flag.
-
-    Returns:
-        The original canonical history summary.
-    """
-    return observe(
-        resources.lastfm,
-        expected_username=resources.options.expected_username,
-        export_path=resources.resources.export_path,
-        legacy_delta_path=resources.resources.legacy_delta_path,
-        backup_dir=resources.resources.backup_dir,
-        log_path=resources.resources.history_log_path,
-        dry_run=preview,
-        now=now,
-        progress_callback=resources.callbacks.progress_callback,
-    )
+something_old_history = release_history
 
 
 def queue_history(

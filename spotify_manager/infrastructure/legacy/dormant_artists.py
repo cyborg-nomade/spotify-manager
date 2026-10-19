@@ -88,19 +88,6 @@ class LegacyDormantRecovery:
 
         return _spotify_artist(self.spotify, artist, rank, self.retry)
 
-    def track(self, artist_id: str) -> CatalogTrack | None:
-        """Observe the original preferred live-liked marker.
-
-        Args:
-            artist_id: Original mapped identity.
-
-        Returns:
-            Original preferred marker or no liked track.
-        """
-        from spotify_manager.bootstrap.dormant_artists import dormant_tracks
-
-        return dormant_tracks(self.spotify, artist_id, self.retry).run()
-
     def append(self, tracks: list[CatalogTrack]) -> None:
         """Convert original markers and accept the existing ordered batch append.
 

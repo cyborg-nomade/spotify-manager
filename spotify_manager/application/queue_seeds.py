@@ -1,15 +1,16 @@
 """Validate Queue seed requests before resolving the original effective week."""
 
-from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 
+from spotify_manager.application.ports.calendar import ListeningCalendar
 from spotify_manager.application.queue_values import QueueConfigError
 from spotify_manager.application.queue_values import QueueStateError
 from spotify_manager.domain.queue_seeds import select_seeds
 from spotify_manager.domain.queue_values import ArtistHistory
 from spotify_manager.domain.queue_values import ArtistSeed
+from spotify_manager.domain.recommendation_history import listening_week_start
 
 
 @dataclass(frozen=True)
@@ -17,11 +18,11 @@ class QueueSeeds:
     """Keep original validation/materialization/week order before pure seed selection.
 
     Args:
-        current_week: Original listening-week boundary, called only when needed.
+        calendar: Original listening-week boundary, called only when needed.
         pool_multiplier: Original per-quota candidate pool multiplier.
     """
 
-    current_week: Callable[[], date]
+    calendar: ListeningCalendar
     pool_multiplier: int = 10
 
     def select(
@@ -48,5 +49,5 @@ class QueueSeeds:
             raise QueueStateError(
                 f"Only {len(artists)} seed artists are available; {count} requested."
             )
-        active_week = week or self.current_week()
+        active_week = week or listening_week_start(self.calendar.local_date())
         return select_seeds(artists, count, active_week, self.pool_multiplier)

@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 
+from spotify_manager.application.future_release import FutureRecordMatching
 from spotify_manager.application.release_check_values import ReleaseCheckError
 from spotify_manager.application.release_destinations import ReleaseDestinations
 from spotify_manager.application.release_progress import ReleaseProgress
@@ -73,11 +74,13 @@ class ReleaseReview:
         progress: Original state authority and accepted checkpoints/audits.
         destinations: Original mutable memberships and destination identities.
         reader: Optional original release-choice callback.
+        matching: Named containing-record matching stage.
     """
 
     progress: ReleaseProgress
     destinations: ReleaseDestinations
     reader: ReleaseChoiceReader | None
+    matching: FutureRecordMatching
 
     def check_artist(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate
@@ -178,10 +181,10 @@ class ReleaseReview:
             return ReleaseAssessment(None, reason="release has no playable first track")
         if artist.accepts_all_singles:
             return ReleaseAssessment(track)
-        linked = self.progress.effects.match(track, plan.future, plan.tracks)
+        linked = self.matching.run(track, plan.future, plan.tracks)
         if linked is not None:
             return ReleaseAssessment(track, linked)
-        current = self.progress.effects.match(track, plan.current, plan.tracks)
+        current = self.matching.run(track, plan.current, plan.tracks)
         if current is not None:
             return ReleaseAssessment(
                 track, reason="containing album or EP has already been released"

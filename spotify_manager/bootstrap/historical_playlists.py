@@ -12,6 +12,9 @@ from spotify_manager.application.historical_playlists import HistoricalPlaylistE
 from spotify_manager.application.historical_resolution import HistoricalResolution
 from spotify_manager.application.historical_selection import AnniversarySelection
 from spotify_manager.application.historical_selection import BlastSelection
+from spotify_manager.infrastructure.legacy.historical_inputs import (
+    LegacyHistoricalInputs,
+)
 from spotify_manager.infrastructure.legacy.historical_playlists import (
     LegacyHistoricalPlaylist,
 )
@@ -24,10 +27,6 @@ def _progress(callback: blast.ProgressCallback | None, message: str) -> None:
         callback(message)
 
 
-def _today(today: date | None) -> date:
-    return today or radio.datetime.now(blast.SCROBBLE_TIMEZONE).date()
-
-
 def _effects(
     sp: Spotify,
     playlist_id: str,
@@ -37,11 +36,10 @@ def _effects(
 ) -> HistoricalPlaylistEffects:
     from spotify_manager.routines.blast_from_past import check_cancel
 
-    adapter = LegacyHistoricalPlaylist(sp, playlist_id, progress, retry, cancel)
+    adapter = LegacyHistoricalPlaylist(sp, playlist_id, retry, cancel)
     return HistoricalPlaylistEffects(
-        adapter.read,
-        adapter.resolve,
-        adapter.append,
+        adapter,
+        historical_resolution(sp, progress, retry, cancel),
         partial(check_cancel, cancel),
         partial(_progress, progress),
     )
@@ -64,20 +62,10 @@ def blast_selection(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.routines.blast_from_past import eligible_dates
-    from spotify_manager.routines.blast_from_past import friday_track_cutoff
-    from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
-    from spotify_manager.routines.blast_from_past import select_scrobble
-
-    workflow = BlastSelection(
-        partial(load_scrobbles_by_date, path),
-        partial(friday_track_cutoff, today),
-        eligible_dates,
-        random,
-        select_scrobble,
+    return BlastSelection(
+        LegacyHistoricalInputs(path, today, index_reader=random),
         partial(_progress, progress),
     )
-    return workflow
 
 
 def anniversary_selection(
@@ -97,19 +85,10 @@ def anniversary_selection(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
-    from spotify_manager.routines.blast_from_past import select_scrobble
-    from spotify_manager.routines.daily_mind_radio import anniversary_dates
-
-    workflow = AnniversarySelection(
-        partial(load_scrobbles_by_date, path),
-        partial(_today, today),
-        anniversary_dates,
-        random,
-        select_scrobble,
+    return AnniversarySelection(
+        LegacyHistoricalInputs(path, today, timestamp_reader=random),
         partial(_progress, progress),
     )
-    return workflow
 
 
 def blast_playlist(
@@ -137,8 +116,10 @@ def blast_playlist(
     Returns:
         The configured application dependencies or workflow.
     """
-    select = blast_selection(path, today, random, progress).run
-    workflow = BlastPlaylist(_effects(sp, playlist_id, progress, retry, cancel), select)
+    selection = blast_selection(path, today, random, progress)
+    workflow = BlastPlaylist(
+        _effects(sp, playlist_id, progress, retry, cancel), selection
+    )
     return workflow
 
 
@@ -167,9 +148,9 @@ def anniversary_playlist(
     Returns:
         The configured application dependencies or workflow.
     """
-    select = anniversary_selection(path, today, random, progress).run
+    selection = anniversary_selection(path, today, random, progress)
     workflow = AnniversaryPlaylist(
-        _effects(sp, playlist_id, progress, retry, cancel), select
+        _effects(sp, playlist_id, progress, retry, cancel), selection
     )
     return workflow
 
@@ -198,10 +179,8 @@ def historical_resolution(
 
     adapter = LegacyHistoricalMatches(sp, retry, cancel)
     workflow = HistoricalResolution(
-        adapter.search,
-        adapter.liked,
+        adapter,
         partial(check_cancel, cancel),
         partial(_progress, progress),
-        blast.ALBUM_MATCH_THRESHOLD,
     )
     return workflow

@@ -18,7 +18,7 @@ def _outcome(case: dict[str, object]) -> object:
     )
     edge.contents["destination"] = ["other", "uri-0", "uri-100"]
     memory = MemoryAnnual(edge, edge.retry)
-    owner = AnnualMembership(memory.playlist, memory.append, memory.move, edge.retry)
+    owner = AnnualMembership(memory, edge.retry)
     uris = [f"uri-{index}" for index in range(cast(int, case["size"]))] + [
         "uri-0",
         "uri-0",

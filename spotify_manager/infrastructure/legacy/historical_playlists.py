@@ -5,9 +5,7 @@ from dataclasses import dataclass
 from spotipy import Spotify
 
 from spotify_manager.application.historical_values import PlaylistState
-from spotify_manager.application.historical_values import SpotifySelectionResolution
 from spotify_manager.application.historical_values import SpotifyTrackMatch
-from spotify_manager.domain.history import ScrobbleSelection
 from spotify_manager.routines import blast_from_past as legacy
 
 
@@ -18,14 +16,12 @@ class LegacyHistoricalPlaylist:
     Args:
         client: Existing caller-owned Spotify client.
         playlist_id: Target playlist.
-        progress: Optional original progress callback.
         retry: Original caller retry policy.
         cancel: Optional original cancellation predicate.
     """
 
     client: Spotify
     playlist_id: str
-    progress: legacy.ProgressCallback | None
     retry: legacy.RetryCall
     cancel: legacy.CancelCheck | None
 
@@ -44,29 +40,6 @@ class LegacyHistoricalPlaylist:
         return load_playlist_state(
             self.client, self.playlist_id, self.retry, self.cancel
         )
-
-    def resolve(
-        self, selections: tuple[ScrobbleSelection, ...], playlist: PlaylistState
-    ) -> SpotifySelectionResolution:
-        """Resolve matches and liked observations in their original order.
-
-        Args:
-            selections: Selected plays in requested order.
-            playlist: Observed playlist membership.
-
-        Returns:
-            Original match decisions and pending additions.
-
-        Raises:
-            SpotifyTrackResolutionError: Spotify returns unusable search or liked data.
-            BlastFromPastCancelledError: Cancellation is requested.
-        """
-        from spotify_manager.bootstrap.historical_playlists import historical_resolution
-
-        workflow = historical_resolution(
-            self.client, self.progress, self.retry, self.cancel
-        )
-        return workflow.run(selections, playlist)
 
     def append(self, matches: list[SpotifyTrackMatch]) -> None:
         """Append pending matches using the original API-sized batches.
@@ -97,6 +70,15 @@ class LegacyHistoricalMatches:
     client: Spotify
     retry: legacy.RetryCall
     cancel: legacy.CancelCheck | None
+
+    @property
+    def album_threshold(self) -> float:
+        """Return the live qualification setting before search observations.
+
+        Returns:
+            Current configured album qualification threshold.
+        """
+        return legacy.ALBUM_MATCH_THRESHOLD
 
     def search(self, scrobble: legacy.Scrobble) -> tuple[SpotifyTrackMatch, ...]:
         """Search one selected scrobble with the existing qualifier parsing.

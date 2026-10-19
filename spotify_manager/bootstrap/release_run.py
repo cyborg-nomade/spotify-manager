@@ -4,11 +4,14 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.future_release import FutureRecordMatching
 from spotify_manager.application.release_opening import OpenedReleaseRun
 from spotify_manager.application.release_progress import ReleaseProgress
 from spotify_manager.application.release_run import ReleaseRun
+from spotify_manager.bootstrap.artist_mapping import artist_mapping
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.infrastructure.legacy.release_run import LegacyReleaseRun
+from spotify_manager.infrastructure.legacy.release_tracks import LegacyReleaseTracks
 from spotify_manager.routines import release_check as legacy
 
 
@@ -48,5 +51,10 @@ def release_review(
         opening, effects, preview, legacy.ARTIST_PROGRESS_CHECKPOINT_INTERVAL
     )
     return ReleaseRun(
-        progress, playlists.wine_cellar, playlists.new_vintage, release_reader
+        progress,
+        playlists.wine_cellar,
+        playlists.new_vintage,
+        release_reader,
+        artist_mapping(spotify, artist_reader, retry),
+        FutureRecordMatching(LegacyReleaseTracks(spotify, retry)),
     )

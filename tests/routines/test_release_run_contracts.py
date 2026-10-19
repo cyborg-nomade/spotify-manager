@@ -14,6 +14,8 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.artist_mapping import ArtistMapping
+from spotify_manager.application.future_release import FutureRecordMatching
 from spotify_manager.application.release_opening import OpenedReleaseRun
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
@@ -24,7 +26,6 @@ from spotify_manager.domain.release_check_values import PlaylistSnapshot
 from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.domain.release_check_values import ReleaseCandidate
 from spotify_manager.domain.release_check_values import ReleaseTrack
-from spotify_manager.infrastructure.legacy.release_run import LegacyReleaseRun
 from spotify_manager.interfaces.operations import release_check as release_operations
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
@@ -205,10 +206,10 @@ def _bind(
     )
     patch.setattr(legacy, "_mapped_artist", effects.decode_mapping)
     patch.setattr(legacy, "_pending_single", effects.decode_pending)
-    patch.setattr(LegacyReleaseRun, "resolve", partialmethod(_resolve_artist, effects))
+    patch.setattr(ArtistMapping, "run", partialmethod(_resolve_artist, effects))
     patch.setattr(legacy, "load_recent_catalog", partial(_catalog, effects))
     patch.setattr(legacy, "load_release_tracks", partial(_tracks, effects))
-    patch.setattr(LegacyReleaseRun, "match", partialmethod(_match_record, effects))
+    patch.setattr(FutureRecordMatching, "run", partialmethod(_match_record, effects))
     patch.setattr(legacy, "_add_to_playlist", partial(_add, effects))
     patch.setattr(legacy, "append_event", partial(_audit, effects))
     patch.setattr(legacy, "_persist_state", partial(_persist, effects))
@@ -298,7 +299,7 @@ def test_release_runner_original_failure_prefix(
 
 
 def _resolve_artist(
-    resources: LegacyReleaseRun,
+    resources: ArtistMapping,
     effects: Effects,
     artist: RankedArtist,
 ) -> SpotifyArtistCandidate | str | None:
@@ -306,7 +307,7 @@ def _resolve_artist(
 
 
 def _match_record(
-    resources: LegacyReleaseRun,
+    resources: FutureRecordMatching,
     effects: Effects,
     track: ReleaseTrack,
     records: tuple[ReleaseCandidate, ...],

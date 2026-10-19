@@ -31,6 +31,12 @@ Python, including tests and tooling:
    named application use case, domain decision, and presenter. Keep bootstrap
    construction outside business execution and client creation outside legacy
    routine modules. Prefer direct named calls over injected forwarding callbacks.
+8. Application code imports and calls fixed domain rules directly. Pass named
+   application stage objects rather than their bound methods. Use cohesive
+   objects with explicit methods for external reads and writes. Reserve callbacks
+   for real operator interactions, notifications, cancellation, retries and time
+   observations; do not use them to make fixed business decisions replaceable.
+   Integration adapters must not conceal execution of another application stage.
 
 Apply these rules throughout the approved incremental refactor, preserving the
 frozen behavior contracts. Existing legacy code is brought into compliance as

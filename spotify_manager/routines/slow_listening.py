@@ -40,6 +40,7 @@ from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRele
 from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.slow_listening import track_index
 from spotify_manager.infrastructure import studio_records
+from spotify_manager.infrastructure.callbacks import LegacyCheckpoint
 from spotify_manager.routines import new_wine
 
 
@@ -239,9 +240,9 @@ def _ordered_date_group(
     release_orders: dict[str, object],
     order_saved: Callable[[], None],
 ) -> tuple[DiscographyRelease, ...]:
-    return ReleaseOrdering(order_reader, release_orders, order_saved).ordered(
-        artist_id, releases
-    )
+    return ReleaseOrdering(
+        order_reader, release_orders, LegacyCheckpoint(order_saved)
+    ).ordered(artist_id, releases)
 
 
 def _next_release(
@@ -251,9 +252,9 @@ def _next_release(
     release_orders: dict[str, object],
     order_saved: Callable[[], None],
 ) -> DiscographyRelease | None:
-    return ReleaseOrdering(order_reader, release_orders, order_saved).following(
-        current_release, discography
-    )
+    return ReleaseOrdering(
+        order_reader, release_orders, LegacyCheckpoint(order_saved)
+    ).following(current_release, discography)
 
 
 def _as_release_candidate(

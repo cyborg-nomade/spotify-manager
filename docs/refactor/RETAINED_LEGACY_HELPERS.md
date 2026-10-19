@@ -31,6 +31,13 @@ and Wine Cellar invocations belong to `interfaces/operations/`. Their bootstrap
 forwarders were removed; bootstrap only constructs dependencies. The existing
 SDK leaves below retain their recorded source paths and effect order.
 
+The 2026-10-19 revision moves child workflow execution out of the historical,
+recommendation, Palace, Queue, New Wine, release and annual adapters. Their named
+application stages now call fixed policies directly. SDK/file leaves, genuine
+retry operations and the legacy maintenance public override contracts remain.
+This inventory records imports, not permission to introduce new callback-based
+business wiring.
+
 ## Named bindings by original source
 
 All module names below are relative to `spotify_manager`. Each list is
@@ -53,6 +60,7 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_live_liked_statuses`
 - `_live_primary_track_ids`
 - `_saved_artist_statuses`
+- `parse_spotify_lookup_reference`
 
 ### `processors.scrobble_lookups`
 
@@ -89,7 +97,6 @@ searchable by exact function name and uses the contracts/decisions above.
 
 - `add_spotify_matches`
 - `check_cancel`
-- `eligible_dates`
 - `fetch_random_indexes`
 - `fetch_random_timestamp`
 - `friday_track_cutoff`
@@ -99,7 +106,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `load_scrobbles_by_date`
 - `parse_playlist_id`
 - `search_spotify_matches`
-- `select_scrobble`
 
 ### `routines.blast_from_past_artists`
 
@@ -119,10 +125,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_analyse_removed`
 - `_contains_added`
 - `_contains_removed`
-
-### `routines.daily_mind_radio`
-
-- `anniversary_dates`
 
 ### `routines.discography`
 
@@ -253,7 +255,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_remove_playlist_uris`
 - `_state_access`
 - `append_event`
-- `find_yearly_great_discoveries`
 - `load_owned_playlists`
 - `parse_playlist_id`
 - `validate_state`
@@ -410,7 +411,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_liked_statuses`
 - `_load_cache`
 - `_mapped_artist`
-- `_mapping_choice_reader`
 - `_new_flush_run`
 - `_persist_followed_artist`
 - `_playlist_artist_ids`

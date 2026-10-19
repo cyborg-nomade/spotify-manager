@@ -314,9 +314,7 @@ def _cached_similar_tracks(
 ) -> tuple[LastFmSimilarTrack, ...] | None:
     from spotify_manager.infrastructure.recommendations_data import cached_neighbors
 
-    return cached_neighbors(
-        entry, week_start, listening_week_start, datetime.fromisoformat
-    )
+    return cached_neighbors(entry, week_start, datetime.fromisoformat)
 
 
 def previously_added_track_keys(
@@ -337,7 +335,7 @@ def previously_added_track_keys(
         previously_added_keys,
     )
 
-    return previously_added_keys(path, canonical_track_key)
+    return previously_added_keys(path)
 
 
 def gather_candidates(

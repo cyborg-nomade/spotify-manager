@@ -88,9 +88,7 @@ def test_namespace_write_rebases_after_store_conflict(tmp_path):
 
     assert isinstance(saved, StateSnapshot)
     assert saved.document["namespaces"]["queue"]["value"] == {"count": 1}
-    assert saved.document["namespaces"]["external"]["value"] == {
-        "completed": True
-    }
+    assert saved.document["namespaces"]["external"]["value"] == {"completed": True}
 
 
 def test_concurrent_same_namespace_is_rejected(tmp_path):

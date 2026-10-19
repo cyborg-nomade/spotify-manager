@@ -164,11 +164,7 @@ def review_execution(
     access = LegacyDiscoveryEffects(
         client,
         inputs.retry,
-        inputs.state_access,
         resources.artists_path,
-        inputs.active_year,
-        options.great_discoveries_2026_playlist_id,
-        echo,
     )
     library = library_reconciliation(
         client,
@@ -187,6 +183,8 @@ def review_execution(
         options.newfoundland_playlist_id,
         options.unlucky_ones_playlist_id,
         options.dry_run,
+        great_discoveries(client, inputs.retry, inputs.state_access, echo),
+        options.great_discoveries_2026_playlist_id,
     )
     return NewKidsExecution(
         access,

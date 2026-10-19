@@ -2,23 +2,17 @@
 
 from dataclasses import dataclass
 from dataclasses import field
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
-from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.new_wine_values import FlushResult
 from spotify_manager.application.ports.listening import RetryCall
-from spotify_manager.application.wine_cellar import CellarOptions
-from spotify_manager.application.wine_cellar import refill_cellar
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
-from spotify_manager.infrastructure.legacy.wine_cellar import WineCellarAccess
-from spotify_manager.interfaces.presenters.wine_cellar import present_transfer
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import new_wine as legacy
@@ -30,7 +24,6 @@ class LegacyNewWine:
 
     Args:
         client: Caller-owned synchronous Spotify client.
-        destination: New Wine playlist identifier.
         retry: Existing retry/cancellation callback.
         state_path: Original namespace path.
         state_service: Optional shared namespace service.
@@ -38,11 +31,9 @@ class LegacyNewWine:
         albums_path: Canonical saved-album mirror.
         liked_path: Canonical liked-track mirror.
         removed_path: Removed-album recovery log.
-        echo: Existing message sink used by cellar composition.
     """
 
     client: Spotify
-    destination: str
     retry: RetryCall
     state_path: Path
     state_service: StateService | None
@@ -50,8 +41,16 @@ class LegacyNewWine:
     albums_path: Path
     liked_path: Path
     removed_path: Path
-    echo: legacy.Echo
     _state_access: RoutineState | None = field(default=None, init=False)
+
+    @property
+    def refill_limit(self) -> int:
+        """Read the original live limit at the post-flush boundary.
+
+        Returns:
+            Current configured New Wine marker limit.
+        """
+        return legacy.NEW_WINE_TARGET_SIZE
 
     def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read original ordered playlist observations.
@@ -244,46 +243,3 @@ class LegacyNewWine:
         from spotify_manager.routines.new_wine import append_log
 
         append_log(run_id, result, self.log_path)
-
-    def refill(
-        self,
-        cellar_id: str,
-        no_discovery: bool,
-        dry_run: bool,
-        state: dict[str, object],
-        run: dict[str, object],
-        projected: set[str] | None,
-    ) -> CellarRefillSummary:
-        """Bind the established cellar use case at the original refill boundary.
-
-        Args:
-            cellar_id: Effective cellar source.
-            no_discovery: Effective affinity requirement.
-            dry_run: Whether to preview transfers.
-            state: Complete namespace.
-            run: Active run inside the namespace.
-            projected: Preview destination membership after the flush.
-
-        Returns:
-            Original refill result.
-        """
-        options = CellarOptions(
-            self.destination,
-            cellar_id,
-            no_discovery,
-            dry_run,
-            legacy.NEW_WINE_TARGET_SIZE,
-            projected,
-        )
-        access = self._state()
-        integration = WineCellarAccess(
-            self.client,
-            self.retry,
-            access,
-            self.log_path,
-            self.liked_path,
-            self.albums_path,
-        )
-        return refill_cellar(
-            integration, options, state, run, partial(present_transfer, self.echo)
-        )

@@ -253,6 +253,14 @@ These requirements supplement the Python readability rules in `AGENTS.md`.
 Python callers may adopt the typed records; frozen HTTP/CLI behavior, metadata
 and ordered effects remain unchanged.
 
+The 2026-10-19 application-to-domain review further requires direct imports and
+calls for fixed domain rules, concrete named application stage objects, and
+cohesive external-resource objects with explicit read/write methods. Do not
+inject fixed decisions or stage methods as callbacks, or execute an application
+stage behind an integration adapter. Keep genuine operator, progress,
+cancellation, retry and time callbacks. This revision is included in PR #67 and
+must be reviewed before the Item 7a release; it does not authorize Item 8.
+
 1. Inventory HTTP, CLI and background execution paths by routine family. Identify
    each wrapper's responsibility and distinguish public compatibility seams from
    forwarding-only internals. Record any necessary exception explicitly.

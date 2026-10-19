@@ -10,6 +10,7 @@ from spotify_manager.application.library_analysis_publication import AnalysisPub
 from spotify_manager.application.library_analysis_publication import finalize_analysis
 from spotify_manager.application.library_analysis_publication import finalize_mirrors
 from spotify_manager.application.library_analysis_publication import finalize_resource
+from spotify_manager.application.library_analysis_values import resource_config
 from spotify_manager.domain.library_analysis_values import LibrarySyncSummary
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.domain.library_analysis_values import (
@@ -134,7 +135,7 @@ def refresh_resource(
         Original completed one-resource outcome.
     """
     if session.checkpoint["status"] == "finalizing":
-        _target, model_type, _sort_key = publication.config(session.paths, resource)
+        _target, model_type, _sort_key = resource_config(session.paths, resource)
     else:
         model_type = _refresh_resource(session, resource, full)
     models = session.files.staged(session.paths.stage(resource), model_type)

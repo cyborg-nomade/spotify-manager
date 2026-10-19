@@ -5,18 +5,8 @@ from functools import partial
 from spotipy import Spotify
 
 from spotify_manager.application.album_recommendations import AlbumGathering
-from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
+from spotify_manager.infrastructure.legacy.album_search import LegacyAlbumSearch
 from spotify_manager.routines import sauvignon as legacy
-
-
-def _search(
-    spotify: Spotify,
-    retry: legacy.RetryCall,
-    candidate: FoundArtCandidate,
-) -> tuple[legacy.SpotifyAlbumOption, ...]:
-    from spotify_manager.routines.sauvignon import search_candidate_albums
-
-    return search_candidate_albums(spotify, candidate, retry)
 
 
 def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
@@ -38,6 +28,6 @@ def album_gathering(
         The configured application dependencies or workflow.
     """
     workflow = AlbumGathering(
-        partial(_search, spotify, retry), partial(_progress, progress)
+        LegacyAlbumSearch(spotify, retry), partial(_progress, progress)
     )
     return workflow

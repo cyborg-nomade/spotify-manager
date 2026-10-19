@@ -7,6 +7,10 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
+from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
 from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
 from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
 from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
@@ -55,12 +59,12 @@ def _immediate(operation: Callable[[], object], description: str) -> object:
 
 def _bind(monkeypatch: pytest.MonkeyPatch, observations: RunObservations) -> None:
     monkeypatch.setattr(LegacySauvignon, "refresh", observations.refresh)
-    monkeypatch.setattr(LegacySauvignon, "seeds", observations.seeds)
-    monkeypatch.setattr(LegacySauvignon, "tracks", observations.tracks)
+    monkeypatch.setattr(RecommendationSeeds, "run", observations.seeds)
+    monkeypatch.setattr(CandidateGathering, "run", observations.tracks)
     monkeypatch.setattr(LegacySauvignon, "read", observations.read)
     monkeypatch.setattr(LegacySauvignon, "previous", observations.previous)
-    monkeypatch.setattr(LegacySauvignon, "albums", observations.albums)
-    monkeypatch.setattr(LegacySauvignon, "choose", observations.choose)
+    monkeypatch.setattr(AlbumGathering, "run", observations.albums)
+    monkeypatch.setattr(AlbumEditionChoice, "choose", observations.choose)
     monkeypatch.setattr(LegacySauvignon, "first", observations.first)
     monkeypatch.setattr(LegacySauvignon, "audit", observations.audit)
 

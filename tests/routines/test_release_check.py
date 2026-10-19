@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.infrastructure.callbacks import call_direct
-from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
@@ -239,9 +239,20 @@ def _observed_history(
 
 
 def _release_history(
-    resources: LegacyReleaseOpening, stamp: datetime
+    workflow: HistoryRefresh,
+    username: str | None,
+    preview: bool,
+    rebuild: bool,
+    stamp: datetime,
 ) -> ScrobbleHistorySummary:
-    return release_history(resources, scrobble_history.refresh_scrobble_history, stamp)
+    return release_history(
+        workflow,
+        scrobble_history.refresh_scrobble_history,
+        username,
+        preview,
+        rebuild,
+        stamp,
+    )
 
 
 def patch_history_and_ranking(
@@ -261,7 +272,7 @@ def patch_history_and_ranking(
         "refresh_scrobble_history",
         partial(_observed_history, history_dry_runs),
     )
-    monkeypatch.setattr(LegacyReleaseOpening, "refresh", _release_history)
+    monkeypatch.setattr(HistoryRefresh, "run", _release_history)
     monkeypatch.setattr(
         release_check, "rank_lastfm_artists", partial(_ranked_artists, artists)
     )

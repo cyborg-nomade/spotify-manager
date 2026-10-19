@@ -16,8 +16,10 @@ from spotify_manager.domain.history_matching import SpotifyTrackMatch
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_candidates import LastFmSimilarTrack
 from spotify_manager.domain.recommendation_history import TrackKey
+from spotify_manager.domain.recommendation_history import canonical_track_key
 from spotify_manager.domain.recommendation_matching import FoundArtResult
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
+from spotify_manager.infrastructure.recommendation_calendar import listening_week_start
 
 
 def load_cache(path: Path) -> dict[str, object]:
@@ -95,7 +97,6 @@ def _neighbors(raw: object) -> tuple[LastFmSimilarTrack, ...] | None:
 def cached_neighbors(
     entry: object,
     week: date,
-    listening_week: Callable[[datetime], date],
     parse_timestamp: Callable[[str], datetime] = datetime.fromisoformat,
 ) -> tuple[LastFmSimilarTrack, ...] | None:
     """Decode original current-week entries with permissive row coercion.
@@ -103,7 +104,6 @@ def cached_neighbors(
     Args:
         entry: Original raw cache entry.
         week: Effective listening week.
-        listening_week: Original timezone-aware calendar boundary.
         parse_timestamp: Original ISO constructor, preserving injected clock types.
 
     Returns:
@@ -115,16 +115,14 @@ def cached_neighbors(
     if not isinstance(entry, dict):
         return None
     try:
-        if listening_week(_fetched_at(entry, parse_timestamp)) != week:
+        if listening_week_start(_fetched_at(entry, parse_timestamp)) != week:
             return None
         return _neighbors(entry["tracks"])
     except KeyError, TypeError, ValueError:
         return None
 
 
-def _added_keys(
-    record: object, key_of: Callable[[str, str], TrackKey]
-) -> set[TrackKey]:
+def _added_keys(record: object) -> set[TrackKey]:
     results = record.get("results") if isinstance(record, dict) else None
     if not isinstance(results, list):
         raise ValueError("results must be a list")
@@ -135,16 +133,14 @@ def _added_keys(
         candidate = result.get("candidate")
         if not isinstance(candidate, dict):
             raise ValueError("candidate must be an object")
-        keys.add(key_of(str(candidate["artist"]), str(candidate["track"])))
+        keys.add(canonical_track_key(str(candidate["artist"]), str(candidate["track"])))
     return keys
 
 
-def _update_keys(
-    keys: set[TrackKey], line: str, key_of: Callable[[str, str], TrackKey]
-) -> None:
+def _update_keys(keys: set[TrackKey], line: str) -> None:
     if not line.strip():
         return
-    keys.update(_added_keys(json.loads(line), key_of))
+    keys.update(_added_keys(json.loads(line)))
 
 
 @dataclass
@@ -157,7 +153,6 @@ class _AuditRead:
         current_line: Last physical line observed, or zero before reading.
     """
 
-    key_of: Callable[[str, str], TrackKey]
     keys: set[TrackKey] = field(default_factory=set)
     current_line: int = 0
 
@@ -176,17 +171,14 @@ class _AuditRead:
         with path.open(encoding="utf-8") as log_file:
             for line_number, line in enumerate(log_file, start=1):
                 self.current_line = line_number
-                _update_keys(self.keys, line, self.key_of)
+                _update_keys(self.keys, line)
 
 
-def previously_added_keys(
-    path: Path, key_of: Callable[[str, str], TrackKey]
-) -> set[TrackKey]:
+def previously_added_keys(path: Path) -> set[TrackKey]:
     """Read actually added identities with original physical-line error diagnostics.
 
     Args:
         path: Original audit source.
-        key_of: Original edition-tolerant identity boundary.
 
     Returns:
         Normalized added identities, or an empty set when the log is absent.
@@ -196,7 +188,7 @@ def previously_added_keys(
     """
     if not path.exists():
         return set()
-    reader = _AuditRead(key_of)
+    reader = _AuditRead()
     try:
         reader.read(path)
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:

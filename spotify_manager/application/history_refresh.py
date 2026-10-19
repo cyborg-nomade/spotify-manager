@@ -4,6 +4,7 @@ from collections import Counter
 from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -144,26 +145,45 @@ def _username(payload: dict[str, object], expected: str | None) -> str:
     return username or (expected or "")
 
 
+class HistoryReader(Protocol):
+    """Read the inclusive live range through a named external source."""
+
+    def fetch(self, start: int, end: int) -> Iterable[HistoryRecord]:
+        """Observe original raw live records lazily.
+
+        Args:
+            start: Inclusive first UTC second.
+            end: Inclusive final UTC second.
+
+        Returns:
+            Original records in response order.
+        """
+
+
 @dataclass(frozen=True)
 class HistoryRefresh:
     """Merge overlap by occurrence count, then preserve the ordered refresh effects.
 
     Args:
         storage: Existing file, backup, mirror and audit boundaries.
-        fetch: Read live records in an inclusive UTC seconds range.
+        reader: Named source of original live history records.
         clock: Read the effective UTC refresh time after hydration and cancellation.
         check_cancel: Raise the original cancellation error at each boundary.
         progress: Present existing progress messages.
     """
 
     storage: HistoryStorage
-    fetch: Callable[[int, int], Iterable[HistoryRecord]]
+    reader: HistoryReader
     clock: Callable[[], datetime]
     check_cancel: Callable[[], None]
     progress: Callable[[str], None]
 
     def run(
-        self, expected_username: str | None, dry_run: bool, full_rebuild: bool
+        self,
+        expected_username: str | None,
+        dry_run: bool,
+        full_rebuild: bool,
+        now: datetime | None = None,
     ) -> ScrobbleHistorySummary:
         """Refresh history without changing overlap, preview or recovery behavior.
 
@@ -171,6 +191,8 @@ class HistoryRefresh:
             expected_username: Optional account ownership check.
             dry_run: Suppress backup, writes, publication and audit.
             full_rebuild: Replace history from the complete live range.
+            now: Optional effective UTC timestamp already observed by the parent
+                workflow.
 
         Returns:
             Merged history and the accepted persistence effects.
@@ -182,7 +204,7 @@ class HistoryRefresh:
         """
         self.storage.hydrate()
         self.check_cancel()
-        checked_at = self.clock()
+        checked_at = self.clock() if now is None else now.astimezone(UTC)
         self.progress("Loading the canonical Last.fm history")
         export = self.storage.load()
         self.check_cancel()
@@ -239,7 +261,7 @@ class HistoryRefresh:
             if full_rebuild
             else "Fetching newer scrobbles from Last.fm"
         )
-        live = self.fetch(start, end)
+        live = self.reader.fetch(start, end)
         self.check_cancel()
         return _merge(records, live)
 

@@ -11,6 +11,7 @@ from typing import cast
 
 import pytest
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.release_check_values import ReleaseCheckError
 from spotify_manager.application.release_check_values import ReleaseCheckStateError
@@ -165,8 +166,42 @@ class Effects:
         self._record("audit")
 
 
+@dataclass(frozen=True)
+class ScriptedHistory:
+    """Supply the original independently observed release-opening history stage.
+
+    Args:
+        effects: Original accepted effects and interruption settings.
+    """
+
+    effects: Effects
+
+    def run(
+        self, username: str | None, preview: bool, rebuild: bool, now: datetime
+    ) -> ScrobbleHistorySummary:
+        """Observe the original real-refresh boundary, including previews.
+
+        Args:
+            username: Original expected account.
+            preview: Original history publication behavior.
+            rebuild: Original incremental mode.
+            now: Original effective UTC timestamp.
+
+        Returns:
+            Original complete history refresh summary.
+        """
+        return self.effects.refresh(now)
+
+
 def _workflow(effects: Effects) -> ReleaseRunOpening:
-    return ReleaseRunOpening(effects, effects.clock, effects.local_date, effects.run_id)
+    return ReleaseRunOpening(
+        effects,
+        cast(HistoryRefresh, ScriptedHistory(effects)),
+        None,
+        effects.clock,
+        effects.local_date,
+        effects.run_id,
+    )
 
 
 EVENTS = ["clock", "date", "load", "refresh", "rank", "run_id", "persist", "audit"]

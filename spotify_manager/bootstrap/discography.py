@@ -7,21 +7,22 @@ from pathlib import Path
 
 from spotipy import Spotify
 
-from spotify_manager.application.discography_execution import DiscographyEffects
+from spotify_manager.application.discography_catalog import DiscographyCatalog
 from spotify_manager.application.discography_execution import DiscographyExecution
-from spotify_manager.application.discography_execution import DiscographyStateAccess
-from spotify_manager.application.discography_history import resolve_historical
+from spotify_manager.application.discography_history import DiscographyArtistMapping
+from spotify_manager.application.discography_history import DiscographyHistory
 from spotify_manager.application.discography_planning import DiscographyPlanning
 from spotify_manager.application.discography_planning import DiscographyReads
+from spotify_manager.application.discography_queues import DiscographyQueues
 from spotify_manager.core.state.service import StateService
-from spotify_manager.domain.discography_values import CatalogRelease
-from spotify_manager.domain.discography_values import HistoricalArtistSelection
-from spotify_manager.domain.discography_values import QueueArtist
 from spotify_manager.domain.discography_values import QueueName
-from spotify_manager.domain.golden_selection import SpotifyArtistCandidate
-from spotify_manager.infrastructure.discography_observations import catalog
-from spotify_manager.infrastructure.discography_observations import historical
-from spotify_manager.infrastructure.discography_observations import queues
+from spotify_manager.infrastructure.discography_observations import (
+    DiscographyArtistCatalog,
+)
+from spotify_manager.infrastructure.discography_observations import DiscographyPriority
+from spotify_manager.infrastructure.discography_observations import DiscographySpotify
+from spotify_manager.infrastructure.discography_observations import DiscographyWrites
+from spotify_manager.infrastructure.legacy.dated_history import LegacyDatedHistory
 from spotify_manager.routines import discography as legacy
 
 
@@ -34,62 +35,81 @@ def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
         callback(message)
 
 
-def _priority(path: Path, service: StateService | None) -> dict[str, object]:
-    from spotify_manager.routines.discography import _state_access
-
-    return _state_access(path, service).load()
-
-
-def _state(path: Path, service: StateService | None) -> DiscographyStateAccess:
-    from spotify_manager.routines.discography import _state_access
-
-    return _state_access(path, service)
-
-
-def _catalog(
-    spotify: Spotify, retry: legacy.RetryCall, candidate: QueueArtist
-) -> tuple[CatalogRelease, ...]:
-    return catalog(spotify, candidate.spotify_id, retry)
-
-
-def _resolve(
-    spotify: Spotify,
-    choice: legacy.HistoricalArtistChoiceReader | None,
-    retry: legacy.RetryCall,
-    selection: HistoricalArtistSelection,
-) -> QueueArtist:
-    return resolve_historical(selection, partial(_artist, spotify, choice, retry))
-
-
-def _artist(
-    spotify: Spotify,
-    choice: legacy.HistoricalArtistChoiceReader | None,
-    retry: legacy.RetryCall,
-    name: str,
-) -> SpotifyArtistCandidate | None:
-    from spotify_manager.routines.something_old import resolve_spotify_artist
-
-    return resolve_spotify_artist(spotify, name, choice, retry)
-
-
-def resolve_artist(
-    spotify: Spotify,
-    selection: HistoricalArtistSelection,
-    choice: legacy.HistoricalArtistChoiceReader | None,
-    retry: legacy.RetryCall,
-) -> QueueArtist:
-    """Bind original exact artist mapping with caller interaction and retry seams.
+def history_stage(
+    path: Path,
+    today: date | None,
+    random: legacy.RandomIndexReader,
+    progress: legacy.ProgressCallback | None,
+) -> DiscographyHistory:
+    """Build the named historical-selection stage without reading inputs.
 
     Args:
-        spotify: Original SDK client.
-        selection: Original complete historical selection.
-        choice: Original optional mapping interaction.
-        retry: Original caller retry.
+        path: Original history export.
+        today: Optional effective date.
+        random: Original external random reader.
+        progress: Optional stage notification.
 
     Returns:
-        Original resolved historical candidate.
+        Configured historical-selection application stage.
     """
-    return resolve_historical(selection, partial(_artist, spotify, choice, retry))
+    return DiscographyHistory(
+        LegacyDatedHistory(path, today, random),
+        partial(_progress, progress),
+        legacy.blast_from_past.FIRST_ELIGIBLE_DATE,
+    )
+
+
+def queue_stage(
+    spotify: Spotify,
+    playlists: dict[QueueName, str],
+    retry: legacy.RetryCall,
+    extra: str | None,
+) -> DiscographyQueues:
+    """Build the named source-gathering stage without reading playlists.
+
+    Args:
+        spotify: Caller-owned client.
+        playlists: Original source identities.
+        retry: Original read retry policy.
+        extra: Optional auxiliary marker source.
+
+    Returns:
+        Configured queue-gathering application stage.
+    """
+    return DiscographyQueues(DiscographySpotify(spotify, retry), playlists, extra)
+
+
+def catalog_stage(spotify: Spotify, retry: legacy.RetryCall) -> DiscographyCatalog:
+    """Build the named catalog-selection stage without reading Spotify.
+
+    Args:
+        spotify: Caller-owned client.
+        retry: Original read retry policy.
+
+    Returns:
+        Configured catalog-selection application stage.
+    """
+    return DiscographyCatalog(
+        DiscographySpotify(spotify, retry), legacy.SAVED_ALBUM_BATCH_SIZE
+    )
+
+
+def historical_mapping(
+    spotify: Spotify,
+    choice: legacy.HistoricalArtistChoiceReader | None,
+    retry: legacy.RetryCall,
+) -> DiscographyArtistMapping:
+    """Build the named historical mapping stage without observing artists.
+
+    Args:
+        spotify: Caller-owned client.
+        choice: Optional original ambiguity interaction.
+        retry: Original read retry policy.
+
+    Returns:
+        Configured historical mapping application stage.
+    """
+    return DiscographyArtistMapping(DiscographyArtistCatalog(spotify, choice, retry))
 
 
 def planning(
@@ -127,17 +147,11 @@ def planning(
     """
     caller_retry = retry or _direct
     reads = DiscographyReads(
-        partial(_priority, state_path, service),
-        partial(queues, spotify, playlists, caller_retry, extra),
-        partial(
-            historical,
-            history_path,
-            today,
-            random,
-            progress,
-        ),
-        partial(_resolve, spotify, choice, caller_retry),
-        partial(_catalog, spotify, caller_retry),
+        DiscographyPriority(state_path, service),
+        queue_stage(spotify, playlists, caller_retry, extra),
+        history_stage(history_path, today, random, progress),
+        historical_mapping(spotify, choice, caller_retry),
+        catalog_stage(spotify, caller_retry),
         selector,
         partial(_progress, progress),
     )
@@ -165,14 +179,8 @@ def execution(
     Returns:
         Original complete synchronous execution use case.
     """
-    from spotify_manager.routines.discography import _append_log
-    from spotify_manager.routines.discography import _remove_batch
-
     caller_retry = retry or _direct
-    effects = DiscographyEffects(
-        partial(_remove_batch, spotify, caller_retry),
-        partial(_append_log, path=audit_path),
-        partial(_state, state_path, service),
-        partial(_progress, progress),
+    effects = DiscographyWrites(
+        spotify, caller_retry, state_path, service, audit_path, progress
     )
     return DiscographyExecution(effects, legacy.PLAYLIST_MUTATION_BATCH_SIZE)

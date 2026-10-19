@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
+from typing import cast
 
 import pytest
 
@@ -87,7 +88,7 @@ class Effects:
         self._record(f"mapping:{rank}")
         return self.mapped.get(artist.key, MAPPING)
 
-    def track(self, artist_id: str) -> CatalogTrack | None:
+    def run(self, artist_id: str) -> CatalogTrack | None:
         """Return configured original live-liked marker.
 
         Args:
@@ -133,7 +134,12 @@ class Effects:
 
 def _workflow(effects: Effects) -> DormantRecovery:
     return DormantRecovery(
-        effects, _clock, effects.cancel, effects.progress, effects.echo
+        effects,
+        cast(DormantLikedTrack, effects),
+        _clock,
+        effects.cancel,
+        effects.progress,
+        effects.echo,
     )
 
 
@@ -252,7 +258,7 @@ class LikedObservations:
     liked_ids: set[str] = field(default_factory=set)
     events: list[str] = field(default_factory=list)
 
-    def top(self) -> tuple[CatalogTrack, ...]:
+    def top(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Read original top observations.
 
         Returns:
@@ -275,7 +281,7 @@ class LikedObservations:
             track.spotify_id: track.spotify_id in self.liked_ids for track in tracks
         }
 
-    def catalog(self) -> tuple[CatalogTrack, ...]:
+    def tracks(self, artist_id: str) -> tuple[CatalogTrack, ...]:
         """Read original fallback catalog observations.
 
         Returns:
@@ -299,18 +305,13 @@ class LikedObservations:
 
 
 def _liked_workflow(observations: LikedObservations) -> DormantLikedTrack:
-    return DormantLikedTrack(
-        observations.top,
-        observations.liked,
-        observations.catalog,
-        observations.populate,
-    )
+    return DormantLikedTrack(observations)
 
 
 def test_dormant_liked_top_prevents_catalog_fallback() -> None:
     """Keep top-track success before any catalog/popularity observation."""
     observations = LikedObservations(liked_ids={"track"})
-    assert _liked_workflow(observations).run() == TRACK
+    assert _liked_workflow(observations).run("artist") == TRACK
     assert observations.events == ["top", "liked"]
 
 
@@ -324,12 +325,12 @@ def test_dormant_liked_catalog_popularity(populated: tuple[CatalogTrack, ...]) -
     observations = LikedObservations(
         top_tracks=(), liked_ids={"track"}, populated=populated
     )
-    assert _liked_workflow(observations).run() == (TRACK if populated else None)
+    assert _liked_workflow(observations).run("artist") == (TRACK if populated else None)
     assert observations.events == ["top", "liked", "catalog", "liked", "populate"]
 
 
 def test_dormant_no_liked_catalog_prevents_popularity_read() -> None:
     """Skip popularity when live liked statuses exclude every catalog track."""
     observations = LikedObservations()
-    assert _liked_workflow(observations).run() is None
+    assert _liked_workflow(observations).run("artist") is None
     assert observations.events == ["top", "liked", "catalog", "liked"]

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from spotify_manager.application.queue_recommendations import QueueRecommendations
 from spotify_manager.client.lastfm import LastFmSimilarArtist
 from spotify_manager.infrastructure.legacy import queue_fill as fill_integration
 from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
@@ -855,8 +856,8 @@ def test_fill_handles_mapping_skip_quit_and_no_match(
         lambda *_args, **_kwargs: (history, 0),
     )
     monkeypatch.setattr(
-        fill_integration.LegacyQueueFill,
-        "candidates",
+        QueueRecommendations,
+        "run",
         lambda *_args, **_kwargs: (recommendation,),
     )
     reader = None if choice is None else lambda *_args: choice
@@ -930,8 +931,8 @@ def test_fill_skips_represented_and_fully_liked_artists_before_dry_run_addition(
         lambda *_args, **_kwargs: (history, 0),
     )
     monkeypatch.setattr(
-        fill_integration.LegacyQueueFill,
-        "candidates",
+        QueueRecommendations,
+        "run",
         lambda *_args, **_kwargs: recommendations,
     )
     progress: list[str] = []

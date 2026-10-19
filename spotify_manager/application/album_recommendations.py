@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal
+from typing import Protocol
 
 from spotify_manager.domain.album_recommendations import AlbumEvidence
 from spotify_manager.domain.album_recommendations import AlbumKey
@@ -13,16 +14,30 @@ from spotify_manager.domain.album_recommendations import genuinely_ambiguous
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 
 
+class AlbumSearch(Protocol):
+    """Observe eligible album editions for one ranked track candidate."""
+
+    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+        """Read candidate editions through the original catalog boundary.
+
+        Args:
+            candidate: Ranked track evidence.
+
+        Returns:
+            Eligible editions in original search order.
+        """
+
+
 @dataclass(frozen=True)
 class AlbumGathering:
     """Observe each original search before combining its album support.
 
     Args:
-        search: Existing ordered eligible album observation boundary.
+        catalog: Existing ordered eligible album observation boundary.
         progress: Original candidate presenter.
     """
 
-    search: Callable[[FoundArtCandidate], tuple[SpotifyAlbumOption, ...]]
+    catalog: AlbumSearch
     progress: Callable[[str], None]
 
     def run(
@@ -55,7 +70,7 @@ class AlbumGathering:
                 f"Resolving album evidence {index}/{len(considered)}: "
                 f"{candidate.artist} - {candidate.track}"
             )
-            evidence.observe(candidate, self.search(candidate))
+            evidence.observe(candidate, self.catalog.search(candidate))
         return evidence.ranked(week)
 
 

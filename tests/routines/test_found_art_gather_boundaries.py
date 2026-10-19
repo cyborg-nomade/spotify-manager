@@ -1,6 +1,5 @@
 """Original recommendation cache and aggregation observation boundaries."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -55,9 +54,7 @@ class GatherSteps:
         self.cache = {"version": 1, "entries": {}}
         return self.cache
 
-    def previous(
-        self, path: Path, key_of: Callable[[str, str], tuple[str, str]]
-    ) -> set[tuple[str, str]]:
+    def previous(self, path: Path) -> set[tuple[str, str]]:
         """Read previously added exclusions before any seed observations.
 
         Args:
@@ -70,7 +67,7 @@ class GatherSteps:
         return set()
 
     def lookup(
-        self, entry: object, week_start: date, calendar: Callable[[datetime], date]
+        self, entry: object, week_start: date
     ) -> tuple[LastFmSimilarTrack, ...] | None:
         """Observe a cache lookup.
 

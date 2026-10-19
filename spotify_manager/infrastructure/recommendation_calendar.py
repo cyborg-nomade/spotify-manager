@@ -11,6 +11,26 @@ from spotify_manager.domain.recommendation_history import listening_week_start a
 BERLIN = ZoneInfo("Europe/Berlin")
 
 
+class BerlinCalendar:
+    """Observe Berlin dates without selecting a listening week."""
+
+    def local_date(self, value: datetime | date | None = None) -> date:
+        """Convert an existing observation or read the original local clock.
+
+        Args:
+            value: Date, timestamp or None; naive timestamps mean UTC.
+
+        Returns:
+            Original Berlin calendar date.
+        """
+        if value is None:
+            return datetime.now(BERLIN).date()
+        if not isinstance(value, datetime):
+            return value
+        stamp = value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        return stamp.astimezone(BERLIN).date()
+
+
 def listening_week_start(value: datetime | date | None = None) -> date:
     """Find the Friday containing an observed Berlin date or timestamp.
 
@@ -20,9 +40,4 @@ def listening_week_start(value: datetime | date | None = None) -> date:
     Returns:
         The preceding or same-day Friday in the Berlin calendar.
     """
-    if value is None:
-        return week(datetime.now(BERLIN).date())
-    if not isinstance(value, datetime):
-        return week(value)
-    stamp = value.replace(tzinfo=UTC) if value.tzinfo is None else value
-    return week(stamp.astimezone(BERLIN).date())
+    return week(BerlinCalendar().local_date(value))

@@ -2,14 +2,18 @@
 
 from collections.abc import Callable
 from datetime import datetime
+from functools import partial
 
 from spotipy import Spotify
 
 from spotify_manager.application.new_wine import NewWineDependencies
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_observations import WineObservations
+from spotify_manager.application.wine_cellar import CellarWorkflow
 from spotify_manager.infrastructure.legacy.new_wine import LegacyNewWine
+from spotify_manager.infrastructure.legacy.wine_cellar import WineCellarAccess
 from spotify_manager.interfaces.presenters.new_wine import NewWinePresenter
+from spotify_manager.interfaces.presenters.wine_cellar import present_transfer
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
 from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 
@@ -44,7 +48,6 @@ def new_wine_dependencies(
     active_year = year or local_year()
     access = LegacyNewWine(
         client,
-        options.destination,
         callbacks.retry or _direct,
         storage.state_path,
         storage.state_service,
@@ -52,11 +55,22 @@ def new_wine_dependencies(
         storage.albums_path,
         storage.liked_tracks_path,
         storage.removed_albums_log_path,
-        callbacks.echo,
+    )
+    cellar = CellarWorkflow(
+        WineCellarAccess(
+            client,
+            access.retry,
+            access,
+            storage.log_path,
+            storage.liked_tracks_path,
+            storage.albums_path,
+        ),
+        partial(present_transfer, callbacks.echo),
     )
     return NewWineDependencies(
         access,
         WineObservations(access, active_year),
+        cellar,
         callbacks.choose,
         callbacks.endpoint,
         NewWinePresenter(callbacks.echo),

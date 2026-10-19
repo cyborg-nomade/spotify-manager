@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
@@ -14,7 +15,6 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines import something_old
-from tests.support.history_dependencies import LegacySomethingOld
 from tests.support.history_dependencies import something_old_history
 
 
@@ -118,7 +118,7 @@ def patch_history_refresh(
         return history_summary(dry_run=bool(kwargs["dry_run"]))
 
     monkeypatch.setattr(
-        LegacySomethingOld, "history", partialmethod(something_old_history, refresh)
+        HistoryRefresh, "run", partialmethod(something_old_history, refresh)
     )
 
 
@@ -151,8 +151,8 @@ def test_nonempty_playlist_stops_before_refresh_or_prompt(
         ]
     )
     monkeypatch.setattr(
-        LegacySomethingOld,
-        "history",
+        HistoryRefresh,
+        "run",
         partialmethod(
             something_old_history,
             lambda *_args, **_kwargs: pytest.fail("history should not refresh"),

@@ -14,7 +14,7 @@ from spotify_manager.application.library_analysis_records import (
 )
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import LibraryModel
-from spotify_manager.application.library_analysis_values import ResourceConfig
+from spotify_manager.application.library_analysis_values import resource_config
 from spotify_manager.domain.library_analysis import deduplicate_models
 from spotify_manager.domain.library_analysis import resource_summary
 from spotify_manager.domain.library_analysis_values import LibrarySyncError
@@ -44,7 +44,6 @@ class AnalysisPublication:
         period: Original stats-history period observation.
         summaries: Original permissive manifest summary parsing.
         resource_summary: Original first-summary parsing.
-        config: Original resource path/model/order selection.
     """
 
     analysis_backup: Callable[
@@ -84,7 +83,6 @@ class AnalysisPublication:
     period: Callable[[], str]
     summaries: Callable[[object], tuple[ResourceSyncSummary, ...]]
     resource_summary: Callable[[object], ResourceSyncSummary]
-    config: Callable[[LibraryAnalysisPaths, ResourceName], ResourceConfig]
 
 
 def finalize_analysis(
@@ -250,7 +248,7 @@ def finalize_resource(
     Returns:
         Original one-resource analysis outcome.
     """
-    target, model_type, sort_key = publication.config(session.paths, resource)
+    target, model_type, sort_key = resource_config(session.paths, resource)
     current = sorted(deduplicate_models(models), key=sort_key)
     backup_dir, summary = _resource_backup(
         session, publication, resource, target, model_type, current

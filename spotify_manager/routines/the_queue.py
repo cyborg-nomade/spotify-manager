@@ -41,6 +41,7 @@ from spotify_manager.domain.queue_values import (
     ArtistRecommendation as ArtistRecommendation,
 )
 from spotify_manager.domain.queue_values import ArtistSeed as ArtistSeed
+from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
 from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
 from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
@@ -343,7 +344,7 @@ def select_seed_artists(
     """
     from spotify_manager.application.queue_seeds import QueueSeeds
 
-    return QueueSeeds(found_art.listening_week_start, SEED_POOL_MULTIPLIER).select(
+    return QueueSeeds(BerlinCalendar(), SEED_POOL_MULTIPLIER).select(
         history,
         seed_count,
         week_start,

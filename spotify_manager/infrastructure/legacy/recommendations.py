@@ -12,15 +12,10 @@ from spotify_manager.application.found_art_values import FoundArtSummary
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
-from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_candidates import LastFmSimilarTrack
-from spotify_manager.domain.recommendation_history import TrackHistory
 from spotify_manager.domain.recommendation_history import TrackKey
-from spotify_manager.domain.recommendation_history import canonical_track_key
-from spotify_manager.domain.recommendation_matching import FoundArtResult
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
 from spotify_manager.infrastructure import recommendations_data as data
-from spotify_manager.infrastructure.recommendation_calendar import listening_week_start
 from spotify_manager.infrastructure.recommendation_history import refresh_history
 from spotify_manager.routines import found_art as legacy
 
@@ -61,7 +56,7 @@ class LegacyNeighborhoods:
         """
         if self.log_path is None:
             return set()
-        return data.previously_added_keys(self.log_path, canonical_track_key)
+        return data.previously_added_keys(self.log_path)
 
     def lookup(
         self, entry: object, week: date
@@ -75,7 +70,7 @@ class LegacyNeighborhoods:
         Returns:
             Current-week observations, or a cache miss.
         """
-        return data.cached_neighbors(entry, week, listening_week_start)
+        return data.cached_neighbors(entry, week)
 
     def neighbors(self, seed: FoundArtSeed) -> tuple[LastFmSimilarTrack, ...]:
         """Read the original number of similar tracks for one seed.
@@ -179,82 +174,6 @@ class LegacyRecommendationRun:
         from spotify_manager.routines.blast_from_past import load_playlist_state
 
         return load_playlist_state(self.sp, self.playlist_id)
-
-    def seeds(
-        self, history: tuple[TrackHistory, ...], count: int, week: date
-    ) -> tuple[FoundArtSeed, ...]:
-        """Bind original seed selection parameters.
-
-        Args:
-            history: Aggregated canonical plays.
-            count: Original requested seed count.
-            week: Effective listening week.
-
-        Returns:
-            Original ordered seeds.
-
-        Raises:
-            FoundArtStateError: History cannot supply diverse seeds.
-        """
-        from spotify_manager.bootstrap.recommendations import recommendation_seeds
-
-        return recommendation_seeds().run(history, count, week)
-
-    def gather(
-        self,
-        seeds: tuple[FoundArtSeed, ...],
-        heard: set[TrackKey],
-        week: date,
-        pool_size: int,
-        generated_at: datetime,
-    ) -> tuple[FoundArtCandidate, ...]:
-        """Bind original neighborhood cache and exclusion parameters.
-
-        Args:
-            seeds: Ordered original seeds.
-            heard: Original listening exclusions.
-            week: Effective listening week.
-            pool_size: Original minimum or scaled candidate pool.
-            generated_at: Effective UTC timestamp.
-
-        Returns:
-            Original ranked candidates.
-
-        Raises:
-            FoundArtStateError: Cache or prior-addition data is unusable.
-        """
-        from spotify_manager.bootstrap.recommendations import candidate_gathering
-
-        workflow = candidate_gathering(
-            self.lastfm, self.cache_path, self.log_path, generated_at, self.progress
-        )
-        return workflow.run(seeds, heard, week, pool_size)
-
-    def resolve(
-        self,
-        candidates: tuple[FoundArtCandidate, ...],
-        playlist: PlaylistState,
-        count: int,
-        dry_run: bool,
-    ) -> tuple[tuple[FoundArtResult, ...], tuple[SpotifyTrackMatch, ...]]:
-        """Bind original Spotify resolution parameters and helper compatibility seam.
-
-        Args:
-            candidates: Original ranked pool.
-            playlist: Observed destination membership.
-            count: Requested additions.
-            dry_run: Original preview mode.
-
-        Returns:
-            Original ordered outcomes and pending matches.
-
-        Raises:
-            SpotifyTrackResolutionError: Catalog or liked-status data is unusable.
-        """
-        from spotify_manager.bootstrap.recommendations import recommendation_resolution
-
-        workflow = recommendation_resolution(self.sp, self.progress)
-        return workflow.run(candidates, playlist, count, dry_run)
 
     def append(self, pending: list[SpotifyTrackMatch]) -> None:
         """Append pending matches through the original accepted mutation boundary.

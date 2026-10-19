@@ -1,13 +1,11 @@
 """Discovery execution bindings for existing playlist, follow and state helpers."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.ports.listening import RetryCall
-from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
 
@@ -19,20 +17,12 @@ class LegacyDiscoveryEffects:
     Args:
         client: Existing synchronous Spotify client.
         retry: Existing retry/cancellation callback.
-        state_access: Existing namespace checkpoint boundary.
         artists_path: Canonical artist mirror.
-        year: Original invocation year.
-        great_seed: Configured 2026 Great Discoveries playlist.
-        echo: Existing output sink for destination creation.
     """
 
     client: Spotify
     retry: RetryCall
-    state_access: RoutineState
     artists_path: Path
-    year: int
-    great_seed: str
-    echo: Callable[[str], None]
 
     def append(self, playlist_id: str, track: CatalogTrack, description: str) -> None:
         """Append a marker using its original retry description.
@@ -70,23 +60,6 @@ class LegacyDiscoveryEffects:
         from spotify_manager.routines.new_kids import _playlist_artist_ids
 
         return _playlist_artist_ids(self.client, playlist_id, self.retry)
-
-    def great_playlist(self, state: dict[str, object], dry_run: bool) -> str | None:
-        """Use the existing destination creation and checkpoint integration.
-
-        Args:
-            state: Mutable complete namespace.
-            dry_run: Whether to preview creation.
-
-        Returns:
-            Original destination identifier, or None for previewed creation.
-        """
-        from spotify_manager.bootstrap.new_kids import great_discoveries
-
-        service = great_discoveries(
-            self.client, self.retry, self.state_access, self.echo
-        )
-        return service.resolve(state, self.year, self.great_seed, dry_run)
 
     def followed(self, artist_id: str, artist_name: str) -> bool:
         """Observe the original tolerant follow status.

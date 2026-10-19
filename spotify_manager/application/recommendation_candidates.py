@@ -7,10 +7,12 @@ from datetime import datetime
 from typing import Protocol
 
 from spotify_manager.application.found_art_values import FoundArtConfigError
+from spotify_manager.application.ports.calendar import ListeningCalendar
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_candidates import LastFmSimilarTrack
 from spotify_manager.domain.recommendation_candidates import RecommendationCandidates
 from spotify_manager.domain.recommendation_history import TrackKey
+from spotify_manager.domain.recommendation_history import listening_week_start
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
 
 
@@ -22,6 +24,16 @@ class NeighborhoodCache(Protocol):
 
         Returns:
             Original schema and entries.
+        """
+
+    def neighbors(self, seed: FoundArtSeed) -> tuple[LastFmSimilarTrack, ...]:
+        """Read one uncached Last.fm neighborhood.
+
+        Args:
+            seed: Original weighted seed.
+
+        Returns:
+            Similar tracks in original response order.
         """
 
     def previous(self) -> set[TrackKey]:
@@ -69,16 +81,14 @@ class CandidateGathering:
 
     Args:
         cache: Existing cache and prior-addition boundaries.
-        neighbors: Read one seed's Last.fm neighborhood.
         clock: Resolve UTC time after validating the requested pool size.
-        listening_week: Resolve the calendar only when no week was supplied.
+        calendar: Resolve the calendar only when no week was supplied.
         progress: Present original per-seed progress.
     """
 
     cache: NeighborhoodCache
-    neighbors: Callable[[FoundArtSeed], tuple[LastFmSimilarTrack, ...]]
     clock: Callable[[], datetime]
-    listening_week: Callable[[datetime], date]
+    calendar: ListeningCalendar
     progress: Callable[[str], None]
 
     def run(
@@ -87,6 +97,7 @@ class CandidateGathering:
         heard: set[TrackKey],
         week: date | None,
         pool_size: int,
+        now: datetime | None = None,
     ) -> tuple[FoundArtCandidate, ...]:
         """Gather neighborhoods in seed order and apply the original ranking policy.
 
@@ -95,6 +106,7 @@ class CandidateGathering:
             heard: Existing heard-track identities.
             week: Optional effective listening week.
             pool_size: Positive original candidate pool limit.
+            now: Parent workflow's already observed timestamp, when available.
 
         Returns:
             Ranked unheard candidates after all accepted cache checkpoints.
@@ -106,8 +118,10 @@ class CandidateGathering:
         """
         if pool_size < 1:
             raise FoundArtConfigError("Candidate pool size must be at least 1.")
-        generated_at = self.clock()
-        active_week = week or self.listening_week(generated_at)
+        generated_at = now or self.clock()
+        active_week = week or listening_week_start(
+            self.calendar.local_date(generated_at)
+        )
         cache = self.cache.load()
         entries = cache["entries"]
         if not isinstance(entries, dict):
@@ -130,6 +144,6 @@ class CandidateGathering:
         similar = self.cache.lookup(entries.get("\0".join(seed.key)), week)
         if similar is not None:
             return similar
-        similar = self.neighbors(seed)
+        similar = self.cache.neighbors(seed)
         self.cache.remember(cache, entries, seed, similar, generated_at)
         return similar

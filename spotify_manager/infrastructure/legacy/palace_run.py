@@ -1,16 +1,12 @@
 """Bind Palace's application stages to original synchronous compatibility seams."""
 
 from dataclasses import dataclass
-from datetime import date
-from datetime import datetime
 
 from spotipy import Spotify
 
 from spotify_manager.application.palace_effects import PalaceStateAccess
 from spotify_manager.application.palace_values import PalaceOfMemorySummary
-from spotify_manager.application.palace_values import SavedAlbumRefresh
 from spotify_manager.domain.history_matching import PlaylistState
-from spotify_manager.domain.palace_values import HistoricalAlbumSelection
 from spotify_manager.domain.palace_values import SpotifyAlbum
 from spotify_manager.domain.palace_values import SpotifyFirstTrack
 from spotify_manager.interfaces.requests.palace import PalaceCallbacks
@@ -47,24 +43,6 @@ class LegacyPalace:
         if self.callbacks.progress_callback is not None:
             self.callbacks.progress_callback(message)
 
-    def refresh(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
-        """Retain original live mirror preflight and publication even in preview.
-
-        Returns:
-            Original complete mirror and refresh result.
-        """
-        from spotify_manager.bootstrap.palace_mirror import saved_mirror
-
-        workflow = saved_mirror(
-            self.spotify,
-            self.resources.albums_path,
-            self.resources.album_backups_dir,
-            self.resources.album_refresh_log_path,
-            self.retry,
-            self.callbacks.progress_callback,
-        )
-        return workflow.run()
-
     def state_access(self) -> PalaceStateAccess:
         """Resolve original shared authority or explicit legacy path.
 
@@ -97,24 +75,6 @@ class LegacyPalace:
         if manual is not None:
             return resolve_alphabetical_start(albums, manual)
         return _cursor_index(state, albums)
-
-    def historical(
-        self,
-    ) -> tuple[datetime, date, int, tuple[HistoricalAlbumSelection, ...]]:
-        """Retain original history loading, cutoff and Random.org semantics.
-
-        Returns:
-            Original effective time, cutoff, eligible count and selections.
-        """
-        from spotify_manager.bootstrap.palace_history import palace_history
-
-        workflow = palace_history(
-            self.resources.scrobbles_path,
-            self.options.today,
-            self.callbacks.random_index_reader,
-            self.callbacks.progress_callback,
-        )
-        return workflow.run(legacy.HISTORY_COUNT)
 
     def playlist(self, recheck: bool) -> PlaylistState:
         """Read original destination authority through the original retry boundary.

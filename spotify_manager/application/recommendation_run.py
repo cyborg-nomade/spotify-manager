@@ -8,15 +8,36 @@ from typing import Protocol
 
 from spotify_manager.application.found_art_values import FoundArtConfigError
 from spotify_manager.application.found_art_values import FoundArtSummary
+from spotify_manager.application.ports.calendar import ListeningCalendar
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_resolution import (
+    RecommendationResolution,
+)
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_history import TrackHistory
-from spotify_manager.domain.recommendation_history import TrackKey
 from spotify_manager.domain.recommendation_history import aggregate_track_history
+from spotify_manager.domain.recommendation_history import listening_week_start
 from spotify_manager.domain.recommendation_matching import FoundArtResult
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
+
+
+@dataclass(frozen=True)
+class RecommendationStages:
+    """Name the business stages used by a complete recommendation run.
+
+    Args:
+        seeds: Weighted history seed selection.
+        candidates: Neighborhood observations and candidate ranking.
+        resolution: Spotify matching and ordered candidate decisions.
+    """
+
+    seeds: RecommendationSeeds
+    candidates: CandidateGathering
+    resolution: RecommendationResolution
 
 
 class RecommendationRunEffects(Protocol):
@@ -40,60 +61,6 @@ class RecommendationRunEffects(Protocol):
 
         Returns:
             Original size and membership.
-        """
-
-    def seeds(
-        self, history: tuple[TrackHistory, ...], count: int, week: date
-    ) -> tuple[FoundArtSeed, ...]:
-        """Select original seeds after destination capacity is known.
-
-        Args:
-            history: Aggregated canonical plays.
-            count: Original seed count.
-            week: Original effective listening week.
-
-        Returns:
-            Ordered original seeds.
-        """
-
-    def gather(
-        self,
-        seeds: tuple[FoundArtSeed, ...],
-        heard: set[TrackKey],
-        week: date,
-        pool_size: int,
-        generated_at: datetime,
-    ) -> tuple[FoundArtCandidate, ...]:
-        """Observe and checkpoint neighborhoods before catalog resolution.
-
-        Args:
-            seeds: Ordered selected seeds.
-            heard: Normalized listening exclusions.
-            week: Original effective listening week.
-            pool_size: Original minimum or scaled candidate limit.
-            generated_at: Original effective UTC timestamp.
-
-        Returns:
-            Ordered ranked candidates.
-        """
-
-    def resolve(
-        self,
-        candidates: tuple[FoundArtCandidate, ...],
-        playlist: PlaylistState,
-        count: int,
-        dry_run: bool,
-    ) -> tuple[tuple[FoundArtResult, ...], tuple[SpotifyTrackMatch, ...]]:
-        """Resolve original catalog matches and live liked status.
-
-        Args:
-            candidates: Ordered original pool.
-            playlist: Original destination membership.
-            count: Requested additions.
-            dry_run: Original preview mode.
-
-        Returns:
-            Ordered outcomes and unique pending additions.
         """
 
     def append(self, pending: list[SpotifyTrackMatch]) -> None:
@@ -153,8 +120,9 @@ class RecommendationRun:
 
     Args:
         effects: Existing observation, checkpoint, append and audit boundaries.
+        stages: Concrete named application stages for the invocation.
         clock: Resolve UTC time after request validation.
-        listening_week: Resolve the effective calendar week once per run.
+        calendar: Resolve the effective calendar week once per run.
         progress: Present original playlist and append progress.
         default_count: Original default when both count and maximum are absent.
         minimum_pool: Original minimum candidate pool size.
@@ -162,8 +130,9 @@ class RecommendationRun:
     """
 
     effects: RecommendationRunEffects
+    stages: RecommendationStages
     clock: Callable[[], datetime]
-    listening_week: Callable[[datetime], date]
+    calendar: ListeningCalendar
     progress: Callable[[str], None]
     default_count: int = 20
     minimum_pool: int = 100
@@ -196,7 +165,7 @@ class RecommendationRun:
         """
         _validate(count, maximum, seed_count)
         generated_at = self.clock()
-        week = self.listening_week(generated_at)
+        week = listening_week_start(self.calendar.local_date(generated_at))
         scrobbles, live_added = self.effects.refresh(generated_at, dry_run)
         history = aggregate_track_history(scrobbles)
         self.progress("Loading the Found Art Spotify playlist")
@@ -237,11 +206,13 @@ class RecommendationRun:
     ) -> RecommendationBatch:
         if not requested:
             return RecommendationBatch()
-        seeds = self.effects.seeds(history, seed_count, week)
+        seeds = self.stages.seeds.run(history, seed_count, week)
         heard = {track.key for track in history}
         pool_size = max(self.minimum_pool, requested * self.pool_multiplier)
-        candidates = self.effects.gather(seeds, heard, week, pool_size, generated_at)
-        results, pending = self.effects.resolve(
+        candidates = self.stages.candidates.run(
+            seeds, heard, week, pool_size, generated_at
+        )
+        results, pending = self.stages.resolution.run(
             candidates, playlist, requested, dry_run
         )
         return RecommendationBatch(seeds, candidates, results, pending)

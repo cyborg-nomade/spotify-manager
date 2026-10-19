@@ -16,7 +16,6 @@ from spotify_manager.application.library_analysis_effects import AnalysisSession
 from spotify_manager.application.library_analysis_effects import OffsetRead
 from spotify_manager.application.library_analysis_publication import AnalysisPublication
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
-from spotify_manager.application.library_analysis_values import resource_config
 from spotify_manager.application.library_analysis_values import scoped_paths
 from spotify_manager.domain.library_analysis_values import LibraryAnalysisCancelledError
 from spotify_manager.domain.library_analysis_values import LibrarySyncSummary
@@ -136,7 +135,6 @@ def _publication(files: AnalysisFiles) -> AnalysisPublication:
         legacy.current_stats_history_key,
         backups.manifest_summaries,
         backups.resource_manifest_summary,
-        resource_config,
     )
 
 

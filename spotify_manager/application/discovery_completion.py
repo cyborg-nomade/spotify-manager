@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from dataclasses import field
 
+from spotify_manager.application.discovery_destinations import GreatDiscoveries
 from spotify_manager.application.new_kids_state import assessment_from_record
 from spotify_manager.application.new_kids_state import track_from_record
 from spotify_manager.application.new_kids_values import ArtistAssessment
@@ -39,6 +40,8 @@ class DiscoveryCompletion:
         newfoundland: Configured Newfoundland destination.
         unlucky: Configured Unlucky Ones destination.
         dry_run: Whether to project effects without remote writes.
+        great: Named yearly destination resolution stage.
+        great_seed: Configured existing 2026 Great Discoveries destination.
         memberships: Run-scoped destination artist and track sets.
     """
 
@@ -49,6 +52,8 @@ class DiscoveryCompletion:
     newfoundland: str
     unlucky: str
     dry_run: bool
+    great: GreatDiscoveries
+    great_seed: str
     memberships: dict[str, tuple[set[str], set[str]]] = field(default_factory=dict)
 
     def finish(self, artist: ReviewArtist, plan: dict[str, object]) -> None:
@@ -84,7 +89,7 @@ class DiscoveryCompletion:
                 f"{artist.name} qualifies for promotion, but "
                 "Spotify returned no primary-artist representative track."
             )
-        great = self.access.great_playlist(self.state, self.dry_run)
+        great = self.great.resolve(self.state, self.year, self.great_seed, self.dry_run)
         self._destination(artist, target, great, f"Great Discoveries {self.year}")
         self._destination(artist, target, self.newfoundland, "Newfoundland")
 

@@ -53,7 +53,7 @@ def palace_cursor(
         refresh_log,
         retry,
         callback,
-    ).run
+    )
     return PalaceCursor(
         partial(_present, callback),
         refresh,

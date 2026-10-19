@@ -1,9 +1,10 @@
 """Execute saved Queue 3 transitions at the original accepted-effect boundaries."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
+from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
+from spotify_manager.application.ports.queue_playlists import PlaylistWrites
 from spotify_manager.application.queue_3_state import release_from_record
 from spotify_manager.application.queue_3_state import track_from_record
 from spotify_manager.application.queue_3_values import Queue3StateError
@@ -11,7 +12,6 @@ from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.domain.catalog import release_candidate
-from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.domain.queue_3 import ranked_release
 from spotify_manager.models.lookups import AlbumEvaluation
 
@@ -121,16 +121,14 @@ class Queue3Execution:
     """Reconcile library membership before replacing or completing playlist markers.
 
     Args:
-        append: Original ordered playlist append boundary.
-        remove: Original URI deduplication and removal boundary.
-        reconcile: Shared release library workflow with the original audit destination.
+        access: Named original playlist observations and accepted effects.
+        library: Named library reconciliation stage with the original audit destination.
         presentation: Existing effect messages.
         dry_run: Whether to suppress mutations while retaining projections and messages.
     """
 
-    append: Callable[[str, list[PlaylistTrack], str], None]
-    remove: Callable[[str, list[str], str], None]
-    reconcile: Callable[[RankedRelease, AlbumEvaluation], str]
+    access: PlaylistWrites
+    library: DiscoveryLibraryReconciliation
     presentation: ExecutionPresentation
     dry_run: bool
 
@@ -160,7 +158,7 @@ class Queue3Execution:
         target = track_from_record(plan.get("target"))
         evaluation = _evaluation(plan.get("evaluation"))
         if evaluation is not None and current is not None:
-            self.reconcile(ranked_release(current), evaluation)
+            self.library.reconcile(ranked_release(current), evaluation)
         uris = queue.artist_uris(transition)
         if (
             action in {"advance", "composer_advance", "next_release"}
@@ -193,7 +191,7 @@ class Queue3Execution:
         if not source_present and not uris:
             return
         if not self.dry_run:
-            self.remove(
+            self.access.remove(
                 queue.playlist_id,
                 uris or [source.uri],
                 f"removing the previous {transition.artist_name} marker",
@@ -212,7 +210,9 @@ class Queue3Execution:
             raise Queue3StateError(f"{target.name} has no saved target release.")
         if not self.dry_run:
             marker = _target_marker(transition, target, release)
-            self.append(queue.playlist_id, [marker], f"adding {target.name} to Queue 3")
+            self.access.append(
+                queue.playlist_id, [marker], f"adding {target.name} to Queue 3"
+            )
         queue.ids.add(target.spotify_id)
         self.presentation.added(target.name, self.dry_run)
 
@@ -233,7 +233,7 @@ class Queue3Execution:
         uris: list[str],
     ) -> None:
         if not self.dry_run:
-            self.remove(
+            self.access.remove(
                 queue.playlist_id,
                 uris,
                 f"completing {transition.artist_name} in Queue 3",

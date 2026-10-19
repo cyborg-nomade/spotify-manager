@@ -5,6 +5,7 @@ from functools import partial
 from pathlib import Path
 
 from spotify_manager.application.palace_history import PalaceHistory
+from spotify_manager.infrastructure.legacy.dated_history import LegacyDatedHistory
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory as legacy
 
@@ -31,13 +32,8 @@ def palace_history(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.routines.blast_from_past import load_scrobbles_by_date
-    from spotify_manager.routines.palace_of_memory import palace_cutoff
-
     return PalaceHistory(
-        partial(load_scrobbles_by_date, path),
-        partial(palace_cutoff, today),
-        random,
+        LegacyDatedHistory(path, today, random),
         partial(_progress, progress),
         blast_from_past.FIRST_ELIGIBLE_DATE,
     )

@@ -20,6 +20,8 @@ from spotify_manager.application.new_wine_values import NewWineStateError
 from spotify_manager.application.new_wine_values import ReleaseChoiceReader
 from spotify_manager.application.ports.new_wine import NewWineAccess
 from spotify_manager.application.ports.new_wine import NewWinePresentation
+from spotify_manager.application.wine_cellar import CellarOptions
+from spotify_manager.application.wine_cellar import CellarWorkflow
 from spotify_manager.domain.catalog import PlaylistTrack
 
 
@@ -51,6 +53,7 @@ class NewWineDependencies:
     Args:
         access: Playlist, library, namespace, audit and refill integrations.
         observations: Fresh per-run catalog and liked-status cache.
+        cellar: Named ordered Wine Cellar refill stage.
         choose: Original release selection callback.
         endpoint: Optional original endpoint selection callback.
         presentation: Original planning and effect messages.
@@ -60,6 +63,7 @@ class NewWineDependencies:
 
     access: NewWineAccess
     observations: WineObservations
+    cellar: CellarWorkflow
     choose: ReleaseChoiceReader
     endpoint: EndpointChoiceReader | None
     presentation: NewWinePresentation
@@ -117,7 +121,7 @@ def flush_new_wine(
         dependencies.endpoint,
         endpoint_mode,
         options.dry_run,
-        execution.checkpoint,
+        execution,
         dependencies.presentation,
     )
     return NewWineRun(
@@ -315,9 +319,15 @@ class NewWineRun:
         projected = (
             set(self.execution.destination_ids) if self.options.dry_run else None
         )
-        return self.dependencies.access.refill(
-            cellar, no_discovery, self.options.dry_run, self.state, self.run, projected
+        options = CellarOptions(
+            self.options.destination,
+            cellar,
+            no_discovery,
+            self.options.dry_run,
+            self.dependencies.access.refill_limit,
+            projected,
         )
+        return self.dependencies.cellar.run(options, self.state, self.run)
 
     def _finish(self) -> None:
         if self.options.dry_run or self.paused or not _finished(self.entries):
