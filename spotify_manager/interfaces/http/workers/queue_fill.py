@@ -1,19 +1,18 @@
 """Explicit callbacks and wire presentation for QueueFillWorker."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
 from datetime import timedelta
-from threading import Lock
 
 from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
@@ -22,54 +21,40 @@ from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.queue import QueueArtistOption
 from spotify_manager.interfaces.http.models.queue import QueueFillResultEntry
 from spotify_manager.interfaces.http.models.queue import QueuePendingChoice
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.presenters.queue import (
+    queue_fill_result_entry as _queue_fill_result_entry,
+)
 from spotify_manager.interfaces.http.workers.errors import _QueueJobCancelledError
-from spotify_manager.routines import release_check
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import the_queue
+from spotify_manager.interfaces.operations import release_check as release_check
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import the_queue as the_queue
+from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
+from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
+from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
 
 
 @dataclass(kw_only=True)
 class QueueFillWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job with invocation-owned inputs.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        spotify: Explicit spotify input or adapter boundary.
-        playlists: Explicit playlists input or adapter boundary.
-        api_key: Explicit api key input or adapter boundary.
-        username: Explicit username input or adapter boundary.
-        count: Explicit count input or adapter boundary.
-        max_playlist_length: Explicit max playlist length input or adapter boundary.
-        seed_count: Explicit seed count input or adapter boundary.
-        dry_run: Explicit dry run input or adapter boundary.
-        create_lastfm: Explicit create lastfm input or adapter boundary.
-        connection_failure: Explicit connection failure input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        _queue_fill_result_entry: Explicit queue fill result entry input or adapter
-            boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        credentials: Caller-owned credentials.
+        options: Caller-owned options.
+        context: Caller-owned context.
+        job_id: Caller-owned job id.
+        spotify: Caller-owned spotify.
+        connection_failure: Caller-owned connection failure.
     """
 
+    credentials: LastFmCredentials
+    options: QueueFillOptions
+    context: PlaylistContext
     job_id: str
     spotify: Spotify
-    playlists: the_queue.QueuePlaylists
-    api_key: str
-    username: str
-    count: int | None
-    max_playlist_length: int | None
-    seed_count: int
-    dry_run: bool
-    create_lastfm: Callable[..., LastFmClient]
     connection_failure: str
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    _queue_fill_result_entry: Callable[..., QueueFillResultEntry]
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     last_progress: str | None = field(init=False, default=None)
     lastfm: LastFmClient = field(init=False)
@@ -109,9 +94,9 @@ class QueueFillWorker:
         Args:
             message: Original routine-supplied message.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def progress_callback(
         self, completed: int, total: int, progress_status: str
@@ -125,12 +110,12 @@ class QueueFillWorker:
         """
         if self.job.cancel_event.is_set():
             raise _QueueJobCancelledError
-        with self.lock:
+        with self.context.lock:
             self.job.result.processed = completed
             self.job.result.total = total or None
             self.job.result.detail = progress_status
             if progress_status != self.last_progress:
-                self.append(self.job, progress_status)
+                self.context.append(self.job, progress_status)
                 self.last_progress = progress_status
 
     def choice_reader(
@@ -147,7 +132,7 @@ class QueueFillWorker:
         Returns:
             The original accepted routine callback result.
         """
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _QueueJobCancelledError
             self.job.submitted_choice = None
@@ -161,7 +146,7 @@ class QueueFillWorker:
             )
             self.job.result.status = "waiting"
             self.job.result.detail = f"Map Last.fm artist {recommendation.artist}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
         return await_submission(self.job.choice_event, self._consume_choice_reader)
 
     def interruptible_sleep(self, seconds: float) -> None:
@@ -193,17 +178,16 @@ class QueueFillWorker:
         )
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="fill_queue_from_lastfm")
-        with self.lock:
+        self.job = self.context.lookup(self.job_id, command="fill_queue_from_lastfm")
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Queue artist discovery started"
-            self.append(
+            self.context.append(
                 self.job,
                 (
-                    "Queue artist discovery started"
-                    f"{(' in dry-run mode' if self.dry_run else '')}"
-                    "."
+                    f"Queue artist discovery started"
+                    f"{(' in dry-run mode' if self.options.dry_run else '')}."
                 ),
             )
         self.last_progress: str | None = None
@@ -211,29 +195,29 @@ class QueueFillWorker:
         self.previous_spotify_event_callback = None
         if callable(self.spotify_event_setter):
             self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
-        self.lastfm = self.create_lastfm(
-            self.api_key, self.username, event_callback=self.echo
+        self.lastfm = lastfm_client(
+            LastFmCredentials(self.credentials.api_key, self.credentials.username),
+            self.echo,
         )
 
     def _execute(self) -> the_queue.FillSummary:
         summary = the_queue.fill_queue_from_lastfm(
             self.spotify,
             self.lastfm,
-            self.playlists,
-            self.choice_reader,
-            count=self.count,
-            max_playlist_length=self.max_playlist_length,
-            seed_count=self.seed_count,
-            dry_run=self.dry_run,
-            echo=self.echo,
-            progress_callback=self.progress_callback,
-            retry_call=self.retry_call,
+            self.options,
+            QueueFillCallbacks(
+                choice_reader=self.choice_reader,
+                echo=self.echo,
+                progress_callback=self.progress_callback,
+                retry_call=self.retry_call,
+            ),
+            QueueFillResources(),
         )
         return summary
 
     def _completed(self, summary: the_queue.FillSummary) -> None:
-        results = [self._queue_fill_result_entry(result) for result in summary.results]
-        with self.lock:
+        results = [_queue_fill_result_entry(result) for result in summary.results]
+        with self.context.lock:
             self.job.result.status = "paused" if summary.paused else "completed"
             self.job.result.requested_count = summary.requested_count
             self.job.result.week_start = summary.week_start.isoformat()
@@ -250,71 +234,64 @@ class QueueFillWorker:
                 "Queue fill paused; rerun to continue."
                 if summary.paused
                 else (
-                    "Selected "
-                    f"{summary.selected}"
-                    " of "
-                    f"{summary.requested_count}"
-                    " artists; Queue "
-                    f"{summary.playlist_length_before}"
-                    " -> "
-                    f"{summary.playlist_length_after}"
-                    "."
+                    f"Selected {summary.selected} of {summary.requested_count}"
+                    f" artists; Queue {summary.playlist_length_before} -> "
+                    f"{summary.playlist_length_after}."
                 )
             )
             for result in results:
                 self._log_result(result)
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
         if callable(self.spotify_event_setter):
             self.spotify_event_setter(self.previous_spotify_event_callback)
-        with self.lock:
+        with self.context.lock:
             self.job.result.queue_pending_choice = None
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "cancelled"
             self.job.result.detail = (
-                (
-                    "Queue fill stopped. Cached calls and completed "
-                    "additions remain saved."
-                )
-                if not self.dry_run
+                "Queue fill stopped. Cached calls and completed additions remain saved."
+                if not self.options.dry_run
                 else "Queue fill dry run stopped."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _rate_limited(self, exc: review_album_limits.SpotifyRateLimitError) -> None:
         retry_at = None
         if exc.retry_after_seconds is not None:
-            retry_at = self.clock.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with self.lock:
+            retry_at = self.context.clock.now(UTC) + timedelta(
+                seconds=exc.retry_after_seconds
+            )
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.retry_at = retry_at.isoformat() if retry_at else None
             self.job.result.detail = (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _temporarily_unavailable(
         self, exc: review_album_limits.SpotifyTransientServerError
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
                 + ". Cached calls and completed additions remain saved."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _connection_failed(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = self.connection_failure
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _failed(
         self,
@@ -323,20 +300,20 @@ class QueueFillWorker:
         | LastFmError
         | SpotifyException,
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = str(exc)
-            self.append(self.job, f"Queue fill failed: {exc}")
+            self.context.append(self.job, f"Queue fill failed: {exc}")
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected Queue fill error")
-        with self.lock:
+        self.context.logger.exception("Unexpected Queue fill error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = f"Unexpected Queue fill error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _consume_choice_reader(self) -> str | None:
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _QueueJobCancelledError
             choice = self.job.submitted_choice
@@ -347,7 +324,7 @@ class QueueFillWorker:
             self.job.result.queue_pending_choice = None
             self.job.result.status = "running"
             self.job.result.detail = "Applying Queue artist mapping"
-            self.append(self.job, f"Artist mapping choice received: {choice}.")
+            self.context.append(self.job, f"Artist mapping choice received: {choice}.")
             return choice
 
     def _queue_artist_options(
@@ -370,4 +347,6 @@ class QueueFillWorker:
         target = result.spotify_artist or "no Spotify mapping"
         if result.track:
             target += f" - {result.track}"
-        self.append(self.job, f"{result.lastfm_artist} -> {target} ({result.action}).")
+        self.context.append(
+            self.job, f"{result.lastfm_artist} -> {target} ({result.action})."
+        )

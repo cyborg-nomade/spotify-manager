@@ -8,6 +8,8 @@ from types import SimpleNamespace
 import pytest
 
 from spotify_manager import main
+from tests.support.feature_invocation import FeatureInvocation
+from tests.support.wine_invocation import WineInvocation
 
 
 PLAYLIST_ID = "a" * 22
@@ -102,7 +104,11 @@ def test_something_old_command_completes(
         kwargs["progress_callback"]("Selection ready")
         return summary
 
-    monkeypatch.setattr(main.something_old, "run_something_old", run)
+    monkeypatch.setattr(
+        main.something_old,
+        "run_something_old",
+        FeatureInvocation(run, ("playlist_id",)),
+    )
 
     main.something_old_command(dry_run=True)
 
@@ -133,7 +139,9 @@ def test_release_check_command_completes(
         kwargs["progress_callback"](1, 1, "Release check complete")
         return summary
 
-    monkeypatch.setattr(main.release_check, "run_release_check", run)
+    monkeypatch.setattr(
+        main.release_check, "run_release_check", FeatureInvocation(run, ("playlists",))
+    )
 
     main.check_new_releases_command(dry_run=True)
 
@@ -199,7 +207,9 @@ def test_fill_queue_from_lastfm_command_completes(
         kwargs["progress_callback"](1, 1, "Queue recommendations complete")
         return summary
 
-    monkeypatch.setattr(main.the_queue, "fill_queue_from_lastfm", run)
+    monkeypatch.setattr(
+        main.the_queue, "fill_queue_from_lastfm", FeatureInvocation(run, ("playlists",))
+    )
 
     main.fill_queue_from_lastfm_command(
         count=1,
@@ -278,7 +288,20 @@ def test_new_kids_commands_complete(
         kwargs["progress_callback"](0, 0, "Routine complete")
         return summary
 
-    monkeypatch.setattr(main.new_kids, target, run)
+    monkeypatch.setattr(
+        main.new_kids,
+        target,
+        FeatureInvocation(
+            run,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
 
     if command == "new-kids":
         main.flush_new_kids_command(dry_run=True)
@@ -314,7 +337,11 @@ def test_queue_3_command_completes(
         kwargs["progress_callback"](0, 0, "Queue 3 complete")
         return summary
 
-    monkeypatch.setattr(main.queue_3, "flush_queue_3", run)
+    monkeypatch.setattr(
+        main.queue_3,
+        "flush_queue_3",
+        FeatureInvocation(run, ("playlist_id", "transition_reader")),
+    )
 
     main.flush_queue_3_command(dry_run=True)
 
@@ -348,7 +375,7 @@ def test_new_wine_command_completes(
         kwargs["progress_callback"](0, 0, "New Wine complete")
         return summary
 
-    monkeypatch.setattr(main.new_wine, "flush_new_wine", run)
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(run))
 
     main.flush_new_wine_command(dry_run=True, no_discovery=False)
 
@@ -478,7 +505,11 @@ def test_palace_command_completes(
         kwargs["progress_callback"]("Palace complete")
         return summary
 
-    monkeypatch.setattr(main.palace_of_memory, "fill_palace_of_memory", fill)
+    monkeypatch.setattr(
+        main.palace_of_memory,
+        "fill_palace_of_memory",
+        FeatureInvocation(fill, ("playlist_id",)),
+    )
 
     main.fill_palace_of_memory_command(
         dry_run=True,

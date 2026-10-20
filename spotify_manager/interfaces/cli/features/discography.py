@@ -6,45 +6,35 @@ from typing import Never
 
 import typer
 from rich.console import Console
-from rich.prompt import Prompt
 from rich.status import Status
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.domain.discography_values import CatalogRelease
-from spotify_manager.routines import discography
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import something_old
-from spotify_manager.settings import Settings
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import discography as discography
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import something_old as something_old
 
 
 @dataclass(kw_only=True)
 class DiscographyCLI:
-    """Execute and present discography through explicit facade dependencies.
+    """Plan discographies and present release choices in the terminal.
 
     Args:
-        create_console: Factory for console instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        configuration: Original settings factory supplied by the facade.
-        create_table: Factory for table instances.
-        _print_discography_plan:  print discography plan supplied by the caller.
-        ask_discography_release_selection: Original ask discography release selection
-            boundary supplied by the facade.
-        ask_something_old_artist: Original ask something old artist boundary supplied by
-            the facade.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
+        ask_something_old_artist: Operator prompt for historical artist resolution.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
-    create_console: type[Console]
-    prompt: type[Prompt]
-    configuration: type[Settings]
-    create_table: type[Table]
-    _print_discography_plan: Callable[..., None]
-    ask_discography_release_selection: Callable[..., tuple[str, ...]]
+    runtime: CliResources
+
+    display: ConsoleDisplay
     ask_something_old_artist: Callable[..., str]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _prompt_discography_release_selection(
@@ -84,7 +74,7 @@ class DiscographyCLI:
             console: Rich console receiving this command's output.
             plan: Plan supplied by the caller.
         """
-        table = self.create_table(title="Next discographies")
+        table = self.display.create_table(title="Next discographies")
         table.add_column("Queue")
         table.add_column("Artist")
         table.add_column("Releases", justify="right")
@@ -94,7 +84,7 @@ class DiscographyCLI:
                 discography.QUEUE_LABELS[selection.source_queue],
                 selection.name,
                 str(selection.release_count),
-                (f"{selection.days:g}"),
+                f"{selection.days:g}",
             )
         console.print(table)
         if not plan.artists:
@@ -103,21 +93,15 @@ class DiscographyCLI:
             )
             return
         summary = (
-            "Total: "
-            f"{plan.total_releases}"
-            " releases over "
-            f"{plan.days:g}"
-            " days. Next queue: "
-            f"{discography.QUEUE_LABELS[plan.next_queue]}"
-            "."
+            f"Total: {plan.total_releases} releases over {plan.days:g}"
+            f" days. Next queue: {discography.QUEUE_LABELS[plan.next_queue]}."
         )
         console.print(summary, style="bold cyan")
         if plan.open_slots:
             console.print(
                 (
-                    "No remaining artist fit the final "
-                    f"{plan.open_slots}"
-                    " release slots; they remain open."
+                    f"No remaining artist fit the final {plan.open_slots}"
+                    f" release slots; they remain open."
                 ),
                 style="yellow",
             )
@@ -128,8 +112,8 @@ class DiscographyCLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._plan_discographies_console = self.create_console()
-        configuration = self.configuration()
+        self._plan_discographies_console = self.display.create_console()
+        configuration = self.runtime.configuration()
         try:
             playlist_ids = discography.parse_playlist_ids(
                 configuration.discography_newfoundland_playlist,
@@ -180,7 +164,7 @@ class DiscographyCLI:
         artist: discography.QueueArtist,
         candidates: tuple[discography.CatalogRelease, ...],
     ) -> tuple[str, ...]:
-        return self.ask_discography_release_selection(
+        return self._prompt_discography_release_selection(
             self._plan_discographies_console,
             artist,
             candidates,
@@ -210,9 +194,9 @@ class DiscographyCLI:
     ) -> Never:
         self._plan_discographies_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -245,7 +229,7 @@ class DiscographyCLI:
         self, exc: SpotifyException
     ) -> Never:
         self._plan_discographies_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -264,13 +248,10 @@ class DiscographyCLI:
     ) -> None:
         self._plan_discographies_console.print(
             (
-                "Removed "
-                f"{summary.removed_artists}"
-                " artists ("
+                f"Removed {summary.removed_artists} artists ("
                 f"{summary.removed_markers}"
-                " marker tracks). The next run starts with "
-                f"{discography.QUEUE_LABELS[summary.next_queue]}"
-                "."
+                f" marker tracks). The next run starts with "
+                f"{discography.QUEUE_LABELS[summary.next_queue]}."
             ),
             style="bold green",
         )
@@ -293,7 +274,7 @@ class DiscographyCLI:
         Returns:
             The original value selected or formatted by this adapter.
         """
-        table = self.create_table(title=f"Choose releases for {artist.name}")
+        table = self.display.create_table(title=f"Choose releases for {artist.name}")
         table.add_column("#", justify="right")
         table.add_column("Release")
         table.add_column("Type")
@@ -309,7 +290,7 @@ class DiscographyCLI:
         console.print(table)
         default = discography.format_release_indexes(tuple(default_indexes))
         while True:
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Release numbers/ranges to include / [n]one / [q]uit",
                 default=default,
                 console=console,
@@ -371,7 +352,7 @@ class DiscographyCLI:
         ) as self._plan_discographies_status:
             self._plan_discographies_status_ref = self._plan_discographies_status
             plan = discography.build_discography_plan(
-                self.review_client(),
+                self.runtime.review_client(),
                 playlist_ids,
                 self._plan_discographies_ask_discography_release_selection,
                 queue_3_playlist_id=queue_3_playlist_id,
@@ -379,14 +360,14 @@ class DiscographyCLI:
                 retry_call=self._plan_discographies_retry_call,
                 progress_callback=self._plan_discographies_status.update,
             )
-        self._print_discography_plan(self._plan_discographies_console, plan)
+        self._render_discography_plan(self._plan_discographies_console, plan)
         if not self._confirm_plan(plan, dry_run):
             return None
         with self._plan_discographies_console.status(
             "Removing confirmed discography artists"
         ) as self._plan_discographies_status:
             return discography.apply_discography_plan(
-                self.review_client(),
+                self.runtime.review_client(),
                 plan,
                 retry_call=self._plan_discographies_retry_call,
                 progress_callback=self._plan_discographies_status.update,
@@ -409,7 +390,7 @@ class DiscographyCLI:
                     style="bold cyan",
                 )
             return False
-        action = self.prompt.ask(
+        action = self.display.prompt.ask(
             "Remove these artists from the discography queues?",
             choices=["y", "n", "q"],
             default="n",

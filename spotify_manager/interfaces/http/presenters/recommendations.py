@@ -1,12 +1,14 @@
 """Stable recommendations result serialization."""
 
+from collections.abc import Iterable
+
 from spotify_manager.interfaces.http.models.recommendations import (
     FoundArtSelectionResult,
 )
 from spotify_manager.interfaces.http.models.recommendations import (
     SauvignonSelectionResult,
 )
-from spotify_manager.routines import found_art
+from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.routines import sauvignon
 
 
@@ -70,3 +72,37 @@ def sauvignon_selection_result(
         first_track=result.first_track.name if result.first_track is not None else None,
         action=result.action,
     )
+
+
+def sauvignon_selection_results(
+    values: Iterable[sauvignon.SauvignonResult],
+) -> list[SauvignonSelectionResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(sauvignon_selection_result(value))
+    return entries
+
+
+def found_art_selection_results(
+    values: Iterable[found_art.FoundArtResult],
+) -> list[FoundArtSelectionResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(found_art_selection_result(value))
+    return entries

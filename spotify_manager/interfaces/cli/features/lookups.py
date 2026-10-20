@@ -1,16 +1,14 @@
 """Explicit lookups CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
 import typer
 from requests.exceptions import RequestException
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.models.lookups import AlbumEvaluation
-from spotify_manager.models.lookups import ArtistLibraryStats
+from spotify_manager.interfaces import lookup_operations
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.processors.library_lookups import AlbumNotFoundError
 from spotify_manager.processors.library_lookups import AmbiguousAlbumError
 from spotify_manager.processors.library_lookups import AmbiguousArtistError
@@ -20,18 +18,13 @@ from spotify_manager.processors.library_lookups import SpotifyLookupResponseErro
 
 @dataclass(kw_only=True)
 class LookupsCLI:
-    """Execute and present lookups through explicit facade dependencies.
+    """Run named lookup operations and render unchanged JSON or errors.
 
     Args:
-        client: Client supplied by the caller.
-        evaluate_album_live: Evaluate album live supplied by the caller.
-        get_live_artist_library_stats: Original get live artist library stats boundary
-            supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
     """
 
-    client: Callable[..., Spotify]
-    evaluate_album_live: Callable[..., AlbumEvaluation]
-    get_live_artist_library_stats: Callable[..., ArtistLibraryStats]
+    runtime: CliResources
 
     def _artist_stats(self, name: str, artist_id: str) -> None:
         """Show live liked-track and saved-release counts for an artist.
@@ -43,8 +36,8 @@ class LookupsCLI:
         if not name and (not artist_id):
             raise typer.BadParameter("provide an artist NAME or --artist-id")
         try:
-            stats = self.get_live_artist_library_stats(
-                self.client(), name=name, artist_id=artist_id
+            stats = lookup_operations.get_live_artist_library_stats(
+                self.runtime.client(), name=name, artist_id=artist_id
             )
         except AmbiguousArtistError as exc:
             self._report_artist_stats_ambiguous_artist_failure(exc)
@@ -70,8 +63,8 @@ class LookupsCLI:
         if not name and (not album_id):
             raise typer.BadParameter("provide an album NAME or --album-id")
         try:
-            evaluation = self.evaluate_album_live(
-                self.client(),
+            evaluation = lookup_operations.evaluate_live_album(
+                self.runtime.client(),
                 name=name,
                 album_id=album_id,
                 artist=artist,

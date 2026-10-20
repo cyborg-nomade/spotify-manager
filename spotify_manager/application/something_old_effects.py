@@ -3,7 +3,6 @@
 from datetime import datetime
 from typing import Protocol
 
-from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.something_old_values import SomethingOldSummary
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
@@ -37,17 +36,6 @@ class SomethingOldEffects(Protocol):
 
         Returns:
             Original observed destination length.
-        """
-
-    def history(self, now: datetime, preview: bool) -> ScrobbleHistorySummary:
-        """Refresh original history only after observing an empty destination.
-
-        Args:
-            now: Original effective timestamp.
-            preview: Original history preview behavior.
-
-        Returns:
-            Original complete history refresh summary.
         """
 
     def ranking(self, history: tuple[Scrobble, ...]) -> tuple[GoldenOldieArtist, ...]:

@@ -11,9 +11,13 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.bootstrap import library_analysis as analysis_composition
+from spotify_manager.interfaces.operations import analyse_library as analysis_operations
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.routines import analyse_library as legacy
 from tests.routines import test_analyse_library as fake
+from tests.support.analysis_dependencies import observed_analysis_files
+from tests.support.analysis_dependencies import observed_analysis_publication
 from tests.support.effects import Fault
 from tests.support.effects import Json
 from tests.support.effects import Trace
@@ -216,6 +220,16 @@ def _publish(edge: AnalysisObservations, path: Path, source: str = "") -> None:
 
 
 def _watch(patch: pytest.MonkeyPatch, edge: AnalysisObservations) -> None:
+    patch.setattr(analysis_operations, "analysis_storage", observed_analysis_files)
+    patch.setattr(
+        analysis_operations, "analysis_publication", observed_analysis_publication
+    )
+    patch.setattr(legacy, "analysis_storage", observed_analysis_files)
+    patch.setattr(legacy, "analysis_publication", observed_analysis_publication)
+    patch.setattr(analysis_composition, "analysis_files", observed_analysis_files)
+    patch.setattr(
+        analysis_composition, "analysis_publication", observed_analysis_publication
+    )
     patch.setattr(legacy, "new_run_id", edge.run_id)
     patch.setattr(legacy, "utc_now", _utc_now)
     patch.setattr(legacy, "current_stats_history_key", _stats_key)

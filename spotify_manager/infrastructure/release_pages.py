@@ -1,7 +1,7 @@
 """Preserve synchronous catalog, release-track and playlist paging contracts."""
 
-from collections.abc import Callable
 from datetime import date
+from typing import Protocol
 from typing import cast
 
 from spotify_manager.application.release_check_values import ReleaseCheckSpotifyError
@@ -9,6 +9,40 @@ from spotify_manager.domain.release_check import release_date_interval
 from spotify_manager.domain.release_check_values import PlaylistEntry
 from spotify_manager.domain.release_check_values import ReleaseCandidate
 from spotify_manager.domain.release_check_values import ReleaseTrack
+from spotify_manager.infrastructure.release_check_catalog import parse_playlist_entry
+from spotify_manager.infrastructure.release_check_catalog import parse_release
+from spotify_manager.infrastructure.release_check_catalog import parse_track
+
+
+class CatalogPageReader(Protocol):
+    """Read release-catalog pages at explicit offsets."""
+
+    def read(self, offset: int) -> object:
+        """Read a catalog page.
+
+        Args:
+            offset: Raw row offset.
+
+        Returns:
+            Unvalidated transport response.
+        """
+        ...
+
+
+class TrackPageReader(Protocol):
+    """Read release-track pages with explicit offsets and limits."""
+
+    def read(self, offset: int, limit: int) -> object:
+        """Read a track page.
+
+        Args:
+            offset: Raw row offset.
+            limit: Original first-only or complete page size.
+
+        Returns:
+            Unvalidated transport response.
+        """
+        ...
 
 
 class MissingReleaseTracksError(RuntimeError):
@@ -30,12 +64,11 @@ def _items(response: dict[str, object]) -> list[object]:
 def _retain_releases(
     items: list[object],
     releases: dict[str, ReleaseCandidate],
-    parse: Callable[[object, str], ReleaseCandidate | None],
     artist_id: str,
     start: date,
 ) -> None:
     for raw in items:
-        candidate = parse(raw, artist_id)
+        candidate = parse_release(raw, artist_id)
         if candidate is None:
             continue
         interval = release_date_interval(candidate)
@@ -55,8 +88,7 @@ def _release_order(
 
 
 def load_catalog_pages(
-    read: Callable[[int], object],
-    parse: Callable[[object, str], ReleaseCandidate | None],
+    pages: CatalogPageReader,
     name: str,
     artist_id: str,
     start: date,
@@ -64,8 +96,7 @@ def load_catalog_pages(
     """Scan every catalog page and retain qualifying metadata by release identity.
 
     Args:
-        read: Original retry-wrapped page read at an ordered offset.
-        parse: Original tolerant primary-artist release decoder.
+        pages: Named retry-wrapped transport page reader.
         name: Original artist display name used in errors.
         artist_id: Original resolved primary-artist identity.
         start: Original inclusive date boundary.
@@ -79,9 +110,9 @@ def load_catalog_pages(
     releases: dict[str, ReleaseCandidate] = {}
     offset = 0
     while True:
-        response = _page(read(offset), "release", name)
+        response = _page(pages.read(offset), "release", name)
         items = _items(response)
-        _retain_releases(items, releases, parse, artist_id, start)
+        _retain_releases(items, releases, artist_id, start)
         offset += len(items)
         if not response.get("next"):
             return tuple(sorted(releases.values(), key=_release_order))
@@ -94,10 +125,9 @@ def load_catalog_pages(
 def _retain_tracks(
     items: list[object],
     tracks: list[ReleaseTrack],
-    parse: Callable[[object, int], ReleaseTrack | None],
 ) -> None:
     for raw in items:
-        track = parse(raw, len(tracks) + 1)
+        track = parse_track(raw, len(tracks) + 1)
         if track is not None:
             tracks.append(track)
 
@@ -107,8 +137,7 @@ def _track_order(track: ReleaseTrack) -> tuple[int, int]:
 
 
 def load_track_pages(
-    read: Callable[[int, int], object],
-    parse: Callable[[object, int], ReleaseTrack | None],
+    pages: TrackPageReader,
     name: str,
     first_only: bool,
     page_limit: int,
@@ -116,8 +145,7 @@ def load_track_pages(
     """Read playable release markers, retaining original first-only and 404 rules.
 
     Args:
-        read: Original retry-wrapped read taking offset and page limit.
-        parse: Original tolerant playable-marker decoder.
+        pages: Named retry-wrapped transport page reader.
         name: Original release display name used in errors.
         first_only: Original single-page first-marker request.
         page_limit: Original full-track page limit.
@@ -132,12 +160,11 @@ def load_track_pages(
     offset = 0
     limit = 1 if first_only else page_limit
     while True:
-        try:
-            response = _page(read(offset, limit), "track", name)
-        except MissingReleaseTracksError:
+        response = _optional_track_page(pages, offset, limit, name)
+        if response is None:
             return ()
         items = _items(response)
-        _retain_tracks(items, tracks, parse)
+        _retain_tracks(items, tracks)
         if first_only or not response.get("next"):
             return tuple(sorted(tracks, key=_track_order))
         offset += len(items)
@@ -150,11 +177,10 @@ def load_track_pages(
 def _retain_entries(
     items: list[object],
     entries: list[PlaylistEntry],
-    parse: Callable[[object], PlaylistEntry | None],
     name: str,
 ) -> None:
     for raw in items:
-        entry = parse(raw)
+        entry = parse_playlist_entry(raw)
         if entry is None:
             raise ReleaseCheckSpotifyError(
                 f"Playlist {name} contains an item that cannot be preserved safely."
@@ -171,15 +197,13 @@ def _has_playlist_page(response: dict[str, object], offset: int) -> bool:
 
 
 def load_playlist_pages(
-    read: Callable[[int], object],
-    parse: Callable[[object], PlaylistEntry | None],
+    pages: CatalogPageReader,
     name: str,
 ) -> tuple[PlaylistEntry, ...]:
     """Preserve every playlist item and follow either continuation or integer totals.
 
     Args:
-        read: Original retry-wrapped page read at an ordered offset.
-        parse: Original URI-preserving playlist decoder.
+        pages: Named retry-wrapped transport page reader.
         name: Original playlist identity used in errors.
 
     Returns:
@@ -191,9 +215,9 @@ def load_playlist_pages(
     entries: list[PlaylistEntry] = []
     offset = 0
     while True:
-        response = _page(read(offset), "playlist", name)
+        response = _page(pages.read(offset), "playlist", name)
         items = _items(response)
-        _retain_entries(items, entries, parse, name)
+        _retain_entries(items, entries, name)
         offset += len(items)
         if not _has_playlist_page(response, offset):
             return tuple(entries)
@@ -201,3 +225,12 @@ def load_playlist_pages(
             raise ReleaseCheckSpotifyError(
                 f"Spotify returned an empty playlist page for {name}."
             )
+
+
+def _optional_track_page(
+    pages: TrackPageReader, offset: int, limit: int, name: str
+) -> dict[str, object] | None:
+    try:
+        return _page(pages.read(offset, limit), "track", name)
+    except MissingReleaseTracksError:
+        return None

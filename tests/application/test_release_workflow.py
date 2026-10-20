@@ -10,11 +10,11 @@ import pytest
 from spotify_manager.application.release_check_values import ReleaseCheckError
 from spotify_manager.application.release_opening import ReleaseState
 from spotify_manager.application.release_progress import ReleaseProgress
-from spotify_manager.application.release_run import ReleaseRun
 from tests.support.release_run import PROFILES
 from tests.support.release_run import EffectFailureError
 from tests.support.release_run import Effects
 from tests.support.release_run import opening
+from tests.support.release_run import release_workflow
 
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures/refactor/release_run.json"
@@ -41,7 +41,9 @@ def _observe(profile: str, failure: str | None) -> dict[str, object]:
     progress = ReleaseProgress(context, effects, "preview" in profile)
     outcome: object
     try:
-        outcome = asdict(ReleaseRun(progress, "wine", "vintage", effects.choice).run())
+        outcome = asdict(
+            release_workflow(progress, "wine", "vintage", effects.choice).run()
+        )
     except (EffectFailureError, ReleaseCheckError) as exc:
         outcome = {"error": type(exc).__name__, "message": str(exc)}
     return cast(
@@ -93,7 +95,7 @@ def test_release_cleanup_audit_follows_cleanup_progress(preview: bool) -> None:
     """
     context = opening("album")
     effects = Effects("duplicate_wine", persisted=context.persisted_state)
-    summary = ReleaseRun(
+    summary = release_workflow(
         ReleaseProgress(context, effects, preview), "wine", "vintage", None
     ).run()
     assert summary.wine_cellar_duplicates_removed == 1
@@ -128,7 +130,7 @@ def test_release_default_review_avoids_unnecessary_interaction(profile: str) -> 
     context = opening(profile)
     effects = Effects(profile, persisted=context.persisted_state)
     reader = effects.choice if profile == "destinations_full" else None
-    summary = ReleaseRun(
+    summary = release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", reader
     ).run()
     names = [cast(list[object], event)[0] for event in effects.events]
@@ -146,7 +148,7 @@ def test_preview_one_run_artist_skip_does_not_save_completion() -> None:
     """Keep interactive one-run skips out of preview restart state."""
     context = opening("skip")
     effects = Effects("skip", persisted=context.persisted_state)
-    summary = ReleaseRun(
+    summary = release_workflow(
         ReleaseProgress(context, effects, True), "wine", "vintage", None
     ).run()
     assert summary.artists_processed == 1 and not effects.saves
@@ -161,7 +163,7 @@ def test_release_processed_duplicate_is_not_recorded_again() -> None:
     context = opening("duplicates")
     cast(ReleaseState, context.state["processed_releases"])["b"] = {"accepted": True}
     effects = Effects("duplicates", persisted=context.persisted_state)
-    summary = ReleaseRun(
+    summary = release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", None
     ).run()
     assert [result.release_id for result in summary.results] == ["c", "a"]
@@ -180,7 +182,7 @@ def test_release_invalid_or_other_artist_pending_records_are_ignored(
     if profile == "processed":
         cast(ReleaseState, context.state["pending_singles"])["release"] = None
     effects = Effects(profile, persisted=context.persisted_state)
-    summary = ReleaseRun(
+    summary = release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", None
     ).run()
     assert summary.results == ()
@@ -190,7 +192,7 @@ def test_release_pending_absent_from_catalog_reuses_retained_track() -> None:
     """Reconsider an existing pending single even when the live catalog is empty."""
     context = opening("pending_processed")
     effects = Effects("catalog_empty", persisted=context.persisted_state)
-    summary = ReleaseRun(
+    summary = release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", None
     ).run()
     assert summary.results[0].release_id == "release"
@@ -202,7 +204,7 @@ def test_release_unplayable_single_is_terminal_without_record_matching() -> None
     """Skip review prompts and playlist writes for unplayable singles."""
     context = opening("pending")
     effects = Effects("empty_single", persisted=context.persisted_state)
-    summary = ReleaseRun(
+    summary = release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", None
     ).run()
     assert summary.results[0].reason == "release has no playable first track"

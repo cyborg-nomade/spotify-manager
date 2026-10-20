@@ -1,74 +1,55 @@
 """Explicit callbacks and wire presentation for NewWineWorker."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
 from datetime import timedelta
-from threading import Lock
 from typing import cast
 
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.wine import NewWinePendingChoice
-from spotify_manager.interfaces.http.models.wine import NewWineRefillResult
 from spotify_manager.interfaces.http.models.wine import NewWineReleaseOption
-from spotify_manager.interfaces.http.models.wine import NewWineTrackResult
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.presenters.wine import (
+    new_wine_refill_result as _new_wine_refill_result,
+)
+from spotify_manager.interfaces.http.presenters.wine import (
+    new_wine_track_result as _new_wine_track_result,
+)
 from spotify_manager.interfaces.http.workers.errors import _NewWineJobCancelledError
-from spotify_manager.routines import new_wine
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import new_wine as new_wine
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
+from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 
 
 @dataclass(kw_only=True)
 class NewWineWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job with invocation-owned inputs.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        spotify: Explicit spotify input or adapter boundary.
-        new_wine_playlist_id: Explicit new wine playlist id input or adapter boundary.
-        sauvignon_playlist_id: Explicit sauvignon playlist id input or adapter boundary.
-        wine_cellar_playlist_id: Explicit wine cellar playlist id input or adapter
-            boundary.
-        dry_run: Explicit dry run input or adapter boundary.
-        no_discovery: Explicit no discovery input or adapter boundary.
-        choose_album_endpoints: Explicit choose album endpoints input or adapter
-            boundary.
-        rate_limit_delay: Explicit rate limit delay input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        _new_wine_refill_result: Explicit new wine refill result input or adapter
-            boundary.
-        _new_wine_track_result: Explicit new wine track result input or adapter
-            boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        options: Caller-owned options.
+        context: Caller-owned context.
+        job_id: Caller-owned job id.
+        spotify: Caller-owned spotify.
+        rate_limit_delay: Caller-owned rate limit delay.
     """
 
+    options: NewWineOptions
+    context: PlaylistContext
     job_id: str
     spotify: Spotify
-    new_wine_playlist_id: str
-    sauvignon_playlist_id: str
-    wine_cellar_playlist_id: str
-    dry_run: bool
-    no_discovery: bool
-    choose_album_endpoints: bool
     rate_limit_delay: int
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    _new_wine_refill_result: Callable[..., NewWineRefillResult | None]
-    _new_wine_track_result: Callable[..., NewWineTrackResult]
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     spotify_event_setter: EventSetter | None = field(init=False)
     previous_spotify_event_callback: EventCallback | None = field(init=False)
@@ -99,9 +80,9 @@ class NewWineWorker:
         Args:
             message: Original routine-supplied message.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def progress_callback(
         self, completed: int, total: int, progress_status: str
@@ -115,7 +96,7 @@ class NewWineWorker:
         """
         if self.job.cancel_event.is_set():
             raise _NewWineJobCancelledError
-        with self.lock:
+        with self.context.lock:
             self.job.result.processed = completed
             self.job.result.total = total
             self.job.result.detail = progress_status
@@ -134,7 +115,7 @@ class NewWineWorker:
         Returns:
             The original accepted routine callback result.
         """
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _NewWineJobCancelledError
             self.job.submitted_choice = None
@@ -149,7 +130,7 @@ class NewWineWorker:
             self.job.result.detail = (
                 f"Choose a release for {source.primary_artist_name} after {source.name}"
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
         return await_submission(self.job.choice_event, self._consume_choice_reader)
 
     def endpoint_choice_reader(
@@ -168,7 +149,7 @@ class NewWineWorker:
         Returns:
             The original accepted routine callback result.
         """
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _NewWineJobCancelledError
             self.job.submitted_choice = None
@@ -185,7 +166,7 @@ class NewWineWorker:
             self.job.result.detail = (
                 f"Is {source.name} the last canonical track of {source.release.name}?"
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
         return await_submission(
             self.job.choice_event, self._consume_endpoint_choice_reader
         )
@@ -222,22 +203,21 @@ class NewWineWorker:
             except review_album_limits.SpotifyRateLimitError as exc:
                 self._wait_for_rate_limit(exc, description)
                 continue
-            with self.lock:
+            with self.context.lock:
                 self.job.result.retry_at = None
             return result
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="flush_new_wine")
-        with self.lock:
+        self.job = self.context.lookup(self.job_id, command="flush_new_wine")
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "New Wine flush started"
-            self.append(
+            self.context.append(
                 self.job,
                 (
-                    "New Wine flush started"
-                    f"{(' in dry-run mode' if self.dry_run else '')}"
-                    "."
+                    f"New Wine flush started"
+                    f"{(' in dry-run mode' if self.options.dry_run else '')}."
                 ),
             )
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
@@ -248,23 +228,21 @@ class NewWineWorker:
     def _execute(self) -> new_wine.FlushSummary:
         summary = new_wine.flush_new_wine(
             self.spotify,
-            self.new_wine_playlist_id,
-            self.sauvignon_playlist_id,
-            choice_reader=self.choice_reader,
-            endpoint_choice_reader=self.endpoint_choice_reader,
-            choose_album_endpoints=self.choose_album_endpoints,
-            wine_cellar_playlist_id=self.wine_cellar_playlist_id,
-            no_discovery=self.no_discovery,
-            dry_run=self.dry_run,
-            echo=self.echo,
-            progress_callback=self.progress_callback,
-            retry_call=self.retry_call,
+            self.options,
+            NewWineCallbacks(
+                choose=self.choice_reader,
+                endpoint=self.endpoint_choice_reader,
+                echo=self.echo,
+                progress=self.progress_callback,
+                retry=self.retry_call,
+            ),
+            storage=NewWineStorage(),
         )
         return summary
 
     def _completed(self, summary: new_wine.FlushSummary) -> None:
-        results = [self._new_wine_track_result(result) for result in summary.results]
-        with self.lock:
+        results = [_new_wine_track_result(result) for result in summary.results]
+        with self.context.lock:
             self.job.result.status = "paused" if summary.paused else "completed"
             self.job.result.processed = summary.processed
             self.job.result.total = summary.total
@@ -275,96 +253,86 @@ class NewWineWorker:
             self.job.result.skipped = summary.skipped
             self.job.result.albums_unsaved = summary.albums_unsaved
             self.job.result.new_wine_results = results
-            self.job.result.new_wine_refill = self._new_wine_refill_result(
-                summary.refill
-            )
+            self.job.result.new_wine_refill = _new_wine_refill_result(summary.refill)
             self.job.result.pending_choice = None
             if summary.paused:
                 self.job.result.detail = "New Wine flush paused. Progress was saved."
             else:
-                unsave_label = "to unsave" if self.dry_run else "unsaved"
+                unsave_label = "to unsave" if self.options.dry_run else "unsaved"
                 self.job.result.detail = (
-                    f"{summary.processed}"
-                    "/"
-                    f"{summary.total}"
-                    " processed; "
-                    f"{summary.advanced}"
-                    " advanced, "
-                    f"{summary.dropped}"
-                    " dropped, "
-                    f"{summary.sent_to_sauvignon}"
-                    " sent to Sauvignon, "
-                    f"{summary.albums_unsaved}"
-                    " albums "
-                    f"{unsave_label}"
-                    "."
+                    f"{summary.processed}/{summary.total} processed; "
+                    f"{summary.advanced} advanced, {summary.dropped} dropped, "
+                    f"{summary.sent_to_sauvignon} sent to Sauvignon, "
+                    f"{summary.albums_unsaved} albums {unsave_label}."
                 )
                 self._append_refill_detail(summary)
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
         if callable(self.spotify_event_setter):
             self.spotify_event_setter(self.previous_spotify_event_callback)
-        with self.lock:
+        with self.context.lock:
             self.job.result.pending_choice = None
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "cancelled"
             self.job.result.pending_choice = None
             self.job.result.retry_at = None
             self.job.result.detail = (
                 "New Wine flush stopped. Progress was saved."
-                if not self.dry_run
+                if not self.options.dry_run
                 else "New Wine dry run stopped."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _rate_limited(self, exc: review_album_limits.SpotifyRateLimitError) -> None:
         retry_at = None
         if exc.retry_after_seconds is not None:
-            retry_at = self.clock.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with self.lock:
+            retry_at = self.context.clock.now(UTC) + timedelta(
+                seconds=exc.retry_after_seconds
+            )
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.pending_choice = None
             self.job.result.retry_at = retry_at.isoformat() if retry_at else None
             self.job.result.detail = (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _temporarily_unavailable(
         self, exc: review_album_limits.SpotifyTransientServerError
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.pending_choice = None
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
                 + ". Progress was saved."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _failed(self, exc: new_wine.NewWineError | SpotifyException) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.pending_choice = None
             self.job.result.detail = str(exc)
-            self.append(self.job, f"New Wine flush failed: {exc}")
+            self.context.append(self.job, f"New Wine flush failed: {exc}")
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected New Wine flush error")
-        with self.lock:
+        self.context.logger.exception("Unexpected New Wine flush error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.pending_choice = None
             self.job.result.detail = f"Unexpected New Wine error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _consume_choice_reader(self) -> str | None:
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _NewWineJobCancelledError
             choice = self.job.submitted_choice
@@ -375,11 +343,11 @@ class NewWineWorker:
             self.job.result.pending_choice = None
             self.job.result.status = "running"
             self.job.result.detail = "Applying release choice"
-            self.append(self.job, f"Release choice received: {choice}.")
+            self.context.append(self.job, f"Release choice received: {choice}.")
             return choice
 
     def _consume_endpoint_choice_reader(self) -> str | None:
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _NewWineJobCancelledError
             choice = self.job.submitted_choice
@@ -390,7 +358,7 @@ class NewWineWorker:
             self.job.result.pending_choice = None
             self.job.result.status = "running"
             self.job.result.detail = "Applying album endpoint choice"
-            self.append(self.job, f"Endpoint choice received: {choice}.")
+            self.context.append(self.job, f"Endpoint choice received: {choice}.")
             return choice
 
     def _new_wine_release_options(
@@ -414,33 +382,26 @@ class NewWineWorker:
         self, exc: review_album_limits.SpotifyRateLimitError, description: str
     ) -> None:
         delay = max(1, exc.retry_after_seconds or self.rate_limit_delay)
-        retry_at = self.clock.now(UTC) + timedelta(seconds=delay)
+        retry_at = self.context.clock.now(UTC) + timedelta(seconds=delay)
         message = (
-            "Spotify rate limit reached while "
-            f"{description}"
-            ". Retrying automatically "
-            f"{review_album_limits.format_retry_delay(delay)}"
-            "."
+            f"Spotify rate limit reached while {description}"
+            f". Retrying automatically "
+            f"{review_album_limits.format_retry_delay(delay)}."
         )
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "running"
             self.job.result.retry_at = retry_at.isoformat()
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
         self.interruptible_sleep(delay)
-        with self.lock:
+        with self.context.lock:
             self.job.result.retry_at = None
             self.job.result.detail = f"Retrying {description}."
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _append_refill_detail(self, summary: new_wine.FlushSummary) -> None:
         if summary.refill is not None:
             self.job.result.detail = cast(str, self.job.result.detail) + (
-                " New Wine "
-                f"{summary.refill.before}"
-                " -> "
-                f"{summary.refill.after}"
-                "; "
-                f"{summary.refill.added}"
-                " pulled from Wine Cellar."
+                f" New Wine {summary.refill.before} -> {summary.refill.after}; "
+                f"{summary.refill.added} pulled from Wine Cellar."
             )

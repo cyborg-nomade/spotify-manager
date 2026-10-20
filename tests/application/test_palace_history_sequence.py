@@ -3,13 +3,13 @@
 import json
 from dataclasses import asdict
 from datetime import date
-from functools import partial
 from pathlib import Path
 from typing import cast
 
 import pytest
 
 from spotify_manager.application.palace_history import PalaceHistory
+from tests.support.palace_history import HistoryInputs
 from tests.support.palace_history import HistoryReads
 from tests.support.palace_history import cases
 from tests.support.palace_history import original_outcome
@@ -21,9 +21,7 @@ def _cutoff() -> date:
 
 def _run(edge: HistoryReads, count: int) -> object:
     workflow = PalaceHistory(
-        partial(edge.read, Path("history")),
-        _cutoff,
-        edge.random,
+        HistoryInputs(edge, Path("history"), _cutoff()),
         edge.progress,
         date(2007, 11, 27),
     )

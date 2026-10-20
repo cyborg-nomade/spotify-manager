@@ -1,11 +1,10 @@
 """Decode release-check identities with original metadata tolerance."""
 
-from collections.abc import Callable
-
 from spotify_manager.application.release_check_values import ReleaseCheckSpotifyError
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.history import normalize_name
 from spotify_manager.domain.release_check import release_type
+from spotify_manager.domain.release_check_values import PlaylistEntry
 from spotify_manager.domain.release_check_values import ReleaseCandidate
 from spotify_manager.domain.release_check_values import ReleaseTrack
 
@@ -157,14 +156,12 @@ def parse_track(raw: object, fallback_position: int) -> ReleaseTrack | None:
 def parse_artist_search(
     response: object,
     expected_name: str,
-    parser: Callable[[object, int, str], SpotifyArtistCandidate | None],
 ) -> tuple[SpotifyArtistCandidate, ...]:
     """Decode original artist-search rows without deduplication or reordering.
 
     Args:
         response: Original untrusted SDK response.
         expected_name: Original Last.fm artist display spelling.
-        parser: Original compatibility observation seam for each row.
 
     Returns:
         Original complete observations in search order with original ranks.
@@ -180,7 +177,34 @@ def parse_artist_search(
         )
     observed = []
     for rank, row in enumerate(items, start=1):
-        candidate = parser(row, rank, expected_name)
+        candidate = parse_artist(row, rank, expected_name)
         if candidate is not None:
             observed.append(candidate)
     return tuple(observed)
+
+
+def parse_playlist_entry(raw_entry: object) -> PlaylistEntry | None:
+    """Decode one original playlist entry without discarding incomplete metadata.
+
+    Args:
+        raw_entry: Untrusted Spotify playlist row.
+
+    Returns:
+        Original marker fields, or none when the row cannot identify a track.
+    """
+    if not isinstance(raw_entry, dict):
+        return None
+    raw_track = raw_entry.get("item") or raw_entry.get("track")
+    if not isinstance(raw_track, dict):
+        return None
+    uri = str(raw_track.get("uri") or "").strip()
+    if not uri:
+        return None
+    artists = artist_pairs(raw_track.get("artists"))
+    return PlaylistEntry(
+        uri=uri,
+        spotify_id=str(raw_track.get("id") or "").strip(),
+        name=str(raw_track.get("name") or uri).strip(),
+        primary_artist_id=artists[0][0] if artists else None,
+        primary_artist_name=artists[0][1] if artists else None,
+    )

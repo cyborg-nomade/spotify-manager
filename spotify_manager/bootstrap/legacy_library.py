@@ -1,194 +1,114 @@
-"""Construct legacy workflow dependencies at original compatibility seams."""
-
-from functools import partial
+"""Construct concrete resources for legacy maintenance use cases."""
 
 from spotipy import Spotify
 
-from spotify_manager import loaders_savers as files
-from spotify_manager.application.legacy_library_effects import AlbumRefresh
-from spotify_manager.application.legacy_library_effects import ConversionCatalog
-from spotify_manager.application.legacy_library_effects import LegacyFiles
 from spotify_manager.application.legacy_library_effects import MonthlyActions
 from spotify_manager.application.legacy_library_effects import MonthlyPlaylist
-from spotify_manager.application.legacy_library_effects import TrackRead
-from spotify_manager.infrastructure import legacy_library_records as records
-from spotify_manager.models.albums import SimplifiedAlbum
+from spotify_manager.infrastructure.legacy_library_resources import LegacyLibraryFiles
+from spotify_manager.infrastructure.legacy_library_resources import LegacyMonthlyLimits
+from spotify_manager.infrastructure.legacy_library_resources import SpotifyAlbumRefresh
+from spotify_manager.infrastructure.legacy_library_resources import (
+    SpotifyControlMembership,
+)
+from spotify_manager.infrastructure.legacy_library_resources import (
+    SpotifyConversionCatalog,
+)
+from spotify_manager.infrastructure.legacy_library_resources import SpotifyPlaylistClock
+from spotify_manager.infrastructure.legacy_library_resources import (
+    SpotifyPlaylistWrites,
+)
+from spotify_manager.infrastructure.legacy_library_resources import SpotifyTrackRead
 from spotify_manager.settings import Settings
 
 
 def legacy_settings() -> Settings:
-    """Construct original process-local legacy settings.
+    """Observe process-local legacy settings.
 
     Returns:
-        Original environment-backed settings instance.
+        Original environment-backed settings.
     """
     return Settings()
 
 
-def conversion_files() -> LegacyFiles:
-    """Bind original conversion facade's mutable file seams.
+def conversion_files() -> LegacyLibraryFiles:
+    """Construct conversion storage.
 
     Returns:
-        Complete original legacy file dependencies.
+        Named storage resource.
     """
-    from spotify_manager.routines import convert_library_file as conversion
-
-    return LegacyFiles(
-        conversion.load_total_albums_file,
-        files.load_control_file,
-        conversion.load_your_library_file,
-        conversion.load_comparison_file,
-        conversion.save_total_albums_file,
-        files.save_control_file,
-        files.save_stats_file,
-        conversion.save_comparison_file,
-    )
+    return LegacyLibraryFiles()
 
 
-def monthly_files() -> LegacyFiles:
-    """Bind original monthly facade's file reads.
+def monthly_files() -> LegacyLibraryFiles:
+    """Construct monthly storage.
 
     Returns:
-        Original monthly file dependencies.
+        Named storage resource.
     """
-    from spotify_manager.routines import monthly_routine as monthly
-
-    return LegacyFiles(
-        monthly.load_total_albums_file,
-        monthly.load_control_file,
-        files.load_your_library_file,
-        files.load_comparison_file,
-        files.save_total_albums_file,
-        files.save_control_file,
-        files.save_stats_file,
-        files.save_comparison_file,
-    )
+    return LegacyLibraryFiles()
 
 
-def conversion_catalog(spotify: Spotify) -> ConversionCatalog:
-    """Bind original caller-owned conversion membership and restore effects.
+def conversion_catalog(spotify: Spotify) -> SpotifyConversionCatalog:
+    """Construct conversion reads and writes.
 
     Args:
-        spotify: Original synchronous client.
+        spotify: Caller-owned synchronous client.
 
     Returns:
-        Original membership and mutation callbacks.
+        Named conversion resource.
     """
-    from spotify_manager.routines import convert_library_file as conversion
-
-    return ConversionCatalog(
-        partial(conversion._contains_removed, spotify),
-        partial(enrich_conversion_album, spotify),
-        partial(conversion.is_in_library_artist, spotify),
-        partial(conversion.is_in_library_track, spotify),
-        partial(conversion.save_to_library_artist, spotify),
-        partial(conversion.save_to_library_track, spotify),
-        partial(conversion._contains_added, spotify),
-    )
+    return SpotifyConversionCatalog(spotify)
 
 
 def monthly_actions(spotify: Spotify) -> MonthlyActions:
-    """Bind original monthly public stages at invocation time.
+    """Construct resources for the fixed monthly sequence.
 
     Args:
-        spotify: Original synchronous client.
+        spotify: Caller-owned synchronous client.
 
     Returns:
-        Original ordered stage callbacks.
+        Membership and playlist resources.
     """
-    from spotify_manager.routines import monthly_routine as monthly
-
-    return MonthlyActions(
-        partial(monthly.check_album_results, spotify),
-        monthly.update_stats,
-        monthly.get_starting_index,
-        partial(monthly.add_monthly_albums, spotify),
-    )
+    return MonthlyActions(SpotifyControlMembership(spotify), monthly_playlist(spotify))
 
 
 def monthly_playlist(spotify: Spotify) -> MonthlyPlaylist:
-    """Bind original processor stage seams for monthly playlist execution.
+    """Construct resources for direct playlist execution.
 
     Args:
-        spotify: Original synchronous client.
+        spotify: Caller-owned synchronous client.
 
     Returns:
-        Original selected-track and accepted-write boundaries.
+        Cohesive clock, catalog, writes, storage and settings.
     """
-    from spotify_manager.processors import total_albums_processor as total
-
     return MonthlyPlaylist(
-        total.get_months_items,
-        partial(total.create_playlist, spotify),
-        partial(total.get_ordered_tracks, spotify),
-        partial(total.append_to_playlist, spotify),
-        total.save_control_file,
+        SpotifyPlaylistClock(spotify),
+        SpotifyTrackRead(spotify),
+        SpotifyPlaylistWrites(spotify),
+        LegacyLibraryFiles(),
+        LegacyMonthlyLimits(),
     )
 
 
-def album_refresh(spotify: Spotify) -> AlbumRefresh:
-    """Bind original incremental paging and file authority.
+def album_refresh(spotify: Spotify) -> SpotifyAlbumRefresh:
+    """Construct saved-album refresh I/O.
 
     Args:
-        spotify: Original synchronous client.
+        spotify: Caller-owned synchronous client.
 
     Returns:
-        Original raw scan dependencies.
+        Named paging and storage resource.
     """
-    from spotify_manager.processors import total_albums_processor as total
-
-    return AlbumRefresh(
-        partial(total._saved_page, spotify),
-        partial(total._recover_page, spotify),
-        partial(total._next_album_page, spotify),
-        records.saved_albums,
-        total.load_total_albums_file,
-        total.save_total_albums_file,
-        page_limit,
-    )
+    return SpotifyAlbumRefresh(spotify)
 
 
-def page_limit() -> int:
-    """Observe the original live page-size setting.
-
-    Returns:
-        Original result with unchanged native boundary errors.
-    """
-    from spotify_manager.processors import total_albums_processor as total
-
-    return total.settings.limit
-
-
-def track_read(spotify: Spotify) -> TrackRead:
-    """Bind original track paging and tolerant conversion.
+def track_read(spotify: Spotify) -> SpotifyTrackRead:
+    """Construct track paging and decoding.
 
     Args:
-        spotify: Original synchronous client.
+        spotify: Caller-owned synchronous client.
 
     Returns:
-        Original ordered-track dependencies.
+        Named track resource.
     """
-    from spotify_manager.processors import total_albums_processor as total
-
-    return TrackRead(
-        partial(total._track_page, spotify),
-        partial(total._next_track_page, spotify),
-        records.track_rows,
-        records.sort_tracks,
-        records.validate_tracks,
-    )
-
-
-def enrich_conversion_album(spotify: Spotify, identifier: str) -> SimplifiedAlbum:
-    """Invoke the original positional album-enrichment seam.
-
-    Args:
-        spotify: Original caller-owned synchronous client.
-        identifier: Original requested album identity.
-
-    Returns:
-        Original simplified album observation.
-    """
-    from spotify_manager.routines import convert_library_file as conversion
-
-    return conversion.enrich_album(identifier, spotify)
+    return SpotifyTrackRead(spotify)

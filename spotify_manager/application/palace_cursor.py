@@ -1,13 +1,45 @@
 """Coordinate manual Palace cursor updates after the original live mirror preflight."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol
 
 from spotify_manager.application.palace_effects import PalaceStateAccess
+from spotify_manager.application.palace_mirror import SavedMirror
 from spotify_manager.application.palace_values import AlphabeticalCursorUpdate
 from spotify_manager.application.palace_values import PalaceOfMemoryConfigError
-from spotify_manager.application.palace_values import SavedAlbumRefresh
 from spotify_manager.models.your_library import YourLibraryAlbum
+
+
+class CursorAccess(Protocol):
+    """Present cursor progress and persist complete cursor records."""
+
+    def progress(self, message: str) -> None:
+        """Present the current stage.
+
+        Args:
+            message: Visible stage text.
+        """
+        ...
+
+    def state_access(self) -> PalaceStateAccess:
+        """Resolve cursor authority at its original post-refresh boundary.
+
+        Returns:
+            Durable cursor store.
+        """
+        ...
+
+    def cursor_payload(self, index: int, album: YourLibraryAlbum) -> dict[str, object]:
+        """Observe the write clock and encode a complete cursor replacement.
+
+        Args:
+            index: Next zero-based position.
+            album: Previously visited album.
+
+        Returns:
+            Complete replacement record.
+        """
+        ...
 
 
 @dataclass(frozen=True)
@@ -15,16 +47,12 @@ class PalaceCursor:
     """Retain original preflight, authority and complete cursor replacement boundaries.
 
     Args:
-        progress: Original optional stage presentation adapter.
-        refresh: Original canonical live mirror preflight.
-        state: Original durable cursor authority resolver.
-        record: Original complete next-position serialization and write clock.
+        access: Progress, cursor store and write-clock observations.
+        mirror: Named canonical live mirror stage.
     """
 
-    progress: Callable[[str], None]
-    refresh: Callable[[], tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]]
-    state: Callable[[], PalaceStateAccess]
-    record: Callable[[int, YourLibraryAlbum], dict[str, object]]
+    access: CursorAccess
+    mirror: SavedMirror
 
     def update(self, position: int) -> AlphabeticalCursorUpdate:
         """Refresh live facts before validating and replacing the next manual position.
@@ -38,15 +66,15 @@ class PalaceCursor:
         Raises:
             PalaceOfMemoryConfigError: Original position is outside the live mirror.
         """
-        self.progress("Refreshing the saved-album mirror")
-        albums, refresh = self.refresh()
+        self.access.progress("Refreshing the saved-album mirror")
+        albums, refresh = self.mirror.run()
         if not 1 <= position <= len(albums):
             raise PalaceOfMemoryConfigError(
                 f"Alphabetical cursor must be between 1 and {len(albums)}."
             )
         next_index = position - 1
         previous = albums[(next_index - 1) % len(albums)]
-        state = self.state()
+        state = self.access.state_access()
         state.load()
-        state.save(self.record(next_index, previous))
+        state.save(self.access.cursor_payload(next_index, previous))
         return AlphabeticalCursorUpdate(next_index, albums[next_index], refresh)

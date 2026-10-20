@@ -5,7 +5,6 @@ from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from functools import partial
 
 import pytest
 
@@ -73,8 +72,16 @@ class MemoryRecovery:
             Records and shared restart state.
         """
         self._effect("load")
-        self.state.persist = partial(self._effect, "checkpoint")
+        self.state.checkpoint = self
         return self.records, self.state
+
+    def save(self, state: RecoveryState) -> None:
+        """Record an accepted recovery checkpoint.
+
+        Args:
+            state: Current restart progress, retained by this memory boundary.
+        """
+        self._effect("checkpoint")
 
     def albums(
         self, records: list[RemovedAlbumRecord]

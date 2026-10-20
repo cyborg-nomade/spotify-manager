@@ -7,6 +7,7 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager import main
+from tests.support.feature_invocation import FeatureInvocation
 
 
 PLAYLIST_ID = "a" * 22
@@ -79,7 +80,9 @@ def test_something_old_command_reports_operational_failures(
     monkeypatch.setattr(
         main.something_old,
         "run_something_old",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
+        FeatureInvocation(
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(error), ("playlist_id",)
+        ),
     )
 
     with pytest.raises(main.typer.Exit) as exc:
@@ -130,7 +133,9 @@ def test_release_check_command_reports_each_stop_condition(
     monkeypatch.setattr(
         main.release_check,
         "run_release_check",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
+        FeatureInvocation(
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(error), ("playlists",)
+        ),
     )
 
     with pytest.raises(main.typer.Exit) as exc:

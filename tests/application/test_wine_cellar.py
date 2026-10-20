@@ -9,7 +9,7 @@ import pytest
 
 from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.wine_cellar import CellarOptions
-from spotify_manager.application.wine_cellar import refill_cellar
+from spotify_manager.application.wine_cellar import CellarWorkflow
 from tests.support.cellar_memory import MemoryCellar
 from tests.support.listening_values import playlist_track
 from tests.support.listening_values import studio_release
@@ -36,7 +36,7 @@ def _run(
     options = CellarOptions(
         "new", "cellar", no_discovery, dry_run, target_size, projected
     )
-    return refill_cellar(memory, options, state, run, memory.moved)
+    return CellarWorkflow(memory, memory.moved).run(options, state, run)
 
 
 def _pending(memory: MemoryCellar, liked: object = None, albums: object = None) -> None:

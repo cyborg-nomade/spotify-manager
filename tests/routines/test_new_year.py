@@ -1,12 +1,17 @@
 from datetime import datetime
+from functools import partialmethod
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
+from spotify_manager.application.history_refresh import HistoryRefresh
+from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.routines import new_year
 from spotify_manager.routines.blast_from_past import Scrobble
+from tests.support.history_dependencies import annual_discoveries
+from tests.support.history_dependencies import annual_history
 
 
 def play(
@@ -94,7 +99,7 @@ def annual(monkeypatch):
 
     monkeypatch.setattr(new_year.new_wine, "load_playlist_tracks", load)
     history = Mock(return_value=SimpleNamespace(history=(play(), play())))
-    monkeypatch.setattr(new_year.scrobble_history, "refresh_scrobble_history", history)
+    monkeypatch.setattr(HistoryRefresh, "run", partialmethod(annual_history, history))
     monkeypatch.setattr(
         new_year.blast_from_past,
         "search_spotify_matches",
@@ -114,7 +119,9 @@ def annual(monkeypatch):
         lambda *a: SimpleNamespace(spotify_id="artist"),
     )
     imports = Mock()
-    monkeypatch.setattr(new_year.queue_3, "import_previous_year_discoveries", imports)
+    monkeypatch.setattr(
+        AnnualDiscoveries, "run", partialmethod(annual_discoveries, imports)
+    )
     config = SimpleNamespace(
         blast_from_the_past_playlist="blast",
         palace_of_memory_playlist="palace",

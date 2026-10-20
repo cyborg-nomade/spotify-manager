@@ -19,6 +19,7 @@ ALLOWED_IMPORTS = {
     "enum",
     "functools",
     "hashlib",
+    "hmac",
     "math",
     "re",
     "typing",

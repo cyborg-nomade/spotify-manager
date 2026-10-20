@@ -3,12 +3,15 @@
 from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
+from typing import Protocol
 
 from spotify_manager.application.queue_3_values import Queue3Error
+from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
+from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.discography import release_transition
 from spotify_manager.domain.queue_3 import source_release
 from spotify_manager.domain.slow_listening import track_index
@@ -20,19 +23,31 @@ type TransitionReader = Callable[
 ]
 
 
-def stable_release_order(
-    _date: str, releases: tuple[DiscographyRelease, ...]
-) -> tuple[str, ...]:
-    """Accept catalog order for equal-date releases without an additional prompt.
+class Queue3Catalog(Protocol):
+    """Read ordered studio tracks and their live liked membership."""
 
-    Args:
-        _date: Existing ordering callback's date label.
-        releases: Releases tied on chronology in observed catalog order.
+    def release_tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+        """Read the selected edition's ordered tracks.
 
-    Returns:
-        Identifiers in the unchanged catalog order.
-    """
-    return tuple(release.spotify_id for release in releases)
+        Args:
+            release: Selected studio edition.
+
+        Returns:
+            Original playable tracks.
+        """
+
+    def memberships(
+        self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
+    ) -> dict[str, bool]:
+        """Read live memberships before applying the album decision.
+
+        Args:
+            release: Completed selected edition.
+            tracks: Previously observed complete track list.
+
+        Returns:
+            Original run-scoped liked statuses.
+        """
 
 
 def _plan(
@@ -62,15 +77,13 @@ class Queue3Planner:
     """Reuse run-scoped track facts and persist ordering before prompting transitions.
 
     Args:
-        read: Observe tracks through the original retry boundary.
-        evaluate: Observe live liked statuses and apply the original album policy.
+        catalog: Ordered track and liked-membership observations.
         tracks: Caller-owned track cache, retaining empty observations.
         ordering: Shared chronological ordering and checkpoint rules.
         choose: Original release-boundary callback.
     """
 
-    read: Callable[[DiscographyRelease], tuple[ReleaseTrack, ...]]
-    evaluate: Callable[[DiscographyRelease, tuple[ReleaseTrack, ...]], AlbumEvaluation]
+    catalog: Queue3Catalog
     tracks: dict[str, tuple[ReleaseTrack, ...]]
     ordering: ReleaseOrdering
     choose: TransitionReader
@@ -100,7 +113,8 @@ class Queue3Planner:
             return self._unmapped(current, tracks)
         if index + 1 < len(tracks):
             return _plan("advance", current, current, tracks[index + 1], None, None)
-        evaluation = self.evaluate(current, tracks)
+        liked = self.catalog.memberships(current, tracks)
+        evaluation = evaluate_release(release_candidate(current), tracks, liked)
         following = self.ordering.following(current, discography)
         if following is None:
             return _plan(
@@ -150,7 +164,7 @@ class Queue3Planner:
     def _tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         tracks = self.tracks.get(release.spotify_id)
         if tracks is None:
-            tracks = self.read(release)
+            tracks = self.catalog.release_tracks(release)
             self.tracks[release.spotify_id] = tracks
         return tracks
 

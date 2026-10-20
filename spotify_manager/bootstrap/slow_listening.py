@@ -8,10 +8,8 @@ from spotipy import Spotify
 
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.application.slow_listening import SlowListeningDependencies
-from spotify_manager.application.slow_listening import flush_slow_listening
 from spotify_manager.application.slow_listening_plan import StudioObservations
 from spotify_manager.application.slow_listening_values import CompletionNotifier
-from spotify_manager.application.slow_listening_values import FlushSummary
 from spotify_manager.application.slow_listening_values import ReleaseOrderReader
 from spotify_manager.application.slow_listening_values import TrackActionReader
 from spotify_manager.core.state.service import StateService
@@ -32,13 +30,12 @@ def _advance(
     return "advance"
 
 
-def run_slow_listening(
+def slow_listening_dependencies(
     client: Spotify,
     playlist_id: str,
     order: ReleaseOrderReader,
     complete: CompletionNotifier,
     action: TrackActionReader | None,
-    dry_run: bool,
     echo: Callable[[str], None],
     progress: Callable[[int, int, str], None] | None,
     retry: RetryCall | None,
@@ -46,8 +43,8 @@ def run_slow_listening(
     state_service: StateService | None,
     log_path: Path,
     clock: Callable[[], datetime],
-) -> FlushSummary:
-    """Bind existing outer integrations and invoke the complete application workflow.
+) -> SlowListeningDependencies:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         client: Caller-owned Spotify client.
@@ -55,7 +52,6 @@ def run_slow_listening(
         order: Operator's tie ordering callback.
         complete: Completion acknowledgement callback.
         action: Optional track choice callback; defaults to advance.
-        dry_run: Whether to preview transitions.
         echo: Existing message sink.
         progress: Optional progress/cancellation callback.
         retry: Optional existing retry policy; defaults to direct invocation.
@@ -65,7 +61,7 @@ def run_slow_listening(
         clock: Original UTC timestamp source.
 
     Returns:
-        Original public result summary.
+        The configured application dependencies or workflow.
     """
     access = LegacySlowListening(
         client, playlist_id, retry or _direct, state_path, state_service, log_path
@@ -80,4 +76,4 @@ def run_slow_listening(
         clock,
         progress,
     )
-    return flush_slow_listening(playlist_id, dependencies, dry_run=dry_run)
+    return dependencies

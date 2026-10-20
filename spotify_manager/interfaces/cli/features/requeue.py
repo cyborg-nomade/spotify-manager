@@ -7,30 +7,32 @@ from typing import Never
 import typer
 from rich.console import Console
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.routines import requeue_for_a_dream
-from spotify_manager.routines import review_album_limits
-from spotify_manager.settings import Settings
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import (
+    requeue_for_a_dream as requeue_for_a_dream,
+)
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)
 class RequeueCLI:
-    """Execute and present requeue through explicit facade dependencies.
+    """Run Requeue progression and present its outcome.
 
     Args:
-        create_console: Factory for console instances.
-        configuration: Original settings factory supplied by the facade.
-        create_table: Factory for table instances.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        create_console: Interface presentation resource.
+        create_table: Interface presentation resource.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
+    runtime: CliResources
+
     create_console: type[Console]
-    configuration: type[Settings]
     create_table: type[Table]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _run_flush_requeue_for_a_dream(self, dry_run: bool) -> None:
@@ -40,7 +42,7 @@ class RequeueCLI:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._flush_requeue_for_a_dream_console = self.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = requeue_for_a_dream.parse_playlist_id(
                 configuration.reqeueue_for_a_dream_playlist
@@ -52,7 +54,7 @@ class RequeueCLI:
                 "Planning Requeue for a Dream" + (" (dry run)" if dry_run else "")
             ) as status:
                 summary = requeue_for_a_dream.flush_requeue_for_a_dream(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     playlist_id,
                     dry_run=dry_run,
                     echo=self._flush_requeue_for_a_dream_echo,
@@ -98,9 +100,9 @@ class RequeueCLI:
     ) -> Never:
         self._flush_requeue_for_a_dream_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -168,11 +170,8 @@ class RequeueCLI:
         self._flush_requeue_for_a_dream_console.print(table)
         self._flush_requeue_for_a_dream_console.print(
             (
-                "Playlist: "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                " tracks"
+                f"Playlist: {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after} tracks"
             )
             + (" (preview only)." if dry_run else "."),
             style="bold cyan" if dry_run else "bold green",

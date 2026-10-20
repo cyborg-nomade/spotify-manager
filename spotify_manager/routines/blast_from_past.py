@@ -4,7 +4,6 @@ import re
 from collections.abc import Callable
 from datetime import date
 from datetime import datetime
-from email.utils import parsedate_to_datetime
 from functools import partial
 from pathlib import Path
 from typing import Literal
@@ -69,6 +68,7 @@ from spotify_manager.infrastructure import history_export
 from spotify_manager.infrastructure import history_matching_records
 from spotify_manager.infrastructure import history_playlist
 from spotify_manager.infrastructure import random_indexes
+from spotify_manager.infrastructure.history_playlist_pages import SpotifyHistoryPages
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -145,7 +145,7 @@ def load_scrobbles_by_date(
     Returns:
         Original load scrobbles by date result.
     """
-    return history_export.by_date(load_scrobble_export, path, SCROBBLE_TIMEZONE)
+    return history_export.by_date(load_scrobble_export(path), SCROBBLE_TIMEZONE)
 
 
 def eligible_dates(
@@ -438,9 +438,7 @@ def fetch_random_indexes(population_size: int, count: int) -> RandomIndexSet:
     except (TimeoutError, URLError) as exc:
         raise RandomOrgError(f"Could not reach Random.org: {exc}") from exc
 
-    return random_indexes.result(
-        body, timestamp_header, population_size, count, parsedate_to_datetime
-    )
+    return random_indexes.result(body, timestamp_header, population_size, count)
 
 
 def fetch_random_timestamp() -> datetime:
@@ -517,9 +515,11 @@ def select_blast_from_past(
         LastFmExportError: History cannot be read.
         RandomOrgError: The random source fails.
     """
-    from spotify_manager.bootstrap.historical_playlists import select_blast
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        select_blast_from_past as operation,
+    )
 
-    return select_blast(count, path, today, random_index_reader, progress_callback)
+    return operation(count, path, today, random_index_reader, progress_callback)
 
 
 def load_playlist_state(
@@ -540,8 +540,7 @@ def load_playlist_state(
         Original load playlist state result.
     """
     return history_playlist.state(
-        partial(_playlist_page, sp, playlist_id, retry_call, cancel_check),
-        _spotify_artist_names,
+        SpotifyHistoryPages(sp, playlist_id, retry_call, cancel_check),
         playlist_id,
     )
 
@@ -602,9 +601,11 @@ def resolve_spotify_selections(
         SpotifyTrackResolutionError: Spotify observations are unusable.
         BlastFromPastCancelledError: Cancellation is requested.
     """
-    from spotify_manager.bootstrap.historical_playlists import resolve_matches
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        resolve_spotify_selections as operation,
+    )
 
-    return resolve_matches(
+    return operation(
         sp, selections, playlist, progress_callback, retry_call, cancel_check
     )
 
@@ -644,9 +645,11 @@ def add_blast_from_past_to_spotify(
         BlastFromPastError: Configuration, selection or observations fail.
         BlastFromPastCancelledError: Cancellation is requested.
     """
-    from spotify_manager.bootstrap.historical_playlists import add_blast
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        add_blast_from_past_to_spotify as operation,
+    )
 
-    return add_blast(
+    return operation(
         sp,
         playlist_id,
         count,

@@ -1,9 +1,11 @@
 """Gather Queue progression facts and resolve promotion markers with shared caches."""
 
+from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Protocol
 
-from spotify_manager.application.new_kids_values import ArtistAssessment
+from spotify_manager.application.artist_assessment import AssessmentCatalog
+from spotify_manager.application.artist_assessment import assess_artist
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
@@ -44,23 +46,6 @@ class QueuePlanningCatalog(Protocol):
 
         Returns:
             Original ordered ranked releases.
-        """
-
-    def assessment(
-        self,
-        artist: str,
-        catalog: tuple[RankedRelease, ...],
-        cache: dict[str, tuple[CatalogTrack, ...]],
-    ) -> ArtistAssessment:
-        """Assess original live catalog facts using a caller-owned track cache.
-
-        Args:
-            artist: Original primary artist identity.
-            catalog: Original ranked catalog facts.
-            cache: Shared run-scoped observed release tracks.
-
-        Returns:
-            Original complete artist assessment.
         """
 
     def tracks(self, release: RankedRelease) -> tuple[CatalogTrack, ...]:
@@ -110,11 +95,25 @@ class QueuePlanning:
 
     Args:
         access: Original catalog observation boundaries.
+        assessment: Named original saved, liked and popularity observations.
         top_limit: Original configured top-track window.
     """
 
     access: QueuePlanningCatalog
+    assessment: AssessmentCatalog
     top_limit: int = 10
+
+    def record(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
+        """Build the original durable plan document from observed business facts.
+
+        Args:
+            source: Original authoritative source marker.
+            uris: Original live or fallback source URIs.
+
+        Returns:
+            Original serialized plan before its accepted checkpoint.
+        """
+        return asdict(self.run(source, uris))
 
     def run(self, source: PlaylistTrack, uris: list[str]) -> QueuePlan:
         """Preserve top, membership, catalog, assessment and marker read order.
@@ -131,7 +130,7 @@ class QueuePlanning:
         liked = self.access.liked(tracks)
         catalog = self.access.catalog(artist)
         cache: dict[str, tuple[CatalogTrack, ...]] = {}
-        assessment = self.access.assessment(artist, catalog, cache)
+        assessment = assess_artist(self.assessment, artist, catalog, cache)
         decision = choose_queue_action(
             source.spotify_id,
             tracks,

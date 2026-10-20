@@ -156,7 +156,7 @@ class MemoryRequeue:
         """
         self.events.append(("progress", message))
 
-    def audit(self, summary: RequeueForADreamSummary) -> None:
+    def write(self, summary: RequeueForADreamSummary) -> None:
         """Persist a summary with optional before/after acceptance failure.
 
         Args:
@@ -193,7 +193,7 @@ class MemoryRequeue:
             self,
             self.echo,
             self.progress if progress else None,
-            self.audit,
+            self,
             self.clock,
         )
 

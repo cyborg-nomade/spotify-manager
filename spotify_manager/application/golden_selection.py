@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from collections.abc import Iterable
+from typing import Protocol
 
 from spotify_manager.application.something_old_values import SomethingOldSpotifyError
 from spotify_manager.domain.catalog import DiscographyRelease
@@ -18,10 +19,54 @@ from spotify_manager.domain.history_matching import SpotifyTrackMatch
 
 
 type ArtistChoice = Callable[[str, tuple[SpotifyArtistCandidate, ...]], str]
-type MatchReader = Callable[[LastFmTrackStat], tuple[SpotifyTrackMatch, ...]]
-type LikedReader = Callable[[list[tuple[SpotifyTrackMatch, ...]]], set[str]]
 type AlbumChoice = Callable[[GoldenOldieArtist, tuple[DiscographyRelease, ...]], str]
-type ReleaseReader = Callable[[DiscographyRelease], tuple[ReleaseTrack, ...]]
+
+
+class GoldenMatches(Protocol):
+    """Observe title matches and their live liked membership."""
+
+    def matches(
+        self, artist: GoldenOldieArtist, title: LastFmTrackStat
+    ) -> tuple[SpotifyTrackMatch, ...]:
+        """Read qualified title matches.
+
+        Args:
+            artist: Selected history artist.
+            title: Ranked history title.
+
+        Returns:
+            Complete matching candidates.
+        """
+        ...
+
+    def liked(
+        self, artist: GoldenOldieArtist, groups: list[tuple[SpotifyTrackMatch, ...]]
+    ) -> set[str]:
+        """Read live membership after every title has been observed.
+
+        Args:
+            artist: Selected history artist.
+            groups: Complete gathered matches.
+
+        Returns:
+            Live liked identities.
+        """
+        ...
+
+
+class GoldenTracks(Protocol):
+    """Read complete tracks for an accepted studio release."""
+
+    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+        """Read complete playback-order tracks.
+
+        Args:
+            release: Selected release.
+
+        Returns:
+            Complete tracks.
+        """
+        ...
 
 
 def resolve_artist(
@@ -64,16 +109,14 @@ def resolve_artist(
 
 def select_lastfm(
     artist: GoldenOldieArtist,
-    matches: MatchReader,
-    liked: LikedReader,
+    catalog: GoldenMatches,
     album_threshold: float = 0.9,
 ) -> tuple[SelectedTrack, ...]:
     """Gather every title before the original single live liked-track check.
 
     Args:
         artist: Original selected history artist and ranked titles.
-        matches: Original qualified matching read for one title.
-        liked: Original live membership read for all gathered matches.
+        catalog: Named matching and live membership reader.
         album_threshold: Original qualification threshold.
 
     Returns:
@@ -84,9 +127,9 @@ def select_lastfm(
     """
     groups = []
     for title in artist.top_tracks:
-        groups.append(matches(title))
+        groups.append(catalog.matches(artist, title))
     selected = lastfm_markers(
-        artist.top_tracks, tuple(groups), liked(groups), album_threshold
+        artist.top_tracks, tuple(groups), catalog.liked(artist, groups), album_threshold
     )
     if not selected:
         raise SomethingOldSpotifyError(
@@ -124,7 +167,7 @@ def select_album(
     mapped: SpotifyArtistCandidate,
     releases: tuple[DiscographyRelease, ...],
     choose: AlbumChoice,
-    tracks: ReleaseReader,
+    catalog: GoldenTracks,
 ) -> tuple[DiscographyRelease | None, tuple[SelectedTrack, ...]]:
     """Request a studio-release choice before reading its complete tracklist.
 
@@ -133,7 +176,7 @@ def select_album(
         mapped: Original accepted Spotify mapping.
         releases: Original filtered studio releases.
         choose: Original release interaction.
-        tracks: Original complete tracklist read.
+        catalog: Complete release-track reader.
 
     Returns:
         Original release and full selection or cancellation.
@@ -149,7 +192,7 @@ def select_album(
     if choice == "quit":
         return None, ()
     release = _selected_release(releases, choice)
-    selected = album_markers(release, tracks(release), mapped)
+    selected = album_markers(release, catalog.tracks(release), mapped)
     if not selected:
         raise SomethingOldSpotifyError(f"{release.name} has no playable tracks.")
     return release, selected

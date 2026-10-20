@@ -4,7 +4,6 @@ import base64
 import binascii
 import gzip
 import json
-from collections.abc import Callable
 from datetime import date
 from datetime import datetime
 from datetime import tzinfo
@@ -106,14 +105,11 @@ def _join_parts(paths: tuple[Path, ...]) -> bytes:
     return b"".join(contents)
 
 
-def by_date(
-    load: Callable[[Path], dict[str, object]], path: Path, timezone: tzinfo
-) -> dict[date, list[Scrobble]]:
+def by_date(payload: dict[str, object], timezone: tzinfo) -> dict[date, list[Scrobble]]:
     """Decode original rows into local date buckets, retaining stable newest-first ties.
 
     Args:
-        load: Original public export codec seam.
-        path: Original caller-owned source path.
+        payload: Complete observed export.
         timezone: Original local calendar timezone.
 
     Returns:
@@ -122,7 +118,6 @@ def by_date(
     Raises:
         LastFmExportError: Original row or timestamp decoding fails.
     """
-    payload = load(path)
     rows = payload["scrobbles"]
     assert isinstance(rows, list)
     result: dict[date, list[Scrobble]] = {}

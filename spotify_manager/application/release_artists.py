@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from spotify_manager.application.artist_mapping import ArtistMapping
 from spotify_manager.application.release_destinations import ReleaseDestinations
 from spotify_manager.application.release_progress import ReleaseProgress
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
@@ -18,10 +19,12 @@ class ReleaseArtists:
     Args:
         progress: Authoritative progress and accepted checkpoint/audit effects.
         destinations: Destination membership and owned composer observations.
+        mapping: Named artist-mapping application stage.
     """
 
     progress: ReleaseProgress
     destinations: ReleaseDestinations
+    mapping: ArtistMapping
 
     def resolve(
         self, artist: RankedArtist
@@ -61,7 +64,7 @@ class ReleaseArtists:
     def _interact(
         self, artist: RankedArtist
     ) -> SpotifyArtistCandidate | Literal["quit"] | None:
-        mapped = self.progress.effects.resolve(artist)
+        mapped = self.mapping.run(artist)
         if mapped == "quit":
             self.progress.pause(artist)
             return "quit"

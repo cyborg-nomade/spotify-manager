@@ -8,6 +8,7 @@ from spotipy.exceptions import SpotifyException
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from tests.support.wine_invocation import WineInvocation
 
 
 def test_new_wine_release_prompt_accepts_drop(monkeypatch) -> None:
@@ -173,7 +174,7 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(main.new_wine, "flush_new_wine", flush)
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(flush))
 
     result = CliRunner().invoke(
         main.app,
@@ -280,7 +281,7 @@ def test_flush_new_wine_renders_detailed_results_and_refill(
             ),
         )
 
-    monkeypatch.setattr(main.new_wine, "flush_new_wine", flush)
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(flush))
 
     main.flush_new_wine_command(dry_run=False, no_discovery=True)
 
@@ -334,7 +335,7 @@ def test_flush_new_wine_reports_operational_failures(
     def fail(*_args, **_kwargs):
         raise error
 
-    monkeypatch.setattr(main.new_wine, "flush_new_wine", fail)
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(fail))
 
     with pytest.raises(main.typer.Exit) as exc:
         main.flush_new_wine_command(dry_run=False, no_discovery=False)

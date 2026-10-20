@@ -1,14 +1,11 @@
 """Stable artist-review paths, mutable progress and complete results."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 from typing import Self
 
-
-def _no_persistence() -> None:
-    pass
+from spotify_manager.application.checkpoints import ModelCheckpoint
 
 
 @dataclass(frozen=True)
@@ -56,13 +53,20 @@ class ArtistReviewState:
         completed_artist_ids: Original completed artist ids observation.
         pending_unfollows: Original pending unfollows observation.
         pending_queue_moves: Original pending queue moves observation.
-        persist: Original persist observation.
+        checkpoint: Optional typed progress store; detached state is not persisted.
     """
 
     completed_artist_ids: set[str]
     pending_unfollows: dict[str, dict[str, object]]
     pending_queue_moves: dict[str, dict[str, object]]
-    persist: Callable[[], None] = field(default=_no_persistence, repr=False)
+    checkpoint: ModelCheckpoint[ArtistReviewState] | None = field(
+        default=None, repr=False
+    )
+
+    def persist(self) -> None:
+        """Persist current progress when a store is attached."""
+        if self.checkpoint is not None:
+            self.checkpoint.save(self)
 
 
 @dataclass

@@ -4,13 +4,21 @@ import json
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from spotify_manager.application.discography_catalog import DiscographyCatalog
+from spotify_manager.application.discography_history import DiscographyArtistMapping
+from spotify_manager.application.discography_history import DiscographyHistory
+from spotify_manager.application.discography_queues import DiscographyQueues
 from spotify_manager.routines import discography
 from spotify_manager.routines import new_wine
+from tests.support.direct_dependencies import catalog
+from tests.support.direct_dependencies import historical_artist
+from tests.support.direct_dependencies import resolve_artist
 
 
 BERLIN = ZoneInfo("Europe/Berlin")
@@ -333,15 +341,14 @@ def test_unused_empty_memory_lane_does_not_request_random_artist(
         "memory_lane": (),
         "requeue": (),
     }
+    monkeypatch.setattr(DiscographyQueues, "run", lambda *_args: (queues, {}))
     monkeypatch.setattr(
-        discography,
-        "_load_artist_queues",
-        lambda *_args: (queues, {}),
-    )
-    monkeypatch.setattr(
-        discography,
-        "load_release_catalog",
-        lambda *_args: tuple(catalog_release(str(index)) for index in range(10)),
+        DiscographyCatalog,
+        "run",
+        partialmethod(
+            catalog,
+            lambda *_args: tuple(catalog_release(str(index)) for index in range(10)),
+        ),
     )
 
     state_path = tmp_path / "state.json"
@@ -375,27 +382,26 @@ def test_empty_memory_lane_supplies_random_historical_artist(
         position=3,
         artist=discography.HistoricalArtist("History Artist", 4),
     )
+    monkeypatch.setattr(DiscographyQueues, "run", lambda *_args: (queues, {}))
     monkeypatch.setattr(
-        discography,
-        "_load_artist_queues",
-        lambda *_args: (queues, {}),
+        DiscographyHistory,
+        "run",
+        partialmethod(historical_artist, lambda **_kwargs: selection),
     )
     monkeypatch.setattr(
-        discography,
-        "select_historical_artist",
-        lambda **_kwargs: selection,
-    )
-    monkeypatch.setattr(
-        discography,
-        "resolve_historical_artist",
-        lambda *_args: discography.QueueArtist(
-            "history-id", "History Artist", "memory_lane"
+        DiscographyArtistMapping,
+        "resolve",
+        partialmethod(
+            resolve_artist,
+            lambda *_args: discography.QueueArtist(
+                "history-id", "History Artist", "memory_lane"
+            ),
         ),
     )
     monkeypatch.setattr(
-        discography,
-        "load_release_catalog",
-        lambda *_args: (catalog_release("history-release"),),
+        DiscographyCatalog,
+        "run",
+        partialmethod(catalog, lambda *_args: (catalog_release("history-release"),)),
     )
 
     state_path = tmp_path / "state.json"
@@ -519,17 +525,16 @@ def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
     )
     counts = {"a": 4, "b": 8, "c": 6, "d": 2}
     prompted: list[str] = []
+    monkeypatch.setattr(DiscographyQueues, "run", lambda *_args: (queues, marker_map))
     monkeypatch.setattr(
-        discography,
-        "_load_artist_queues",
-        lambda *_args: (queues, marker_map),
-    )
-    monkeypatch.setattr(
-        discography,
-        "load_release_catalog",
-        lambda _spotify, artist_id, _retry: tuple(
-            catalog_release(f"{artist_id}-{index}")
-            for index in range(counts[artist_id])
+        DiscographyCatalog,
+        "run",
+        partialmethod(
+            catalog,
+            lambda _spotify, artist_id, _retry: tuple(
+                catalog_release(f"{artist_id}-{index}")
+                for index in range(counts[artist_id])
+            ),
         ),
     )
 

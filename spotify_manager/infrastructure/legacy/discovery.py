@@ -13,8 +13,6 @@ from spotify_manager.infrastructure.legacy.artist_assessment import (
 )
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import new_wine
 
 
 class LegacyDiscoveryCatalog(LegacyAssessmentCatalog):
@@ -34,7 +32,9 @@ class LegacyDiscoveryCatalog(LegacyAssessmentCatalog):
         Returns:
             Original release observations in ranked order.
         """
-        return new_kids.load_ranked_catalog(self.client, artist_id, self.retry)
+        from spotify_manager.routines.new_kids import load_ranked_catalog
+
+        return load_ranked_catalog(self.client, artist_id, self.retry)
 
     def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read the original ordered works playlist.
@@ -45,7 +45,9 @@ class LegacyDiscoveryCatalog(LegacyAssessmentCatalog):
         Returns:
             Original playable markers, retaining duplicates.
         """
-        return new_wine.load_playlist_tracks(self.client, playlist_id, self.retry)
+        from spotify_manager.routines.new_wine import load_playlist_tracks
+
+        return load_playlist_tracks(self.client, playlist_id, self.retry)
 
     def likes(self, ids: list[str], cache: dict[str, bool]) -> None:
         """Populate shared membership observations at the original batch boundary.
@@ -54,7 +56,9 @@ class LegacyDiscoveryCatalog(LegacyAssessmentCatalog):
             ids: Original requested sequence, retaining duplicates.
             cache: Mutable accepted memberships shared by the review invocation.
         """
-        new_wine.get_liked_statuses(self.client, ids, cache, self.retry)
+        from spotify_manager.routines.new_wine import get_liked_statuses
+
+        get_liked_statuses(self.client, ids, cache, self.retry)
 
 
 @dataclass(frozen=True)
@@ -74,7 +78,9 @@ class LegacyDiscoveryAudit:
             name: Existing event identifier.
             details: Original structured fields in application-supplied order.
         """
-        new_kids.append_event(self.path, name, **details)
+        from spotify_manager.routines.new_kids import append_event
+
+        append_event(self.path, name, **details)
 
 
 @dataclass(frozen=True)
@@ -102,7 +108,9 @@ class LegacyDiscoveryLibrary:
         Returns:
             First truthy status, or false for an absent/malformed response.
         """
-        return new_kids._release_saved(self.client, release, self.retry)
+        from spotify_manager.routines.new_kids import _release_saved
+
+        return _release_saved(self.client, release, self.retry)
 
     def save_album(self, release: RankedRelease) -> None:
         """Save one accepted release remotely.
@@ -110,7 +118,9 @@ class LegacyDiscoveryLibrary:
         Args:
             release: Accepted release.
         """
-        new_kids._save_release(self.client, release, self.retry)
+        from spotify_manager.routines.new_kids import _save_release
+
+        _save_release(self.client, release, self.retry)
 
     def remove_album(self, release: RankedRelease) -> None:
         """Remove one rejected release remotely.
@@ -118,7 +128,9 @@ class LegacyDiscoveryLibrary:
         Args:
             release: Rejected release.
         """
-        new_kids._remove_release(self.client, release, self.retry)
+        from spotify_manager.routines.new_kids import _remove_release
+
+        _remove_release(self.client, release, self.retry)
 
     def removed_audit(
         self, release: RankedRelease, evaluation: AlbumEvaluation
@@ -129,7 +141,11 @@ class LegacyDiscoveryLibrary:
             release: Removed release.
             evaluation: Accepted live removal decision.
         """
-        new_kids.append_removed_album_log(
+        from spotify_manager.routines.review_album_limits import (
+            append_removed_album_log,
+        )
+
+        append_removed_album_log(
             YourLibraryAlbum(
                 artist=release.primary_artist_name,
                 album=release.name,
@@ -148,4 +164,6 @@ class LegacyDiscoveryLibrary:
             release: Completed release.
             should_save: Desired membership from the live decision.
         """
-        new_kids._sync_local_album(release, should_save, self.albums_path)
+        from spotify_manager.routines.new_kids import _sync_local_album
+
+        _sync_local_album(release, should_save, self.albums_path)

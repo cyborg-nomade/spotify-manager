@@ -6,10 +6,10 @@ from typing import cast
 
 import pytest
 
+from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.queue_3_execution import Queue3Execution
 from spotify_manager.application.queue_3_execution import Queue3LiveQueue
 from spotify_manager.application.queue_3_planner import Queue3Planner
-from spotify_manager.application.queue_3_planner import stable_release_order
 from spotify_manager.application.queue_3_review import Queue3Observations
 from spotify_manager.application.queue_3_review import Queue3Review
 from spotify_manager.application.queue_3_run import Queue3Run
@@ -81,14 +81,15 @@ def _review(
     session = Queue3Run(state, memory, memory.now, preview)
     queue = _queue()
     snapshot = session.start(queue)
-    ordering = ReleaseOrdering(stable_release_order, snapshot.orders, session.save)
-    planner = Queue3Planner(
-        memory.release_tracks, memory.evaluate, {}, ordering, memory.choose
-    )
+    ordering = ReleaseOrdering(None, snapshot.orders, session)
+    planner = Queue3Planner(memory, {}, ordering, memory.choose)
     execution = Queue3Execution(
-        memory.append, memory.remove, memory.reconcile, memory, preview
+        memory,
+        cast(DiscoveryLibraryReconciliation, memory),
+        memory,
+        preview,
     )
-    observations = Queue3Observations(memory.catalog, memory.playlist)
+    observations = Queue3Observations(memory, memory)
     return Queue3Review(
         session,
         snapshot,
@@ -98,7 +99,7 @@ def _review(
         observations,
         owned,
         memory.choose_composer,
-        memory.audit,
+        memory,
         memory,
     )
 
@@ -331,7 +332,7 @@ def test_empty_composer_playlist_skips_and_acknowledges_without_catalog_fallback
 def test_observation_cache_retains_empty_catalogs_and_works_playlists() -> None:
     """Repeated entries do not refetch empty observations within one review."""
     memory = CoordinationMemory()
-    observations = Queue3Observations(memory.catalog, memory.playlist)
+    observations = Queue3Observations(memory, memory)
     for _attempt in range(2):
         assert observations.catalog("artist") == ()
         assert observations.playlist("works") == ()

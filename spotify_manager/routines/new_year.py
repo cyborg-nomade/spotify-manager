@@ -115,15 +115,19 @@ def run_new_year(
         NewYearError: Original source, marker or destination authority fails.
         ScrobbleHistoryCancelledError: Original cancellation requests a stop.
     """
-    return composition.compose(
+    from spotify_manager.interfaces.operations.new_year import run_new_year as operation
+
+    return operation(
         sp,
         lastfm,
         configuration,
-        state_service,
-        echo,
-        cancel_check,
-        retry_call,
-    ).run(year, dry_run)
+        year=year,
+        dry_run=dry_run,
+        state_service=state_service,
+        echo=echo,
+        cancel_check=cancel_check,
+        retry_call=retry_call,
+    )
 
 
 def _post_pending(sp: Spotify, playlist_id: str, pending: list[str], top: bool) -> None:

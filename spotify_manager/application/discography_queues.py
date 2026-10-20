@@ -1,8 +1,8 @@
 """Gather ordered candidates before optional auxiliary markers."""
 
 from collections import defaultdict
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol
 
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discography_queues import marker_groups
@@ -13,17 +13,31 @@ from spotify_manager.domain.discography_values import QueueArtist
 from spotify_manager.domain.discography_values import QueueName
 
 
+class DiscographyPlaylists(Protocol):
+    """Read ordered playable markers through the original playlist adapter."""
+
+    def read(self, playlist: str) -> tuple[PlaylistTrack, ...]:
+        """Read complete current playlist observations.
+
+        Args:
+            playlist: Original playlist identity.
+
+        Returns:
+            Playable markers in original order.
+        """
+
+
 @dataclass(frozen=True)
 class DiscographyQueues:
     """Bind complete playlist facts and original source configuration.
 
     Args:
-        read: Original checked and retried playlist reader.
+        source: Original checked and retried playlist integration.
         playlists: Original source identities.
         extra: Original optional auxiliary marker source.
     """
 
-    read: Callable[[str], tuple[PlaylistTrack, ...]]
+    source: DiscographyPlaylists
     playlists: dict[QueueName, str]
     extra: str | None
 
@@ -42,11 +56,11 @@ class DiscographyQueues:
         markers: dict[str, list[ArtistMarkers]] = defaultdict(list)
         for queue in QUEUE_ORDER:
             playlist = self.playlists[queue]
-            tracks = self.read(playlist)
+            tracks = self.source.read(playlist)
             queues[queue] = queue_artists(tracks, queue)
             _retain(markers, marker_groups(tracks, queue, playlist))
         if self.extra is not None:
-            tracks = self.read(self.extra)
+            tracks = self.source.read(self.extra)
             _retain(markers, marker_groups(tracks, "queue_3", self.extra))
         result = {identity: tuple(groups) for identity, groups in markers.items()}
         return queues, result

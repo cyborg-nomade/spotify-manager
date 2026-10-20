@@ -20,8 +20,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from importlib.metadata import version
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
 from unittest.mock import patch
+
+
+if TYPE_CHECKING:
+    from spotify_manager.core.state.definitions import StateDefinition
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -311,6 +316,8 @@ def capture_cli(main: Any) -> dict[str, str]:
     from typer.main import get_command
     from typer.testing import CliRunner
 
+    from spotify_manager.interfaces import lookup_operations
+    from spotify_manager.interfaces.operations import legacy_library
     from spotify_manager.models.lookups import AlbumEvaluation
     from spotify_manager.models.lookups import ArtistLibraryStats
 
@@ -386,9 +393,11 @@ def capture_cli(main: Any) -> dict[str, str]:
         # Values below are canned application outputs, not behavioral test oracles.
         with (
             patch.object(main, "client", return_value=object()),
-            patch.object(main, "count_artists_in_library", return_value=42),
-            patch.object(main, "get_live_artist_library_stats", return_value=stats),
-            patch.object(main, "evaluate_album_live", return_value=album),
+            patch.object(legacy_library, "count_artists_in_library", return_value=42),
+            patch.object(
+                lookup_operations, "get_live_artist_library_stats", return_value=stats
+            ),
+            patch.object(lookup_operations, "evaluate_live_album", return_value=album),
         ):
             for args in (
                 ["count-artists"],
@@ -474,13 +483,35 @@ def capture_runtime() -> dict[str, str]:
     result["state-defaults.json"] = as_json(
         {
             name: {
-                "default": factory(),
-                "validator": f"{validator.__module__}.{validator.__name__}",
+                "default": definition.default(),
+                "validator": retained_validator_name(definition),
             }
-            for name, (factory, validator) in api.STATE_NAMESPACE_DEFINITIONS.items()
+            for name, definition in api.STATE_NAMESPACE_DEFINITIONS.items()
         }
     )
     return result
+
+
+def retained_validator_name(definition: StateDefinition) -> str:
+    """Locate the original format validator behind its named state adapter.
+
+    This capture records format identity, rather than the adapter method name.
+    The state-default contract and its frozen expected bytes remain unchanged.
+
+    Args:
+        definition: Named namespace format used by normal HTTP execution.
+
+    Returns:
+        Qualified original validator called directly by the adapter.
+
+    Raises:
+        ValueError: The adapter no longer binds an explicit original validator.
+    """
+    source = textwrap.dedent(inspect.getsource(definition.validate))
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            return f"{node.module}.{node.names[0].name}"
+    raise ValueError("State adapter must bind its original validator explicitly")
 
 
 def inventory_tables(artifacts: dict[str, str]) -> dict[str, str]:

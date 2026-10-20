@@ -96,7 +96,7 @@ class BatchMemory:
             An independent injected workflow.
         """
         return RecommendationResolution(
-            self.search, self.liked, self.messages.append, batch_size, multiplier
+            self, self.messages.append, batch_size, multiplier
         )
 
 

@@ -75,7 +75,7 @@ class AlbumMemory:
         Raises:
             OSError: An injected observation fails.
         """
-        workflow = AlbumGathering(self.search, self.progress)
+        workflow = AlbumGathering(self, self.progress)
         return workflow.run(
             self.case.candidates,
             self.case.excluded,
@@ -138,20 +138,31 @@ def test_empty_pool_has_no_progress_or_search_observations() -> None:
     """An empty candidate pool does not invent read or presentation effects."""
     case = read_case("empty")
     memory = AlbumMemory(case)
-    workflow = AlbumGathering(memory.search, memory.progress)
+    workflow = AlbumGathering(memory, memory.progress)
     assert workflow.run((), set(), set(), 10, WEEK) == ()
     assert memory.events == []
 
 
-def _invalid_catalog(candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
-    raise SauvignonSpotifyError("invalid catalog")
+class InvalidAlbumSearch:
+    """Reject the original catalog observation with its original typed error."""
+
+    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+        """Fail before returning any catalog facts.
+
+        Args:
+            candidate: Original ranked track evidence.
+
+        Raises:
+            SauvignonSpotifyError: The scripted catalog response is unusable.
+        """
+        raise SauvignonSpotifyError("invalid catalog")
 
 
 def test_catalog_error_propagates_after_original_candidate_progress() -> None:
     """Retain the public catalog-error hierarchy, message and observation boundary."""
     case = read_case("grouped")
     messages: list[str] = []
-    workflow = AlbumGathering(_invalid_catalog, messages.append)
+    workflow = AlbumGathering(InvalidAlbumSearch(), messages.append)
     with pytest.raises(SauvignonSpotifyError, match="invalid catalog") as raised:
         workflow.run(case.candidates, set(), set(), 2, WEEK)
     assert isinstance(raised.value, SauvignonError)

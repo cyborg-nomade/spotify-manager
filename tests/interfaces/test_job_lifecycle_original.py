@@ -12,6 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from spotify_manager import api
+from spotify_manager.interfaces.http import jobs as http_jobs
 from tests.support.effects import Json
 from tests.support.job_baseline import CASES
 from tests.support.job_baseline import STATUSES
@@ -213,7 +214,7 @@ def test_dispatch_failure_retains_original_queued_handle(
         monkeypatch: Scoped scheduler and deterministic identity replacements.
     """
     bind(monkeypatch)
-    monkeypatch.setattr(api, "Thread", FailedDispatch)
+    monkeypatch.setattr(http_jobs, "Thread", FailedDispatch)
     with pytest.raises(RuntimeError, match="dispatcher unavailable"):
         case.start()
     results = _results(case.family)
@@ -260,8 +261,8 @@ def test_snapshot_failure_retains_reservation_without_dispatch(
         monkeypatch: Isolate scheduling and snapshot presentation boundaries.
     """
     bind(monkeypatch)
-    monkeypatch.setattr(api, "_job_snapshot", _failed_analysis_snapshot)
-    monkeypatch.setattr(api, "_blast_job_snapshot", _failed_playlist_snapshot)
+    monkeypatch.setattr(http_jobs, "_job_snapshot", _failed_analysis_snapshot)
+    monkeypatch.setattr(http_jobs, "_blast_job_snapshot", _failed_playlist_snapshot)
     with pytest.raises(RuntimeError, match="Cannot present"):
         case.start()
     registry = api._analysis_jobs if case.family == "analysis" else api._blast_jobs

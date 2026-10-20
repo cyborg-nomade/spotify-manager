@@ -4,12 +4,16 @@ import json
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 import pytest
 
+from spotify_manager.bootstrap import historical_playlists as historical_composition
+from spotify_manager.interfaces.operations import daily_mind_radio as radio_execution
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
+from tests.support.direct_dependencies import ObservedRadioSelection
 
 
 def spotify_track(
@@ -247,9 +251,14 @@ def test_spotify_routine_reuses_liked_match_preference(
     sp.liked_ids = {"liked"}
     progress: list[str] = []
     monkeypatch.setattr(
-        daily_mind_radio,
-        "select_daily_mind_radio",
-        lambda **_kwargs: batch,
+        historical_composition,
+        "anniversary_selection",
+        partial(ObservedRadioSelection, lambda **_kwargs: batch),
+    )
+    monkeypatch.setattr(
+        radio_execution,
+        "anniversary_selection",
+        historical_composition.anniversary_selection,
     )
 
     summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
@@ -286,9 +295,14 @@ def test_spotify_routine_dry_run_does_not_update_playlist(
         spotify_track("match", "Track", "Artist", "Album")
     ]
     monkeypatch.setattr(
-        daily_mind_radio,
-        "select_daily_mind_radio",
-        lambda **_kwargs: batch,
+        historical_composition,
+        "anniversary_selection",
+        partial(ObservedRadioSelection, lambda **_kwargs: batch),
+    )
+    monkeypatch.setattr(
+        radio_execution,
+        "anniversary_selection",
+        historical_composition.anniversary_selection,
     )
 
     summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
@@ -312,9 +326,14 @@ def test_spotify_routine_avoids_api_calls_when_all_dates_are_empty(
         selections=(),
     )
     monkeypatch.setattr(
-        daily_mind_radio,
-        "select_daily_mind_radio",
-        lambda **_kwargs: batch,
+        historical_composition,
+        "anniversary_selection",
+        partial(ObservedRadioSelection, lambda **_kwargs: batch),
+    )
+    monkeypatch.setattr(
+        radio_execution,
+        "anniversary_selection",
+        historical_composition.anniversary_selection,
     )
 
     summary = daily_mind_radio.add_daily_mind_radio_to_spotify(

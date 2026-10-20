@@ -5,10 +5,15 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
+from typing import cast
 
+from spotify_manager.application.queue_artist_mapping import QueueArtistMapping
 from spotify_manager.application.queue_fill import QueueFill
+from spotify_manager.application.queue_fill import QueueFillStages
 from spotify_manager.application.queue_fill_values import FillResult
 from spotify_manager.application.queue_fill_values import QueueFillRequest
+from spotify_manager.application.queue_recommendations import QueueRecommendations
+from spotify_manager.application.queue_seeds import QueueSeeds
 from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.application.queue_values import QueueSpotifyError
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
@@ -45,7 +50,7 @@ class MemoryQueueFill:
         """
         return NOW
 
-    def week(self, now: datetime) -> date:
+    def local_date(self, now: datetime) -> date:
         """Return the original explicit local week.
 
         Args:
@@ -286,6 +291,62 @@ class MemoryQueueFill:
         self.observations.progress(done, total, message)
 
 
+@dataclass(frozen=True)
+class ScriptedQueueSeeds:
+    """Observe the original seed stage through a named method.
+
+    Args:
+        effects: Existing scripted Queue observations.
+    """
+
+    effects: MemoryQueueFill
+
+    def select(
+        self, history: tuple[ArtistHistory, ...], count: int, week: date
+    ) -> tuple[ArtistSeed, ...]:
+        """Return the existing seed outcome and preserve its observations."""
+        return self.effects.seeds(history, count, week)
+
+
+@dataclass(frozen=True)
+class ScriptedQueueCandidates:
+    """Observe the original recommendation stage through a named method.
+
+    Args:
+        effects: Existing scripted Queue observations.
+    """
+
+    effects: MemoryQueueFill
+
+    def run(
+        self,
+        seeds: tuple[ArtistSeed, ...],
+        heard: set[str],
+        week: date,
+        limit: int,
+        now: datetime,
+    ) -> tuple[ArtistRecommendation, ...]:
+        """Return the existing candidate outcome and preserve its observations."""
+        return self.effects.candidates(seeds, heard, week, limit, now)
+
+
+def fill_workflow(effects: MemoryQueueFill) -> QueueFill:
+    """Bind the original typed stage doubles to the independent Queue workflow.
+
+    Args:
+        effects: Existing scripted observations and accepted failures.
+
+    Returns:
+        Named application stages retaining all original fixture oracles.
+    """
+    stages = QueueFillStages(
+        cast(QueueSeeds, ScriptedQueueSeeds(effects)),
+        cast(QueueRecommendations, ScriptedQueueCandidates(effects)),
+        cast(QueueArtistMapping, effects),
+    )
+    return QueueFill(effects, stages)
+
+
 def application_outcome(scenario: str, preview: bool, failure: str | None) -> object:
     """Run the independent application using frozen original scenario facts.
 
@@ -300,7 +361,7 @@ def application_outcome(scenario: str, preview: bool, failure: str | None) -> ob
     observations = FillObservations(scenario, failure)
     outcome: dict[str, object] = {}
     try:
-        result = QueueFill(MemoryQueueFill(observations)).run(
+        result = fill_workflow(MemoryQueueFill(observations)).run(
             QueueFillRequest(1, None, 30, preview)
         )
         outcome["result"] = asdict(result)

@@ -1,65 +1,54 @@
 """Explicit callbacks and wire presentation for FoundArtWorker."""
 
-import logging
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
-from threading import Lock
 
 from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
-from spotify_manager.interfaces.http.models.recommendations import (
-    FoundArtSelectionResult,
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.presenters.recommendations import (
+    found_art_selection_results,
 )
-from spotify_manager.interfaces.http.presenters.collections import present_entries
-from spotify_manager.routines import found_art
+from spotify_manager.interfaces.operations import found_art as found_art
 
 
 @dataclass(kw_only=True)
 class FoundArtWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        spotify: Explicit spotify input or adapter boundary.
-        playlist_id: Explicit playlist id input or adapter boundary.
-        api_key: Explicit api key input or adapter boundary.
-        username: Explicit username input or adapter boundary.
-        count: Explicit count input or adapter boundary.
-        create_lastfm: Explicit create lastfm input or adapter boundary.
-        connection_failure: Explicit connection failure input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        _found_art_selection_result: Explicit found art selection result input or
-            adapter boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        context: Shared job lock, clock and presentation context.
+        job_id: Job id supplied by the caller.
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        api_key: Configured Last.fm API credential.
+        username: Configured Last.fm username.
+        count: Requested number of selections.
+        connection_failure: Connection failure supplied by the caller.
+        job: Mutable job record owned by this worker.
+        lastfm: Caller-owned Last.fm client.
+        spotify_event_setter: SDK event subscription hook.
+        previous_spotify_event_callback: Original SDK event observer restored on exit.
     """
 
+    context: PlaylistContext
     job_id: str
     spotify: Spotify
     playlist_id: str
     api_key: str
     username: str
     count: int
-    create_lastfm: Callable[..., LastFmClient]
     connection_failure: str
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    _found_art_selection_result: Callable[..., FoundArtSelectionResult]
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     lastfm: LastFmClient = field(init=False)
     spotify_event_setter: EventSetter | None = field(init=False)
@@ -87,23 +76,23 @@ class FoundArtWorker:
         Args:
             message: Original routine-supplied message.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="found_art")
-        with self.lock:
+        self.job = self.context.lookup(self.job_id, command="found_art")
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Found Art started"
-            self.append(self.job, "Found Art started.")
+            self.context.append(self.job, "Found Art started.")
         self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
         self.previous_spotify_event_callback = None
         if callable(self.spotify_event_setter):
             self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
-        self.lastfm = self.create_lastfm(
-            self.api_key, self.username, event_callback=self.echo
+        self.lastfm = lastfm_client(
+            LastFmCredentials(self.api_key, self.username), self.echo
         )
 
     def _execute(self) -> found_art.FoundArtSummary:
@@ -117,8 +106,8 @@ class FoundArtWorker:
         return summary
 
     def _completed(self, summary: found_art.FoundArtSummary) -> None:
-        results = present_entries(summary.results, self._found_art_selection_result)
-        with self.lock:
+        results = found_art_selection_results(summary.results)
+        with self.context.lock:
             self.job.result.status = "completed"
             self.job.result.requested_count = summary.requested_count
             self.job.result.playlist_length_before = summary.playlist_length_before
@@ -131,56 +120,41 @@ class FoundArtWorker:
             self.job.result.candidate_count = summary.candidate_count
             self.job.result.found_art_results = results
             self.job.result.detail = (
-                "Added "
-                f"{summary.added}"
-                " of "
-                f"{summary.requested_count}"
-                " recommendations; playlist "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                "."
+                f"Added {summary.added} of {summary.requested_count}"
+                f" recommendations; playlist {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}."
             )
             for result in results:
                 target = result.spotify_match or "no unliked qualifying match"
-                self.append(
+                self.context.append(
                     self.job,
-                    (
-                        f"{result.artist}"
-                        " - "
-                        f"{result.track}"
-                        " -> "
-                        f"{target}"
-                        " ("
-                        f"{result.action}"
-                        ")."
-                    ),
+                    f"{result.artist} - {result.track} -> {target} ({result.action}).",
                 )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
         if callable(self.spotify_event_setter):
             self.spotify_event_setter(self.previous_spotify_event_callback)
-        with self.lock:
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+        with self.context.lock:
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _failed(
         self, exc: found_art.FoundArtError | LastFmError | SpotifyException
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = str(exc)
-            self.append(self.job, f"Found Art failed: {exc}")
+            self.context.append(self.job, f"Found Art failed: {exc}")
 
     def _connection_failed(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = self.connection_failure
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected Found Art error")
-        with self.lock:
+        self.context.logger.exception("Unexpected Found Art error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = f"Unexpected Found Art error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)

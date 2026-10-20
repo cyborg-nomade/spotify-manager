@@ -1,7 +1,7 @@
 """Stable releases result serialization."""
 
 from spotify_manager.interfaces.http.models.releases import ReleaseCheckResultEntry
-from spotify_manager.routines import release_check
+from spotify_manager.interfaces.operations import release_check as release_check
 
 
 def release_check_result(

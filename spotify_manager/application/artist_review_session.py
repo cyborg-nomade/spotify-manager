@@ -1,14 +1,15 @@
 """Run-scoped artist-review facts, cached membership and durable decisions."""
 
 from collections import Counter
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from typing import Protocol
 
 from spotify_manager.application.artist_review_effects import ReviewCatalog
 from spotify_manager.application.artist_review_effects import ReviewInteraction
 from spotify_manager.application.artist_review_effects import ReviewSpotify
 from spotify_manager.application.artist_review_effects import ReviewStorage
+from spotify_manager.application.artist_review_membership import playlist_membership
 from spotify_manager.application.artist_review_values import ArtistReviewState
 from spotify_manager.application.artist_review_values import ArtistReviewSummary
 from spotify_manager.application.artist_review_values import ReviewCounts
@@ -64,7 +65,9 @@ class ReviewSession:
             Original mutable cached membership.
         """
         if playlist_id not in self.playlist_cache:
-            self.playlist_cache[playlist_id] = self.spotify.membership(playlist_id)
+            self.playlist_cache[playlist_id] = playlist_membership(
+                playlist_id, self.spotify.pages(playlist_id)
+            )
         return self.playlist_cache[playlist_id]
 
     def placement(
@@ -136,7 +139,7 @@ class ReviewSession:
             artist.spotify_id,
             action,
             event,
-            self.storage.append,
+            self.storage,
         )
 
     def skip(self, artist: YourLibraryArtist, liked_count: int) -> None:
@@ -182,13 +185,25 @@ def _count_action(counts: ReviewCounts, action: str) -> None:
         counts.no_action += 1
 
 
+class ReviewAudit(Protocol):
+    """Append complete ordered review decisions."""
+
+    def append(self, events: list[dict[str, object]]) -> None:
+        """Accept audit events.
+
+        Args:
+            events: Ordered complete event records.
+        """
+        ...
+
+
 def record_completion(
     state: ArtistReviewState,
     counts: ReviewCounts,
     identity: str,
     action: str,
     event: dict[str, object],
-    append: Callable[[list[dict[str, object]]], None],
+    storage: ReviewAudit,
 ) -> None:
     """Audit, checkpoint and count one original complete decision in order.
 
@@ -198,9 +213,9 @@ def record_completion(
         identity: Original completed artist identity.
         action: Original action category.
         event: Complete timestamped decision from the original outer boundary.
-        append: Original ordered audit writer.
+        storage: Ordered audit writer.
     """
-    append([event])
+    storage.append([event])
     state.completed_artist_ids.add(identity)
     state.pending_unfollows.pop(identity, None)
     state.pending_queue_moves.pop(identity, None)

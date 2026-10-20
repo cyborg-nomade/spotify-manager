@@ -120,9 +120,7 @@ class ImportMemory:
 
 
 def _service(memory: ImportMemory) -> AnnualDiscoveryImport:
-    return AnnualDiscoveryImport(
-        memory.read, memory.append, memory.audit, memory, memory.present, memory.now
-    )
+    return AnnualDiscoveryImport(memory, memory, memory.present, memory.now)
 
 
 @pytest.mark.parametrize("preview", [False, True])

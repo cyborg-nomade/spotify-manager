@@ -6,6 +6,14 @@ from pathlib import Path
 
 import pytest
 
+from spotify_manager.application import sauvignon_run as sauvignon_integration
+from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
+from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
+from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
+from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
+from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import sauvignon
@@ -371,12 +379,10 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
     first = sauvignon.FirstTrack("first", "spotify:track:first", "Opening")
     scrobbles = [blast_from_past.Scrobble("Known", "Known Artist", "Known Album", 1)]
     monkeypatch.setattr(
-        found_art,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: (scrobbles, 2),
+        LegacySauvignon, "refresh", lambda *_args, **_kwargs: (scrobbles, 2)
     )
     monkeypatch.setattr(
-        found_art,
+        sauvignon_integration,
         "aggregate_track_history",
         lambda _history: (
             found_art.TrackHistory(
@@ -390,15 +396,9 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
             ),
         ),
     )
+    monkeypatch.setattr(RecommendationSeeds, "run", lambda *_args, **_kwargs: (seed,))
     monkeypatch.setattr(
-        found_art,
-        "select_seed_tracks",
-        lambda *_args, **_kwargs: (seed,),
-    )
-    monkeypatch.setattr(
-        found_art,
-        "gather_candidates",
-        lambda *_args, **_kwargs: (candidate,),
+        CandidateGathering, "run", lambda *_args, **_kwargs: (candidate,)
     )
     monkeypatch.setattr(
         sauvignon.new_wine,
@@ -406,9 +406,7 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        sauvignon,
-        "gather_album_recommendations",
-        lambda *_args, **_kwargs: (album_recommendation,),
+        AlbumGathering, "run", lambda *_args, **_kwargs: (album_recommendation,)
     )
     monkeypatch.setattr(
         sauvignon,
@@ -418,15 +416,14 @@ def test_fill_sauvignon_adds_first_track_and_logs_completed_album(
 
     summary = sauvignon.fill_sauvignon_from_lastfm(
         spotify,
-        object(),  # type: ignore[arg-type]
-        "sauvignon",
-        None,
-        count=1,
-        max_playlist_length=None,
-        retry_call=immediate,
-        log_path=tmp_path / "sauvignon.jsonl",
-        export_path=tmp_path / "history.json",
-        recent_path=tmp_path / "recent.jsonl",
+        object(),
+        SauvignonOptions(playlist_id="sauvignon", count=1, max_playlist_length=None),
+        SauvignonCallbacks(choice_reader=None, retry_call=immediate),
+        SauvignonResources(
+            export_path=tmp_path / "history.json",
+            recent_path=tmp_path / "recent.jsonl",
+            log_path=tmp_path / "sauvignon.jsonl",
+        ),
     )
 
     assert summary.selected == 1
@@ -473,23 +470,23 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         ),
     )
     monkeypatch.setattr(
-        found_art,
-        "refresh_scrobble_history",
+        LegacySauvignon,
+        "refresh",
         lambda *_args, **_kwargs: (
             [blast_from_past.Scrobble("Seed", "Seed", "Seed Album", 1)],
             0,
         ),
     )
     monkeypatch.setattr(
-        found_art,
+        sauvignon_integration,
         "aggregate_track_history",
         lambda _history: (
             found_art.TrackHistory("Seed", "Seed", ("seed", "seed"), 1, 1, 1, 1),
         ),
     )
     monkeypatch.setattr(
-        found_art,
-        "select_seed_tracks",
+        RecommendationSeeds,
+        "run",
         lambda *_args, **_kwargs: (
             found_art.FoundArtSeed(
                 "Seed",
@@ -503,9 +500,7 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         ),
     )
     monkeypatch.setattr(
-        found_art,
-        "gather_candidates",
-        lambda *_args, **_kwargs: (track_candidate(),),
+        CandidateGathering, "run", lambda *_args, **_kwargs: (track_candidate(),)
     )
     monkeypatch.setattr(
         sauvignon.new_wine,
@@ -513,9 +508,7 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
         lambda *_args, **_kwargs: (),
     )
     monkeypatch.setattr(
-        sauvignon,
-        "gather_album_recommendations",
-        lambda *_args, **_kwargs: recommendations,
+        AlbumGathering, "run", lambda *_args, **_kwargs: recommendations
     )
     monkeypatch.setattr(
         sauvignon,
@@ -529,13 +522,14 @@ def test_fill_sauvignon_dry_run_enforces_one_album_per_artist_and_can_pause(
 
     summary = sauvignon.fill_sauvignon_from_lastfm(
         spotify,
-        object(),  # type: ignore[arg-type]
-        "sauvignon",
-        lambda _recommendation, _options: sauvignon.CHOICE_QUIT,
-        count=3,
-        max_playlist_length=None,
-        dry_run=True,
-        log_path=tmp_path / "dry.jsonl",
+        object(),
+        SauvignonOptions(
+            playlist_id="sauvignon", count=3, max_playlist_length=None, dry_run=True
+        ),
+        SauvignonCallbacks(
+            choice_reader=lambda _recommendation, _options: sauvignon.CHOICE_QUIT
+        ),
+        SauvignonResources(log_path=tmp_path / "dry.jsonl"),
     )
 
     assert [result.action for result in summary.results] == [
@@ -553,22 +547,18 @@ def test_fill_sauvignon_full_playlist_and_invalid_limits(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(
-        found_art,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: ([], 0),
-    )
+    monkeypatch.setattr(LegacySauvignon, "refresh", lambda *_args, **_kwargs: ([], 0))
     monkeypatch.setattr(
         sauvignon.new_wine,
         "load_playlist_tracks",
         lambda *_args, **_kwargs: tuple(object() for _ in range(20)),
     )
     summary = sauvignon.fill_sauvignon_from_lastfm(
-        object(),  # type: ignore[arg-type]
-        object(),  # type: ignore[arg-type]
-        "sauvignon",
-        None,
-        log_path=tmp_path / "full.jsonl",
+        object(),
+        object(),
+        SauvignonOptions(playlist_id="sauvignon"),
+        SauvignonCallbacks(choice_reader=None),
+        SauvignonResources(log_path=tmp_path / "full.jsonl"),
     )
     assert summary.requested_count == 0
     assert summary.results == ()
@@ -581,10 +571,9 @@ def test_fill_sauvignon_full_playlist_and_invalid_limits(
     ):
         with pytest.raises(sauvignon.SauvignonConfigError):
             sauvignon.fill_sauvignon_from_lastfm(
-                object(),  # type: ignore[arg-type]
-                object(),  # type: ignore[arg-type]
-                "sauvignon",
-                None,
-                log_path=tmp_path / "invalid.jsonl",
-                **kwargs,  # type: ignore[arg-type]
+                object(),
+                object(),
+                SauvignonOptions(playlist_id="sauvignon", **kwargs),
+                SauvignonCallbacks(choice_reader=None),
+                SauvignonResources(log_path=tmp_path / "invalid.jsonl"),
             )

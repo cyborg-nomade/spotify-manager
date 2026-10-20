@@ -17,6 +17,7 @@ from typer.testing import CliRunner
 
 from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.interfaces.http import jobs as http_jobs
 from tests.interfaces.test_vertical_slices import _http_client
 from tests.routines.test_slow_listening import FakeSpotify
 from tests.routines.test_slow_listening import raw_release
@@ -72,11 +73,11 @@ def slow_http(
     spotify = _spotify()
     threads: list[Thread] = []
     settings = Mock(return_value=SimpleNamespace(slow_listening_playlist="slow"))
-    monkeypatch.setattr(api, "Settings", settings)
+    monkeypatch.setattr(http_jobs, "Settings", settings)
     monkeypatch.setattr(main, "Settings", settings)
     monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
-    monkeypatch.setattr(api, "_blast_jobs", {})
-    monkeypatch.setattr(api, "Thread", partial(_thread, threads))
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {})
+    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
     try:
         yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify
     finally:

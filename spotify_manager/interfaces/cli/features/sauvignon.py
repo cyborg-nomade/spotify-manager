@@ -7,64 +7,42 @@ from typing import Never
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn
 from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
-from rich.prompt import Prompt
-from rich.table import Table
-from rich.text import Text
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.interfaces import sauvignon_operations as sauvignon
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
-from spotify_manager.routines import found_art
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import sauvignon
-from spotify_manager.settings import Settings
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
+from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
+from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 
 
 @dataclass(kw_only=True)
 class SauvignonCLI:
-    """Execute and present sauvignon through explicit facade dependencies.
+    """Run Sauvignon recommendations with album choices and progress.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        create_lastfm: Factory for lastfm instances.
-        create_progress: Factory for progress instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        configuration: Original settings factory supplied by the facade.
-        spinner_column: Rich spinner column constructor.
-        create_table: Factory for table instances.
-        create_text: Factory for text instances.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        ask_sauvignon_album: Original ask sauvignon album boundary supplied by the
-            facade.
-        print_sauvignon_table: Original print sauvignon table boundary supplied by the
-            facade.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
-    bar_column: type[BarColumn]
-    create_console: type[Console]
-    create_lastfm: type[LastFmClient]
-    create_progress: type[Progress]
-    prompt: type[Prompt]
-    configuration: type[Settings]
-    spinner_column: type[SpinnerColumn]
-    create_table: type[Table]
-    create_text: type[Text]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
-    ask_sauvignon_album: Callable[..., str]
-    print_sauvignon_table: Callable[..., None]
-    review_client: Callable[..., Spotify]
+    runtime: CliResources
+
+    progress_display: ProgressDisplay
+    display: ConsoleDisplay
     sleep: Callable[[float], None]
 
     def _render_sauvignon_table(
@@ -76,7 +54,9 @@ class SauvignonCLI:
             console: Rich console receiving this command's output.
             results: Results supplied by the caller.
         """
-        table = self.create_table(title="Fill Sauvignon Terre-Neuve from Last.fm")
+        table = self.display.create_table(
+            title="Fill Sauvignon Terre-Neuve from Last.fm"
+        )
         table.add_column("#", justify="right")
         table.add_column("Album")
         table.add_column("Recommendation")
@@ -94,31 +74,18 @@ class SauvignonCLI:
             recommendation = result.recommendation
             support_count = len(recommendation.supporting_tracks)
             recommendation_text = (
-                "base #"
-                f"{recommendation.base_rank}"
-                "; weekly "
-                f"{recommendation.weekly_rank:.3f}"
-                "; score "
-                f"{recommendation.score:.3f}"
-                "; "
-                f"{support_count}"
-                " supporting track"
+                f"base #{recommendation.base_rank}; weekly "
+                f"{recommendation.weekly_rank:.3f}; score "
+                f"{recommendation.score:.3f}; {support_count} supporting track"
                 f"{('s' if support_count != 1 else '')}"
             )
             if result.album is None:
                 album_text = f"{recommendation.artist} - {recommendation.album}"
             else:
                 album_text = (
-                    f"{result.album.artist}"
-                    " - "
-                    f"{result.album.album}"
-                    "\n"
-                    f"{result.album.release_type}"
-                    "; "
-                    f"{result.album.release_date}"
-                    "; "
-                    f"{result.album.total_tracks}"
-                    " tracks"
+                    f"{result.album.artist} - {result.album.album}\n"
+                    f"{result.album.release_type}; {result.album.release_date}; "
+                    f"{result.album.total_tracks} tracks"
                 )
             first_track = result.first_track.name if result.first_track else "-"
             table.add_row(
@@ -126,7 +93,7 @@ class SauvignonCLI:
                 album_text,
                 recommendation_text,
                 first_track,
-                self.create_text(result.action, style=styles[result.action]),
+                self.display.create_text(result.action, style=styles[result.action]),
             )
         console.print(table)
 
@@ -150,11 +117,9 @@ class SauvignonCLI:
         """
         progress.stop()
         try:
-            table = self.create_table(
+            table = self.display.create_table(
                 title=(
-                    "Choose Sauvignon edition: "
-                    f"{recommendation.artist}"
-                    " - "
+                    f"Choose Sauvignon edition: {recommendation.artist} - "
                     f"{recommendation.album}"
                 )
             )
@@ -176,7 +141,7 @@ class SauvignonCLI:
                     option.spotify_id,
                 )
             console.print(table)
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Release number / [s]kip this run / [q]uit",
                 choices=[
                     *(str(index) for index in range(1, len(options) + 1)),
@@ -213,8 +178,8 @@ class SauvignonCLI:
             raise typer.BadParameter(
                 "use either --count or --max-playlist-length, not both"
             )
-        self._fill_sauvignon_from_lastfm_console = self.create_console()
-        configuration = self.configuration()
+        self._fill_sauvignon_from_lastfm_console = self.display.create_console()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = sauvignon.parse_playlist_id(
                 configuration.sauvignon_terre_neuve_playlist
@@ -229,8 +194,8 @@ class SauvignonCLI:
             if count is None and max_playlist_length is None
             else max_playlist_length
         )
-        lastfm_client = self.create_lastfm(
-            api_key, username, event_callback=self._fill_sauvignon_from_lastfm_log
+        lastfm_client = create_lastfm_client(
+            LastFmCredentials(api_key, username), self._fill_sauvignon_from_lastfm_log
         )
         summary = self._execute_fill_sauvignon_from_lastfm(
             count, dry_run, effective_maximum, lastfm_client, playlist_id, seed_count
@@ -266,7 +231,7 @@ class SauvignonCLI:
         recommendation: sauvignon.AlbumRecommendation,
         options: tuple[sauvignon.SpotifyAlbumOption, ...],
     ) -> str:
-        return self.ask_sauvignon_album(
+        return self._prompt_sauvignon_album(
             self._fill_sauvignon_from_lastfm_console,
             recommendation,
             options,
@@ -286,9 +251,9 @@ class SauvignonCLI:
     ) -> Never:
         self._fill_sauvignon_from_lastfm_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -315,7 +280,7 @@ class SauvignonCLI:
         self, exc: SpotifyException
     ) -> Never:
         self._fill_sauvignon_from_lastfm_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -333,14 +298,12 @@ class SauvignonCLI:
     def _show_fill_sauvignon_from_lastfm(
         self, summary: sauvignon.SauvignonSummary
     ) -> None:
-        self.print_sauvignon_table(
+        self._render_sauvignon_table(
             self._fill_sauvignon_from_lastfm_console, summary.results
         )
         self._fill_sauvignon_from_lastfm_console.print(
             (
-                "Listening week: "
-                f"{summary.week_start.isoformat()}"
-                " through "
+                f"Listening week: {summary.week_start.isoformat()} through "
                 f"{(summary.week_start + timedelta(days=6)).isoformat()}"
             ),
             style="bold cyan",
@@ -348,26 +311,13 @@ class SauvignonCLI:
         prefix = "Dry run" if summary.dry_run else "Fill"
         self._fill_sauvignon_from_lastfm_console.print(
             (
-                f"{prefix}"
-                ": "
-                f"{summary.history_scrobbles:,}"
-                " scrobbles across "
-                f"{summary.history_albums:,}"
-                " albums; "
-                f"{summary.seed_count}"
-                " seeds, "
-                f"{summary.track_candidate_count:,}"
-                " track candidates, "
-                f"{summary.album_candidate_count:,}"
-                " eligible albums; Sauvignon "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                "; selected "
-                f"{summary.selected}"
-                "/"
-                f"{summary.requested_count}"
-                "."
+                f"{prefix}: {summary.history_scrobbles:,} scrobbles across "
+                f"{summary.history_albums:,} albums; {summary.seed_count} seeds, "
+                f"{summary.track_candidate_count:,} track candidates, "
+                f"{summary.album_candidate_count:,} eligible albums; Sauvignon "
+                f"{summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}; selected {summary.selected}/"
+                f"{summary.requested_count}."
             ),
             style="bold",
         )
@@ -399,11 +349,13 @@ class SauvignonCLI:
             The routine outcome.
         """
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.time_column(),
                 console=self._fill_sauvignon_from_lastfm_console,
                 transient=True,
             ) as self._fill_sauvignon_from_lastfm_progress:
@@ -417,17 +369,22 @@ class SauvignonCLI:
                     )
                 )
                 summary = sauvignon.fill_sauvignon_from_lastfm(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     lastfm_client,
-                    playlist_id,
-                    choice_reader=self._fill_sauvignon_from_lastfm_ask_sauvignon_album,
-                    count=count,
-                    max_playlist_length=effective_maximum,
-                    seed_count=seed_count,
-                    dry_run=dry_run,
-                    echo=self._fill_sauvignon_from_lastfm_echo,
-                    progress_callback=self._fill_sauvignon_from_lastfm_update_progress,
-                    retry_call=self._fill_sauvignon_from_lastfm_retry_call,
+                    SauvignonOptions(
+                        playlist_id=playlist_id,
+                        count=count,
+                        max_playlist_length=effective_maximum,
+                        seed_count=seed_count,
+                        dry_run=dry_run,
+                    ),
+                    SauvignonCallbacks(
+                        choice_reader=self._fill_sauvignon_from_lastfm_ask_sauvignon_album,
+                        echo=self._fill_sauvignon_from_lastfm_echo,
+                        progress_callback=self._fill_sauvignon_from_lastfm_update_progress,
+                        retry_call=self._fill_sauvignon_from_lastfm_retry_call,
+                    ),
+                    SauvignonResources(),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_fill_sauvignon_from_lastfm_rate_limit(exc)

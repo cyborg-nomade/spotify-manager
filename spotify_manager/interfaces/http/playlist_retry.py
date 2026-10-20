@@ -4,8 +4,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from spotify_manager.interfaces.http.job_records import PlaylistJob
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import review_album_limits
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass

@@ -1,13 +1,16 @@
 """Stable discovery result serialization."""
 
+from collections.abc import Iterable
+
+from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.discovery import NewKidsFillResult
 from spotify_manager.interfaces.http.models.discovery import NewKidsTrackResult
 from spotify_manager.interfaces.http.models.discovery import Queue3AnnualImportEntry
 from spotify_manager.interfaces.http.models.discovery import Queue3ReleaseOption
 from spotify_manager.interfaces.http.models.discovery import Queue3TrackResult
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import queue_3
-from spotify_manager.routines import slow_listening
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import queue_3 as queue_3
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
 
 
 def new_kids_track_result(result: new_kids.FlushResult) -> NewKidsTrackResult:
@@ -119,4 +122,85 @@ def queue_3_annual_entries(
             action=result.action,
         )
         entries.append(entry)
+    return entries
+
+
+def _apply_queue_3_annual_summary(
+    job: _BlastJob, summary: queue_3.AnnualImportSummary
+) -> None:
+    """Apply a completed annual-only summary to its web job."""
+    job.result.status = "completed"
+    job.result.processed = len(summary.results)
+    job.result.total = len(summary.results)
+    job.result.added = summary.additions
+    job.result.queue_3_annual_import = queue_3_annual_entries(summary.results)
+    job.result.queue_3_annual_import_completed = summary.already_completed
+    if summary.already_completed:
+        job.result.detail = (
+            f"Great Discoveries {summary.source_year} was already imported."
+        )
+    else:
+        action = "would be added" if summary.dry_run else "added"
+        artist_label = "artist" if summary.additions == 1 else "artists"
+        job.result.detail = (
+            f"Great Discoveries {summary.source_year}: {summary.additions} "
+            f"{artist_label} {action}; {summary.already_present} already present."
+        )
+
+
+def _apply_queue_3_flush_summary(job: _BlastJob, summary: queue_3.FlushSummary) -> None:
+    """Apply a completed or paused flush summary to its web job."""
+    job.result.status = "paused" if summary.paused else "completed"
+    job.result.run_id = summary.run_id
+    job.result.processed = summary.processed
+    job.result.total = summary.total
+    job.result.advanced = summary.advanced
+    job.result.queue_3_changed_releases = summary.changed_releases
+    job.result.completed_artists = summary.completed_artists
+    job.result.skipped = summary.skipped
+    job.result.queue_3_results = queue_3_track_results(summary.results)
+    job.result.queue_3_annual_import = queue_3_annual_entries(summary.annual_import)
+    job.result.queue_3_resumed = summary.resumed
+    job.result.queue_3_paused = summary.paused
+    if summary.paused:
+        job.result.detail = "Queue 3 flush paused. Progress was saved."
+    else:
+        job.result.detail = (
+            f"{summary.processed} decisions; {summary.advanced} advances; "
+            f"{summary.changed_releases} release changes; "
+            f"{summary.completed_artists} completed artists."
+        )
+
+
+def queue_3_track_results(
+    values: Iterable[queue_3.FlushResult],
+) -> list[Queue3TrackResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(queue_3_track_result(value))
+    return entries
+
+
+def new_kids_fill_results(
+    values: Iterable[new_kids.FillResult],
+) -> list[NewKidsFillResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(new_kids_fill_result(value))
     return entries

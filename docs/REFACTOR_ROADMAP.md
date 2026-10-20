@@ -1,11 +1,11 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–6 deployed and merged; item 7 complete and ready for PR review.**
+**Status: items 1–7 deployed and merged; item 7a implemented and ready for PR review.**
 
 **Approved sequence update, 2026-10-03:** add item **7a**, simplifying internal
 call paths, after item 7 is approved, deployed, and merged and before item 8.
-The owner approved this architectural direction; Item 7 PR approval is still
-pending. Frontend source restructuring is reserved for a future targeted refactor.
+The owner approved this architectural direction and subsequently approved Item 7
+PR #66. Frontend source restructuring is reserved for a future targeted refactor.
 
 Item 1 deliverables are in the [compatibility inventory](refactor/README.md),
 including frozen interface snapshots and the accepted
@@ -19,8 +19,11 @@ deployed. The [item 5 vertical slices](refactor/VERTICAL_SLICES.md) were deploye
 and merged in PR #64. The [item 6 wave inventory](refactor/ROUTINE_FAMILIES.md)
 and [ownership audit](refactor/ROUTINE_OWNERSHIP.md) were deployed and merged
 in PR #65. [Item 7 interface and job migration](refactor/INTERFACES_AND_JOBS.md)
-is complete and ready for PR review, with its local web environment available.
-Deployment and merge await approval. Later items remain pending.
+was deployed and merged in PR #66. Item 7a starts from merge `7fe292c` and is
+ready for review on `codex/refactor-07a-direct-use-cases`; its
+[family call-path and verification guide](refactor/CALL_PATH_SIMPLIFICATION.md)
+records the completed wiring and preserved contracts. Deployment and merge await
+Item 7a PR approval. Later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,
@@ -240,6 +243,30 @@ and type improvements accompany every slice, not just the final milestone.
 
 This additional item was approved on 2026-10-03. Keep the existing item numbers
 and finish the Item 7 release workflow before creating Item 7a's dedicated branch.
+
+The 2026-10-05 review tightens the implementation: declare routes beside their
+endpoint functions, use direct named application/presenter calls, and keep client
+creation outside routines. Limit every function to at most 13 parameters, usually
+two or three; use cohesive typed option, callback and resource models, including
+small generated constructors. Keep bootstrap construction outside execution.
+These requirements supplement the Python readability rules in `AGENTS.md`.
+Python callers may adopt the typed records; frozen HTTP/CLI behavior, metadata
+and ordered effects remain unchanged.
+
+The 2026-10-19 application-to-domain review further requires direct imports and
+calls for fixed domain rules, concrete named application stage objects, and
+cohesive external-resource objects with explicit read/write methods. Do not
+inject fixed decisions or stage methods as callbacks, or execute an application
+stage behind an integration adapter. Keep genuine operator, progress,
+cancellation, retry and time callbacks. This revision is included in PR #67 and
+must be reviewed before the Item 7a release; it does not authorize Item 8.
+
+The 2026-10-20 review extends this to ordinary I/O, state schemas, checkpoint
+publication, serialization, presentation and operational sequencing throughout
+the package. Replace callback dependencies with cohesive named resources or
+direct calls. Preserve existing Python hook APIs only at compatibility edges,
+and record their reasons in the callback dependency guard. PR #67 includes this
+pass; approval is still required before deployment and merge.
 
 1. Inventory HTTP, CLI and background execution paths by routine family. Identify
    each wrapper's responsibility and distinguish public compatibility seams from

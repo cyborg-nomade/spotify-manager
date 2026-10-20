@@ -6,6 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from tests.support.feature_invocation import FeatureInvocation
 
 
 def empty_history_summary(
@@ -116,7 +117,11 @@ def test_something_old_dry_run_prompts_for_visible_selection(
         ),
     )
     monkeypatch.setattr(main, "client", lambda: object())
-    monkeypatch.setattr(main.something_old, "run_something_old", run)
+    monkeypatch.setattr(
+        main.something_old,
+        "run_something_old",
+        FeatureInvocation(run, ("playlist_id",)),
+    )
 
     result = CliRunner().invoke(
         main.app,

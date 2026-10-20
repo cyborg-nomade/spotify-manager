@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
+from spotify_manager.application.historical_values import RandomIndexSet
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory as legacy
@@ -167,3 +168,38 @@ def cases() -> list[dict[str, object]]:
         Original inputs and complete result/error evidence.
     """
     return cast(list[dict[str, object]], json.loads(FIXTURE.read_text()))
+
+
+@dataclass(frozen=True)
+class HistoryInputs:
+    """Supply the original file, calendar and random observation boundaries.
+
+    Args:
+        reads: Original scripted history/random responses and failures.
+        path: Original requested history location.
+        cutoff_date: Original effective inclusive cutoff.
+    """
+
+    reads: HistoryReads
+    path: Path
+    cutoff_date: date
+
+    def history(self) -> dict[date, list[Scrobble]]:
+        """Read the original dated history and retain its observation trace."""
+        return self.reads.read(self.path)
+
+    def cutoff(self) -> date:
+        """Return the original fixed cutoff after the file observation."""
+        return self.cutoff_date
+
+    def random(self, population: int, count: int) -> RandomIndexSet:
+        """Read the existing scripted index response.
+
+        Args:
+            population: Original populated-date count.
+            count: Original requested selection count.
+
+        Returns:
+            Original shared timestamp and unmodified indexes.
+        """
+        return self.reads.random(population, count)

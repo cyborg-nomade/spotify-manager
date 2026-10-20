@@ -12,7 +12,7 @@ short_description: Personal Spotify library manager web UI
 # Spotify Manager
 
 A personal music-library automation system with three interfaces over the same
-domain routines:
+business use cases:
 
 - a Typer CLI for local, interactive work;
 - a FastAPI service for programmatic access and background jobs; and
@@ -31,6 +31,7 @@ prefer dry runs, checkpoint their progress, and keep JSON-lines audit logs.
 | [Documentation index](docs/README.md) | Reading paths and project glossary. |
 | [Architecture specification](docs/ARCHITECTURE_SPEC.md) | Concise current modules, APIs, schemas, delivery status, and backlog. |
 | [Approved refactor roadmap](docs/REFACTOR_ROADMAP.md) | Behavior-preserving Clean Architecture migration, test gates, and delivery workflow. |
+| [Follow a request through the layers](docs/refactor/CALL_PATH_SIMPLIFICATION.md) | Feature entry points, named use cases, domain policies and result presenters for every family. |
 | [Architecture](docs/ARCHITECTURE.md) | Components, data flow, integrations, failure handling, and repository structure. |
 | [Configuration](docs/CONFIGURATION.md) | Requirements, installation, Spotify OAuth, every environment variable, and local execution. |
 | [Data and state](docs/DATA_AND_STATE.md) | Source exports, live mirrors, checkpoints, caches, logs, backups, and ownership rules. |

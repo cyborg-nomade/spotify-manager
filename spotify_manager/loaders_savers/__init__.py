@@ -10,7 +10,9 @@ from pydantic import BaseModel
 from spotify_manager.application.legacy_library_effects import Comparison
 
 # UFI
-from spotify_manager.core.library_data.runtime import publish_managed_path
+from spotify_manager.core.library_data.runtime import (
+    publish_managed_path as publish_managed_path,
+)
 from spotify_manager.infrastructure import legacy_library_files as storage
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
@@ -140,7 +142,7 @@ def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]) -> No
 
     """
     return storage.save_total_albums_file(
-        total_albums_file_items, TOTAL_ALBUMS_PATH, print, serialize_model_list
+        total_albums_file_items, TOTAL_ALBUMS_PATH, print, storage.LegacyModelFiles()
     )
 
 
@@ -155,8 +157,7 @@ def save_total_albums_new_file(total_albums_file_items: list[YourLibraryAlbum]) 
         total_albums_file_items,
         TOTAL_ALBUMS_NEW_PATH,
         print,
-        serialize_model_list,
-        publish_managed_path,
+        storage.LegacyModelFiles(),
     )
 
 
@@ -171,8 +172,7 @@ def save_total_artists_file(total_artists_file_items: list[YourLibraryArtist]) -
         total_artists_file_items,
         TOTAL_ARTISTS_PATH,
         print,
-        serialize_model_list,
-        publish_managed_path,
+        storage.LegacyModelFiles(),
     )
 
 
@@ -184,7 +184,7 @@ def save_control_file(control_file_items: list[ControlFileItem]) -> None:
 
     """
     return storage.save_control_file(
-        control_file_items, CONTROL_FILE_PATH, print, serialize_model_list
+        control_file_items, CONTROL_FILE_PATH, print, storage.LegacyModelFiles()
     )
 
 

@@ -1,6 +1,5 @@
 """Execute confirmed artist removals, per-artist audits and one final checkpoint."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -34,21 +33,41 @@ class DiscographyStateAccess(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class DiscographyEffects:
-    """Bind original removal, audit, priority and progress boundaries.
+class DiscographyEffects(Protocol):
+    """Accept original removals, audits and priority writes through one adapter."""
 
-    Args:
-        remove: Original retried SDK batch acceptance.
-        audit: Original successful artist audit acceptance.
-        state: Original final state resolution.
-        progress: Original optional progress delivery.
-    """
+    def remove(
+        self, selection: ArtistSelection, group: ArtistMarkers, batch: list[str]
+    ) -> None:
+        """Accept the original retried removal batch.
 
-    remove: Callable[[ArtistSelection, ArtistMarkers, list[str]], None]
-    audit: Callable[[ArtistSelection, QueueName], None]
-    state: Callable[[], DiscographyStateAccess]
-    progress: Callable[[str], None]
+        Args:
+            selection: Original confirmed artist.
+            group: Original source marker group.
+            batch: Ordered unique removal URIs.
+        """
+
+    def audit(self, selection: ArtistSelection, next_queue: QueueName) -> None:
+        """Accept one completed artist audit.
+
+        Args:
+            selection: Original confirmed artist and releases.
+            next_queue: Original next-run priority.
+        """
+
+    def state(self) -> DiscographyStateAccess:
+        """Resolve the original complete priority authority after all removals.
+
+        Returns:
+            Original priority namespace access at the accepted effect boundary.
+        """
+
+    def progress(self, message: str) -> None:
+        """Present the original per-artist stage.
+
+        Args:
+            message: Original progress text.
+        """
 
 
 @dataclass(frozen=True)

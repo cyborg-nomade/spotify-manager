@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from functools import partial
 from pathlib import Path
 
 import pytest
@@ -52,7 +51,7 @@ def test_playlist_page_shape_is_unchanged(page: object) -> None:
         page: Original malformed response.
     """
     with pytest.raises(SpotifyTrackResolutionError, match="invalid playlist"):
-        history_playlist.state(PlaylistPages([page]).read, artist_names, "target")
+        history_playlist.state(PlaylistPages([page]), "target")
 
 
 def test_playlist_ignores_missing_rows_and_keeps_raw_total_offsets() -> None:
@@ -71,7 +70,7 @@ def test_playlist_ignores_missing_rows_and_keeps_raw_total_offsets() -> None:
             {"items": [{"track": raw_track("last")}], "total": 7},
         ]
     )
-    result = history_playlist.state(pages.read, artist_names, "target")
+    result = history_playlist.state(pages, "target")
     assert pages.offsets == [0, 6] and result.total_items == 7
     assert result.track_ids == frozenset({"id", "last"})
     assert result.primary_artist_keys == frozenset({"artist"})
@@ -80,12 +79,10 @@ def test_playlist_ignores_missing_rows_and_keeps_raw_total_offsets() -> None:
 def test_playlist_non_string_continuation_and_empty_next_guard() -> None:
     """Follow truthy original continuations and reject empty active pages."""
     pages = PlaylistPages([{"items": [{}], "next": True}, {"items": [], "next": None}])
-    assert history_playlist.state(pages.read, artist_names, "target").total_items == 1
+    assert history_playlist.state(pages, "target").total_items == 1
     assert pages.offsets == [0, 1]
     with pytest.raises(SpotifyTrackResolutionError, match="empty playlist"):
-        history_playlist.state(
-            PlaylistPages([{"items": [], "next": True}]).read, artist_names, "target"
-        )
+        history_playlist.state(PlaylistPages([{"items": [], "next": True}]), "target")
 
 
 @pytest.mark.parametrize(
@@ -145,5 +142,5 @@ def test_history_grouping_retains_original_final_time_errors(timestamp: int) -> 
     with pytest.raises(
         LastFmExportError, match="Scrobble 0 has an out-of-range timestamp"
     ) as raised:
-        history_export.by_date(partial(payload, rows), Path("history.json"), UTC)
+        history_export.by_date(payload(rows, Path("history.json")), UTC)
     assert isinstance(raised.value.__cause__, (OSError, OverflowError, ValueError))

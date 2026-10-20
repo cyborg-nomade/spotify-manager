@@ -314,7 +314,7 @@ def test_restore_rejects_original_invalid_run_ids_before_reading(
     with pytest.raises(
         LibrarySyncRestoreError, match="Invalid library-analysis run id"
     ):
-        restore_library_sync(run_id, [session.paths], session.files, _publish)
+        restore_library_sync(run_id, [session.paths], session.files)
     assert memory.effects == []
 
 
@@ -344,7 +344,7 @@ def test_restore_retains_original_missing_manifest_target_and_backup_errors(
     path = session.paths.backups_dir / "requested/manifest.json"
     memory.raw[path] = manifest
     with pytest.raises(LibrarySyncRestoreError):
-        restore_library_sync("requested", [session.paths], session.files, _publish)
+        restore_library_sync("requested", [session.paths], session.files)
 
 
 def test_restore_skips_unknown_targets_and_removes_outputs_absent_before_analysis(
@@ -363,8 +363,8 @@ def test_restore_skips_unknown_targets_and_removes_outputs_absent_before_analysi
         "targets": {"unknown": {}, "tracks": None, "albums": {"existed": False}},
     }
     session.paths.albums_total.write_text("new output")
-    assert restore_library_sync(
-        "requested", [session.paths], session.files, _publish
-    ) == (session.paths.albums_total.name,)
+    assert restore_library_sync("requested", [session.paths], session.files) == (
+        session.paths.albums_total.name,
+    )
     assert not session.paths.albums_total.exists()
     assert memory.effects[-1][0] == "run_restored"

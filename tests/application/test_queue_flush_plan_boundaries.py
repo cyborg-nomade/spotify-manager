@@ -5,12 +5,11 @@ from typing import cast
 
 import pytest
 
-from spotify_manager.application.queue_flush import QueueFlush
 from spotify_manager.application.queue_values import QueueStateError
 from tests.support.queue_fill import TRACK
 from tests.support.queue_flush import SOURCE
 from tests.support.queue_flush import FlushObservations
-from tests.support.queue_flush_application import MemoryQueueFlush
+from tests.support.queue_flush_application import queue_workflow
 
 
 def _resume(plan: dict[str, object]) -> FlushObservations:
@@ -32,7 +31,7 @@ def test_original_malformed_source_uris_fail_before_destination_effects() -> Non
     }
     observations = _resume(plan)
     with pytest.raises(QueueStateError, match="invalid source URIs"):
-        QueueFlush(MemoryQueueFlush(observations)).run(False)
+        queue_workflow(observations).run(False)
     assert not any(
         row[0] in {"append", "remove", "audit"} for row in observations.trace
     )
@@ -45,7 +44,7 @@ def test_original_unknown_action_with_target_still_removes_source() -> None:
     plan = observations.plan_record([SOURCE.uri])
     plan["target"] = asdict(TRACK)
     observations = _resume(plan)
-    result = QueueFlush(MemoryQueueFlush(observations)).run(False)
+    result = queue_workflow(observations).run(False)
     assert cast(str, result.results[0].action) == "unknown"
     assert result.playlist_length_after == 0
     assert not any(row[0] == "append" for row in observations.trace)

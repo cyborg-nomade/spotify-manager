@@ -1,7 +1,6 @@
 """Original analysis undo selection and ordered managed-file restoration."""
 
 import shutil
-from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
@@ -15,7 +14,6 @@ def restore_library_sync(
     run_id: str,
     candidates: list[LibraryAnalysisPaths],
     files: AnalysisFiles,
-    publish: Callable[[Path, str], None],
 ) -> tuple[str, ...]:
     """Restore original known targets from the first matching original backup family.
 
@@ -23,7 +21,6 @@ def restore_library_sync(
         run_id: Original requested sortable run identity.
         candidates: Original ordered explicit or conventional output families.
         files: Original JSON and audit boundaries.
-        publish: Original accepted managed-file publication boundary.
 
     Returns:
         Original restored target filenames in manifest encounter order.
@@ -43,7 +40,7 @@ def restore_library_sync(
         if name not in current_targets or not isinstance(details, dict):
             continue
         target = current_targets[name]
-        _restore_target(run_id, backup_dir, target, details, publish)
+        _restore_target(run_id, backup_dir, target, details, files)
         restored.append(target.name)
     files.event(paths, run_id, "run_restored", restored_files=restored)
     return tuple(restored)
@@ -67,7 +64,7 @@ def _restore_target(
     backup_dir: Path,
     target: Path,
     details: dict[str, object],
-    publish: Callable[[Path, str], None],
+    files: AnalysisFiles,
 ) -> None:
     if not details.get("existed"):
         target.unlink(missing_ok=True)
@@ -78,4 +75,4 @@ def _restore_target(
     temporary = target.with_suffix(f"{target.suffix}.restore")
     shutil.copy2(backup_file, temporary)
     temporary.replace(target)
-    publish(target, f"restore analysis {run_id}")
+    files.publish_path(target, f"restore analysis {run_id}")

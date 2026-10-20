@@ -111,6 +111,34 @@ class CellarOptions:
     projected_ids: set[str] | None = None
 
 
+@dataclass(frozen=True)
+class CellarWorkflow:
+    """Own the named refill stage and its invocation-owned external resources.
+
+    Args:
+        access: Original playlist, membership and persistence boundary.
+        moved: Original transfer presentation callback.
+    """
+
+    access: CellarAccess
+    moved: Callable[[PlaylistTrack, bool, bool], None]
+
+    def run(
+        self, options: CellarOptions, state: dict[str, object], run: dict[str, object]
+    ) -> CellarRefillSummary:
+        """Run ordered cellar decisions and accepted transfer effects.
+
+        Args:
+            options: Effective source, destination and preview settings.
+            state: Complete mutable namespace.
+            run: Active run retaining pending-transfer authority.
+
+        Returns:
+            Original ordered refill results and destination counts.
+        """
+        return refill_cellar(self.access, options, state, run, self.moved)
+
+
 def refill_cellar(
     access: CellarAccess,
     options: CellarOptions,

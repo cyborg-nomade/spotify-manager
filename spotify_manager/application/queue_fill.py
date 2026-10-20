@@ -3,14 +3,18 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from spotify_manager.application.queue_artist_mapping import QueueArtistMapping
 from spotify_manager.application.queue_fill_candidates import QueueFillCandidates
 from spotify_manager.application.queue_fill_effects import QueueFillEffects
 from spotify_manager.application.queue_fill_values import FillSummary
 from spotify_manager.application.queue_fill_values import QueueFillFacts
 from spotify_manager.application.queue_fill_values import QueueFillRequest
+from spotify_manager.application.queue_recommendations import QueueRecommendations
+from spotify_manager.application.queue_seeds import QueueSeeds
 from spotify_manager.application.queue_values import QueueConfigError
 from spotify_manager.domain.queue_fill import requested_additions
 from spotify_manager.domain.queue_history import aggregate_artists
+from spotify_manager.domain.recommendation_history import listening_week_start
 
 
 def validate_fill_request(request: QueueFillRequest) -> None:
@@ -56,11 +60,27 @@ def _summary(
 
 
 @dataclass(frozen=True)
+class QueueFillStages:
+    """Name seed selection, candidate gathering and artist mapping.
+
+    Args:
+        seeds: Weighted weekly seed selection.
+        recommendations: Last.fm neighborhoods and ranking.
+        mapping: Exact/custom-query Spotify artist mapping.
+    """
+
+    seeds: QueueSeeds
+    recommendations: QueueRecommendations
+    mapping: QueueArtistMapping
+
+
+@dataclass(frozen=True)
 class QueueFill:
     """Coordinate the original fill's validation, gathering and ordered execution.
 
     Args:
         effects: Original caller-owned boundary dependencies.
+        stages: Concrete named application stages for the invocation.
         default_count: Original configured default additions.
         candidate_multiplier: Original candidate pool and examination multiplier.
         minimum_candidates: Original minimum gathering pool.
@@ -68,6 +88,7 @@ class QueueFill:
     """
 
     effects: QueueFillEffects
+    stages: QueueFillStages
     default_count: int = 20
     candidate_multiplier: int = 10
     minimum_candidates: int = 100
@@ -92,8 +113,8 @@ class QueueFill:
         now, facts = self._facts(request)
         if not facts.requested:
             return _summary(request, facts, 0, 0, None)
-        seeds = self.effects.seeds(facts.history, request.seed_count, facts.week)
-        candidates = self.effects.candidates(
+        seeds = self.stages.seeds.select(facts.history, request.seed_count, facts.week)
+        candidates = self.stages.recommendations.run(
             seeds,
             {artist.key for artist in facts.history},
             facts.week,
@@ -106,7 +127,7 @@ class QueueFill:
 
     def _facts(self, request: QueueFillRequest) -> tuple[datetime, QueueFillFacts]:
         now = self.effects.clock()
-        week = self.effects.week(now)
+        week = listening_week_start(self.effects.local_date(now))
         plays, added = self.effects.history(request.preview, now)
         history = aggregate_artists(plays)
         before = self.effects.queue_length()
@@ -123,6 +144,7 @@ class QueueFill:
         assert isinstance(mappings, dict)
         return QueueFillCandidates(
             self.effects,
+            self.stages.mapping,
             access,
             state,
             mappings,

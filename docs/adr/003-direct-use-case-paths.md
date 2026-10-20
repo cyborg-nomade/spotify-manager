@@ -1,11 +1,11 @@
 # ADR-003: direct paths from feature adapters to business use cases
 
-**Status:** Accepted direction; implementation pending in Item 7a.
+**Status:** Accepted; revised Item 7a implementation is ready for PR #67 review.
 
 **Date:** 2026-10-03
 
 **Decider:** repository owner, approving the simplification recommendation during
-Item 7 review. This decision does not approve deployment or merge of PR #66.
+Item 7 review. Item 7 PR #66 was subsequently approved, deployed and merged; this decision does not approve the Item 7a release.
 
 ## Context
 
@@ -28,6 +28,37 @@ Keep the application a modular monolith. Frontend source restructuring remains
 a future targeted refactor; its current integration contracts still apply.
 
 ## Decision
+
+The owner's 2026-10-20 review extends this rule across the codebase: remove
+callback bags for ordinary I/O, serialization, schema validation, presentation,
+checkpoint publication and operational stage sequencing. Give external resources
+named methods; call fixed transformations and presenters directly. Keep existing
+public Python hook APIs compatible by adapting them once at their outer edge.
+Normal state access uses named format objects. SDK endpoint capture remains
+private to its transport leaf when original binding time is observable. A source
+guard resolves callable aliases, protocols and reexports and requires a documented
+interaction, runtime or compatibility reason for each executable dependency.
+
+The owner approved a further application-to-domain simplification on 2026-10-19.
+Fixed domain rules are direct imports and calls, not constructor-supplied
+functions. Application stages are named functions or concrete stage objects;
+do not pass their bound methods as dependencies. External reads/writes use
+cohesive objects with meaningful methods. Keep callbacks for actual operator
+choices, notifications, cancellation, retry and time observations. Integration
+adapters must not execute a hidden application stage. Tests use fake boundary
+objects and named child-stage doubles while preserving existing behavior oracles.
+This extends Item 7a and does not approve its deployment or merge.
+
+The owner's 2026-10-05 review tightens this decision before any async work:
+route declarations must sit beside their endpoint functions, and the normal
+path through named application functions, domain rules and presenters must be
+navigable with editor definition lookup. Move runtime administration and
+compatibility exports out of the route module. Functions have an absolute
+maximum of 13 parameters, usually two or three; group cohesive data and
+resources in typed models. Do not disguise a large dependency list in a
+generated constructor. Client construction belongs to concrete client wiring,
+not routine modules. Python call sites may change to meet this signature rule;
+HTTP/CLI contracts and ordered business effects remain frozen.
 
 Insert a dedicated synchronous simplification Item 7a after the Item 7 release
 and before native async transport. Keep ADR-001's dependency direction and
@@ -93,9 +124,9 @@ move transport/presentation into the business rules.
 ## Action items
 
 1. [x] Record the owner-approved direction and insert Item 7a in the roadmap.
-2. [ ] Release approved Item 7, then start Item 7a from clean, current `master`.
-3. [ ] Inventory the runtime and compatibility paths for every routine family.
-4. [ ] Simplify album evaluation and Sauvignon, then the remaining families.
-5. [ ] Verify contracts/effects, typing, boundaries, coverage and local web behavior.
-6. [ ] Open the dedicated Item 7a PR and await approval before deployment/merge.
+2. [x] Release approved Item 7, then start Item 7a from clean, current `master`.
+3. [x] Inventory the runtime and compatibility paths for every routine family.
+4. [x] Simplify album evaluation and Sauvignon, then the remaining families.
+5. [x] Verify contracts/effects, typing, boundaries, coverage and local web behavior.
+6. [ ] Review the dedicated Item 7a PR; obtain approval before deployment/merge.
 7. [ ] Carry the call-path acceptance criteria through Items 8–12.

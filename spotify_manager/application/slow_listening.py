@@ -4,12 +4,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
-from functools import partial
 from typing import cast
 
+from spotify_manager.application.checkpoints import NamespaceCheckpoint
 from spotify_manager.application.ports.slow_listening import SlowListeningAccess
 from spotify_manager.application.ports.slow_listening import SlowListeningPresentation
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
+from spotify_manager.application.slow_listening_plan import SkippedTracks
 from spotify_manager.application.slow_listening_plan import StudioObservations
 from spotify_manager.application.slow_listening_plan import TrackSelection
 from spotify_manager.application.slow_listening_state import release_from_record
@@ -249,7 +250,10 @@ class SlowListeningRun:
         skipped = _skipped_ids(entry)
         observations = self.dependencies.observations
         catalog = observations.discography(source.primary_artist_id)
-        ordering = ReleaseOrdering(self.dependencies.order, self.orders, self._save)
+        checkpoint = NamespaceCheckpoint(
+            self.dependencies.access, self.state, self.dry_run
+        )
+        ordering = ReleaseOrdering(self.dependencies.order, self.orders, checkpoint)
         selection = TrackSelection(
             source,
             catalog,
@@ -257,17 +261,13 @@ class SlowListeningRun:
             ordering,
             self.dependencies.choose,
             set(skipped),
-            partial(self._persist_skip, skipped),
+            SkippedTracks(skipped, checkpoint),
         )
         return selection.plan()
 
     def _save(self) -> None:
         if not self.dry_run:
             self.dependencies.access.save(self.state)
-
-    def _persist_skip(self, skipped: list[str], spotify_id: str) -> None:
-        skipped.append(spotify_id)
-        self._save()
 
     def _save_plan(self, entry: dict[str, object], plan: dict[str, object]) -> None:
         if entry.get("plan") is None:

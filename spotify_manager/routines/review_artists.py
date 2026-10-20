@@ -19,8 +19,6 @@ from spotify_manager.application.artist_review_membership import MembershipPage
 from spotify_manager.application.artist_review_membership import (
     playlist_membership as gather_membership,
 )
-from spotify_manager.application.artist_review_recovery import flush_moves
-from spotify_manager.application.artist_review_recovery import flush_unfollows
 from spotify_manager.application.artist_review_session import record_completion
 from spotify_manager.application.artist_review_values import (
     ArtistReviewPaths as ArtistReviewPaths,
@@ -46,9 +44,12 @@ from spotify_manager.application.library_statistics import (
 from spotify_manager.bootstrap import artist_review as composition
 
 # UFI
-from spotify_manager.core.library_data.runtime import publish_managed_path
+from spotify_manager.core.library_data.runtime import (
+    publish_managed_path as publish_managed_path,
+)
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.artist_review_selection import (
     ambiguous_track_choices as ambiguous_track_choices,
@@ -101,7 +102,13 @@ from spotify_manager.infrastructure.artist_review_records import (
 from spotify_manager.infrastructure.artist_review_records import (
     track_candidate as track_candidate,
 )
+from spotify_manager.infrastructure.artist_review_resources import ReviewAuditFile
+from spotify_manager.infrastructure.artist_review_resources import SpotifyArtistReads
+from spotify_manager.infrastructure.artist_review_resources import (
+    SpotifyMembershipPages,
+)
 from spotify_manager.infrastructure.library_records import current_stats_history_key
+from spotify_manager.infrastructure.routine_state_codecs import ReviewArtistsStateCodec
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_MAX_ATTEMPTS
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_RETRY_DELAY_SECONDS
 from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
@@ -224,7 +231,7 @@ def load_models[T: BaseModel](path: Path, model_type: type[T]) -> list[T]:
     Raises:
         ArtistReviewError: An original required boundary is invalid.
     """
-    return review_files.load_models(path, model_type, load_json)
+    return review_files.load_models(path, model_type, review_files.ReviewJsonFiles())
 
 
 def save_artists(path: Path, artists: list[YourLibraryArtist]) -> None:
@@ -237,8 +244,7 @@ def save_artists(path: Path, artists: list[YourLibraryArtist]) -> None:
     review_files.save_artists(
         path,
         artists,
-        write_json_atomic,
-        partial(publish_managed_path, source="artist review"),
+        review_files.ReviewJsonFiles(),
     )
 
 
@@ -298,15 +304,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test log."""
-    return routine_state(
-        name="review_artists",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=paths.log,
-        default_legacy_path=DEFAULT_PATHS.log,
-        legacy_loader=_load_log_state,
-        legacy_saver=_save_log_state,
-        service=state_service,
+    return routine_state_from(
+        "review_artists",
+        ReviewArtistsStateCodec(),
+        StateLocation(paths.log, DEFAULT_PATHS.log, state_service),
     )
 
 
@@ -323,7 +324,7 @@ def load_cache(path: Path, refresh: bool) -> dict[str, dict[str, object]]:
     Raises:
         ArtistReviewError: An original required boundary is invalid.
     """
-    return review_files.load_cache(path, refresh, load_json)
+    return review_files.load_cache(path, refresh, review_files.ReviewJsonFiles())
 
 
 def save_cache(path: Path, cache: dict[str, dict[str, object]]) -> None:
@@ -375,7 +376,7 @@ def search_ranked_releases(
     Returns:
         Original first ten qualifying album/EP search results.
     """
-    return search_releases(partial(_read_ranked_page, sp, artist, retry_call))
+    return search_releases(SpotifyArtistReads(sp, artist, retry_call))
 
 
 def ranked_artist_releases(
@@ -470,7 +471,7 @@ def playlist_membership(
         Original complete mutable queue membership indexes.
     """
     return gather_membership(
-        playlist_id, partial(_read_membership_page, sp, playlist_id, retry_call)
+        playlist_id, SpotifyMembershipPages(sp, playlist_id, retry_call)
     )
 
 
@@ -586,7 +587,7 @@ def complete_artist(
         artist.spotify_id,
         action,
         payload,
-        partial(append_events, log_path),
+        ReviewAuditFile(log_path),
     )
 
 
@@ -615,18 +616,11 @@ def flush_pending_unfollows(
     Returns:
         Original current followed artists after recovery.
     """
-    session = composition.recovery_session(
-        sp,
-        artists,
-        state,
-        counts,
-        paths,
-        run_id,
-        retry_call,
-        echo,
+    from spotify_manager.interfaces.operations.review_artists import (
+        flush_pending_unfollows as operation,
     )
-    flush_unfollows(session)
-    return session.artists
+
+    return operation(sp, artists, state, counts, paths, run_id, retry_call, echo)
 
 
 def flush_pending_queue_moves(
@@ -653,17 +647,13 @@ def flush_pending_queue_moves(
         get_membership: Original caller-owned queue membership authority.
         echo: Original visible progress and action presenter.
     """
-    session = composition.recovery_session(
-        sp,
-        artists,
-        state,
-        counts,
-        paths,
-        run_id,
-        retry_call,
-        echo,
+    from spotify_manager.interfaces.operations.review_artists import (
+        flush_pending_queue_moves as operation,
     )
-    flush_moves(session, get_membership)
+
+    return operation(
+        sp, artists, state, counts, paths, run_id, retry_call, get_membership, echo
+    )
 
 
 def review_artists(
@@ -704,19 +694,25 @@ def review_artists(
     Raises:
         ArtistReviewError: An original required boundary is invalid.
     """
-    return composition.compose(
+    from spotify_manager.interfaces.operations.review_artists import (
+        review_artists as operation,
+    )
+
+    return operation(
         sp,
         playlists,
+        track_choice_reader,
+        release_choice_reader,
         paths,
         echo,
         progress_callback,
-        track_choice_reader,
-        release_choice_reader,
+        refresh_cache,
+        limit,
         sleep,
         transient_retry_delay_seconds,
         transient_max_attempts,
         state_service,
-    ).run(refresh_cache, limit)
+    )
 
 
 __all__ = [

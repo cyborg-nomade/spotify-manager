@@ -3,7 +3,7 @@
 from spotify_manager.interfaces.http.models.wine import NewWineCellarTrackResult
 from spotify_manager.interfaces.http.models.wine import NewWineRefillResult
 from spotify_manager.interfaces.http.models.wine import NewWineTrackResult
-from spotify_manager.routines import new_wine
+from spotify_manager.interfaces.operations import new_wine as new_wine
 
 
 def new_wine_track_result(result: new_wine.FlushResult) -> NewWineTrackResult:

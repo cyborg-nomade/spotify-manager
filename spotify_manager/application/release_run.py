@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from spotify_manager.application.artist_mapping import ArtistMapping
+from spotify_manager.application.future_release import FutureRecordMatching
 from spotify_manager.application.release_artists import ReleaseArtists
 from spotify_manager.application.release_check_values import ReleaseCheckSummary
 from spotify_manager.application.release_destinations import load_destinations
@@ -19,12 +21,16 @@ class ReleaseRun:
         wine_id: Original Wine Cellar destination.
         vintage_id: Original New Vintage destination.
         reader: Optional original release-choice callback.
+        mapping: Named artist-mapping application stage.
+        matching: Named containing-record matching stage.
     """
 
     progress: ReleaseProgress
     wine_id: str
     vintage_id: str
     reader: ReleaseChoiceReader | None
+    mapping: ArtistMapping
+    matching: FutureRecordMatching
 
     def run(self) -> ReleaseCheckSummary:
         """Load destinations, review ordered artists and accept completion or pause.
@@ -33,8 +39,8 @@ class ReleaseRun:
             Original complete or paused workflow outcome.
         """
         destinations = load_destinations(self.progress, self.wine_id, self.vintage_id)
-        artists = ReleaseArtists(self.progress, destinations)
-        review = ReleaseReview(self.progress, destinations, self.reader)
+        artists = ReleaseArtists(self.progress, destinations, self.mapping)
+        review = ReleaseReview(self.progress, destinations, self.reader, self.matching)
         for artist in self.progress.opening.artists:
             mapped = artists.resolve(artist)
             if mapped == "quit":

@@ -17,8 +17,8 @@ from fastapi.testclient import TestClient
 from spotipy import Spotify
 from typer.testing import CliRunner
 
-from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
 from tests.interfaces.test_discovery_slice import _wait
@@ -99,11 +99,11 @@ def historical_http(
     monkeypatch.setattr(blast, "urlopen", Mock(return_value=response))
     monkeypatch.setattr(blast, "datetime", HistoricalClock)
     monkeypatch.setattr(radio, "datetime", HistoricalClock)
-    monkeypatch.setattr(api, "Settings", _settings)
+    monkeypatch.setattr(http_jobs, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
     monkeypatch.setattr(main, "client", Mock(return_value=spotify))
-    monkeypatch.setattr(api, "_blast_jobs", {})
-    monkeypatch.setattr(api, "Thread", partial(_thread, threads))
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {})
+    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
     command = "blast-from-the-past" if kind == "blast" else "daily-mind-radio"
     try:
         yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify, command

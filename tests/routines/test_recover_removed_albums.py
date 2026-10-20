@@ -5,6 +5,7 @@ from datetime import date
 
 import pytest
 
+from spotify_manager import loaders_savers as file_boundaries
 from spotify_manager.models.stats import AlbumsStats
 from spotify_manager.models.stats import ArtistsStats
 from spotify_manager.models.stats import StatsReport
@@ -160,6 +161,11 @@ def test_recovery_follows_all_artists_and_restores_future_album(
         lambda: list(artists),
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_artists_file",
+        recover_removed_albums.load_total_artists_file,
+    )
+    monkeypatch.setattr(
         recover_removed_albums,
         "save_total_artists_file",
         lambda items: saved_artists.append(list(items)),
@@ -168,6 +174,11 @@ def test_recovery_follows_all_artists_and_restores_future_album(
         recover_removed_albums,
         "load_total_albums_new_file",
         lambda: list(albums),
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        recover_removed_albums.load_total_albums_new_file,
     )
     monkeypatch.setattr(
         recover_removed_albums,
@@ -252,7 +263,17 @@ def test_dry_run_does_not_mutate_spotify_or_write_recovery_state(
         + "\n"
     )
     monkeypatch.setattr(recover_removed_albums, "load_total_artists_file", list)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_artists_file",
+        recover_removed_albums.load_total_artists_file,
+    )
     monkeypatch.setattr(recover_removed_albums, "load_total_albums_new_file", list)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        recover_removed_albums.load_total_albums_new_file,
+    )
 
     sp = FakeSpotify()
     summary = recover_removed_albums.recover_removed_albums(

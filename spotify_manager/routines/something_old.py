@@ -1,7 +1,7 @@
 """Fill the Something Old slot from Last.fm Golden Oldies statistics."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime as datetime
 from functools import partial
 from pathlib import Path
 from typing import Protocol
@@ -36,6 +36,10 @@ from spotify_manager.domain.golden_selection import (
     SpotifyArtistCandidate as SpotifyArtistCandidate,
 )
 from spotify_manager.infrastructure import golden_records
+from spotify_manager.infrastructure.golden_catalog import GoldenCatalog
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
@@ -180,8 +184,7 @@ def select_lastfm_top_tracks(
     """
     return selections.select_lastfm(
         artist,
-        partial(_read_lastfm_matches, sp, artist, retry_call),
-        partial(_read_lastfm_liked, sp, artist, retry_call),
+        GoldenCatalog(sp, retry_call),
         blast_from_past.ALBUM_MATCH_THRESHOLD,
     )
 
@@ -294,7 +297,7 @@ def select_album_tracks(
         spotify_artist,
         releases,
         album_choice_reader,
-        partial(_read_studio_tracks, sp, retry_call),
+        GoldenCatalog(sp, retry_call),
     )
 
 
@@ -379,67 +382,27 @@ def _read_golden_artist_choice(
 def run_something_old(
     sp: Spotify,
     lastfm: LastFmReader,
-    playlist_id: str,
-    *,
-    expected_username: str | None,
-    mode_reader: ModeReader,
-    album_choice_reader: AlbumChoiceReader,
-    artist_choice_reader: ArtistChoiceReader | None = None,
-    dry_run: bool = False,
-    export_path: Path = scrobble_history.DEFAULT_SCROBBLES_PATH,
-    legacy_delta_path: Path | None = scrobble_history.DEFAULT_LEGACY_DELTA_PATH,
-    backup_dir: Path = scrobble_history.DEFAULT_BACKUP_DIR,
-    history_log_path: Path = scrobble_history.DEFAULT_LOG_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
-    now: datetime | None = None,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    options: SomethingOldOptions,
+    callbacks: SomethingOldCallbacks,
+    resources: SomethingOldResources | None = None,
 ) -> SomethingOldSummary:
     """Refresh history and fill an empty Something Old playlist cautiously.
 
     Args:
-        sp: Caller-owned Spotify client.
-        lastfm: Caller-owned history reader.
-        playlist_id: Original destination identity.
-        expected_username: Original expected Last.fm account.
-        mode_reader: Original recipe interaction.
-        album_choice_reader: Original studio-release interaction.
-        artist_choice_reader: Optional original exact-artist ambiguity interaction.
-        dry_run: Original preview behavior, including history refresh semantics.
-        export_path: Original canonical history location.
-        legacy_delta_path: Original optional history delta location.
-        backup_dir: Original history backup directory.
-        history_log_path: Original history refresh audit location.
-        log_path: Original successful selection audit location.
-        now: Original optional effective timestamp.
-        progress_callback: Original optional stage presenter.
-        retry_call: Original read retry policy.
+    sp: Caller-owned client.
+    lastfm: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original complete selected, cancelled or nonempty outcome.
+    The original typed summary and accepted effects.
 
     Raises:
-        SomethingOldError: Original history, selection, authority or audit fails.
+    RuntimeError: Observations, selections or persistence cannot complete.
     """
-    from spotify_manager.bootstrap.something_old_run import (
-        run_something_old as run_workflow,
+    from spotify_manager.interfaces.operations.something_old import (
+        run_something_old as operation,
     )
 
-    return run_workflow(
-        sp,
-        lastfm,
-        playlist_id,
-        expected_username,
-        mode_reader,
-        album_choice_reader,
-        artist_choice_reader,
-        dry_run,
-        export_path,
-        legacy_delta_path,
-        backup_dir,
-        history_log_path,
-        log_path,
-        now,
-        progress_callback,
-        retry_call,
-    )
+    return operation(sp, lastfm, options, callbacks, resources)

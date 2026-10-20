@@ -15,8 +15,9 @@ from fastapi.testclient import TestClient
 from spotipy import Spotify
 from typer.testing import CliRunner
 
-from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.bootstrap import clients
+from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines import new_kids
 from tests.interfaces.test_slow_listening_slice import _stop
 from tests.interfaces.test_slow_listening_slice import _thread
@@ -69,13 +70,13 @@ def discovery_http(
     new_kids.DEFAULT_SCROBBLES_PATH.write_text(
         json.dumps({"username": "test-user", "scrobbles": history})
     )
-    monkeypatch.setattr(api, "Settings", _settings)
+    monkeypatch.setattr(http_jobs, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
     monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
-    monkeypatch.setattr(api, "LastFmClient", Mock(return_value=FakeLastFm(())))
-    monkeypatch.setattr(main, "LastFmClient", Mock(return_value=FakeLastFm(())))
-    monkeypatch.setattr(api, "_blast_jobs", {})
-    monkeypatch.setattr(api, "Thread", partial(_thread, threads))
+    monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=FakeLastFm(())))
+    monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=FakeLastFm(())))
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {})
+    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
     try:
         yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify
     finally:

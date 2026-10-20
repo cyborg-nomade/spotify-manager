@@ -40,13 +40,17 @@ from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.domain import new_wine as wine_policy
 
 # UFI
 from spotify_manager.domain.catalog import PlaylistTrack as PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate as ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack as ReleaseTrack
+from spotify_manager.infrastructure.routine_state_codecs import NewWineStateCodec
+from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
+from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryTrack
@@ -505,15 +509,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="new_wine",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "new_wine",
+        NewWineStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -612,7 +611,9 @@ def _live_no_discovery_counts(
     retry_call: RetryCall,
 ) -> tuple[int | None, int, bool]:
     """Observe one artist's library affinity through the shared application policy."""
-    from spotify_manager.bootstrap.wine_cellar import observe_library_affinity
+    from spotify_manager.interfaces.operations.wine_cellar import (
+        observe_library_affinity,
+    )
 
     key = _artist_key(artist_name)
     return observe_library_affinity(
@@ -765,19 +766,16 @@ def _refill_new_wine(
     retry_call: RetryCall,
     state: dict[str, object],
     run: dict[str, object],
-    log_path: Path,
-    liked_tracks_path: Path,
-    albums_path: Path,
+    storage: NewWineStorage,
     echo: Echo,
     state_access: RoutineState | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
     projected_new_wine_ids: set[str] | None = None,
 ) -> CellarRefillSummary:
     """Delegate ordered refill effects while retaining the original call contract."""
     from spotify_manager.application.wine_cellar import CellarOptions
-    from spotify_manager.bootstrap.wine_cellar import run_cellar_refill
+    from spotify_manager.interfaces.operations.wine_cellar import run_cellar_refill
 
-    state_access = state_access or _state_access(state_path, None)
+    state_access = state_access or _state_access(storage.state_path, None)
     options = CellarOptions(
         new_wine_playlist_id,
         wine_cellar_playlist_id,
@@ -793,9 +791,9 @@ def _refill_new_wine(
         options,
         state,
         run,
-        log_path,
-        liked_tracks_path,
-        albums_path,
+        storage.log_path,
+        storage.liked_tracks_path,
+        storage.albums_path,
         echo,
     )
 
@@ -831,83 +829,29 @@ def _drop_plan(
 
 def flush_new_wine(
     sp: Spotify,
-    new_wine_playlist_id: str,
-    sauvignon_playlist_id: str,
-    choice_reader: ReleaseChoiceReader,
-    *,
-    endpoint_choice_reader: EndpointChoiceReader | None = None,
-    choose_album_endpoints: bool = False,
-    wine_cellar_playlist_id: str | None = None,
-    no_discovery: bool = False,
-    dry_run: bool = False,
+    options: NewWineOptions,
+    callbacks: NewWineCallbacks,
+    storage: NewWineStorage | None = None,
     year: int | None = None,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    liked_tracks_path: Path = DEFAULT_LIKED_TRACKS_PATH,
-    removed_albums_log_path: Path = DEFAULT_REMOVED_ALBUMS_LOG_PATH,
 ) -> FlushSummary:
-    """Advance each snapshotted marker through the injected New Wine workflow.
+    """Keep the historical import as a typed external entry point.
 
     Args:
         sp: Caller-owned synchronous Spotify client.
-        new_wine_playlist_id: Source and progression destination.
-        sauvignon_playlist_id: Completed-album destination.
-        choice_reader: Existing release selection callback.
-        endpoint_choice_reader: Optional album/EP endpoint callback.
-        choose_album_endpoints: Whether endpoint selection is requested.
-        wine_cellar_playlist_id: Optional post-flush refill source.
-        no_discovery: Whether refill requires existing library affinity.
-        dry_run: Preview effects while retaining legacy audit writes.
-        year: Existing current-year override.
-        echo: Original message sink.
-        progress_callback: Optional progress/cancellation callback.
-        retry_call: Existing retry callback, or direct invocation.
-        state_path: Original namespace path.
-        state_service: Optional shared state service.
-        log_path: Original audit destination.
-        albums_path: Canonical saved-album mirror.
-        liked_tracks_path: Canonical liked-track mirror.
-        removed_albums_log_path: Removed-album recovery log.
+        options: Destinations and execution modes.
+        callbacks: Operator decisions and notifications.
+        storage: Namespace, mirrors and audit files.
+        year: Optional review year.
 
     Returns:
-        Original result including pause, resume and refill outcomes.
+        The original New Wine summary.
 
     Raises:
-        NewWineError: Observations, choices or durable records are invalid.
+        NewWineError: Observations, choices or persistence are invalid.
     """
-    from spotify_manager.bootstrap.new_wine import run_new_wine
+    from spotify_manager.interfaces.operations.new_wine import flush_new_wine as invoke
 
-    options = NewWineOptions(
-        new_wine_playlist_id,
-        sauvignon_playlist_id,
-        wine_cellar_playlist_id,
-        no_discovery,
-        choose_album_endpoints,
-        dry_run,
-    )
-    return run_new_wine(
-        sp,
-        options,
-        choice_reader,
-        endpoint_choice_reader,
-        year,
-        echo,
-        progress_callback,
-        retry_call,
-        state_path,
-        state_service,
-        log_path,
-        albums_path,
-        liked_tracks_path,
-        removed_albums_log_path,
-        _clock,
-        _local_year,
-    )
+    return invoke(sp, options, callbacks, storage, year)
 
 
 def _affinity_album_statuses(

@@ -64,6 +64,7 @@ class ResolutionMemory:
     failure: str = ""
     cancel_at: int = 0
     checks: int = 0
+    album_threshold: float = 0.9
 
     def _step(self, name: str) -> None:
         self.events.append(name)
@@ -108,9 +109,8 @@ class ResolutionMemory:
 
 
 def _workflow(memory: ResolutionMemory, threshold: float = 0.9) -> HistoricalResolution:
-    return HistoricalResolution(
-        memory.search, memory.liked, memory.cancel, memory.messages.append, threshold
-    )
+    memory.album_threshold = threshold
+    return HistoricalResolution(memory, memory.cancel, memory.messages.append)
 
 
 @pytest.mark.parametrize("present", [False, True])

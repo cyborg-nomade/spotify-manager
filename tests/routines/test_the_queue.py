@@ -9,7 +9,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from spotify_manager.application.queue_recommendations import QueueRecommendations
 from spotify_manager.client.lastfm import LastFmSimilarArtist
+from spotify_manager.infrastructure.legacy import queue_fill as fill_integration
+from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
+from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
+from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import the_queue
 
@@ -716,8 +721,8 @@ def test_fill_maps_follows_and_adds_first_unliked_top_track(
         for index in range(1, 4)
     }
     monkeypatch.setattr(
-        the_queue.found_art,
-        "refresh_scrobble_history",
+        fill_integration,
+        "refresh_history",
         lambda *_args, **_kwargs: (history, 0),
     )
     monkeypatch.setattr(the_queue, "_persist_followed_artist", lambda *_args: None)
@@ -725,16 +730,20 @@ def test_fill_maps_follows_and_adds_first_unliked_top_track(
     summary = the_queue.fill_queue_from_lastfm(
         spotify,
         lastfm,
-        queue_playlists(),
-        None,
-        count=1,
-        seed_count=3,
-        state_path=tmp_path / "state.json",
-        cache_path=tmp_path / "cache.json",
-        log_path=tmp_path / "log.jsonl",
-        export_path=tmp_path / "history.json",
-        recent_path=tmp_path / "recent.jsonl",
-        now=datetime(2026, 8, 11, tzinfo=UTC),
+        QueueFillOptions(
+            playlists=queue_playlists(),
+            count=1,
+            seed_count=3,
+            now=datetime(2026, 8, 11, tzinfo=UTC),
+        ),
+        QueueFillCallbacks(choice_reader=None),
+        QueueFillResources(
+            export_path=tmp_path / "history.json",
+            recent_path=tmp_path / "recent.jsonl",
+            state_path=tmp_path / "state.json",
+            cache_path=tmp_path / "cache.json",
+            log_path=tmp_path / "log.jsonl",
+        ),
     )
 
     assert summary.selected == 1
@@ -768,10 +777,11 @@ def test_fill_validates_requested_size(
         the_queue.fill_queue_from_lastfm(
             FakeSpotify(),
             FakeLastFm(),
-            queue_playlists(),
-            None,
-            count=count,
-            max_playlist_length=maximum,
+            QueueFillOptions(
+                playlists=queue_playlists(), count=count, max_playlist_length=maximum
+            ),
+            QueueFillCallbacks(choice_reader=None),
+            QueueFillResources(),
         )
 
 
@@ -783,20 +793,21 @@ def test_fill_at_maximum_playlist_length_is_a_noop(
     spotify.playlists["queue"] = [seed_artist(spotify, "existing")[0]]
     history = [scrobble("Seed", 1_000)]
     monkeypatch.setattr(
-        the_queue.found_art,
-        "refresh_scrobble_history",
+        fill_integration,
+        "refresh_history",
         lambda *_args, **_kwargs: (history, 2),
     )
 
     summary = the_queue.fill_queue_from_lastfm(
         spotify,
         FakeLastFm(),
-        queue_playlists(),
-        None,
-        count=None,
-        max_playlist_length=1,
-        export_path=tmp_path / "history.json",
-        recent_path=tmp_path / "recent.jsonl",
+        QueueFillOptions(
+            playlists=queue_playlists(), count=None, max_playlist_length=1
+        ),
+        QueueFillCallbacks(choice_reader=None),
+        QueueFillResources(
+            export_path=tmp_path / "history.json", recent_path=tmp_path / "recent.jsonl"
+        ),
     )
 
     assert summary.requested_count == 0
@@ -840,13 +851,13 @@ def test_fill_handles_mapping_skip_quit_and_no_match(
         base_rank=1,
     )
     monkeypatch.setattr(
-        the_queue.found_art,
-        "refresh_scrobble_history",
+        fill_integration,
+        "refresh_history",
         lambda *_args, **_kwargs: (history, 0),
     )
     monkeypatch.setattr(
-        the_queue,
-        "gather_artist_recommendations",
+        QueueRecommendations,
+        "run",
         lambda *_args, **_kwargs: (recommendation,),
     )
     reader = None if choice is None else lambda *_args: choice
@@ -854,12 +865,11 @@ def test_fill_handles_mapping_skip_quit_and_no_match(
     summary = the_queue.fill_queue_from_lastfm(
         spotify,
         FakeLastFm(),
-        queue_playlists(),
-        reader,
-        count=1,
-        seed_count=1,
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "log.jsonl",
+        QueueFillOptions(playlists=queue_playlists(), count=1, seed_count=1),
+        QueueFillCallbacks(choice_reader=reader),
+        QueueFillResources(
+            state_path=tmp_path / "state.json", log_path=tmp_path / "log.jsonl"
+        ),
     )
 
     assert summary.paused is paused
@@ -916,13 +926,13 @@ def test_fill_skips_represented_and_fully_liked_artists_before_dry_run_addition(
         state_path,
     )
     monkeypatch.setattr(
-        the_queue.found_art,
-        "refresh_scrobble_history",
+        fill_integration,
+        "refresh_history",
         lambda *_args, **_kwargs: (history, 0),
     )
     monkeypatch.setattr(
-        the_queue,
-        "gather_artist_recommendations",
+        QueueRecommendations,
+        "run",
         lambda *_args, **_kwargs: recommendations,
     )
     progress: list[str] = []
@@ -930,14 +940,14 @@ def test_fill_skips_represented_and_fully_liked_artists_before_dry_run_addition(
     summary = the_queue.fill_queue_from_lastfm(
         spotify,
         FakeLastFm(),
-        queue_playlists(),
-        None,
-        count=1,
-        seed_count=1,
-        dry_run=True,
-        progress_callback=lambda _done, _total, label: progress.append(label),
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
+        QueueFillOptions(
+            playlists=queue_playlists(), count=1, seed_count=1, dry_run=True
+        ),
+        QueueFillCallbacks(
+            choice_reader=None,
+            progress_callback=lambda _done, _total, label: progress.append(label),
+        ),
+        QueueFillResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
 
     assert [result.action for result in summary.results] == [

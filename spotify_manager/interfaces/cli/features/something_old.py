@@ -1,64 +1,44 @@
 """Explicit something old CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
 import typer
 from rich.console import Console
-from rich.prompt import Prompt
 from rich.status import Status
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.client.lastfm import LastFmClient
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
 from spotify_manager.domain.golden_selection import SelectedTrack
-from spotify_manager.routines import found_art
-from spotify_manager.routines import scrobble_history
-from spotify_manager.routines import slow_listening
-from spotify_manager.routines import something_old
-from spotify_manager.settings import Settings
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.formatting import scrobble_date
+from spotify_manager.interfaces.cli.history import present_history_summary
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
+from spotify_manager.interfaces.operations import something_old as something_old
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 
 
 @dataclass(kw_only=True)
 class SomethingOldCLI:
-    """Execute and present something old through explicit facade dependencies.
+    """Run Golden Oldies selection with artist and track choices.
 
     Args:
-        create_console: Factory for console instances.
-        create_lastfm: Factory for lastfm instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        configuration: Original settings factory supplied by the facade.
-        create_table: Factory for table instances.
-        _scrobble_date:  scrobble date supplied by the caller.
-        ask_something_old_album: Original ask something old album boundary supplied by
-            the facade.
-        ask_something_old_artist: Original ask something old artist boundary supplied by
-            the facade.
-        ask_something_old_mode: Original ask something old mode boundary supplied by the
-            facade.
-        client: Client supplied by the caller.
-        print_scrobble_history_summary: Original print scrobble history summary boundary
-            supplied by the facade.
-        print_something_old_summary: Original print something old summary boundary
-            supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
     """
 
-    create_console: type[Console]
-    create_lastfm: type[LastFmClient]
-    prompt: type[Prompt]
-    configuration: type[Settings]
-    create_table: type[Table]
-    _scrobble_date: Callable[..., str]
-    ask_something_old_album: Callable[..., str]
-    ask_something_old_artist: Callable[..., str]
-    ask_something_old_mode: Callable[..., str]
-    client: Callable[..., Spotify]
-    print_scrobble_history_summary: Callable[..., None]
-    print_something_old_summary: Callable[..., None]
+    runtime: CliResources
+
+    display: ConsoleDisplay
 
     def _prompt_something_old_artist(
         self,
@@ -80,8 +60,8 @@ class SomethingOldCLI:
         """
         status.stop()
         try:
-            table = self.create_table(
-                title=(f"Choose the Spotify artist for {artist_name}")
+            table = self.display.create_table(
+                title=f"Choose the Spotify artist for {artist_name}"
             )
             table.add_column("#", justify="right")
             table.add_column("Artist")
@@ -95,18 +75,15 @@ class SomethingOldCLI:
                     str(candidate.popularity)
                     if candidate.popularity is not None
                     else "?",
-                    (f"{candidate.followers:,}")
+                    f"{candidate.followers:,}"
                     if candidate.followers is not None
                     else "?",
                     candidate.spotify_id,
                 )
             console.print(table)
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Artist number or (q)uit",
-                choices=[
-                    *(str(index) for index in range(1, len(candidates) + 1)),
-                    "q",
-                ],
+                choices=[*(str(index) for index in range(1, len(candidates) + 1)), "q"],
                 default="q",
                 console=console,
             )
@@ -137,16 +114,12 @@ class SomethingOldCLI:
         status.stop()
         try:
             console.print(
-                "[bold]"
-                f"{artist.artist}"
-                "[/bold] · "
-                f"{artist.scrobbles:,}"
-                " scrobbles · average "
-                f"{self._scrobble_date(artist.average_scrobble_ms)}"
-                " · Spotify: "
+                f"[bold]{artist.artist}[/bold] · {artist.scrobbles:,}"
+                f" scrobbles · average "
+                f"{scrobble_date(artist.average_scrobble_ms)} · Spotify: "
                 f"{spotify_artist.name}"
             )
-            table = self.create_table(title="Something Old selection")
+            table = self.display.create_table(title="Something Old selection")
             table.add_column("#", justify="right")
             table.add_column("Source")
             table.add_column("What will be added")
@@ -154,7 +127,7 @@ class SomethingOldCLI:
             table.add_row("2", "Spotify", "Up to 10 current popular tracks")
             table.add_row("3", "Catalog", "One complete studio album or EP")
             console.print(table)
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Selection or (q)uit",
                 choices=["1", "2", "3", "q"],
                 default="1",
@@ -189,7 +162,9 @@ class SomethingOldCLI:
         """
         status.stop()
         try:
-            table = self.create_table(title=f"Albums and EPs by {artist.artist}")
+            table = self.display.create_table(
+                title=f"Albums and EPs by {artist.artist}"
+            )
             table.add_column("#", justify="right")
             table.add_column("Date")
             table.add_column("Type")
@@ -209,7 +184,7 @@ class SomethingOldCLI:
                     edition,
                 )
             console.print(table)
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Release number or (q)uit",
                 choices=[*(str(index) for index in range(1, len(releases) + 1)), "q"],
                 default="q",
@@ -231,44 +206,37 @@ class SomethingOldCLI:
         if summary.action == "playlist not empty":
             console.print(
                 (
-                    "Something Old already contains "
+                    f"Something Old already contains "
                     f"{summary.playlist_length_before}"
-                    " item(s); nothing was changed."
+                    f" item(s); nothing was changed."
                 ),
                 style="yellow",
             )
             return
         if summary.history_refresh is not None:
-            self.print_scrobble_history_summary(console, summary.history_refresh)
+            present_history_summary(console, summary.history_refresh)
         if summary.ranking_preview:
             self._show_golden_ranking(console, summary)
         if summary.action == "cancelled":
             console.print(
-                "Something Old was cancelled; Spotify was unchanged.",
-                style="yellow",
+                "Something Old was cancelled; Spotify was unchanged.", style="yellow"
             )
             return
         self._show_selected_tracks(console, summary)
         if summary.dry_run:
             console.print(
                 (
-                    "Dry run: would add "
-                    f"{len(summary.tracks)}"
-                    " track(s); Spotify and local files were "
-                    "unchanged."
+                    f"Dry run: would add {len(summary.tracks)}"
+                    f" track(s); Spotify and local files were unchanged."
                 ),
                 style="bold cyan",
             )
         else:
             console.print(
                 (
-                    "Something Old: "
-                    f"{summary.playlist_length_before}"
-                    " -> "
-                    f"{summary.playlist_length_after}"
-                    "; added "
-                    f"{len(summary.tracks)}"
-                    " track(s)."
+                    f"Something Old: {summary.playlist_length_before} -> "
+                    f"{summary.playlist_length_after}; added {len(summary.tracks)}"
+                    f" track(s)."
                 ),
                 style="bold green",
             )
@@ -279,8 +247,8 @@ class SomethingOldCLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._something_old_console = self.create_console()
-        configuration = self.configuration()
+        self._something_old_console = self.display.create_console()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = something_old.parse_playlist_id(
                 configuration.something_old_new_playlist
@@ -293,23 +261,28 @@ class SomethingOldCLI:
             found_art.FoundArtConfigError,
         ) as exc:
             self._report_something_old_configuration_failure(exc)
-        lastfm_client = self.create_lastfm(
-            api_key, username, event_callback=self._something_old_log
+        lastfm_client = create_lastfm_client(
+            LastFmCredentials(api_key, username), self._something_old_log
         )
         try:
             with self._something_old_console.status(
                 "Preparing Something Old"
             ) as self._something_old_status:
                 summary = something_old.run_something_old(
-                    self.client(),
+                    self.runtime.client(),
                     lastfm_client,
-                    playlist_id,
-                    expected_username=username,
-                    artist_choice_reader=self._something_old_ask_something_old_artist,
-                    mode_reader=self._something_old_ask_something_old_mode,
-                    album_choice_reader=self._something_old_ask_something_old_album,
-                    dry_run=dry_run,
-                    progress_callback=self._something_old_status.update,
+                    SomethingOldOptions(
+                        playlist_id=playlist_id,
+                        expected_username=username,
+                        dry_run=dry_run,
+                    ),
+                    SomethingOldCallbacks(
+                        mode_reader=self._something_old_ask_something_old_mode,
+                        album_choice_reader=self._something_old_ask_something_old_album,
+                        artist_choice_reader=self._something_old_ask_something_old_artist,
+                        progress_callback=self._something_old_status.update,
+                    ),
+                    SomethingOldResources(),
                 )
         except (
             something_old.SomethingOldError,
@@ -319,7 +292,7 @@ class SomethingOldCLI:
             self._report_something_old_something_old_failure(exc)
         except SpotifyException as exc:
             self._report_something_old_spotify_spotify_failure(exc)
-        self.print_something_old_summary(self._something_old_console, summary)
+        self._render_something_old_summary(self._something_old_console, summary)
 
     def _something_old_log(self, message: str) -> None:
         return self._something_old_console.print(message, style="yellow")
@@ -329,7 +302,7 @@ class SomethingOldCLI:
         artist: something_old.GoldenOldieArtist,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
     ) -> str:
-        return self.ask_something_old_artist(
+        return self._prompt_something_old_artist(
             self._something_old_console,
             artist.artist,
             candidates,
@@ -341,7 +314,7 @@ class SomethingOldCLI:
         artist: something_old.GoldenOldieArtist,
         spotify_artist: something_old.SpotifyArtistCandidate,
     ) -> str:
-        return self.ask_something_old_mode(
+        return self._prompt_something_old_mode(
             self._something_old_console,
             artist,
             spotify_artist,
@@ -353,7 +326,7 @@ class SomethingOldCLI:
         artist: something_old.GoldenOldieArtist,
         releases: tuple[slow_listening.DiscographyRelease, ...],
     ) -> str:
-        return self.ask_something_old_album(
+        return self._prompt_something_old_album(
             self._something_old_console, artist, releases, self._something_old_status
         )
 
@@ -376,7 +349,7 @@ class SomethingOldCLI:
         self, exc: SpotifyException
     ) -> Never:
         self._something_old_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -388,8 +361,8 @@ class SomethingOldCLI:
         ranking.add_row(
             str(index),
             artist.artist,
-            (f"{artist.scrobbles:,}"),
-            self._scrobble_date(artist.average_scrobble_ms),
+            f"{artist.scrobbles:,}",
+            scrobble_date(artist.average_scrobble_ms),
         )
 
     def _row_print_something_old_summary_track(
@@ -397,8 +370,8 @@ class SomethingOldCLI:
     ) -> None:
         selection.add_row(
             str(index),
-            (f"{', '.join(track.artists)} - {track.track}"),
-            track.album or ("(no album)"),
+            f"{', '.join(track.artists)} - {track.track}",
+            track.album or "(no album)",
             track.source,
             str(track.lastfm_scrobbles) if track.lastfm_scrobbles is not None else "",
         )
@@ -412,7 +385,7 @@ class SomethingOldCLI:
             console: Rich console receiving this command's output.
             summary: Completed routine outcome to render.
         """
-        ranking = self.create_table(
+        ranking = self.display.create_table(
             title="Golden Oldies · oldest average scrobble dates"
         )
         ranking.add_column("#", justify="right")
@@ -432,7 +405,7 @@ class SomethingOldCLI:
             console: Rich console receiving this command's output.
             summary: Completed routine outcome to render.
         """
-        selection = self.create_table(title="Something Old playlist selection")
+        selection = self.display.create_table(title="Something Old playlist selection")
         selection.add_column("#", justify="right")
         selection.add_column("Track")
         selection.add_column("Release")

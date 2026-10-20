@@ -27,7 +27,8 @@ from spotify_manager.application.recovery_values import (
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain import library as library_policy
 from spotify_manager.domain.library import AlbumArtist
@@ -35,6 +36,9 @@ from spotify_manager.infrastructure.library_records import (
     REMOVED_ALBUMS_LOG_PATH as REMOVED_ALBUMS_LOG_PATH,
 )
 from spotify_manager.infrastructure.library_records import current_stats_history_key
+from spotify_manager.infrastructure.routine_state_codecs import (
+    RecoverRemovedAlbumsStateCodec,
+)
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_MAX_ATTEMPTS
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_RETRY_DELAY_SECONDS
 from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
@@ -221,15 +225,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test log."""
-    return routine_state(
-        name="recover_removed_albums",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=recovery_log_path,
-        default_legacy_path=RECOVERY_LOG_PATH,
-        legacy_loader=_load_log_state,
-        legacy_saver=_save_log_state,
-        service=state_service,
+    return routine_state_from(
+        "recover_removed_albums",
+        RecoverRemovedAlbumsStateCodec(),
+        StateLocation(recovery_log_path, RECOVERY_LOG_PATH, state_service),
     )
 
 
@@ -587,9 +586,11 @@ def recover_removed_albums(
         SpotifyTransientServerError: The existing retry policy is exhausted.
         RuntimeError: A response is malformed or a caller interrupts execution.
     """
-    from spotify_manager.bootstrap.album_recovery import run_album_recovery
+    from spotify_manager.interfaces.operations.recover_removed_albums import (
+        recover_removed_albums as operation,
+    )
 
-    return run_album_recovery(
+    return operation(
         sp,
         echo,
         progress_callback,
@@ -597,8 +598,7 @@ def recover_removed_albums(
         recovery_log_path,
         dry_run,
         limit,
-        partial(_today, today),
-        _clock,
+        today,
         sleep,
         transient_retry_delay_seconds,
         transient_max_attempts,

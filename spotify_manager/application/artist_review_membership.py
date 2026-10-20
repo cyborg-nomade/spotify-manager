@@ -1,7 +1,7 @@
 """Gather complete queue membership with original raw-page accounting."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol
 
 from spotify_manager.domain.artist_review_values import ArtistReviewError
 from spotify_manager.domain.artist_review_values import PlaylistMembership
@@ -39,14 +39,42 @@ class MembershipPage:
     total: int | None
 
 
-def playlist_membership(
-    identity: str, read: Callable[[int], MembershipPage]
-) -> PlaylistMembership:
+class MembershipPages(Protocol):
+    """Read parsed queue marker pages through an explicit transport method."""
+
+    def read_membership(self, offset: int) -> MembershipPage:
+        """Read one original queue page.
+
+        Args:
+            offset: Raw row offset.
+
+        Returns:
+            Parsed marker facts and pagination authority.
+        """
+        ...
+
+
+class MembershipAccess(Protocol):
+    """Observe complete queue membership."""
+
+    def membership(self, identity: str) -> PlaylistMembership:
+        """Read or reuse complete membership.
+
+        Args:
+            identity: Queue identity.
+
+        Returns:
+            Complete mutable membership indexes.
+        """
+        ...
+
+
+def playlist_membership(identity: str, pages: MembershipPages) -> PlaylistMembership:
     """Gather original complete primary-credit and marker indexes in page order.
 
     Args:
         identity: Original queue identity for failure presentation.
-        read: Original retried parsed page reader.
+        pages: Named queue page reader.
 
     Returns:
         Original complete mutable queue membership.
@@ -57,7 +85,7 @@ def playlist_membership(
     membership = PlaylistMembership(set(), set(), {})
     offset = 0
     while True:
-        page = read(offset)
+        page = pages.read_membership(offset)
         for marker in page.markers:
             _retain(membership, marker)
         offset += page.rows

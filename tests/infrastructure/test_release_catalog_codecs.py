@@ -72,7 +72,7 @@ def test_artist_search_requires_original_items_list(raw: object) -> None:
     with pytest.raises(
         ReleaseCheckSpotifyError, match="invalid artist search data for Artist"
     ):
-        parse_artist_search(raw, "Artist", parse_artist)
+        parse_artist_search(raw, "Artist")
 
 
 def test_artist_search_retains_raw_ranks_and_duplicate_observations() -> None:
@@ -80,9 +80,7 @@ def test_artist_search_retains_raw_ranks_and_duplicate_observations() -> None:
     from spotify_manager.infrastructure.release_check_catalog import parse_artist_search
 
     row = {"id": "artist", "uri": "uri", "name": "Artist"}
-    observed = parse_artist_search(
-        {"artists": {"items": [None, row, row]}}, "Artist", parse_artist
-    )
+    observed = parse_artist_search({"artists": {"items": [None, row, row]}}, "Artist")
     assert [artist.search_rank for artist in observed] == [2, 3]
     assert [artist.spotify_id for artist in observed] == ["artist", "artist"]
 

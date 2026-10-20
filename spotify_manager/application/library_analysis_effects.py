@@ -20,155 +20,280 @@ from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 
 
-class ReadJson(Protocol):
-    """Read unvalidated legacy JSON at an external storage boundary."""
-
-    def __call__(self, path: Path, default: object | None = None) -> object:
-        """Read original persisted facts without applying new validation.
-
-        Args:
-            path: Original file location.
-            default: Original missing-file result.
-
-        Returns:
-            Original unvalidated JSON value.
-        """
-        ...
-
-
-class ReadModels(Protocol):
-    """Read a complete original model array or staging stream."""
-
-    def __call__[T: BaseModel](self, path: Path, model: type[T]) -> list[T]:
-        """Read original typed model facts.
-
-        Args:
-            path: Original complete file location.
-            model: Original tolerant model constructor.
-
-        Returns:
-            Complete original models in stored order.
-        """
-        ...
-
-
-class AnalysisEvent(Protocol):
-    """Append original timestamped analysis audit details."""
-
-    def __call__(
-        self, paths: LibraryAnalysisPaths, run_id: str, event: str, **details: object
-    ) -> None:
-        """Accept the original ordered audit boundary.
-
-        Args:
-            paths: Original output family.
-            run_id: Original sortable run identity.
-            event: Original event name.
-            details: Original complete event facts.
-        """
-        ...
-
-
 class RetryOperation(Protocol):
-    """Execute the original bounded synchronous retry boundary."""
+    """Execute bounded synchronous requests with the configured retry policy."""
 
-    def __call__[T](
+    def call[T](
         self,
         operation: Callable[[], T],
         description: str,
         max_attempts: int | None = None,
     ) -> T:
-        """Read original live facts using the configured retry policy.
+        """Retry a request.
 
         Args:
-            operation: Original complete request.
-            description: Original visible operation label.
-            max_attempts: Original optional attempt limit.
+            operation: Request to repeat on a transient failure.
+            description: Visible operation label.
+            max_attempts: Optional attempt limit.
 
         Returns:
-            Original accepted response.
+            Accepted response.
         """
         ...
 
 
 class OffsetRead(Protocol):
-    """Read original saved album or track pages using explicit offsets."""
+    """Read saved-resource pages from one selected transport endpoint."""
 
-    def __call__(self, *, limit: int, offset: int) -> object:
-        """Read one original live page.
+    def read(self, *, limit: int, offset: int) -> object:
+        """Read one page.
 
         Args:
-            limit: Original page size.
-            offset: Original raw-row offset.
+            limit: Page size.
+            offset: Raw row offset.
 
         Returns:
-            Original unvalidated Spotify response.
+            Unvalidated transport response.
         """
         ...
 
 
-@dataclass(frozen=True)
-class AnalysisFiles:
-    """Bind original reads, accepted publications, audit and clock observations.
+class AnalysisFiles(Protocol):
+    """Store analysis checkpoints, model arrays, staging streams and audit events."""
 
-    Args:
-        read: Original permissive JSON read.
-        write: Original atomic JSON write.
-        models: Original model-array read.
-        staged: Original JSON-lines read, including torn-tail semantics.
-        publish: Original model-array write and managed-file publication.
-        append: Original JSON-lines append.
-        event: Original timestamped audit append.
-        export: Original validated export read.
-        clock: Original UTC timestamp observation.
-        run_id: Original fresh run identity observation.
-        fingerprint: Original export stat observation.
-        reset_staging: Original destructive staging reset for a fresh run.
-        remove: Original candidate/staging removal boundary.
-        export_artists: Original optional latest export candidate read.
-    """
+    def read(self, path: Path, default: object | None = None) -> object:
+        """Read permissive JSON.
 
-    read: ReadJson
-    write: Callable[[Path, object], None]
-    models: ReadModels
-    staged: ReadModels
-    publish: Callable[[Path, Sequence[BaseModel]], None]
-    append: Callable[[Path, Sequence[BaseModel]], None]
-    event: AnalysisEvent
-    export: Callable[[LibraryAnalysisPaths], YourLibraryFile]
-    clock: Callable[[], str]
-    run_id: Callable[[], str]
-    fingerprint: Callable[[Path], dict[str, int]]
-    reset_staging: Callable[[Path], None]
-    remove: Callable[[Path], None]
-    export_artists: Callable[[LibraryAnalysisPaths], list[YourLibraryArtist]]
+        Args:
+            path: File location.
+            default: Value for a missing file.
+
+        Returns:
+            Unvalidated persisted value.
+        """
+        ...
+
+    def write(self, path: Path, value: object) -> None:
+        """Atomically accept JSON.
+
+        Args:
+            path: File location.
+            value: Complete payload.
+        """
+        ...
+
+    def publish_path(self, path: Path, source: str) -> None:
+        """Publish an accepted managed artifact.
+
+        Args:
+            path: Accepted file.
+            source: Provenance label.
+        """
+        ...
+
+    def models[T: BaseModel](self, path: Path, model: type[T]) -> list[T]:
+        """Read a typed model array.
+
+        Args:
+            path: Array location.
+            model: Validation model.
+
+        Returns:
+            Models in stored order.
+        """
+        ...
+
+    def staged[T: BaseModel](self, path: Path, model: type[T]) -> list[T]:
+        """Read a staging stream, retaining torn-tail recovery.
+
+        Args:
+            path: Stream location.
+            model: Validation model.
+
+        Returns:
+            Accepted models in stored order.
+        """
+        ...
+
+    def publish(self, path: Path, models: Sequence[BaseModel]) -> None:
+        """Accept a complete model array and publish its managed artifact.
+
+        Args:
+            path: Array location.
+            models: Complete ordered models.
+        """
+        ...
+
+    def append(self, path: Path, models: Sequence[BaseModel]) -> None:
+        """Append models to staging.
+
+        Args:
+            path: Stream location.
+            models: Ordered accepted models.
+        """
+        ...
+
+    def event(
+        self, paths: LibraryAnalysisPaths, run_id: str, event: str, **details: object
+    ) -> None:
+        """Append a timestamped audit event.
+
+        Args:
+            paths: Output family.
+            run_id: Run identity.
+            event: Event name.
+            details: Complete audit facts.
+        """
+        ...
+
+    def export(self, paths: LibraryAnalysisPaths) -> YourLibraryFile:
+        """Read the export authority.
+
+        Args:
+            paths: Output family.
+
+        Returns:
+            Validated export.
+        """
+        ...
+
+    def clock(self) -> str:
+        """Observe UTC time.
+
+        Returns:
+            ISO timestamp.
+        """
+        ...
+
+    def run_id(self) -> str:
+        """Observe a fresh run identity.
+
+        Returns:
+            Sortable identity.
+        """
+        ...
+
+    def fingerprint(self, path: Path) -> dict[str, int]:
+        """Observe export metadata.
+
+        Args:
+            path: Export location.
+
+        Returns:
+            Size and modification timestamp.
+        """
+        ...
+
+    def reset_staging(self, path: Path) -> None:
+        """Replace staging for a fresh run.
+
+        Args:
+            path: Staging directory.
+        """
+        ...
+
+    def remove(self, path: Path) -> None:
+        """Remove a staging or candidate file if present.
+
+        Args:
+            path: File location.
+        """
+        ...
+
+    def export_artists(self, paths: LibraryAnalysisPaths) -> list[YourLibraryArtist]:
+        """Read optional export artist candidates.
+
+        Args:
+            paths: Output family.
+
+        Returns:
+            Latest artists, or an empty list for an absent export.
+        """
+        ...
 
 
-@dataclass(frozen=True)
-class AnalysisCatalog:
-    """Supply original page reads and tolerant record conversion.
+class AnalysisCatalog(Protocol):
+    """Read live library pages and decode their transport records."""
 
-    Args:
-        offset: Select the original offset method at its original read boundary.
-        artists: Original followed-artists scan, including immediate 502 fallback.
-        reconcile_artists: Original unbounded followed-artists reconciliation read.
-        following: Original artist-follow verification batch.
-        album: Original tolerant saved-album conversion.
-        track: Original tolerant saved-track conversion.
-        artist: Original tolerant artist conversion.
-        items: Original offset-page shape validation.
-        artist_items: Original artist-page shape validation.
-    """
+    def offset(self, resource: ResourceName, initial: bool) -> OffsetRead:
+        """Select a saved-resource reader at the scan boundary.
 
-    offset: Callable[[ResourceName, bool], OffsetRead]
-    artists: Callable[[str | None], object]
-    reconcile_artists: Callable[[str | None], object]
-    following: Callable[[list[str]], object]
-    album: Callable[[object], LibraryModel | None]
-    track: Callable[[object], LibraryModel | None]
-    artist: Callable[[object], LibraryModel | None]
-    items: Callable[[object, ResourceName], list[object]]
-    artist_items: Callable[[object], tuple[list[object], dict[str, object]]]
+        Args:
+            resource: Saved resource.
+            initial: Whether this is the initial scan.
+
+        Returns:
+            Selected page reader.
+        """
+        ...
+
+    def artists(self, after: str | None) -> object:
+        """Read followed artists with endpoint fallback.
+
+        Args:
+            after: Stored cursor.
+
+        Returns:
+            Unvalidated page.
+        """
+        ...
+
+    def reconcile_artists(self, after: str | None) -> object:
+        """Read a reconciliation page.
+
+        Args:
+            after: Current cursor.
+
+        Returns:
+            Unvalidated page.
+        """
+        ...
+
+    def following(self, identities: list[str]) -> object:
+        """Verify live follows.
+
+        Args:
+            identities: Ordered verification batch.
+
+        Returns:
+            Unvalidated follow statuses.
+        """
+        ...
+
+    def convert(self, row: object, resource: ResourceName) -> LibraryModel | None:
+        """Decode a saved-resource row.
+
+        Args:
+            row: Raw transport row.
+            resource: Resource whose record format applies.
+
+        Returns:
+            Model, or none for an unusable row.
+        """
+        ...
+
+    def items(self, page: object, resource: ResourceName) -> list[object]:
+        """Validate an offset page envelope.
+
+        Args:
+            page: Raw response.
+            resource: Active resource.
+
+        Returns:
+            Complete raw rows.
+        """
+        ...
+
+    def artist_items(self, page: object) -> tuple[list[object], dict[str, object]]:
+        """Validate a cursor page envelope.
+
+        Args:
+            page: Raw response.
+
+        Returns:
+            Raw rows and cursor envelope.
+        """
+        ...
 
 
 @dataclass(frozen=True)

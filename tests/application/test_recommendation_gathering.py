@@ -65,7 +65,7 @@ class GatherMemory:
         self._step("clock")
         return STAMP
 
-    def week(self, stamp: datetime) -> date:
+    def local_date(self, stamp: datetime | date | None = None) -> date:
         """Resolve the default week only when no week was supplied.
 
         Args:
@@ -158,9 +158,7 @@ class GatherMemory:
 
 
 def _workflow(memory: GatherMemory) -> CandidateGathering:
-    return CandidateGathering(
-        memory, memory.neighbors, memory.clock, memory.week, memory.progress
-    )
+    return CandidateGathering(memory, memory.clock, memory, memory.progress)
 
 
 def test_each_fetch_is_checkpointed_before_aggregation_and_next_seed() -> None:

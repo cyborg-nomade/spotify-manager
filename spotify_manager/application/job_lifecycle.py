@@ -107,11 +107,27 @@ def is_active_job(job: JobIdentity, command: str | None = None) -> bool:
     return job.status in ACTIVE_STATUSES
 
 
+class LogFormatter[T](Protocol):
+    """Observe time and construct an accepted log entry."""
+
+    def create(self, sequence: int, message: str) -> T:
+        """Create one complete log entry.
+
+        Args:
+            sequence: Next accepted sequence.
+            message: Unmodified visible text.
+
+        Returns:
+            Complete entry.
+        """
+        ...
+
+
 def append_log[T](
     entries: list[T],
     sequence: int,
     message: str,
-    create: Callable[[int, str], T],
+    formatter: LogFormatter[T],
 ) -> int:
     """Accept one original log entry before advancing its sequence.
 
@@ -119,7 +135,7 @@ def append_log[T](
         entries: Caller-owned log authority; no second log buffer is introduced.
         sequence: Next original monotonically increasing sequence.
         message: Original unmodified text; an empty message observes no factory.
-        create: Clock and presentation boundary constructing the accepted entry.
+        formatter: Named clock and log presentation owner.
 
     Returns:
         Next sequence after accepted append, or the unchanged value for no message.
@@ -127,7 +143,7 @@ def append_log[T](
     """
     if not message:
         return sequence
-    entries.append(create(sequence, message))
+    entries.append(formatter.create(sequence, message))
     return sequence + 1
 
 

@@ -135,9 +135,11 @@ def most_popular_liked_track(
     Raises:
         BlastFromPastArtistsError: Original liked/detail response is invalid.
     """
-    from spotify_manager.bootstrap.dormant_artists import select_liked_track
+    from spotify_manager.interfaces.operations.blast_from_past_artists import (
+        most_popular_liked_track as operation,
+    )
 
-    return select_liked_track(sp, artist_id, retry_call)
+    return operation(sp, artist_id, retry_call)
 
 
 def _spotify_artist(
@@ -194,19 +196,21 @@ def add_dormant_artists_to_blast_from_past(
         BlastFromPastArtistsError: Original catalog observations are unusable.
         BlastFromPastCancelledError: Original safe cancellation is requested.
     """
-    from spotify_manager.bootstrap.dormant_artists import run_dormant_recovery
+    from spotify_manager.interfaces.operations.blast_from_past_artists import (
+        add_dormant_artists_to_blast_from_past as operation,
+    )
 
-    return run_dormant_recovery(
+    return operation(
         sp,
         playlist_id,
-        count,
-        path,
-        today,
-        echo,
-        progress_callback,
-        retry_call,
-        cancel_check,
-        dry_run,
+        count=count,
+        path=path,
+        today=today,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        cancel_check=cancel_check,
+        dry_run=dry_run,
     )
 
 

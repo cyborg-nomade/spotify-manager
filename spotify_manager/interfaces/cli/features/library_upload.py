@@ -1,6 +1,5 @@
 """Explicit library upload CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
@@ -9,7 +8,8 @@ from rich.console import Console
 from rich.table import Table
 
 from spotify_manager.application.upload_values import UploadResource
-from spotify_manager.routines import upload_library_files as hf_upload
+from spotify_manager.interfaces.cli.formatting import format_file_size
+from spotify_manager.interfaces.operations import upload_library_files as hf_upload
 
 
 @dataclass(kw_only=True)
@@ -24,7 +24,6 @@ class LibraryUploadCLI:
 
     create_console: type[Console]
     create_table: type[Table]
-    format_file_size: Callable[..., str]
 
     def _run_upload_library_files_to_hf(
         self,
@@ -64,9 +63,8 @@ class LibraryUploadCLI:
         if dry_run:
             console.print(
                 (
-                    "Dry run complete: "
-                    f"{plan.upload_file_count}"
-                    " files validated; nothing was changed."
+                    f"Dry run complete: {plan.upload_file_count}"
+                    f" files validated; nothing was changed."
                 ),
                 style="bold green",
             )
@@ -91,11 +89,8 @@ class LibraryUploadCLI:
     ) -> None:
         console.print(
             (
-                "Uploaded "
-                f"{result.uploaded_files}"
-                " files ("
-                f"{self.format_file_size(result.upload_size_bytes)}"
-                ")."
+                f"Uploaded {result.uploaded_files} files ("
+                f"{format_file_size(result.upload_size_bytes)})."
             ),
             style="bold green",
         )
@@ -113,7 +108,7 @@ class LibraryUploadCLI:
         table.add_row(
             resource.name,
             (f"{resource.item_count:,}"),
-            self.format_file_size(resource.size_bytes),
+            format_file_size(resource.size_bytes),
             resource.path_in_repo,
         )
 
@@ -137,9 +132,7 @@ class LibraryUploadCLI:
             table.add_row(
                 (f"{len(plan.lastfm_parts)} inline Last.fm fallback parts"),
                 "",
-                self.format_file_size(
-                    sum(len(part.content) for part in plan.lastfm_parts)
-                ),
+                format_file_size(sum(len(part.content) for part in plan.lastfm_parts)),
                 (f"{hf_upload.REMOTE_FILES_DIR}/{hf_upload.LASTFM_PART_PREFIX}*"),
                 style="dim",
             )

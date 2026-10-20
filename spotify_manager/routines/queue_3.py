@@ -11,6 +11,8 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.checkpoints import Checkpoint
+from spotify_manager.application.checkpoints import NoCheckpoint
 from spotify_manager.application.queue_3_values import (
     AnnualImportResult as AnnualImportResult,
 )
@@ -35,10 +37,14 @@ from spotify_manager.application.release_evaluation import evaluate_release
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import release_candidate
-from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
+from spotify_manager.infrastructure.routine_state_codecs import Queue3StateCodec
+from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
+from spotify_manager.interfaces.requests.queue_3 import Queue3Options
+from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_kids
@@ -185,15 +191,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="queue_3",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "queue_3",
+        Queue3StateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -392,9 +393,11 @@ def import_previous_year_discoveries(
     Raises:
         Queue3Error: Configuration, playlist observation or state handling fails.
     """
-    from spotify_manager.bootstrap.queue_3 import run_import
+    from spotify_manager.interfaces.operations.queue_3 import (
+        import_previous_year_discoveries as operation,
+    )
 
-    return run_import(
+    return operation(
         sp,
         playlist_id,
         active_year=active_year,
@@ -494,11 +497,16 @@ def _transition_plan(
     evaluation: AlbumEvaluation | None = None,
     reason: str | None = None,
 ) -> dict[str, object] | None:
-    from spotify_manager.bootstrap.queue_3 import _no_checkpoint
     from spotify_manager.bootstrap.queue_3 import review_planner
 
     planner = review_planner(
-        sp, retry_call, track_cache, {}, {}, _no_checkpoint, transition_reader
+        sp,
+        retry_call,
+        track_cache,
+        {},
+        {},
+        NoCheckpoint(),
+        transition_reader,
     )
     return planner.transition(
         source, current_release, next_release, evaluation=evaluation, reason=reason
@@ -513,7 +521,7 @@ def _build_plan(
     track_cache: dict[str, tuple[new_wine.ReleaseTrack, ...]],
     liked_cache: dict[str, bool],
     release_orders: dict[str, object],
-    order_saved: Callable[[], None],
+    checkpoint: Checkpoint,
     transition_reader: ReleaseTransitionReader,
 ) -> dict[str, object] | None:
     from spotify_manager.bootstrap.queue_3 import review_planner
@@ -524,7 +532,7 @@ def _build_plan(
         track_cache,
         liked_cache,
         release_orders,
-        order_saved,
+        checkpoint,
         transition_reader,
     )
     return planner.plan(source, discography)
@@ -578,60 +586,24 @@ def _result_from_plan(
 
 def flush_queue_3(
     sp: Spotify,
-    playlist_id: str,
-    transition_reader: ReleaseTransitionReader,
-    *,
-    composer_playlist_reader: ComposerPlaylistReader | None = None,
-    active_year: int | None = None,
-    dry_run: bool = False,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    options: Queue3Options,
+    callbacks: Queue3Callbacks,
+    resources: Queue3Resources | None = None,
 ) -> FlushSummary:
     """Import the previous year once, then advance the first ten Queue 3 artists.
 
     Args:
-        sp: Caller-owned Spotify client.
-        playlist_id: Configured Queue 3 destination.
-        transition_reader: Original release-boundary decision callback.
-        composer_playlist_reader: Optional owned works-playlist selection callback.
-        active_year: Explicit checkpoint year, or the current UTC year.
-        dry_run: Whether state is cloned and durable writes suppressed.
-        echo: Existing output sink.
-        progress_callback: Optional entry progress sink.
-        retry_call: Optional retry and cancellation callback.
-        state_path: Original legacy namespace path.
-        state_service: Optional shared state service.
-        log_path: Original Queue 3 audit destination.
-        albums_path: Original local album mirror.
-        removed_albums_log_path: Original removed-album recovery log.
+    sp: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original public Queue 3 summary with per-artist decisions and resume status.
+    The original typed summary and accepted effects.
 
     Raises:
-        Queue3Error: Configuration, state, planning or execution fails.
+    RuntimeError: Observations, selections or persistence cannot complete.
     """
-    from spotify_manager.bootstrap.queue_3 import run_flush
+    from spotify_manager.interfaces.operations.queue_3 import flush_queue_3 as operation
 
-    return run_flush(
-        sp,
-        playlist_id,
-        transition_reader,
-        composer_playlist_reader=composer_playlist_reader,
-        active_year=active_year,
-        dry_run=dry_run,
-        echo=echo,
-        progress_callback=progress_callback,
-        retry_call=retry_call,
-        state_path=state_path,
-        state_service=state_service,
-        log_path=log_path,
-        albums_path=albums_path,
-        removed_albums_log_path=removed_albums_log_path,
-    )
+    return operation(sp, options, callbacks, resources)

@@ -334,18 +334,20 @@ def refresh_scrobble_history(
         ScrobbleHistoryError: Export validation, ownership or persistence fails.
         ScrobbleHistoryCancelledError: Cancellation is requested at a boundary.
     """
-    from spotify_manager.bootstrap.history import refresh_history
+    from spotify_manager.interfaces.operations.scrobble_history import (
+        refresh_scrobble_history as operation,
+    )
 
-    return refresh_history(
+    return operation(
         lastfm,
-        expected_username,
-        export_path,
-        legacy_delta_path,
-        backup_dir,
-        log_path,
-        dry_run,
-        full_rebuild,
-        now,
-        progress_callback,
-        cancel_check,
+        expected_username=expected_username,
+        export_path=export_path,
+        legacy_delta_path=legacy_delta_path,
+        backup_dir=backup_dir,
+        log_path=log_path,
+        dry_run=dry_run,
+        full_rebuild=full_rebuild,
+        now=now,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
     )

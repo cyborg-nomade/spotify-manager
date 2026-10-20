@@ -1,11 +1,10 @@
 """Original ordered monthly routine and raw export count."""
 
-from collections.abc import Callable
-
+from spotify_manager.application import legacy_library_control as control_stages
+from spotify_manager.application import legacy_library_refresh as playlist_stages
 from spotify_manager.application.legacy_library_effects import Echo
 from spotify_manager.application.legacy_library_effects import LegacyFiles
 from spotify_manager.application.legacy_library_effects import MonthlyActions
-from spotify_manager.models.your_library import YourLibraryFile
 
 
 def run(files: LegacyFiles, actions: MonthlyActions, echo: Echo) -> None:
@@ -19,21 +18,21 @@ def run(files: LegacyFiles, actions: MonthlyActions, echo: Echo) -> None:
     echo("Running monthly routines...")
     control = files.control()
     albums = files.albums()
-    actions.evaluate(control, albums)
-    actions.statistics(control, albums)
-    index = actions.starting_index(control, albums)
+    control_stages.check(control, albums, actions.catalog, files, echo)
+    control_stages.update_statistics(control, albums, files, echo)
+    index = control_stages.starting_index(control, albums, echo)
     echo(f"Starting index: {index}")
-    actions.append(control, albums, index)
+    playlist_stages.add_monthly(actions.playlist, control, albums, index, echo)
     echo("Monthly routine complete.")
 
 
-def count_artists(load: Callable[[], YourLibraryFile]) -> int:
+def count_artists(files: LegacyFiles) -> int:
     """Return the original raw artist count, including duplicate entries.
 
     Args:
-        load: Original export read.
+        files: Export storage owner.
 
     Returns:
         Original artist-list length.
     """
-    return len(load().artists)
+    return len(files.export().artists)

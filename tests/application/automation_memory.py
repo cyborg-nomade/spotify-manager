@@ -2,7 +2,6 @@
 
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from types import ModuleType
 from zoneinfo import ZoneInfo
 
@@ -10,7 +9,6 @@ from spotify_manager.application import automation_run as workflow
 from spotify_manager.application.automation_values import JOBS
 from spotify_manager.application.automation_values import JobSpec
 from spotify_manager.application.automation_values import refresh_jobs
-from spotify_manager.infrastructure.automation_records import artifact_updates
 from tests.support.automation_run import AutomationMemory
 
 
@@ -54,7 +52,7 @@ def poll(client: AutomationMemory, spec: JobSpec, identity: str) -> str:
     Returns:
         Original terminal outcome.
     """
-    return workflow.poll_job(client, spec, identity, partial(cancel, client), emit)
+    return workflow.poll_job(client, spec, identity, fixed_now, emit)
 
 
 def run_job(client: AutomationMemory, spec: JobSpec) -> str:
@@ -70,8 +68,7 @@ def run_job(client: AutomationMemory, spec: JobSpec) -> str:
     return workflow.run_job(
         client,
         spec,
-        partial(workflow.start_job, client, emit=emit),
-        partial(poll, client),
+        fixed_now,
         emit,
     )
 
@@ -86,7 +83,7 @@ def fresh(client: AutomationMemory, threshold: datetime) -> bool:
     Returns:
         Original complete-artifact qualification.
     """
-    return workflow.durable_artifacts_are_fresh(client, threshold, artifact_updates)
+    return workflow.durable_artifacts_are_fresh(client, threshold)
 
 
 def run_automation(module: ModuleType, client: AutomationMemory) -> object:
@@ -114,7 +111,6 @@ def run_automation(module: ModuleType, client: AutomationMemory) -> object:
         JOBS,
         None,
         ZoneInfo("Europe/Berlin"),
-        partial(fresh, client),
-        partial(run_job, client),
+        fixed_now,
         emit,
     )

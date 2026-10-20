@@ -4,14 +4,24 @@ import json
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
 
 import pytest
 
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_resolution import (
+    RecommendationResolution,
+)
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
+from spotify_manager.infrastructure.legacy.recommendations import (
+    LegacyRecommendationRun,
+)
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
+from tests.support.direct_dependencies import audit
 
 
 class FakeLastFm:
@@ -760,23 +770,17 @@ def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
     playlist = blast_from_past.PlaylistState(2, frozenset())
     calls: list[tuple[str, object]] = []
     monkeypatch.setattr(
-        found_art,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: (history, 1),
+        LegacyRecommendationRun, "refresh", lambda *_args, **_kwargs: (history, 1)
     )
     monkeypatch.setattr(
-        found_art,
-        "select_seed_tracks",
-        lambda *_args, **_kwargs: (chosen_seed,),
+        RecommendationSeeds, "run", lambda *_args, **_kwargs: (chosen_seed,)
     )
     monkeypatch.setattr(
-        found_art,
-        "gather_candidates",
-        lambda *_args, **_kwargs: (chosen_candidate,),
+        CandidateGathering, "run", lambda *_args, **_kwargs: (chosen_candidate,)
     )
     monkeypatch.setattr(
-        found_art,
-        "resolve_spotify_candidates",
+        RecommendationResolution,
+        "run",
         lambda *_args, **_kwargs: (
             (found_art.FoundArtResult(chosen_candidate, match, "added"),),
             (match,),
@@ -795,9 +799,9 @@ def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
         ),
     )
     monkeypatch.setattr(
-        found_art,
-        "append_found_art_log",
-        lambda summary, _path: calls.append(("log", summary)),
+        LegacyRecommendationRun,
+        "audit",
+        partialmethod(audit, lambda summary, _path: calls.append(("log", summary))),
     )
     progress: list[str] = []
 

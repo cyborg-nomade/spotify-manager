@@ -10,16 +10,25 @@ from dataclasses import field
 from datetime import date
 from datetime import datetime
 from datetime import tzinfo
+from functools import partial
+from functools import partialmethod
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.palace_history import PalaceHistory
+from spotify_manager.application.palace_mirror import SavedMirror
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.history import HistoricalAlbum
 from spotify_manager.domain.history_matching import PlaylistState
+from spotify_manager.infrastructure.legacy.dated_history import LegacyDatedHistory
+from spotify_manager.infrastructure.legacy.palace_mirror import LegacySavedMirror
+from spotify_manager.interfaces.requests.palace import PalaceCallbacks
+from spotify_manager.interfaces.requests.palace import PalaceOptions
+from spotify_manager.interfaces.requests.palace import PalaceResources
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory as legacy
@@ -331,9 +340,9 @@ class PalaceObservations:
 
 def _patches(edge: PalaceObservations) -> tuple[tuple[object, str, object], ...]:
     return (
-        (legacy, "refresh_saved_albums", edge.refresh),
+        (SavedMirror, "run", partialmethod(_cursor_refresh, edge)),
         (legacy, "_state_access", edge.state),
-        (legacy, "select_historical_albums", edge.historical),
+        (PalaceHistory, "run", partialmethod(_historical, edge)),
         (legacy, "load_first_track", edge.first_track),
         (legacy, "search_spotify_album", edge.search),
         (legacy, "_append_log", edge.audit),
@@ -351,17 +360,21 @@ def _run(edge: PalaceObservations, preview: bool) -> object:
             stack.enter_context(patch.object(module, name, callback))
         result = legacy.fill_palace_of_memory(
             cast(Spotify, edge),
-            "destination",
-            dry_run=preview,
-            alphabetical_start=override,
-            today=date(2026, 8, 8),
-            albums_path=Path("albums"),
-            scrobbles_path=Path("history"),
-            state_path=Path("cursor"),
-            log_path=Path("audit"),
-            retry_call=edge.retry,
-            progress_callback=edge.progress,
-            echo=edge.echo,
+            PalaceOptions(
+                playlist_id="destination",
+                dry_run=preview,
+                alphabetical_start=override,
+                today=date(2026, 8, 8),
+            ),
+            PalaceCallbacks(
+                retry_call=edge.retry, progress_callback=edge.progress, echo=edge.echo
+            ),
+            PalaceResources(
+                albums_path=Path("albums"),
+                scrobbles_path=Path("history"),
+                state_path=Path("cursor"),
+                log_path=Path("audit"),
+            ),
         )
     return asdict(result)
 
@@ -454,3 +467,32 @@ def _cursor_run(edge: PalaceObservations, position: int) -> object:
         "next_album": result.next_album.model_dump(),
         "album_refresh": asdict(result.album_refresh),
     }
+
+
+def _historical(
+    resources: PalaceHistory,
+    edge: PalaceObservations,
+    count: int,
+) -> tuple[datetime, date, int, tuple[legacy.HistoricalAlbumSelection, ...]]:
+    inputs = cast(LegacyDatedHistory, resources.source)
+    return edge.historical(
+        path=inputs.path,
+        today=inputs.date_override,
+        random_index_reader=inputs.index_reader,
+        progress_callback=cast(partial[None], resources.progress).args[0],
+    )
+
+
+def _cursor_refresh(
+    workflow: SavedMirror,
+    edge: PalaceObservations,
+) -> tuple[tuple[YourLibraryAlbum, ...], legacy.SavedAlbumRefresh]:
+    effects = cast(LegacySavedMirror, workflow.effects)
+    return edge.refresh(
+        effects.spotify,
+        path=effects.path,
+        backups_dir=effects.backups,
+        log_path=effects.log_path,
+        retry_call=effects.retry,
+        progress_callback=effects.callback,
+    )

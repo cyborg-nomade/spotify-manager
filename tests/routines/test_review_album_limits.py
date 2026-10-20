@@ -10,6 +10,7 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import Timeout as RequestsTimeout
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager import loaders_savers as file_boundaries
 from spotify_manager.models.stats import AlbumsStats
 from spotify_manager.models.stats import ArtistsStats
 from spotify_manager.models.stats import StatsReport
@@ -117,6 +118,11 @@ def artist_persistence_store(monkeypatch, tmp_path) -> dict:
         saved_stats_history.append(dict(items))
 
     monkeypatch.setattr(review_album_limits, "load_total_artists_file", load_artists)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_artists_file",
+        review_album_limits.load_total_artists_file,
+    )
     monkeypatch.setattr(review_album_limits, "save_total_artists_file", save_artists)
     monkeypatch.setattr(
         review_album_limits, "load_stats_history_file", load_stats_history
@@ -243,7 +249,17 @@ def test_review_removes_album_from_spotify_and_total_file(
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
@@ -287,7 +303,17 @@ def test_review_auto_removes_album_with_zero_live_liked_tracks(
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
@@ -323,7 +349,17 @@ def test_review_prompts_when_live_liked_tracks_exist(monkeypatch, tmp_path) -> N
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
@@ -363,7 +399,17 @@ def test_live_liked_track_checks_are_batched_for_large_albums(
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
 
     review_album_limits.review_album_limits(
         sp,
@@ -389,7 +435,17 @@ def test_keep_decision_persists_between_review_runs(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
 
     review_album_limits.review_album_limits(
         first_sp,
@@ -436,7 +492,17 @@ def test_review_retries_transient_spotify_server_errors(monkeypatch, tmp_path) -
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
         review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
     )
 
     review_album_limits.review_album_limits(
@@ -472,7 +538,17 @@ def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
         review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
     )
 
     with pytest.raises(review_album_limits.SpotifyTransientServerError) as exc:
@@ -574,7 +650,17 @@ def test_review_records_followed_artist_and_updates_stats_history(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
         review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
     )
 
     review_album_limits.review_album_limits(
@@ -607,7 +693,17 @@ def test_enter_defaults_to_remove_for_remove_candidate(monkeypatch, tmp_path) ->
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
@@ -636,7 +732,17 @@ def test_review_reports_progress_after_each_completed_album(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
         review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
     )
 
     review_album_limits.review_album_limits(
@@ -662,7 +768,17 @@ def test_review_skip_is_only_for_current_run(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
@@ -697,7 +813,17 @@ def test_review_follows_artist_for_kept_album_without_prompt(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
         review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
     )
 
     review_album_limits.review_album_limits(
@@ -722,7 +848,17 @@ def test_review_does_not_refollow_artist_already_followed(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
         review_album_limits, "load_your_library_file", lambda: _library(True)
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
     )
 
     review_album_limits.review_album_limits(
@@ -746,9 +882,19 @@ def test_review_resolves_unfollowed_artist_from_album_metadata(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
         review_album_limits,
         "load_your_library_file",
         lambda: _library(True, include_artist=False),
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
     )
 
     review_album_limits.review_album_limits(
@@ -775,9 +921,19 @@ def test_review_exits_cleanly_on_album_metadata_rate_limit(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
     monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
         review_album_limits,
         "load_your_library_file",
         lambda: _library(True, include_artist=False),
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
     )
     monkeypatch.setattr(
         review_album_limits,
@@ -810,7 +966,17 @@ def test_review_exits_cleanly_on_rate_limit_without_saving(
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
@@ -841,7 +1007,17 @@ def test_review_exits_cleanly_on_live_liked_track_rate_limit(
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
@@ -871,7 +1047,17 @@ def test_review_exits_cleanly_on_follow_rate_limit(monkeypatch, tmp_path) -> Non
     monkeypatch.setattr(
         review_album_limits, "load_total_albums_new_file", lambda: albums
     )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
     monkeypatch.setattr(review_album_limits, "load_your_library_file", _library)
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",

@@ -1,6 +1,7 @@
 """Replay original annual outcomes and recovery through independently injected ports."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from functools import partial
 from typing import cast
 from zoneinfo import ZoneInfo
@@ -8,10 +9,12 @@ from zoneinfo import ZoneInfo
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistoryCancelledError
+from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.new_year_charts import AnnualCharts
 from spotify_manager.application.new_year_charts import ChartKind
-from spotify_manager.application.new_year_effects import AnnualEffects
+from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
 from spotify_manager.application.new_year_effects import AnnualStateAccess
 from spotify_manager.application.new_year_execution import AnnualExecution
 from spotify_manager.application.new_year_membership import AnnualMembership
@@ -21,7 +24,6 @@ from spotify_manager.application.new_year_resolution import AnnualResolution
 from spotify_manager.application.new_year_retry import AnnualRetry
 from spotify_manager.application.new_year_run import NewYear
 from spotify_manager.application.new_year_values import RetrospectiveState
-from spotify_manager.application.queue_3_import import resolve_yearly_playlist
 from spotify_manager.domain.annual_history import YearEntry
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
@@ -77,6 +79,26 @@ class MemoryAnnual:
 
     edge: AnnualObservations
     retry: RetryCall
+
+    def clock(self) -> datetime:
+        """Read the original deterministic timestamp.
+
+        Returns:
+            Original current calendar time.
+        """
+        return FixedClock.now()
+
+    def cancel(self) -> None:
+        """Deliver the original operator cancellation interaction."""
+        _cancel(self.edge)
+
+    def echo(self, message: str) -> None:
+        """Observe the original presentation.
+
+        Args:
+            message: Original visible annual text.
+        """
+        self.edge.echo(message)
 
     def destinations(self) -> dict[str, str]:
         """Observe original ordered destination parsing.
@@ -270,6 +292,62 @@ class MemoryAnnual:
         self.edge.record("discoveries", "queue3", active_year, preview)
 
 
+@dataclass(frozen=True)
+class ScriptedHistory:
+    """Supply the existing isolated full-history stage oracle.
+
+    Args:
+        memory: Original annual external observations.
+    """
+
+    memory: MemoryAnnual
+
+    def run(
+        self, username: str | None, preview: bool, rebuild: bool
+    ) -> ScrobbleHistorySummary:
+        """Read the original scripted complete annual history.
+
+        Args:
+            username: Original expected account.
+            preview: Original publication behavior.
+            rebuild: Full-rebuild request.
+
+        Returns:
+            Original ordered canonical plays and refresh metadata.
+        """
+        return ScrobbleHistorySummary(
+            FixedClock.now(),
+            "listener",
+            self.memory.history(preview),
+            0,
+            0,
+            0,
+            preview,
+            False,
+            None,
+        )
+
+
+@dataclass(frozen=True)
+class ScriptedDiscoveries:
+    """Supply the existing independently observed import-stage oracle.
+
+    Args:
+        memory: Original annual external observations.
+    """
+
+    memory: MemoryAnnual
+
+    def run(self, active_year: int, preview: bool) -> None:
+        """Observe the original annual import boundary.
+
+        Args:
+            active_year: Source year plus one.
+            preview: Original preview behavior.
+        """
+        self.memory.discoveries(active_year, preview)
+
+
 def _cancel(edge: AnnualObservations) -> None:
     if edge.cancel():
         raise ScrobbleHistoryCancelledError("Last.fm history update cancelled.")
@@ -281,33 +359,25 @@ def _run(
     cancel = partial(_cancel, edge)
     retry = AnnualRetry(edge.retry, cancel).run
     memory = MemoryAnnual(edge, retry)
-    effects = AnnualEffects(
-        FixedClock.now,
-        memory.destinations,
-        memory.state,
-        memory.owned,
-        resolve_yearly_playlist,
-        memory.discoveries,
-        cancel,
-        edge.echo,
-    )
-    resolution = AnnualResolution(
-        memory.search, memory.album, memory.first, memory.artist, memory.primary
-    )
-    members = AnnualMembership(memory.playlist, memory.append, memory.move, retry)
-    charts = AnnualCharts(
-        memory.owned, memory.create, memory.playlist, memory.replace, members, retry
-    )
+    effects = memory
+    discoveries = cast(AnnualDiscoveries, ScriptedDiscoveries(memory))
+    resolution = AnnualResolution(memory)
+    members = AnnualMembership(memory, retry)
+    charts = AnnualCharts(memory, members, retry)
     planner = AnnualPlanning(
-        memory.history,
-        memory.playlist,
+        cast(HistoryRefresh, ScriptedHistory(memory)),
+        "listener",
+        memory,
         resolution,
         edge.echo,
         ZoneInfo("Europe/Berlin"),
     )
-    return NewYear(effects, planner, AnnualExecution(effects, charts, members)).run(
-        year, preview
-    )
+    return NewYear(
+        effects,
+        planner,
+        AnnualExecution(effects, charts, members, discoveries),
+        discoveries,
+    ).run(year, preview)
 
 
 @pytest.mark.parametrize("case", cases("new_year_run.json"))

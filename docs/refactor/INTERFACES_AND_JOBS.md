@@ -1,8 +1,11 @@
 # Item 7: feature interfaces and shared job mechanics
 
-**Status:** implemented and ready for PR review on
-`codex/refactor-07-interfaces-and-jobs`, starting from the deployed Item 6 merge
-`93a36aa`. Deployment and merge require Item 7 PR approval.
+**Status:** Item 7 approved, deployed and merged in PR #66. The approved source
+`982abe4` was deployed to Space revision `702365bae980a4a7f0036f36bb24a7f4239d5cfc`
+and merged as `7fe292c`. Before/after production checks passed with no active jobs
+or durable state/data revision changes. Item 7a's
+[direct request and return paths](CALL_PATH_SIMPLIFICATION.md) refine the invocation
+wiring described here; shared job mechanics remain unchanged.
 
 The design and compatibility trade-offs are in
 [ADR 002](../adr/002-threaded-interface-jobs.md). Business rules and use cases
@@ -13,7 +16,7 @@ remain in the domain/application layers extracted in Items 3–6.
 | Responsibility | Implementation |
 | --- | --- |
 | Stable imports, framework signatures, overrides and explicit composition | `api.py`, `main.py` |
-| Original URL/method/status/model registrations | 24 feature factories in `interfaces/http/routers/` |
+| Original URL/method/status/model registrations | `api.py`, beside each endpoint definition (Item 7a revision) |
 | HTTP validation, submission, cancellation and response presentation | 24 feature adapters in `interfaces/http/handlers/` |
 | Original request/response schemas | `interfaces/http/models/` |
 | Typed routine outcome to original JSON conversion | `interfaces/http/presenters/` |
@@ -24,7 +27,9 @@ remain in the domain/application layers extracted in Items 3–6.
 | SDK-free active-phase, accepted-log and submission polling rules | `application/job_lifecycle.py` |
 | CLI execution, prompts, errors and rendering | 25 contexts in `interfaces/cli/features/`, plus `interfaces/cli/history.py` |
 
-The facade supplies explicit dependencies to fresh command/handler contexts.
+`main.py` supplies explicit dependencies to fresh command contexts. HTTP handlers
+are named functions; `interfaces/http/jobs.py` owns runtime providers, reservation
+and explicit worker construction after the Item 7a revision.
 Workers use ordinary methods bound to their own handles and signals. Common
 mechanics are small named helpers; each feature retains its visible choices,
 status transitions and effect boundaries. No runtime handler generation, copied
@@ -60,8 +65,9 @@ module globals or workflow framework is introduced.
   preserved. Existing last-resort worker and CLI rotation/token-refresh error
   boundaries remain for compatibility; new business handling uses specific errors.
 
-Public facade and schema docstrings are frozen interface data. Their text stays
-unchanged; new adapters use Google-style documentation. The wide `BlastJobResult`
+CLI help and public schema descriptions are frozen interface data. API routes
+retain their original description text explicitly while endpoint source
+docstrings use Google-style documentation. The wide `BlastJobResult`
 remains an HTTP compatibility view populated from typed routine outcomes, with
 no dependency from the business layers on rendering or wire models.
 
@@ -110,20 +116,21 @@ For a library-analysis start and later polling:
 | Step | Location |
 | --- | --- |
 | Frontend request and polling | `spotify_manager/frontend/index.html` |
-| URL, method, accepted status and model | `interfaces/http/routers/analysis.py` |
-| Stable framework signature and supplied dependencies | `api.py`: `cmd_analyse_library_*`, named handler factory |
+| URL, method, accepted status, model and endpoint | `api.py`: `cmd_analyse_library_*`, beside its route declaration |
 | Request delegation and poll/cancel response | `interfaces/http/handlers/analysis.py` |
-| Start composition and reservation | `api.py`: `start_analysis_job`; `interfaces/http/job_registry.py` |
+| Start composition and reservation | `interfaces/http/jobs.py`: `start_analysis_job`; `interfaces/http/job_registry.py` |
 | Job-owned execution, progress, retry and cleanup | `interfaces/http/analysis_worker.py` |
-| Compatibility and use-case composition | `routines/analyse_library.py`, `bootstrap/library_analysis.py` |
+| Named application invocation and construction | `interfaces/operations/analyse_library.py`, `bootstrap/library_analysis.py` |
 | Typed use cases and pure business rules | `application/library_analysis_*.py`, `domain/library_analysis*.py` |
 | External implementations | `infrastructure/library_analysis_*.py` |
 | Return path | Typed summary → feature presenter → job view → detached poll response → frontend |
 
-Other routers follow the same entry pattern; their workers are under
+Other endpoints follow the same entry pattern; their workers are under
 `interfaces/http/workers/`. For a CLI operation, start at its Typer command in
 `main.py`, follow its context in `interfaces/cli/features/`, then the routine
-facade/bootstrap into application/domain.
+invocation function into application/domain. Presenters return typed results to
+the original response models. The [Item 7a guide](CALL_PATH_SIMPLIFICATION.md)
+contains the current family map and concrete album path.
 
 ## Review and release
 
@@ -137,9 +144,7 @@ pre-existing invalid production `YourLibrary.json` export is not rewritten by
 this interface refactor.
 
 The owner approved an additional [Item 7a](CALL_PATH_SIMPLIFICATION.md) during
-review on 2026-10-03. After the Item 7 release, simplify internal call paths in
-a dedicated branch and PR before Item 8. The request map above describes the
-current implementation, including temporary compatibility detours; it is not
-the final call-path target. Frontend source restructuring remains a future
-targeted refactor. The existing Item 7 verification evidence still applies; this
-plan update makes no production or test changes.
+review on 2026-10-03. Its implementation is under PR #67 review before Item 8.
+The request map above follows the revised Item 7a source; the verification section
+records the released Item 7 implementation. Frontend source restructuring remains
+a future targeted refactor.

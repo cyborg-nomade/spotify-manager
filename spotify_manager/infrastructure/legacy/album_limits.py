@@ -9,9 +9,11 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.artist_follows import ArtistPersistenceResult
+from spotify_manager.application.artist_follows import follow_album_artist
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist
+from spotify_manager.interfaces.presenters.album_limits import present_artist_follow
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryFile
@@ -39,7 +41,9 @@ class AlbumArtistAdapter:
         Returns:
             Resolved artist when available.
         """
-        return legacy.resolve_album_artist(self.spotify, album, self.known_artists)
+        from spotify_manager.routines.review_album_limits import resolve_album_artist
+
+        return resolve_album_artist(self.spotify, album, self.known_artists)
 
     def followed(self, artist: AlbumArtist) -> bool:
         """Read current membership through the existing error translation.
@@ -50,7 +54,9 @@ class AlbumArtistAdapter:
         Returns:
             Current membership.
         """
-        return legacy._is_artist_followed(self.spotify, artist)
+        from spotify_manager.routines.review_album_limits import _is_artist_followed
+
+        return _is_artist_followed(self.spotify, artist)
 
     def follow(self, artist: AlbumArtist) -> None:
         """Follow the resolved artist through the existing error translation.
@@ -58,7 +64,9 @@ class AlbumArtistAdapter:
         Args:
             artist: Resolved identity.
         """
-        legacy._follow_artist(self.spotify, artist)
+        from spotify_manager.routines.review_album_limits import _follow_artist
+
+        _follow_artist(self.spotify, artist)
 
     def record(self, artist: AlbumArtist) -> ArtistPersistenceResult:
         """Publish the original artist mirror and statistics updates.
@@ -69,7 +77,9 @@ class AlbumArtistAdapter:
         Returns:
             Original persistence result.
         """
-        return legacy.record_followed_artist(artist)
+        from spotify_manager.routines.review_album_limits import record_followed_artist
+
+        return record_followed_artist(artist)
 
 
 @dataclass
@@ -129,7 +139,11 @@ class LegacyAlbumReview:
         return self._loaded
 
     def _retry[T](self, operation: Callable[[], T], description: str) -> T:
-        return legacy.retry_spotify_server_errors(
+        from spotify_manager.infrastructure.spotify.retry import (
+            retry_spotify_server_errors,
+        )
+
+        return retry_spotify_server_errors(
             operation,
             description,
             self.echo,
@@ -144,17 +158,24 @@ class LegacyAlbumReview:
         Returns:
             Original review items, retaining duplicate entries.
         """
-        albums = legacy.load_total_albums_new_file()
-        library = legacy.load_your_library_file()
+        from spotify_manager.loaders_savers import load_total_albums_new_file
+        from spotify_manager.loaders_savers import load_your_library_file
+        from spotify_manager.routines.review_album_limits import _state_access
+        from spotify_manager.routines.review_album_limits import (
+            known_artist_ids_by_name,
+        )
+
+        albums = load_total_albums_new_file()
+        library = load_your_library_file()
         remaining = list(albums)
-        state = legacy._state_access(self.decisions_path, self.state_service)
+        state = _state_access(self.decisions_path, self.state_service)
         decisions = state.load()
         self._loaded = ReviewSession(
             library,
             remaining,
             state,
             decisions,
-            legacy.known_artist_ids_by_name(library),
+            known_artist_ids_by_name(library),
         )
         return albums
 
@@ -167,7 +188,11 @@ class LegacyAlbumReview:
         Returns:
             Whether the original keep marker is present.
         """
-        return legacy.has_persisted_keep_decision(album, self._session().decisions)
+        from spotify_manager.routines.review_album_limits import (
+            has_persisted_keep_decision,
+        )
+
+        return has_persisted_keep_decision(album, self._session().decisions)
 
     def follow_artist(self, album: YourLibraryAlbum) -> bool:
         """Retain follow, mirror, statistics, and retry boundaries.
@@ -178,19 +203,33 @@ class LegacyAlbumReview:
         Returns:
             Whether the artist was followed.
         """
+        from spotify_manager.interfaces.presenters.album_limits import (
+            format_album_label,
+        )
+
         session = self._session()
         operation = partial(
-            legacy.ensure_artist_followed,
-            self.spotify,
+            self._follow_review_artist,
             album,
             session.known_artists,
             session.checked_artists,
-            self.echo,
         )
         return self._retry(
             operation,
-            f"checking/following artist for {legacy.format_album_label(album)}",
+            f"checking/following artist for {format_album_label(album)}",
         )
+
+    def _follow_review_artist(
+        self,
+        album: YourLibraryAlbum,
+        known_artists: dict[str, str],
+        checked_artists: set[str],
+    ) -> bool:
+        outcome = follow_album_artist(
+            AlbumArtistAdapter(self.spotify, known_artists), album, checked_artists
+        )
+        present_artist_follow(outcome, album, self.echo)
+        return outcome.action == "followed"
 
     def evaluate(self, album: YourLibraryAlbum) -> AlbumEvaluation:
         """Evaluate against the loaded export with the original cache options.
@@ -201,16 +240,22 @@ class LegacyAlbumReview:
         Returns:
             Original assessment model.
         """
-        operation = partial(
-            legacy.evaluate_album,
-            sp=self.spotify,
-            album_id=album.spotify_id,
-            library=self._session().library,
-            threshold=self.threshold,
-            use_cache=self.use_cache,
-            refresh_cache=self.refresh_cache,
+        from spotify_manager.application.library_lookup_run import evaluate_local
+        from spotify_manager.bootstrap.library_lookups import local_album
+        from spotify_manager.interfaces.presenters.album_limits import (
+            format_album_label,
         )
-        return self._retry(operation, f"evaluating {legacy.format_album_label(album)}")
+
+        operation = partial(
+            evaluate_local,
+            local_album(self.spotify, None, self.use_cache, self.refresh_cache),
+            None,
+            album.spotify_id,
+            None,
+            self._session().library,
+            self.threshold,
+        )
+        return self._retry(operation, f"evaluating {format_album_label(album)}")
 
     def live_likes(self, album: YourLibraryAlbum, track_ids: list[str]) -> int:
         """Read live membership without changing batching or retry behavior.
@@ -222,10 +267,17 @@ class LegacyAlbumReview:
         Returns:
             Count of truthy statuses.
         """
-        operation = partial(legacy.get_live_liked_track_count, self.spotify, track_ids)
+        from spotify_manager.interfaces.presenters.album_limits import (
+            format_album_label,
+        )
+        from spotify_manager.routines.review_album_limits import (
+            get_live_liked_track_count,
+        )
+
+        operation = partial(get_live_liked_track_count, self.spotify, track_ids)
         return self._retry(
             operation,
-            f"checking live liked tracks for {legacy.format_album_label(album)}",
+            f"checking live liked tracks for {format_album_label(album)}",
         )
 
     def remove(
@@ -244,9 +296,16 @@ class LegacyAlbumReview:
             live_likes: Last current membership count.
             automatic: Whether zero current likes triggered the removal.
         """
+        from spotify_manager.interfaces.presenters.album_limits import (
+            format_album_label,
+        )
+        from spotify_manager.routines.review_album_limits import (
+            remove_album_from_library,
+        )
+
         session = self._session()
         operation = partial(
-            legacy.remove_album_from_library,
+            remove_album_from_library,
             self.spotify,
             album,
             evaluation,
@@ -257,7 +316,7 @@ class LegacyAlbumReview:
         if automatic:
             operation = partial(operation, action="auto_zero_live_likes")
         session.remaining = self._retry(
-            operation, f"removing {legacy.format_album_label(album)}"
+            operation, f"removing {format_album_label(album)}"
         )
 
     def keep(
@@ -273,8 +332,10 @@ class LegacyAlbumReview:
             evaluation: Assessment recorded with the choice.
             live_likes: Last current membership count.
         """
+        from spotify_manager.routines.review_album_limits import record_review_decision
+
         session = self._session()
-        legacy.record_review_decision(
+        record_review_decision(
             session.decisions,
             album,
             evaluation,

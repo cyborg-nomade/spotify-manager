@@ -4,12 +4,17 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from spotify_manager.client.lastfm import LastFmRecentTrack
+from spotify_manager.core.library_data.service import LibraryDataService
+from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryStorage
 from spotify_manager.routines import scrobble_history as routine
+from tests.support.history_dependencies import hydrate_history
 
 
 @dataclass
@@ -171,8 +176,11 @@ class RefreshBoundary:
 
 
 def _install(boundary: RefreshBoundary, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(routine, "artifact_for_path", boundary.artifact)
-    monkeypatch.setattr(routine, "get_library_data_service", boundary.service)
+    monkeypatch.setattr(
+        LegacyHistoryStorage,
+        "hydrate",
+        partialmethod(hydrate_history, cast(LibraryDataService, boundary)),
+    )
     monkeypatch.setattr(routine, "_load_export", boundary.load)
     monkeypatch.setattr(routine, "_backup_export", boundary.backup)
     monkeypatch.setattr(routine, "_write_export_atomic", boundary.write)

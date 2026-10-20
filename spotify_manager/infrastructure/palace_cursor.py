@@ -1,13 +1,18 @@
 """Parse Palace manual positions and tolerant durable cursor records."""
 
 import json
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from spotify_manager.application.palace_effects import PalaceStateAccess
 from spotify_manager.application.palace_values import PalaceOfMemoryConfigError
 from spotify_manager.application.palace_values import PalaceOfMemoryStateError
+from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.palace_albums import AlbumFacts
+from spotify_manager.models.your_library import YourLibraryAlbum
 
 
 def validate_state(payload: object) -> dict[str, object]:
@@ -178,3 +183,51 @@ def _examples(albums: tuple[AlbumFacts, ...], matches: list[int]) -> str:
         album = albums[index]
         result.append(f"{album.artist} - {album.album} ({album.spotify_id})")
     return "; ".join(result)
+
+
+@dataclass(frozen=True)
+class PalaceCursorAccess:
+    """Own cursor paths and invocation progress presentation.
+
+    Args:
+        path: Durable cursor path.
+        service: Optional shared state authority.
+        callback: Optional progress notification.
+    """
+
+    path: Path
+    service: StateService | None
+    callback: Callable[[str], None] | None
+
+    def progress(self, message: str) -> None:
+        """Present the current stage.
+
+        Args:
+            message: Complete stage text.
+        """
+        if self.callback is not None:
+            self.callback(message)
+
+    def state_access(self) -> PalaceStateAccess:
+        """Resolve durable cursor access after mirror refresh.
+
+        Returns:
+            Original selected cursor authority.
+        """
+        from spotify_manager.routines.palace_of_memory import _state_access
+
+        return _state_access(self.path, self.service)
+
+    def cursor_payload(self, index: int, album: YourLibraryAlbum) -> dict[str, object]:
+        """Observe the original write clock and serialize the replacement.
+
+        Args:
+            index: Next zero-based position.
+            album: Previously visited album.
+
+        Returns:
+            Complete cursor replacement.
+        """
+        from spotify_manager.routines.palace_of_memory import _cursor_payload
+
+        return _cursor_payload(index, album)

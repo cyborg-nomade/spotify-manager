@@ -1,6 +1,5 @@
 """Adapt original mutable catalog JSON and raw scan checkpoint semantics."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
@@ -8,6 +7,7 @@ from typing import cast
 
 from spotify_manager.application.artist_review_catalog import CatalogScan
 from spotify_manager.application.artist_review_catalog import RawReleasePage
+from spotify_manager.application.checkpoints import Checkpoint
 from spotify_manager.domain.artist_review_values import ArtistReviewError
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
 from spotify_manager.domain.artist_review_values import TrackCandidate
@@ -22,13 +22,13 @@ class LegacyScan:
         artist: Original expected associated identity.
         name: Original reviewed display name.
         raw: Original same mutable durable scan object.
-        persist: Original whole-cache checkpoint.
+        checkpoint: Named whole-cache publication owner.
     """
 
     artist: str
     name: str
     raw: dict[str, object]
-    persist: Callable[[], None]
+    checkpoint: Checkpoint
 
     def complete(self) -> bool:
         """Read original completion truthiness without strengthening validation.
@@ -70,7 +70,7 @@ class LegacyScan:
             raise ArtistReviewError(
                 f"Spotify returned an empty release page for {self.name}."
             )
-        self.persist()
+        self.checkpoint.save()
 
     def candidates(self) -> list[ReleaseCandidate]:
         """Decode original complete raw scan only after pagination ends.
@@ -92,14 +92,14 @@ class LegacyCatalogCache:
         artist: Original current reviewed identity.
         name: Original reviewed display name.
         cache: Original same mutable complete metadata dictionary.
-        persist: Original whole-cache checkpoint.
+        checkpoint: Named whole-cache publication owner.
         data: Original same artist-specific mutable record.
     """
 
     artist: str
     name: str
     cache: dict[str, dict[str, object]]
-    persist: Callable[[], None]
+    checkpoint: Checkpoint
     data: dict[str, object] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -132,7 +132,7 @@ class LegacyCatalogCache:
             tracks: Original associated ranked facts.
         """
         self.data["ranked_tracks"] = [asdict(track) for track in tracks]
-        self.persist()
+        self.checkpoint.save()
 
     def save_releases(self, key: str, releases: list[ReleaseCandidate]) -> None:
         """Assign original complete releases before checkpoint publication.
@@ -142,7 +142,7 @@ class LegacyCatalogCache:
             releases: Original mutable complete candidates.
         """
         self.data[key] = [asdict(release) for release in releases]
-        self.persist()
+        self.checkpoint.save()
 
     def scan(self) -> CatalogScan:
         """Resolve original mutable raw scan and its original shape guard.
@@ -158,4 +158,4 @@ class LegacyCatalogCache:
         )
         if not isinstance(raw, dict):
             raise ArtistReviewError(f"Invalid cached discography for {self.name}.")
-        return LegacyScan(self.artist, self.name, raw, self.persist)
+        return LegacyScan(self.artist, self.name, raw, self.checkpoint)

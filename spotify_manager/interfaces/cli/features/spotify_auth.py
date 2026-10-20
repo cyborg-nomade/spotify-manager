@@ -1,30 +1,30 @@
 """Spotify credential maintenance at the CLI compatibility boundary."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
 import typer
-from spotipy import Spotify
 
 from spotify_manager.client import RotatingSpotify
+from spotify_manager.interfaces.cli.resources import CliResources
 
 
 @dataclass(kw_only=True)
 class SpotifyAuthCLI:
-    """Refresh tokens through the original overridable Spotify client factory.
+    """Refresh configured Spotify application tokens.
 
     Args:
-        review_client: Original headless-capable interactive client factory.
-        rotating_client_type: Original class used to recognize app rotation.
+        runtime: Lazy client, configuration and shared-service resources.
+        rotating_client_type: Interface presentation resource.
     """
 
-    review_client: Callable[[], Spotify]
+    runtime: CliResources
+
     rotating_client_type: type[RotatingSpotify]
 
     def _refresh_spotify_tokens(self) -> None:
         """Authenticate or force-refresh every configured Spotify app token."""
-        spotify = self.review_client()
+        spotify = self.runtime.review_client()
         if not isinstance(spotify, self.rotating_client_type):
             raise typer.BadParameter(
                 "the configured client does not support app rotation"

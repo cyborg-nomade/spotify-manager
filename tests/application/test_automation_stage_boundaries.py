@@ -66,6 +66,16 @@ class ScriptedSpace:
         """
         self.events.append(seconds)
 
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Observe complete artifact facts through the original codec.
+
+        Returns:
+            Original decoded timestamps.
+        """
+        from spotify_manager.infrastructure.automation_records import artifact_updates
+
+        return artifact_updates(self.request("GET", "/library-mirrors/status"))
+
     def remaining_seconds(self) -> float:
         """Supply positive original maintenance time.
 
@@ -135,9 +145,7 @@ def test_poll_propagates_non_missing_http_status() -> None:
     """Translate only original missing handles into restart outcomes."""
     error = ApiError(403, {})
     with pytest.raises(ApiError) as raised:
-        workflow.poll_job(
-            ScriptedSpace([error]), JOBS[0], "job", unexpected_cancel, discard
-        )
+        workflow.poll_job(ScriptedSpace([error]), JOBS[0], "job", fixed_now, discard)
     assert raised.value is error
 
 
@@ -148,7 +156,7 @@ def test_poll_reports_only_changed_status() -> None:
     )
     output: list[str] = []
     assert (
-        workflow.poll_job(client, JOBS[0], "job", unexpected_cancel, output.append)
+        workflow.poll_job(client, JOBS[0], "job", fixed_now, output.append)
         == "completed"
     )
     assert len(output) == 2 and client.events.count(20) == 2
@@ -180,15 +188,14 @@ def unexpected_job(spec: JobSpec) -> str:
 
 def test_fresh_duplicate_skips_after_health_read() -> None:
     """Retain health before duplicate detection and suppress all routine starts."""
-    client = ScriptedSpace([{}])
+    client = FreshSpace([{}])
     assert (
         workflow.nightly_refresh(
             client,
             JOBS,
             fixed_now(),
             ZoneInfo("Europe/Berlin"),
-            fresh_artifacts,
-            unexpected_job,
+            fixed_now,
             discard,
         )
         == 0
@@ -261,3 +268,19 @@ def test_connection_prerequisite_failures(
     """
     with pytest.raises(AutomationError, match=message):
         workflow.connection_check(ScriptedSpace(responses), discard)
+
+
+class FreshSpace(ScriptedSpace):
+    """Supply already refreshed artifact authority without starting a job."""
+
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Observe fresh durable artifacts.
+
+        Returns:
+            Original complete fresh artifact timestamps.
+        """
+        from spotify_manager.application.automation_values import (
+            DURABLE_ARTIFACT_FILENAMES,
+        )
+
+        return dict.fromkeys(DURABLE_ARTIFACT_FILENAMES, fixed_now())

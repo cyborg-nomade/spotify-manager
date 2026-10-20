@@ -33,7 +33,8 @@ from spotify_manager.application.queue_values import QueueStateError as QueueSta
 # UFI
 from spotify_manager.client.lastfm import LastFmSimilarArtist
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist
 from spotify_manager.domain.queue_values import ArtistHistory as ArtistHistory
@@ -41,6 +42,11 @@ from spotify_manager.domain.queue_values import (
     ArtistRecommendation as ArtistRecommendation,
 )
 from spotify_manager.domain.queue_values import ArtistSeed as ArtistSeed
+from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
+from spotify_manager.infrastructure.routine_state_codecs import TheQueueStateCodec
+from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
+from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
+from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_kids
@@ -254,15 +260,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="queue",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "queue",
+        TheQueueStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -340,7 +341,7 @@ def select_seed_artists(
     """
     from spotify_manager.application.queue_seeds import QueueSeeds
 
-    return QueueSeeds(found_art.listening_week_start, SEED_POOL_MULTIPLIER).select(
+    return QueueSeeds(BerlinCalendar(), SEED_POOL_MULTIPLIER).select(
         history,
         seed_count,
         week_start,
@@ -384,7 +385,7 @@ def _cached_similar_artists(
 ) -> tuple[LastFmSimilarArtist, ...] | None:
     from spotify_manager.infrastructure.queue_neighborhoods import cached_artists
 
-    return cached_artists(raw, week_start, found_art.listening_week_start)
+    return cached_artists(raw, week_start)
 
 
 def previously_added_artist_keys(path: Path = DEFAULT_LOG_PATH) -> set[str]:
@@ -441,20 +442,20 @@ def gather_artist_recommendations(
     Raises:
         QueueStateError: Original cache or audit data is unusable.
     """
-    from spotify_manager.bootstrap.queue_recommendations import (
-        gather_queue_recommendations,
+    from spotify_manager.interfaces.operations.the_queue import (
+        gather_artist_recommendations as operation,
     )
 
-    return gather_queue_recommendations(
+    return operation(
         lastfm,
         seeds,
         heard_keys,
-        cache_path,
-        log_path,
-        week_start,
-        candidate_pool_size,
-        now,
-        progress_callback,
+        cache_path=cache_path,
+        log_path=log_path,
+        week_start=week_start,
+        candidate_pool_size=candidate_pool_size,
+        now=now,
+        progress_callback=progress_callback,
     )
 
 
@@ -562,74 +563,30 @@ def _fill_follow(
 def fill_queue_from_lastfm(
     sp: Spotify,
     lastfm: LastFmReader,
-    playlists: QueuePlaylists,
-    choice_reader: ArtistChoiceReader | None,
-    *,
-    count: int | None = DEFAULT_COUNT,
-    max_playlist_length: int | None = None,
-    seed_count: int = DEFAULT_SEED_COUNT,
-    dry_run: bool = False,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    export_path: Path = DEFAULT_SCROBBLES_PATH,
-    recent_path: Path = DEFAULT_RECENT_PATH,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    cache_path: Path = DEFAULT_CACHE_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
-    now: datetime | None = None,
+    options: QueueFillOptions,
+    callbacks: QueueFillCallbacks,
+    resources: QueueFillResources | None = None,
 ) -> FillSummary:
     """Add unheard Last.fm artist recommendations to The Queue.
 
     Args:
-        sp: Caller-owned original Spotify client.
-        lastfm: Caller-owned original Last.fm reader.
-        playlists: Original parsed destination identities.
-        choice_reader: Original optional mapping interaction.
-        count: Original optional requested additions.
-        max_playlist_length: Original optional maximum Queue length.
-        seed_count: Original requested weekly seeds.
-        dry_run: Original preview behavior.
-        echo: Original text presenter.
-        progress_callback: Original optional progress presenter.
-        retry_call: Original optional retry boundary.
-        export_path: Original history export location.
-        recent_path: Original recent-history location.
-        state_path: Original state location.
-        state_service: Original optional shared state authority.
-        cache_path: Original neighborhood cache location.
-        log_path: Original audit location.
-        now: Original optional timestamp.
+    sp: Caller-owned client.
+    lastfm: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original complete ordered fill outcome.
+    The original typed summary and accepted effects.
 
     Raises:
-        QueueConfigError: Original limits conflict or are invalid.
-        QueueStateError: Original history, cache or state is unusable.
-        QueueSpotifyError: Original follow or liked response is invalid.
+    RuntimeError: Observations, selections or persistence cannot complete.
     """
-    from spotify_manager.application.queue_fill_values import QueueFillRequest
-    from spotify_manager.bootstrap.queue_fill import fill_queue
-
-    return fill_queue(
-        sp,
-        lastfm,
-        playlists,
-        choice_reader,
-        QueueFillRequest(count, max_playlist_length, seed_count, dry_run),
-        echo,
-        progress_callback,
-        retry_call,
-        export_path,
-        recent_path,
-        state_path,
-        state_service,
-        cache_path,
-        log_path,
-        now,
+    from spotify_manager.interfaces.operations.the_queue import (
+        fill_queue_from_lastfm as operation,
     )
+
+    return operation(sp, lastfm, options, callbacks, resources)
 
 
 def _playlist_track_from_record(raw: object) -> new_wine.PlaylistTrack:
@@ -678,7 +635,7 @@ def _plan_flush_entry(
     source_uris: list[str],
     retry_call: RetryCall,
 ) -> dict[str, object]:
-    from spotify_manager.bootstrap.queue_planning import plan_queue_entry
+    from spotify_manager.interfaces.operations.queue_planning import plan_queue_entry
 
     return plan_queue_entry(sp, source, source_uris, retry_call)
 
@@ -741,17 +698,17 @@ def flush_queue(
         QueueStateError: Original stored sources, plans or counts are invalid.
         QueueSpotifyError: Original follow-status response is invalid.
     """
-    from spotify_manager.bootstrap.queue_flush import flush_queue as run_flush
+    from spotify_manager.interfaces.operations.the_queue import flush_queue as operation
 
-    return run_flush(
+    return operation(
         sp,
         playlists,
-        dry_run,
-        echo,
-        progress_callback,
-        retry_call,
-        state_path,
-        state_service,
-        log_path,
-        artists_path,
+        dry_run=dry_run,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+        artists_path=artists_path,
     )

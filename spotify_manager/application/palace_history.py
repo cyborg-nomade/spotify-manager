@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
 
+from spotify_manager.application.discography_history import DatedHistory
 from spotify_manager.application.historical_values import LastFmExportError
 from spotify_manager.application.historical_values import RandomIndexSet
 from spotify_manager.application.historical_values import RandomOrgError
@@ -21,16 +22,12 @@ class PalaceHistory:
     """Retain original history, calendar, random and presentation read boundaries.
 
     Args:
-        history: Original complete history reader.
-        cutoff: Original effective cutoff resolved after reading history.
-        random: Original caller-owned Random.org or custom index reader.
+        source: Named history, cutoff and random-source observations.
         progress: Original optional progress delivery adapter.
         first: Original earliest eligible date.
     """
 
-    history: Callable[[], dict[date, list[Scrobble]]]
-    cutoff: Callable[[], date]
-    random: Callable[[int, int], RandomIndexSet]
+    source: DatedHistory
     progress: Callable[[str], None]
     first: date
 
@@ -52,7 +49,7 @@ class PalaceHistory:
         """
         self.progress("Loading Last.fm album history")
         history = self._history()
-        cutoff = self.cutoff()
+        cutoff = self.source.cutoff()
         rankings = dated_rankings(history, self.first, cutoff)
         if count > len(rankings):
             raise PalaceOfMemoryDataError(
@@ -66,12 +63,12 @@ class PalaceHistory:
 
     def _history(self) -> dict[date, list[Scrobble]]:
         try:
-            return self.history()
+            return self.source.history()
         except LastFmExportError as exc:
             raise PalaceOfMemoryDataError(str(exc)) from exc
 
     def _random(self, population: int, count: int) -> RandomIndexSet:
         try:
-            return self.random(population, count)
+            return self.source.random(population, count)
         except (ValueError, RandomOrgError) as exc:
             raise PalaceOfMemoryError(str(exc)) from exc

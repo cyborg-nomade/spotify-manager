@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import date
-from datetime import datetime
+from datetime import datetime as datetime
 from functools import partial
 from pathlib import Path
 from typing import Literal
@@ -40,6 +40,9 @@ from spotify_manager.domain.album_recommendations import (
 )
 from spotify_manager.domain.album_selection import SauvignonAction as SauvignonAction
 from spotify_manager.domain.album_selection import SauvignonResult as SauvignonResult
+from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
+from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
+from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 
 # UFI
 from spotify_manager.routines import blast_from_past
@@ -149,9 +152,7 @@ def _album_option(
 ) -> SpotifyAlbumOption | None:
     from spotify_manager.infrastructure.album_recommendations import parse_album_option
 
-    return parse_album_option(
-        raw_track, candidate, search_rank, blast_from_past.matching_spotify_track
-    )
+    return parse_album_option(raw_track, candidate, search_rank)
 
 
 def search_candidate_albums(
@@ -190,7 +191,7 @@ def search_candidate_albums(
     )
     from spotify_manager.infrastructure.album_recommendations import parse_album_search
 
-    return parse_album_search(response, candidate, _album_option)
+    return parse_album_search(response, candidate)
 
 
 def _option_rank(option: SpotifyAlbumOption) -> tuple[float, int, int]:
@@ -230,7 +231,7 @@ def gather_album_recommendations(
     Raises:
         SauvignonSpotifyError: Existing catalog observations are unusable.
     """
-    from spotify_manager.bootstrap.album_recommendations import gather_albums
+    from spotify_manager.interfaces.sauvignon_operations import gather_albums
 
     return gather_albums(
         spotify,
@@ -318,43 +319,30 @@ def append_log(summary: SauvignonSummary, path: Path = DEFAULT_LOG_PATH) -> None
 def fill_sauvignon_from_lastfm(
     spotify: Spotify,
     lastfm: LastFmReader,
-    playlist_id: str,
-    choice_reader: AlbumChoiceReader | None,
-    *,
-    count: int | None = None,
-    max_playlist_length: int | None = DEFAULT_MAX_PLAYLIST_LENGTH,
-    seed_count: int = DEFAULT_SEED_COUNT,
-    dry_run: bool = False,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    export_path: Path = DEFAULT_SCROBBLES_PATH,
-    recent_path: Path = DEFAULT_RECENT_PATH,
-    cache_path: Path = DEFAULT_CACHE_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
-    now: datetime | None = None,
+    options: SauvignonOptions,
+    callbacks: SauvignonCallbacks,
+    resources: SauvignonResources | None = None,
 ) -> SauvignonSummary:
-    """Fill Sauvignon with album-level recommendations inferred from Last.fm."""
-    from spotify_manager.bootstrap.sauvignon import run_sauvignon
+    """Fill Sauvignon with album-level recommendations inferred from Last.fm.
 
-    return run_sauvignon(
-        spotify,
-        lastfm,
-        playlist_id,
-        choice_reader,
-        count,
-        max_playlist_length,
-        seed_count,
-        dry_run,
-        echo,
-        progress_callback,
-        retry_call,
-        export_path,
-        recent_path,
-        cache_path,
-        log_path,
-        now,
+    Args:
+    spotify: Caller-owned client.
+    lastfm: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
+
+    Returns:
+    The original typed summary and accepted effects.
+
+    Raises:
+    RuntimeError: Observations, selections or persistence cannot complete.
+    """
+    from spotify_manager.interfaces.sauvignon_operations import (
+        fill_sauvignon_from_lastfm as operation,
     )
+
+    return operation(spotify, lastfm, options, callbacks, resources)
 
 
 def _append_recommendation_albums(

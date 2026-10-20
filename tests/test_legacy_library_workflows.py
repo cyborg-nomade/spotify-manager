@@ -1,5 +1,14 @@
 """Coverage for still-registered legacy library commands."""
 
+from unittest.mock import Mock
+
+from pytest import MonkeyPatch
+from pytest_mock import MockerFixture
+
+from spotify_manager import loaders_savers as files
+from spotify_manager.application import legacy_library_control as control_stages
+from spotify_manager.application import legacy_library_conversion as conversion_stages
+from spotify_manager.application import legacy_library_refresh as playlist_stages
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
@@ -7,6 +16,8 @@ from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
+from spotify_manager.processors import control_file_processors as control_processors
+from spotify_manager.processors import your_library_processors as export_processors
 from spotify_manager.routines import convert_library_file
 from spotify_manager.routines import count_items
 from spotify_manager.routines import monthly_routine
@@ -86,26 +97,37 @@ def test_comparison_helpers_identify_and_enrich_differences(monkeypatch) -> None
     }
 
 
-def test_compare_library_workflow_persists_generated_diff(monkeypatch) -> None:
+def test_compare_library_workflow_persists_generated_diff(
+    monkeypatch: MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """Verify compare library workflow persists generated diff.
+
+    Args:
+        monkeypatch: Isolated replacements at the actual dependency owners.
+        mocker: Isolated mocks for the original I/O and application boundaries.
+    """
     library = exported_library()
     total = [album("stored", "Stored")]
-    saved: list[dict] = []
-    monkeypatch.setattr(convert_library_file, "load_your_library_file", lambda: library)
-    monkeypatch.setattr(convert_library_file, "load_total_albums_file", lambda: total)
-    monkeypatch.setattr(
-        convert_library_file,
-        "compare_and_get_dict",
-        lambda exported, stored: {"add": exported, "remove": stored},
+    saved: list[dict[str, list[str]]] = []
+    monkeypatch.setattr(files, "load_your_library_file", Mock(return_value=library))
+    monkeypatch.setattr(files, "load_total_albums_file", Mock(return_value=total))
+    comparison_stage = mocker.patch.object(
+        conversion_stages,
+        "compare_ids",
+        return_value={"add": ["exported"], "remove": ["stored"]},
     )
     monkeypatch.setattr(
-        convert_library_file,
+        files,
         "save_comparison_file",
-        lambda value: saved.append(value),
+        Mock(side_effect=saved.append),
     )
 
     convert_library_file.compare_your_library_and_all_albums()
 
     assert saved == [{"add": ["exported"], "remove": ["stored"]}]
+    comparison_stage.assert_called_once_with(
+        ["exported"], ["stored"], mocker.ANY, print
+    )
 
 
 def test_analyse_comparison_checks_both_live_statuses(monkeypatch, mocker) -> None:
@@ -117,7 +139,7 @@ def test_analyse_comparison_checks_both_live_statuses(monkeypatch, mocker) -> No
         [True],
     ]
     monkeypatch.setattr(
-        convert_library_file,
+        files,
         "load_comparison_file",
         lambda: {
             "remove": [{"id": "saved"}, {"id": "removed"}],
@@ -144,18 +166,18 @@ def test_convert_library_applies_confirmed_additions_and_removals(
     stored = [album("remove", "Zeta"), album("keep", "Beta")]
     added = album("add", "Alpha")
     saved: list[list[SimplifiedAlbum]] = []
-    monkeypatch.setattr(convert_library_file, "load_total_albums_file", lambda: stored)
+    monkeypatch.setattr(files, "load_total_albums_file", lambda: stored)
     monkeypatch.setattr(
-        convert_library_file,
+        files,
         "load_comparison_file",
         lambda: {
             "remove": [{"id": "remove"}, {"id": "keep"}],
             "add": [{"id": "add"}, {"id": "skip"}],
         },
     )
-    monkeypatch.setattr(convert_library_file, "enrich_album", lambda *_args: added)
+    monkeypatch.setattr(control_processors, "enrich_album", lambda *_args: added)
     monkeypatch.setattr(
-        convert_library_file,
+        files,
         "save_total_albums_file",
         lambda items: saved.append(list(items)),
     )
@@ -175,19 +197,19 @@ def test_restore_library_only_restores_missing_artists_and_tracks(
     save_track = mocker.Mock()
     artist_statuses = iter([False, True])
     track_statuses = iter([False, True])
-    monkeypatch.setattr(convert_library_file, "load_your_library_file", lambda: library)
+    monkeypatch.setattr(files, "load_your_library_file", lambda: library)
     monkeypatch.setattr(
-        convert_library_file,
+        export_processors,
         "is_in_library_artist",
         lambda *_args: next(artist_statuses),
     )
     monkeypatch.setattr(
-        convert_library_file,
+        export_processors,
         "is_in_library_track",
         lambda *_args: next(track_statuses),
     )
-    monkeypatch.setattr(convert_library_file, "save_to_library_artist", save_artist)
-    monkeypatch.setattr(convert_library_file, "save_to_library_track", save_track)
+    monkeypatch.setattr(export_processors, "save_to_library_artist", save_artist)
+    monkeypatch.setattr(export_processors, "save_to_library_track", save_track)
 
     convert_library_file.restore_your_library_from_file(spotify)
 
@@ -195,42 +217,36 @@ def test_restore_library_only_restores_missing_artists_and_tracks(
     save_track.assert_called_once_with(spotify, library.tracks[0])
 
 
-def test_monthly_routine_runs_each_stage_in_order(monkeypatch, mocker) -> None:
+def test_monthly_routine_runs_each_stage_in_order(
+    monkeypatch: MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """Verify monthly routine runs each stage in order.
+
+    Args:
+        monkeypatch: Isolated replacements at the actual dependency owners.
+        mocker: Isolated mocks for the original I/O and application boundaries.
+    """
     spotify = mocker.Mock()
     control = [ControlFileItem(album=album("stored", "Stored"), result="keep")]
     total = [album("stored", "Stored")]
-    calls: list[str] = []
-    monkeypatch.setattr(monthly_routine, "load_control_file", lambda: control)
-    monkeypatch.setattr(monthly_routine, "load_total_albums_file", lambda: total)
-    monkeypatch.setattr(
-        monthly_routine,
-        "check_album_results",
-        lambda *_args: calls.append("check"),
-    )
-    monkeypatch.setattr(
-        monthly_routine,
-        "update_stats",
-        lambda *_args: calls.append("stats"),
-    )
-    monkeypatch.setattr(
-        monthly_routine,
-        "get_starting_index",
-        lambda *_args: calls.append("index") or 7,
-    )
-    monkeypatch.setattr(
-        monthly_routine,
-        "add_monthly_albums",
-        lambda *args: calls.append(f"add:{args[-1]}"),
-    )
+    mocker.patch.object(files, "load_control_file", return_value=control)
+    mocker.patch.object(files, "load_total_albums_file", return_value=total)
+    stages = mocker.Mock()
+    stages.index.return_value = 7
+    mocker.patch.object(control_stages, "check", stages.check)
+    mocker.patch.object(control_stages, "update_statistics", stages.stats)
+    mocker.patch.object(control_stages, "starting_index", stages.index)
+    mocker.patch.object(playlist_stages, "add_monthly", stages.add)
 
     monthly_routine.run_monthly_routines(spotify)
 
-    assert calls == ["check", "stats", "index", "add:7"]
+    assert [call[0] for call in stages.mock_calls] == ["check", "stats", "index", "add"]
+    assert stages.add.call_args.args[3] == 7
 
 
 def test_count_artists_uses_current_export(monkeypatch) -> None:
     monkeypatch.setattr(
-        count_items,
+        files,
         "load_your_library_file",
         exported_library,
     )

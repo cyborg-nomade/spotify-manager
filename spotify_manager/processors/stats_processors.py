@@ -37,6 +37,9 @@ def update_stats(
     Returns:
         True after accepted publication.
     """
-    return workflow.update_statistics(
-        control_file, total_album_list, calculate_stats, save_stats_file, print
-    )
+    print("Updating stats...")
+    stats = calculate_stats(control_file, total_album_list)
+    print(f"These are your current stats: \n{stats.model_dump()}")
+    save_stats_file(stats)
+    print("Stats updated!")
+    return True

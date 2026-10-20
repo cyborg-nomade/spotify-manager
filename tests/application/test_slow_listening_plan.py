@@ -1,10 +1,14 @@
 """Exercise studio tie ordering and candidate scanning without external services."""
 
+from dataclasses import dataclass
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
+from spotify_manager.application.checkpoints import NamespaceCheckpoint
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
+from spotify_manager.application.slow_listening_plan import SkippedTracks
 from spotify_manager.application.slow_listening_plan import StudioObservations
 from spotify_manager.application.slow_listening_plan import TrackSelection
 from spotify_manager.application.slow_listening_state import release_from_record
@@ -34,10 +38,31 @@ class Choices(MemorySlowListening):
         self.events.append(("decline", spotify_id))
 
 
+@dataclass(frozen=True)
+class ScriptedSkips:
+    """Observe the existing skip-persistence boundary.
+
+    Args:
+        memory: Scripted acceptance and failure observations.
+    """
+
+    memory: Choices
+
+    def remember(self, spotify_id: str) -> None:
+        """Observe one accepted decline.
+
+        Args:
+            spotify_id: Newly declined track.
+        """
+        self.memory.decline(spotify_id)
+
+
 def _ordering(memory: Choices) -> ReleaseOrdering:
     orders: dict[str, object] = {}
     memory.state["release_orders"] = orders
-    return ReleaseOrdering(memory.order, orders, memory.persist)
+    return ReleaseOrdering(
+        memory.order, orders, NamespaceCheckpoint(memory, memory.state, False)
+    )
 
 
 def _selection(memory: Choices) -> TrackSelection:
@@ -48,7 +73,7 @@ def _selection(memory: Choices) -> TrackSelection:
         _ordering(memory),
         memory.choose,
         set(),
-        memory.decline,
+        cast(SkippedTracks, ScriptedSkips(memory)),
     )
 
 

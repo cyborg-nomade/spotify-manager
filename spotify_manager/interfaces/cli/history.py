@@ -1,92 +1,31 @@
 """Synchronous history command execution and unchanged terminal presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
-from typing import Protocol
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmError
-from spotify_manager.routines import found_art
-from spotify_manager.routines import scrobble_history as history
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import scrobble_history as history
 from spotify_manager.settings import Settings
-
-
-class LastFmFactory(Protocol):
-    """Construct the existing caller-owned history reader with its event sink."""
-
-    def __call__(
-        self, api_key: str, username: str, *, event_callback: Callable[[str], None]
-    ) -> history.LastFmReader:
-        """Bind validated credentials to the original reader implementation.
-
-        Args:
-            api_key: Validated read-only credential.
-            username: Validated history owner.
-            event_callback: Command-owned terminal event sink.
-
-        Returns:
-            The original synchronous history reader.
-
-        Raises:
-            ValueError: Original client construction rejects its configuration.
-        """
-        ...
-
-
-class HistoryRefresh(Protocol):
-    """Call the existing history facade with its original keyword-only options."""
-
-    def __call__(
-        self,
-        lastfm: history.LastFmReader,
-        *,
-        expected_username: str,
-        dry_run: bool,
-        full_rebuild: bool,
-        progress_callback: Callable[[str], None],
-    ) -> history.ScrobbleHistorySummary:
-        """Run the original merge or rebuild and return its accepted outcome.
-
-        Args:
-            lastfm: Existing reader owned by this command.
-            expected_username: Original export ownership constraint.
-            dry_run: Original persistence preview flag.
-            full_rebuild: Original complete replacement flag.
-            progress_callback: Command-owned Rich status sink.
-
-        Returns:
-            Original accepted history summary.
-
-        Raises:
-            history.ScrobbleHistoryError: Original refresh cannot publish safely.
-            LastFmError: Original Last.fm reads fail.
-        """
-        ...
 
 
 @dataclass
 class HistoryCommand:
-    """Own a console and explicit history dependencies for one command invocation.
+    """Refresh history with named validation, execution and presentation steps.
 
     Args:
-        console: Caller-created Rich console, retaining original creation order.
-        configuration: Caller-created settings, retaining facade override seams.
-        validate: Original configuration validator and error ordering.
-        create_client: Original Last.fm reader constructor.
-        refresh: Original routine entry point, retaining all persistence defaults.
-        present: Original summary presenter, also available through the facade.
+        console: Operator-facing Rich console.
+        configuration: Settings observed at the original command boundary.
     """
 
     console: Console
     configuration: Settings
-    validate: Callable[[str | None, str | None], tuple[str, str]]
-    create_client: LastFmFactory
-    refresh: HistoryRefresh
-    present: Callable[[Console, history.ScrobbleHistorySummary], None]
 
     def run(self, full_rebuild: bool, dry_run: bool) -> None:
         """Run the original configuration, refresh and rendering sequence.
@@ -101,7 +40,7 @@ class HistoryCommand:
         lastfm, username = self._client()
         try:
             with self.console.status("Refreshing Last.fm scrobble history") as status:
-                summary = self.refresh(
+                summary = history.refresh_scrobble_history(
                     lastfm,
                     expected_username=username,
                     dry_run=dry_run,
@@ -110,7 +49,7 @@ class HistoryCommand:
                 )
         except (history.ScrobbleHistoryError, LastFmError) as error:
             self._fail(error)
-        self.present(self.console, summary)
+        present_history_summary(self.console, summary)
 
     def echo(self, message: str) -> None:
         """Present the original yellow Last.fm event text without a closure.
@@ -122,13 +61,13 @@ class HistoryCommand:
 
     def _client(self) -> tuple[history.LastFmReader, str]:
         try:
-            key, username = self.validate(
+            key, username = found_art.validate_lastfm_configuration(
                 self.configuration.lastfm_api_key,
                 self.configuration.lastfm_username,
             )
         except found_art.FoundArtConfigError as error:
             self._fail(error)
-        return self.create_client(key, username, event_callback=self.echo), username
+        return lastfm_client(LastFmCredentials(key, username), self.echo), username
 
     def _fail(
         self,

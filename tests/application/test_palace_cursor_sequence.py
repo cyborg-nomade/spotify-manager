@@ -2,15 +2,34 @@
 
 import json
 from dataclasses import asdict
+from dataclasses import dataclass
 from typing import cast
 
 import pytest
 
 from spotify_manager.application.palace_cursor import PalaceCursor
+from spotify_manager.application.palace_mirror import SavedMirror
+from spotify_manager.application.palace_values import SavedAlbumRefresh
+from spotify_manager.models.your_library import YourLibraryAlbum
 from tests.application.test_palace_workflow import MemoryPalace
 from tests.support.palace_run import FIXTURE
 from tests.support.palace_run import PalaceObservations
 from tests.support.palace_run import cursor_outcome
+
+
+@dataclass(frozen=True)
+class ScriptedMirror:
+    """Supply the original observed child-stage result.
+
+    Args:
+        effects: Scripted mirror reads and failures.
+    """
+
+    effects: MemoryPalace
+
+    def run(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
+        """Return the existing scripted mirror refresh outcome."""
+        return self.effects.refresh()
 
 
 def _cases() -> list[dict[str, object]]:
@@ -26,10 +45,8 @@ def _outcome(position: int, failure: str | None) -> object:
     result: dict[str, object] = {}
     try:
         update = PalaceCursor(
-            effects.progress,
-            effects.refresh,
-            effects.state_access,
-            effects.cursor_payload,
+            effects,
+            cast(SavedMirror, ScriptedMirror(effects)),
         ).update(position)
         result["result"] = {
             "next_index": update.next_index,

@@ -1,9 +1,9 @@
 """Plan New Wine transitions at the original observation and interaction boundaries."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 
+from spotify_manager.application.new_wine_execution import WineExecution
 from spotify_manager.application.new_wine_observations import WineObservations
 from spotify_manager.application.new_wine_plans import drop_plan
 from spotify_manager.application.new_wine_plans import progression_plan
@@ -61,7 +61,7 @@ class WinePlanner:
         endpoint_reader: Optional endpoint callback, required when mode is active.
         endpoint_mode: Whether to ask for album/EP endpoints.
         dry_run: Whether skip results describe a preview.
-        checkpoint: Callback saving accepted endpoint choices at the original boundary.
+        execution: Named effect stage owning accepted endpoint checkpoints.
         presentation: Existing planning messages rendered at their original boundaries.
     """
 
@@ -71,7 +71,7 @@ class WinePlanner:
     endpoint_reader: EndpointChoiceReader | None
     endpoint_mode: bool
     dry_run: bool
-    checkpoint: Callable[[], None]
+    execution: WineExecution
     presentation: NewWinePresentation
 
     def plan(self, source: PlaylistTrack, entry: dict[str, object]) -> WineDecision:
@@ -153,7 +153,7 @@ class WinePlanner:
             raise NewWineError("The album endpoint choice is not available.")
         facts.endpoint = choice
         facts.entry["endpoint_choice"] = choice
-        self.checkpoint()
+        self.execution.checkpoint()
         return choice
 
     def _primary(self, facts: SourceObservations) -> WineDecision:

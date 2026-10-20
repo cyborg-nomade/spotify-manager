@@ -1,42 +1,26 @@
 """Explicit library commands CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
-from spotipy import Spotify
-
-from spotify_manager.models.albums import SimplifiedAlbum
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import legacy_library as operations
 
 
 @dataclass(kw_only=True)
 class LibraryCommandsCLI:
-    """Run the supported legacy library commands through their original dependencies.
+    """Run the original ordered library maintenance commands.
 
     Args:
-        analyse_comparison: Original live library comparison operation.
-        client: Original cached Spotify client factory.
-        compare_your_library_and_all_albums: Original export comparison operation.
-        convert_your_library_file: Original export conversion operation.
-        count_artists_in_library: Original artist counting operation.
-        restore_your_library_from_file: Original library restoration operation.
-        run_monthly_routines: Original monthly workflow entry point.
-        update_total_album_list: Original saved-album pagination operation.
+        runtime: Lazy client, configuration and shared-service resources.
     """
 
-    analyse_comparison: Callable[..., None]
-    client: Callable[..., Spotify]
-    compare_your_library_and_all_albums: Callable[..., None]
-    convert_your_library_file: Callable[..., None]
-    count_artists_in_library: Callable[..., int]
-    restore_your_library_from_file: Callable[..., None]
-    run_monthly_routines: Callable[..., None]
-    update_total_album_list: Callable[..., list[SimplifiedAlbum]]
+    runtime: CliResources
 
     def _monthly_routines(self) -> None:
         """Run monthly routines."""
-        self.compare_your_library_and_all_albums()
-        self.convert_your_library_file(self.client())
-        self.run_monthly_routines(self.client())
+        operations.compare_your_library_and_all_albums()
+        operations.convert_your_library_file(self.runtime.client())
+        operations.run_monthly_routines(self.runtime.client())
 
     def _update_total_albums(self, just_update: bool) -> None:
         """Update total album list, optional flag to just add the remaining pages.
@@ -44,20 +28,20 @@ class LibraryCommandsCLI:
         Args:
             just_update: Just update supplied by the caller.
         """
-        self.update_total_album_list(self.client(), just_update)
+        operations.update_total_album_list(self.runtime.client(), just_update)
 
     def _restore_your_library(self) -> None:
-        self.restore_your_library_from_file(self.client())
+        operations.restore_your_library_from_file(self.runtime.client())
 
     def _compare_lib_files(self) -> None:
-        self.compare_your_library_and_all_albums()
+        operations.compare_your_library_and_all_albums()
 
     def _analyse_comp(self) -> None:
-        self.analyse_comparison(self.client())
+        operations.analyse_comparison(self.runtime.client())
 
     def _convert_lib(self) -> None:
-        self.convert_your_library_file(self.client())
+        operations.convert_your_library_file(self.runtime.client())
 
     def _count_artists(self) -> None:
         """Print the number of artists in the YourLibrary file."""
-        print(self.count_artists_in_library())
+        print(operations.count_artists_in_library())

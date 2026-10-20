@@ -3,21 +3,19 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-from datetime import datetime
 
 from spotify_manager.application.historical_values import BlastFromPastBatch
 from spotify_manager.application.historical_values import BlastFromPastError
 from spotify_manager.application.historical_values import DailyMindRadioBatch
 from spotify_manager.application.historical_values import LastFmExportError
-from spotify_manager.application.historical_values import RandomIndexSet
+from spotify_manager.application.ports.history import HistoricalInputs
 from spotify_manager.domain.history import Scrobble
-from spotify_manager.domain.history import ScrobbleSelection
+from spotify_manager.domain.history import anniversary_dates
+from spotify_manager.domain.history import eligible_dates
+from spotify_manager.domain.history import select_scrobble
 
 
 type HistoryByDate = dict[date, list[Scrobble]]
-type ScrobbleSelector = Callable[
-    [date, int, list[Scrobble], datetime], ScrobbleSelection
-]
 
 
 @dataclass(frozen=True)
@@ -25,19 +23,11 @@ class BlastSelection:
     """Select the Friday routine's dates before applying its timestamp pagination.
 
     Args:
-        history: Read the existing local history buckets.
-        cutoff: Resolve the effective inclusive historical cutoff.
-        eligible: Apply the existing earliest-date and populated-date policy.
-        random: Request unique date indexes and their shared timestamp.
-        select: Apply the original track-page policy.
+        inputs: File, calendar settings and external random observations.
         progress: Present existing progress messages.
     """
 
-    history: Callable[[], HistoryByDate]
-    cutoff: Callable[[], date]
-    eligible: Callable[[HistoryByDate, date], list[date]]
-    random: Callable[[int, int], RandomIndexSet]
-    select: ScrobbleSelector
+    inputs: HistoricalInputs
     progress: Callable[[str], None]
 
     def run(self, count: int) -> BlastFromPastBatch:
@@ -56,18 +46,24 @@ class BlastSelection:
         if count < 1:
             raise BlastFromPastError("Count must be at least 1.")
         self.progress("Loading Last.fm scrobbles")
-        history = self.history()
-        cutoff = self.cutoff()
-        available = self.eligible(history, cutoff)
+        history = self.inputs.history()
+        cutoff = self.inputs.cutoff()
+        available = eligible_dates(history, self.inputs.first_date, cutoff)
         _validate_population(count, available, cutoff)
         self.progress("Requesting unique date indexes from Random.org")
-        indexes = self.random(len(available), count)
+        indexes = self.inputs.random(len(available), count)
         self.progress("Applying Last.fm pagination rules")
         selections = []
         for index in indexes.indexes:
             day = available[index]
             selections.append(
-                self.select(day, index, history[day], indexes.generated_at)
+                select_scrobble(
+                    day,
+                    index,
+                    history[day],
+                    indexes.generated_at,
+                    self.inputs.page_size,
+                )
             )
         return BlastFromPastBatch(
             indexes.generated_at, cutoff, len(available), tuple(selections)
@@ -103,19 +99,11 @@ class AnniversarySelection:
     """Select anniversary dates without losing indexes for missing history buckets.
 
     Args:
-        history: Read the existing history buckets.
-        today: Resolve the effective local date after loading history.
-        anniversaries: Apply the original year interval and leap-date policy.
-        random: Read one shared timestamp only when a target date is populated.
-        select: Apply the existing track-page policy.
+        inputs: File, calendar settings and external random observations.
         progress: Present existing progress messages.
     """
 
-    history: Callable[[], HistoryByDate]
-    today: Callable[[], date]
-    anniversaries: Callable[[date, int], tuple[date, ...]]
-    random: Callable[[], datetime]
-    select: ScrobbleSelector
+    inputs: HistoricalInputs
     progress: Callable[[str], None]
 
     def run(self) -> DailyMindRadioBatch:
@@ -128,23 +116,27 @@ class AnniversarySelection:
             LastFmExportError: The history has no date buckets.
         """
         self.progress("Loading Last.fm scrobbles")
-        history = self.history()
+        history = self.inputs.history()
         if not history:
             raise LastFmExportError(
                 "The Last.fm export does not contain any scrobbles."
             )
-        current = self.today()
-        targets = self.anniversaries(current, min(day.year for day in history))
+        current = self.inputs.today()
+        targets = anniversary_dates(
+            current, min(day.year for day in history), self.inputs.anniversary_interval
+        )
         populated, missing = _partition_dates(targets, history)
         if not populated:
             return DailyMindRadioBatch(None, targets, missing, ())
         self.progress("Requesting a selection timestamp from Random.org")
-        generated_at = self.random()
+        generated_at = self.inputs.timestamp()
         self.progress("Applying Last.fm pagination rules")
         indexes = {day: index for index, day in enumerate(targets)}
         selections = []
         for day in populated:
             selections.append(
-                self.select(day, indexes[day], history[day], generated_at)
+                select_scrobble(
+                    day, indexes[day], history[day], generated_at, self.inputs.page_size
+                )
             )
         return DailyMindRadioBatch(generated_at, targets, missing, tuple(selections))

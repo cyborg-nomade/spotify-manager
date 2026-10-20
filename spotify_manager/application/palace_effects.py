@@ -1,13 +1,9 @@
 """Caller-owned mirror, history, catalog, cursor and accepted-effect seams."""
 
-from datetime import date
-from datetime import datetime
 from typing import Protocol
 
 from spotify_manager.application.palace_values import PalaceOfMemorySummary
-from spotify_manager.application.palace_values import SavedAlbumRefresh
 from spotify_manager.domain.history_matching import PlaylistState
-from spotify_manager.domain.palace_values import HistoricalAlbumSelection
 from spotify_manager.domain.palace_values import SpotifyAlbum
 from spotify_manager.domain.palace_values import SpotifyFirstTrack
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -44,13 +40,6 @@ class PalaceEffects(Protocol):
             message: Original visible stage.
         """
 
-    def refresh(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
-        """Refresh original canonical live mirror even in preview.
-
-        Returns:
-            Original complete saved facts and publication result.
-        """
-
     def state_access(self) -> PalaceStateAccess:
         """Resolve original caller-owned durable cursor access.
 
@@ -73,15 +62,6 @@ class PalaceEffects(Protocol):
 
         Returns:
             Original selected zero-based position.
-        """
-
-    def historical(
-        self,
-    ) -> tuple[datetime, date, int, tuple[HistoricalAlbumSelection, ...]]:
-        """Gather original history and Random.org selection facts.
-
-        Returns:
-            Original timestamp, cutoff, eligible count and selected albums.
         """
 
     def playlist(self, recheck: bool) -> PlaylistState:

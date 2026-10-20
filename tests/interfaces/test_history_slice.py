@@ -7,8 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.bootstrap import clients
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.routines import scrobble_history
 from tests.interfaces.test_discovery_slice import _wait
@@ -19,8 +19,8 @@ from tests.routines.test_scrobble_history import FakeLastFm
 
 def _lastfm(monkeypatch: pytest.MonkeyPatch) -> FakeLastFm:
     client = FakeLastFm((LastFmRecentTrack("New Artist", "New Play", "New Album", 2),))
-    monkeypatch.setattr(api, "LastFmClient", Mock(return_value=client))
-    monkeypatch.setattr(main, "LastFmClient", Mock(return_value=client))
+    monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=client))
+    monkeypatch.setattr(clients, "LastFmClient", Mock(return_value=client))
     return client
 
 

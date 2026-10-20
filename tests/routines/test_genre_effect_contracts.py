@@ -13,6 +13,7 @@ import pytest
 from spotipy import Spotify
 
 from spotify_manager.domain.history_matching import PlaylistState
+from spotify_manager.infrastructure.genre_pages import GenrePages
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import genre_reveal as legacy
 
@@ -47,14 +48,14 @@ class GenreEffects:
             raise GenreEffectFailureError(event)
 
     def source(
-        self, slug: str, name: str, reader: legacy.PageReader
+        self, slug: str, name: str, pages: GenrePages
     ) -> legacy._GenrePlaylistSource:
         """Observe original source discovery before destination reads.
 
         Args:
             slug: Genre route identity.
             name: Genre display name.
-            reader: Original public-page reader.
+            pages: Named public-page resource.
 
         Returns:
             Original preview and ordered markers.
@@ -132,7 +133,7 @@ class GenreClock(datetime):
 
 
 def _bind(monkeypatch: pytest.MonkeyPatch, effects: GenreEffects) -> None:
-    monkeypatch.setattr(legacy, "load_genre_playlist_source", effects.source)
+    monkeypatch.setattr(legacy, "_load_genre_playlist_source", effects.source)
     monkeypatch.setattr(blast_from_past, "load_playlist_state", effects.destination)
     monkeypatch.setattr(legacy, "append_genre_reveal_log", effects.audit)
     monkeypatch.setattr(GenreClock, "effects", effects, raising=False)

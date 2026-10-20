@@ -1,8 +1,8 @@
 """Retain original review JSON, audit bytes, mirror publication and log replay."""
 
 import json
-from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 from typing import cast
 
 from pydantic import BaseModel
@@ -14,8 +14,76 @@ from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.utils.sorting import artist_sort_key
 
 
-JsonReader = Callable[[Path, object], object]
-JsonWriter = Callable[[Path, object], None]
+class ReviewJsonStore(Protocol):
+    """Read, accept and publish review JSON through a named storage owner."""
+
+    def read(self, path: Path, default: object) -> object:
+        """Read permissive JSON.
+
+        Args:
+            path: File location.
+            default: Missing-file value.
+
+        Returns:
+            Persisted value or the same default.
+        """
+        ...
+
+    def write(self, path: Path, value: object) -> None:
+        """Accept complete JSON atomically.
+
+        Args:
+            path: File location.
+            value: Complete payload.
+        """
+        ...
+
+    def publish(self, path: Path) -> None:
+        """Publish an accepted artist mirror.
+
+        Args:
+            path: Accepted mirror location.
+        """
+        ...
+
+
+class ReviewJsonFiles:
+    """Adapt original public review file seams at their compatibility edge."""
+
+    def read(self, path: Path, default: object) -> object:
+        """Read permissive JSON.
+
+        Args:
+            path: File location.
+            default: Missing-file value.
+
+        Returns:
+            Persisted value or the same default.
+        """
+        from spotify_manager.routines.review_artists import load_json
+
+        return load_json(path, default)
+
+    def write(self, path: Path, value: object) -> None:
+        """Accept complete JSON atomically.
+
+        Args:
+            path: File location.
+            value: Complete payload.
+        """
+        from spotify_manager.routines.review_artists import write_json_atomic
+
+        write_json_atomic(path, value)
+
+    def publish(self, path: Path) -> None:
+        """Publish an accepted artist mirror.
+
+        Args:
+            path: Accepted mirror location.
+        """
+        from spotify_manager.routines.review_artists import publish_managed_path
+
+        publish_managed_path(path, source="artist review")
 
 
 def load_json(path: Path, default: object) -> object:
@@ -80,14 +148,14 @@ def append_events(path: Path, events: list[dict[str, object]]) -> None:
 
 
 def load_models[T: BaseModel](
-    path: Path, model_type: type[T], read: JsonReader
+    path: Path, model_type: type[T], store: ReviewJsonStore
 ) -> list[T]:
     """Retain original complete model construction and missing-file empty lists.
 
     Args:
         path: Original canonical mirror.
         model_type: Original complete validation model.
-        read: Original caller-owned JSON read boundary.
+        store: Named JSON storage owner.
 
     Returns:
         Original complete validated models in stored order.
@@ -96,7 +164,7 @@ def load_models[T: BaseModel](
         ArtistReviewError: Original root is not a list.
         ValueError: An original model record cannot be validated.
     """
-    raw = read(path, [])
+    raw = store.read(path, [])
     if not isinstance(raw, list):
         raise ArtistReviewError(f"Expected a JSON list in {path}.")
     return [model_type.model_validate(item) for item in raw]
@@ -105,31 +173,29 @@ def load_models[T: BaseModel](
 def save_artists(
     path: Path,
     artists: list[YourLibraryArtist],
-    write: JsonWriter,
-    publish: Callable[[Path], object],
+    store: ReviewJsonStore,
 ) -> None:
     """Sort caller-owned artists, replace their mirror, then publish in that order.
 
     Args:
         path: Original canonical destination.
         artists: Original same mutable list to sort and persist.
-        write: Original caller-owned atomic JSON writer.
-        publish: Original canonical mirror publication boundary.
+        store: Atomic write and subsequent mirror publication owner.
     """
     artists.sort(key=artist_sort_key)
-    write(path, [artist.model_dump() for artist in artists])
-    publish(path)
+    store.write(path, [artist.model_dump() for artist in artists])
+    store.publish(path)
 
 
 def load_cache(
-    path: Path, refresh: bool, read: JsonReader
+    path: Path, refresh: bool, store: ReviewJsonStore
 ) -> dict[str, dict[str, object]]:
     """Retain original refresh-before-read and shallow catalog-cache validation.
 
     Args:
         path: Original complete metadata file.
         refresh: Original option to skip the existing cache.
-        read: Original caller-owned JSON read boundary.
+        store: Named JSON storage owner.
 
     Returns:
         Original same mutable complete metadata object or an empty refresh.
@@ -139,7 +205,7 @@ def load_cache(
     """
     if refresh:
         return {}
-    raw = read(path, {})
+    raw = store.read(path, {})
     if not isinstance(raw, dict):
         raise ArtistReviewError(f"Expected a JSON object in {path}.")
     return cast(dict[str, dict[str, object]], raw)

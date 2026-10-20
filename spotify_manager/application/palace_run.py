@@ -6,6 +6,8 @@ from datetime import datetime
 
 from spotify_manager.application.palace_effects import PalaceEffects
 from spotify_manager.application.palace_effects import PalaceStateAccess
+from spotify_manager.application.palace_history import PalaceHistory
+from spotify_manager.application.palace_mirror import SavedMirror
 from spotify_manager.application.palace_planning import PalacePlanning
 from spotify_manager.application.palace_values import PalaceOfMemorySummary
 from spotify_manager.application.palace_values import SavedAlbumRefresh
@@ -44,11 +46,17 @@ class Palace:
 
     Args:
         effects: Original caller-owned observation and accepted-effect seams.
+        mirror: Named saved-album refresh and publication stage.
+        history: Named complete canonical history or historical-selection stage.
+        history_count: Configured original historical selection count.
         alphabetical_count: Original configured consecutive selection size.
         match_threshold: Original saved-edition qualification threshold.
     """
 
     effects: PalaceEffects
+    mirror: SavedMirror
+    history: PalaceHistory
+    history_count: int = 5
     alphabetical_count: int = 5
     match_threshold: float = 0.9
 
@@ -66,7 +74,7 @@ class Palace:
             Original complete selected and classified outcome.
         """
         opened = self._open(override)
-        generated, cutoff, available, historical = self.effects.historical()
+        generated, cutoff, available, historical = self.history.run(self.history_count)
         self.effects.progress("Loading Palace of Memory")
         initial = self.effects.playlist(False)
         planner = PalacePlanning(self.effects, opened.saved, self.match_threshold)
@@ -121,7 +129,7 @@ class Palace:
 
     def _open(self, override: str | None) -> _OpenedPalace:
         self.effects.progress("Refreshing the saved-album mirror")
-        saved, refresh = self.effects.refresh()
+        saved, refresh = self.mirror.run()
         state = self.effects.state_access()
         cursor = state.load()
         start = self.effects.start_index(saved, override, cursor)

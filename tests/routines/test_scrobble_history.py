@@ -3,12 +3,17 @@ import gzip
 import json
 from datetime import UTC
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from spotify_manager.client.lastfm import LastFmRecentTrack
+from spotify_manager.core.library_data.service import LibraryDataService
+from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryStorage
 from spotify_manager.routines import scrobble_history
+from tests.support.history_dependencies import hydrate_history
 
 
 class FakeLastFm:
@@ -153,12 +158,9 @@ def test_managed_refresh_hydrates_and_publishes_even_when_current(
             calls.append(("publish", f"{name}:{source}"))
 
     monkeypatch.setattr(
-        scrobble_history, "artifact_for_path", lambda _path: "scrobbles"
-    )
-    monkeypatch.setattr(
-        scrobble_history,
-        "get_library_data_service",
-        lambda: DataService(),
+        LegacyHistoryStorage,
+        "hydrate",
+        partialmethod(hydrate_history, cast(LibraryDataService, DataService())),
     )
 
     summary = scrobble_history.refresh_scrobble_history(

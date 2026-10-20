@@ -6,7 +6,7 @@ from typing import Literal
 
 from spotify_manager.application.historical_values import SpotifySelectionResolution
 from spotify_manager.application.historical_values import SpotifySelectionResult
-from spotify_manager.domain.history import Scrobble
+from spotify_manager.application.ports.history import HistoricalMatchCatalog
 from spotify_manager.domain.history import ScrobbleSelection
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
@@ -59,18 +59,14 @@ class HistoricalResolution:
     """Observe every search before liked status and preserve selection-order decisions.
 
     Args:
-        search: Search one selected play using the existing adapter semantics.
-        liked: Read liked status for all ordered match groups.
+        catalog: Original search and liked-membership integration.
         check_cancel: Existing per-selection cancellation boundary.
         progress: Existing progress presenter.
-        album_threshold: Existing overridable album qualification threshold.
     """
 
-    search: Callable[[Scrobble], tuple[SpotifyTrackMatch, ...]]
-    liked: Callable[[list[tuple[SpotifyTrackMatch, ...]]], set[str]]
+    catalog: HistoricalMatchCatalog
     check_cancel: Callable[[], None]
     progress: Callable[[str], None]
-    album_threshold: float = 0.9
 
     def run(
         self, selections: tuple[ScrobbleSelection, ...], playlist: PlaylistState
@@ -88,14 +84,15 @@ class HistoricalResolution:
             BlastFromPastCancelledError: Cancellation is requested.
             SpotifyTrackResolutionError: An observation returns unusable data.
         """
+        threshold = self.catalog.album_threshold
         groups = []
         for index, selection in enumerate(selections, start=1):
             self.check_cancel()
             self.progress(f"Searching Spotify track {index}/{len(selections)}")
-            groups.append(self.search(selection.scrobble))
+            groups.append(self.catalog.search(selection.scrobble))
         self.progress("Checking liked Spotify matches")
-        liked = self.liked(groups)
-        return _project(selections, groups, liked, playlist, self.album_threshold)
+        liked = self.catalog.liked(groups)
+        return _project(selections, groups, liked, playlist, threshold)
 
 
 def direct_call(operation: Callable[[], object], _description: str) -> object:

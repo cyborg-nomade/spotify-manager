@@ -173,7 +173,7 @@ class HistoryMemory:
 
 def _workflow(memory: HistoryMemory) -> HistoryRefresh:
     return HistoryRefresh(
-        memory, memory.fetch, memory.clock, memory.cancel, memory.messages.append
+        memory, memory, memory.clock, memory.cancel, memory.messages.append
     )
 
 

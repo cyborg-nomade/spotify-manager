@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from spotify_manager.application.ports.history import HistoricalMatches
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
@@ -16,15 +17,13 @@ class RecommendationResolution:
     """Search complete batches before reading liked status and projecting candidates.
 
     Args:
-        search: Existing album-free search boundary.
-        liked: Existing complete-batch liked-status boundary.
+        catalog: Existing search and liked-membership integration.
         progress: Original progress presenter.
         batch_size: Original observation batch size.
         multiplier: Original candidate search limit multiplier.
     """
 
-    search: Callable[[Scrobble], tuple[SpotifyTrackMatch, ...]]
-    liked: Callable[[list[tuple[SpotifyTrackMatch, ...]]], set[str]]
+    catalog: HistoricalMatches
     progress: Callable[[str], None]
     batch_size: int = 10
     multiplier: int = 10
@@ -59,7 +58,7 @@ class RecommendationResolution:
             batch = candidates[start : start + self.batch_size]
             groups = self._search(batch, start, maximum, selection)
             self.progress("Checking candidates against Spotify Liked Songs")
-            liked_ids = self.liked(groups)
+            liked_ids = self.catalog.liked(groups)
             self._project(batch, groups, liked_ids, selection)
         return tuple(selection.results), tuple(selection.pending)
 
@@ -77,7 +76,7 @@ class RecommendationResolution:
                 continue
             self.progress(f"Searching Spotify candidate {index}/{maximum}")
             play = Scrobble(candidate.track, candidate.artist, "", 0)
-            groups.append(self.search(play))
+            groups.append(self.catalog.search(play))
         return groups
 
     def _project(

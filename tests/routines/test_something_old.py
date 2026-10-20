@@ -1,15 +1,21 @@
 import json
 from datetime import UTC
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from spotify_manager.application.history_refresh import HistoryRefresh
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines import something_old
+from tests.support.history_dependencies import something_old_history
 
 
 class FakeSpotify:
@@ -112,9 +118,7 @@ def patch_history_refresh(
         return history_summary(dry_run=bool(kwargs["dry_run"]))
 
     monkeypatch.setattr(
-        something_old.scrobble_history,
-        "refresh_scrobble_history",
-        refresh,
+        HistoryRefresh, "run", partialmethod(something_old_history, refresh)
     )
 
 
@@ -147,18 +151,23 @@ def test_nonempty_playlist_stops_before_refresh_or_prompt(
         ]
     )
     monkeypatch.setattr(
-        something_old.scrobble_history,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: pytest.fail("history should not refresh"),
+        HistoryRefresh,
+        "run",
+        partialmethod(
+            something_old_history,
+            lambda *_args, **_kwargs: pytest.fail("history should not refresh"),
+        ),
     )
 
     summary = something_old.run_something_old(
         spotify,
         object(),
-        "playlist",
-        expected_username="man-et-arms",
-        mode_reader=lambda *_args: pytest.fail("should not prompt"),
-        album_choice_reader=lambda *_args: pytest.fail("should not prompt"),
+        SomethingOldOptions(playlist_id="playlist", expected_username="man-et-arms"),
+        SomethingOldCallbacks(
+            mode_reader=lambda *_args: pytest.fail("should not prompt"),
+            album_choice_reader=lambda *_args: pytest.fail("should not prompt"),
+        ),
+        SomethingOldResources(),
     )
 
     assert summary.action == "playlist not empty"
@@ -176,11 +185,16 @@ def test_dry_run_uses_fresh_oldest_artist_without_mutating(
     summary = something_old.run_something_old(
         spotify,
         object(),
-        "playlist",
-        expected_username="man-et-arms",
-        mode_reader=lambda *_args: "spotify_top_tracks",
-        album_choice_reader=lambda *_args: pytest.fail("album prompt is not needed"),
-        dry_run=True,
+        SomethingOldOptions(
+            playlist_id="playlist", expected_username="man-et-arms", dry_run=True
+        ),
+        SomethingOldCallbacks(
+            mode_reader=lambda *_args: "spotify_top_tracks",
+            album_choice_reader=lambda *_args: pytest.fail(
+                "album prompt is not needed"
+            ),
+        ),
+        SomethingOldResources(),
     )
 
     assert received["dry_run"] is True
@@ -203,11 +217,14 @@ def test_real_run_rechecks_empty_playlist_then_logs_exact_addition(
     summary = something_old.run_something_old(
         spotify,
         object(),
-        "playlist",
-        expected_username="man-et-arms",
-        mode_reader=lambda *_args: "spotify_top_tracks",
-        album_choice_reader=lambda *_args: pytest.fail("album prompt is not needed"),
-        log_path=log_path,
+        SomethingOldOptions(playlist_id="playlist", expected_username="man-et-arms"),
+        SomethingOldCallbacks(
+            mode_reader=lambda *_args: "spotify_top_tracks",
+            album_choice_reader=lambda *_args: pytest.fail(
+                "album prompt is not needed"
+            ),
+        ),
+        SomethingOldResources(log_path=log_path),
     )
 
     assert summary.action == "added"
@@ -257,13 +274,16 @@ def test_real_run_refuses_to_add_if_playlist_fills_during_selection(
         something_old.run_something_old(
             spotify,
             object(),
-            "playlist",
-            expected_username="man-et-arms",
-            mode_reader=lambda *_args: "spotify_top_tracks",
-            album_choice_reader=lambda *_args: pytest.fail(
-                "album prompt is not needed"
+            SomethingOldOptions(
+                playlist_id="playlist", expected_username="man-et-arms"
             ),
-            log_path=log_path,
+            SomethingOldCallbacks(
+                mode_reader=lambda *_args: "spotify_top_tracks",
+                album_choice_reader=lambda *_args: pytest.fail(
+                    "album prompt is not needed"
+                ),
+            ),
+            SomethingOldResources(log_path=log_path),
         )
 
     assert spotify.playlist_calls == 2
@@ -312,11 +332,14 @@ def test_album_mode_adds_the_complete_chronological_release_choice(
     summary = something_old.run_something_old(
         spotify,
         object(),
-        "playlist",
-        expected_username="man-et-arms",
-        mode_reader=lambda *_args: "album",
-        album_choice_reader=lambda _artist, releases: releases[0].spotify_id,
-        dry_run=True,
+        SomethingOldOptions(
+            playlist_id="playlist", expected_username="man-et-arms", dry_run=True
+        ),
+        SomethingOldCallbacks(
+            mode_reader=lambda *_args: "album",
+            album_choice_reader=lambda _artist, releases: releases[0].spotify_id,
+        ),
+        SomethingOldResources(),
     )
 
     assert summary.release == release

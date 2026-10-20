@@ -15,7 +15,6 @@ from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.routines import new_wine
-from spotify_manager.routines import slow_listening as legacy
 
 
 @dataclass
@@ -48,10 +47,10 @@ class LegacySlowListening:
         Raises:
             SlowListeningError: Original shared playlist parsing fails.
         """
+        from spotify_manager.routines.new_wine import load_playlist_tracks
+
         try:
-            return new_wine.load_playlist_tracks(
-                self.client, self.playlist_id, self.retry
-            )
+            return load_playlist_tracks(self.client, self.playlist_id, self.retry)
         except new_wine.NewWineError as exc:
             raise SlowListeningError(str(exc)) from exc
 
@@ -64,8 +63,11 @@ class LegacySlowListening:
         Returns:
             Original namespace or preview defaults.
         """
-        self._state_access = legacy._state_access(self.state_path, self.state_service)
-        return legacy._default_state() if dry_run else self._state_access.load()
+        from spotify_manager.routines.slow_listening import _default_state
+        from spotify_manager.routines.slow_listening import _state_access
+
+        self._state_access = _state_access(self.state_path, self.state_service)
+        return _default_state() if dry_run else self._state_access.load()
 
     def save(self, state: dict[str, object]) -> None:
         """Persist one checkpoint through the original namespace adapter.
@@ -89,7 +91,9 @@ class LegacySlowListening:
         Returns:
             Selected studio editions in legacy order.
         """
-        return legacy.load_discography(self.client, artist_id, self.retry)
+        from spotify_manager.routines.slow_listening import load_discography
+
+        return load_discography(self.client, artist_id, self.retry)
 
     def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read playable tracks on one selected edition.
@@ -100,7 +104,9 @@ class LegacySlowListening:
         Returns:
             Original ordered track values.
         """
-        return legacy.load_release_tracks(self.client, release, self.retry)
+        from spotify_manager.routines.slow_listening import load_release_tracks
+
+        return load_release_tracks(self.client, release, self.retry)
 
     def append(self, target: ReleaseTrack) -> None:
         """Append one accepted replacement.
@@ -108,7 +114,9 @@ class LegacySlowListening:
         Args:
             target: Selected replacement track.
         """
-        legacy._add_playlist_track(self.client, self.playlist_id, target, self.retry)
+        from spotify_manager.routines.slow_listening import _add_playlist_track
+
+        _add_playlist_track(self.client, self.playlist_id, target, self.retry)
 
     def remove(self, source: PlaylistTrack) -> None:
         """Remove one source after securing its replacement.
@@ -116,7 +124,9 @@ class LegacySlowListening:
         Args:
             source: Original playlist marker.
         """
-        legacy._remove_playlist_track(self.client, self.playlist_id, source, self.retry)
+        from spotify_manager.routines.slow_listening import _remove_playlist_track
+
+        _remove_playlist_track(self.client, self.playlist_id, source, self.retry)
 
     def audit(self, run_id: str, result: FlushResult) -> None:
         """Append the original audit record, including during previews.
@@ -125,4 +135,6 @@ class LegacySlowListening:
             run_id: Original execution identifier.
             result: Transition result.
         """
-        legacy.append_log(run_id, result, self.log_path)
+        from spotify_manager.routines.slow_listening import append_log
+
+        append_log(run_id, result, self.log_path)

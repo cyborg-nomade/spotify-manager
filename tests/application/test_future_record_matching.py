@@ -2,7 +2,7 @@
 
 import pytest
 
-from spotify_manager.application.future_release import matching_future_record
+from spotify_manager.application.future_release import FutureRecordMatching
 from spotify_manager.domain.release_check_values import ReleaseCandidate
 from spotify_manager.domain.release_check_values import ReleaseTrack
 from tests.support.future_release import Reads
@@ -26,8 +26,8 @@ def _run(
     cache: dict[str, tuple[ReleaseTrack, ...]] | None = None,
     single: ReleaseTrack = SINGLE,
 ) -> ReleaseCandidate | None:
-    return matching_future_record(
-        observed.read, single, (_release("one"), _release("two")), cache
+    return FutureRecordMatching(observed).run(
+        single, (_release("one"), _release("two")), cache
     )
 
 

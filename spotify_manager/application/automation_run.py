@@ -21,7 +21,11 @@ from spotify_manager.domain.automation_calendar import artifacts_are_fresh
 
 
 class SpaceAccess(Protocol):
-    """Supply authenticated requests, bounded waits and remaining maintenance time."""
+    """Supply authenticated requests, bounded waits and remaining maintenance time.
+
+    Args:
+        deadline: Last allowed maintenance observation time.
+    """
 
     deadline: datetime
 
@@ -43,6 +47,14 @@ class SpaceAccess(Protocol):
 
         Returns:
             Original unvalidated decoded JSON.
+        """
+        ...
+
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Observe complete durable artifact timestamps.
+
+        Returns:
+            Valid aware timestamps, or none for an invalid status container.
         """
         ...
 
@@ -184,7 +196,7 @@ def poll_job(
     client: SpaceAccess,
     spec: JobSpec,
     job_id: str,
-    cancel: Callable[[JobSpec, str], None],
+    now: Callable[[], datetime],
     emit: Callable[[str], None],
 ) -> str:
     """Retain polling, changed-status output and original completion boundaries.
@@ -193,7 +205,7 @@ def poll_job(
         client: Original API and remaining-time observations.
         spec: Original status route and display label.
         job_id: Original active job identity.
-        cancel: Original delayed cancellation stage.
+        now: Clock observed only at the cancellation grace boundary.
         emit: Original status presentation.
 
     Returns:
@@ -206,7 +218,7 @@ def poll_job(
     previous: tuple[str, str] | None = None
     while True:
         if client.remaining_seconds() <= 0:
-            cancel(spec, job_id)
+            cancel_job(client, spec, job_id, now, emit)
             return "deadline"
         current = _read_status(client, spec, job_id)
         if current != previous:
@@ -245,8 +257,7 @@ def _status_outcome(spec: JobSpec, status: str, detail: str) -> str | None:
 def run_job(
     client: SpaceAccess,
     spec: JobSpec,
-    start: Callable[[JobSpec], str],
-    poll: Callable[[JobSpec, str], str],
+    now: Callable[[], datetime],
     emit: Callable[[str], None],
 ) -> str:
     """Resume the original durable workflow after a lost in-memory handle.
@@ -254,19 +265,31 @@ def run_job(
     Args:
         client: Original caller-owned API lifetime.
         spec: Original job specification.
-        start: Original start/reconnect stage.
-        poll: Original polling stage.
+        now: Cancellation grace clock.
         emit: Original restart presentation.
 
     Returns:
         Original terminal outcome.
     """
     while True:
-        job_id = start(spec)
-        try:
-            return poll(spec, job_id)
-        except JobLostError:
-            emit(f"{spec.label} handle was lost; resuming from its checkpoint.")
+        job_id = start_job(client, spec, emit)
+        outcome = _poll_started_job(client, spec, job_id, now, emit)
+        if outcome is not None:
+            return outcome
+
+
+def _poll_started_job(
+    client: SpaceAccess,
+    spec: JobSpec,
+    job_id: str,
+    now: Callable[[], datetime],
+    emit: Callable[[str], None],
+) -> str | None:
+    try:
+        return poll_job(client, spec, job_id, now, emit)
+    except JobLostError:
+        emit(f"{spec.label} handle was lost; resuming from its checkpoint.")
+        return None
 
 
 def nightly_refresh(
@@ -274,8 +297,7 @@ def nightly_refresh(
     jobs: tuple[JobSpec, ...],
     threshold: datetime | None,
     timezone: tzinfo,
-    fresh: Callable[[datetime], bool],
-    run: Callable[[JobSpec], str],
+    now: Callable[[], datetime],
     emit: Callable[[str], None],
 ) -> int:
     """Run original serial refreshes after health and optional duplicate detection.
@@ -285,8 +307,7 @@ def nightly_refresh(
         jobs: Original ordered job manifest.
         threshold: Original optional window freshness boundary.
         timezone: Original local presentation timezone.
-        fresh: Original delayed durable-artifact observation.
-        run: Original start/poll/resume stage.
+        now: Cancellation grace clock.
         emit: Original progress presentation.
 
     Returns:
@@ -298,7 +319,7 @@ def nightly_refresh(
     )
     client.request("GET", "/health")
     emit("Space is awake and healthy.")
-    if threshold is not None and fresh(threshold):
+    if threshold is not None and durable_artifacts_are_fresh(client, threshold):
         emit(
             "All four durable artifacts were already refreshed during this "
             "maintenance window; skipping the duplicate trigger."
@@ -306,16 +327,17 @@ def nightly_refresh(
         return 0
     mode = "full rebuild" if jobs == FULL_REBUILD_JOBS else "incremental"
     emit(f"Refresh mode: {mode}.")
-    return _run_jobs(jobs, run, emit)
+    return _run_jobs(client, jobs, now, emit)
 
 
 def _run_jobs(
+    client: SpaceAccess,
     jobs: tuple[JobSpec, ...],
-    run: Callable[[JobSpec], str],
+    now: Callable[[], datetime],
     emit: Callable[[str], None],
 ) -> int:
     for index, spec in enumerate(jobs):
-        outcome = run(spec)
+        outcome = run_job(client, spec, now, emit)
         if outcome == "paused":
             emit(f"{spec.label} paused cleanly; remaining jobs will resume tomorrow.")
             return 0
@@ -330,19 +352,17 @@ def _run_jobs(
 def durable_artifacts_are_fresh(
     client: SpaceAccess,
     threshold: datetime,
-    decode: Callable[[object], dict[str, datetime] | None],
 ) -> bool:
     """Apply original freshness rules to explicitly decoded artifact observations.
 
     Args:
         client: Original status request.
         threshold: Original inclusive window boundary.
-        decode: Original tolerant timestamp and container parser.
 
     Returns:
         Original all-artifacts freshness decision.
     """
-    updated = decode(client.request("GET", "/library-mirrors/status"))
+    updated = client.artifact_times()
     return updated is not None and artifacts_are_fresh(
         updated, DURABLE_ARTIFACT_FILENAMES, threshold
     )

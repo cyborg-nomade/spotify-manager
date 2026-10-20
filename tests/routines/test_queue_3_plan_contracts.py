@@ -81,7 +81,7 @@ def _plan(
         cache,
         {},
         {},
-        choices.save,
+        choices,
         choices.choose,
     )
 

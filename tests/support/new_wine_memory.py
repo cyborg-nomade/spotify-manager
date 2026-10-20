@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import datetime
+from typing import cast
 
 from spotify_manager.application.new_wine import NewWineDependencies
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_observations import WineObservations
 from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.new_wine_values import FlushResult
+from spotify_manager.application.wine_cellar import CellarOptions
+from spotify_manager.application.wine_cellar import CellarWorkflow
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
@@ -92,6 +95,15 @@ class MemoryWine:
             return
         self.failure = None
         raise RuntimeError(f"{name} interrupted")
+
+    @property
+    def refill_limit(self) -> int:
+        """Observe the original post-flush destination limit.
+
+        Returns:
+            Original configured destination size.
+        """
+        return 10
 
     def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read live markers, reconstructing appended values for a new invocation.
@@ -380,6 +392,39 @@ def _marker(track: PlaylistTrack | ReleaseTrack) -> PlaylistTrack:
     )
 
 
+@dataclass(frozen=True)
+class ScriptedCellar:
+    """Retain the existing isolated post-flush stage oracle.
+
+    Args:
+        memory: Original external observations and interruption behavior.
+    """
+
+    memory: MemoryWine
+
+    def run(
+        self, options: CellarOptions, state: dict[str, object], run: dict[str, object]
+    ) -> CellarRefillSummary:
+        """Observe the original independently tested refill boundary.
+
+        Args:
+            options: Effective original refill inputs.
+            state: Complete current namespace.
+            run: Original active run.
+
+        Returns:
+            Original scripted refill outcome.
+        """
+        return self.memory.refill(
+            options.source,
+            options.no_discovery,
+            options.dry_run,
+            state,
+            run,
+            options.projected_ids,
+        )
+
+
 def dependencies(memory: MemoryWine) -> NewWineDependencies:
     """Create fresh per-invocation caches around retained external state.
 
@@ -392,6 +437,7 @@ def dependencies(memory: MemoryWine) -> NewWineDependencies:
     return NewWineDependencies(
         memory,
         WineObservations(memory, 2026),
+        cast(CellarWorkflow, ScriptedCellar(memory)),
         memory.choose,
         memory.endpoint,
         WineMessages(memory.events),

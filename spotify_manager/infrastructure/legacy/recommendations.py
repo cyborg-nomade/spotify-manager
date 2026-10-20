@@ -12,12 +12,11 @@ from spotify_manager.application.found_art_values import FoundArtSummary
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
-from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_candidates import LastFmSimilarTrack
-from spotify_manager.domain.recommendation_history import TrackHistory
 from spotify_manager.domain.recommendation_history import TrackKey
-from spotify_manager.domain.recommendation_matching import FoundArtResult
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
+from spotify_manager.infrastructure import recommendations_data as data
+from spotify_manager.infrastructure.recommendation_history import refresh_history
 from spotify_manager.routines import found_art as legacy
 
 
@@ -44,7 +43,7 @@ class LegacyNeighborhoods:
         Raises:
             FoundArtStateError: Cache contents are invalid.
         """
-        return legacy._load_similar_cache(self.cache_path)
+        return data.load_cache(self.cache_path)
 
     def previous(self) -> set[TrackKey]:
         """Observe prior accepted additions when their log is enabled.
@@ -57,7 +56,7 @@ class LegacyNeighborhoods:
         """
         if self.log_path is None:
             return set()
-        return legacy.previously_added_track_keys(self.log_path)
+        return data.previously_added_keys(self.log_path)
 
     def lookup(
         self, entry: object, week: date
@@ -71,7 +70,7 @@ class LegacyNeighborhoods:
         Returns:
             Current-week observations, or a cache miss.
         """
-        return legacy._cached_similar_tracks(entry, week_start=week)
+        return data.cached_neighbors(entry, week)
 
     def neighbors(self, seed: FoundArtSeed) -> tuple[LastFmSimilarTrack, ...]:
         """Read the original number of similar tracks for one seed.
@@ -106,13 +105,13 @@ class LegacyNeighborhoods:
         Raises:
             FoundArtStateError: Cache replacement fails after working entry updates.
         """
-        entries[legacy._cache_key(seed)] = {
+        entries["\u0000".join(seed.key)] = {
             "artist": seed.artist,
             "track": seed.track,
             "fetched_at": generated_at.isoformat(),
             "tracks": [asdict(track) for track in similar],
         }
-        legacy._save_similar_cache(cache, self.cache_path)
+        data.save_cache(cache, self.cache_path)
 
 
 @dataclass(frozen=True)
@@ -154,7 +153,7 @@ class LegacyRecommendationRun:
         Raises:
             FoundArtStateError: Canonical history cannot be refreshed.
         """
-        return legacy.refresh_scrobble_history(
+        return refresh_history(
             self.lastfm,
             export_path=self.export_path,
             recent_path=self.recent_path,
@@ -172,90 +171,9 @@ class LegacyRecommendationRun:
         Raises:
             SpotifyTrackResolutionError: Destination data is unusable.
         """
-        return legacy.blast_from_past.load_playlist_state(self.sp, self.playlist_id)
+        from spotify_manager.routines.blast_from_past import load_playlist_state
 
-    def seeds(
-        self, history: tuple[TrackHistory, ...], count: int, week: date
-    ) -> tuple[FoundArtSeed, ...]:
-        """Bind original seed selection parameters.
-
-        Args:
-            history: Aggregated canonical plays.
-            count: Original requested seed count.
-            week: Effective listening week.
-
-        Returns:
-            Original ordered seeds.
-
-        Raises:
-            FoundArtStateError: History cannot supply diverse seeds.
-        """
-        return legacy.select_seed_tracks(history, seed_count=count, week_start=week)
-
-    def gather(
-        self,
-        seeds: tuple[FoundArtSeed, ...],
-        heard: set[TrackKey],
-        week: date,
-        pool_size: int,
-        generated_at: datetime,
-    ) -> tuple[FoundArtCandidate, ...]:
-        """Bind original neighborhood cache and exclusion parameters.
-
-        Args:
-            seeds: Ordered original seeds.
-            heard: Original listening exclusions.
-            week: Effective listening week.
-            pool_size: Original minimum or scaled candidate pool.
-            generated_at: Effective UTC timestamp.
-
-        Returns:
-            Original ranked candidates.
-
-        Raises:
-            FoundArtStateError: Cache or prior-addition data is unusable.
-        """
-        return legacy.gather_candidates(
-            self.lastfm,
-            seeds,
-            heard,
-            cache_path=self.cache_path,
-            log_path=self.log_path,
-            week_start=week,
-            candidate_pool_size=pool_size,
-            now=generated_at,
-            progress_callback=self.progress,
-        )
-
-    def resolve(
-        self,
-        candidates: tuple[FoundArtCandidate, ...],
-        playlist: PlaylistState,
-        count: int,
-        dry_run: bool,
-    ) -> tuple[tuple[FoundArtResult, ...], tuple[SpotifyTrackMatch, ...]]:
-        """Bind original Spotify resolution parameters and helper compatibility seam.
-
-        Args:
-            candidates: Original ranked pool.
-            playlist: Observed destination membership.
-            count: Requested additions.
-            dry_run: Original preview mode.
-
-        Returns:
-            Original ordered outcomes and pending matches.
-
-        Raises:
-            SpotifyTrackResolutionError: Catalog or liked-status data is unusable.
-        """
-        return legacy.resolve_spotify_candidates(
-            self.sp,
-            candidates,
-            playlist,
-            count=count,
-            dry_run=dry_run,
-            progress_callback=self.progress,
-        )
+        return load_playlist_state(self.sp, self.playlist_id)
 
     def append(self, pending: list[SpotifyTrackMatch]) -> None:
         """Append pending matches through the original accepted mutation boundary.
@@ -266,7 +184,9 @@ class LegacyRecommendationRun:
         Raises:
             SpotifyTrackResolutionError: A remote append fails.
         """
-        legacy.blast_from_past.add_spotify_matches(self.sp, self.playlist_id, pending)
+        from spotify_manager.routines.blast_from_past import add_spotify_matches
+
+        add_spotify_matches(self.sp, self.playlist_id, pending)
 
     def audit(self, summary: FoundArtSummary) -> None:
         """Append the original audit after accepted effects, including previews.
@@ -277,4 +197,4 @@ class LegacyRecommendationRun:
         Raises:
             FoundArtStateError: Audit append fails.
         """
-        legacy.append_found_art_log(summary, self.log_path)
+        data.append_audit(summary, self.log_path)

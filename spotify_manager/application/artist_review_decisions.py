@@ -300,7 +300,7 @@ def _plan_move(
     )
     session.state.pending_queue_moves[artist.spotify_id] = plan
     session.state.persist()
-    flush_moves(session, session.membership)
+    flush_moves(session)
 
 
 def _queue_release(

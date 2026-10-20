@@ -5,6 +5,7 @@ import pytest
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from tests.support.feature_invocation import FeatureInvocation
 
 
 def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
@@ -112,7 +113,9 @@ def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
         ),
     )
     monkeypatch.setattr(main, "client", lambda: object())
-    monkeypatch.setattr(main.release_check, "run_release_check", run)
+    monkeypatch.setattr(
+        main.release_check, "run_release_check", FeatureInvocation(run, ("playlists",))
+    )
 
     cli_result = CliRunner().invoke(
         main.app,

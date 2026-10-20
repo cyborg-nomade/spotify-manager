@@ -1,26 +1,27 @@
 """Compare independently injected catalog gathering with complete original traces."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from typing import Self
 from typing import cast
 
 import pytest
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.application.artist_review_catalog import ArtistCatalog
 from spotify_manager.application.artist_review_catalog import CatalogScan
 from spotify_manager.application.artist_review_catalog import FirstTrack
 from spotify_manager.application.artist_review_catalog import RawReleasePage
 from spotify_manager.application.artist_review_catalog import ReleasePage
+from spotify_manager.application.artist_review_effects import ReviewCatalog
 from spotify_manager.application.artist_review_membership import MembershipPage
 from spotify_manager.application.artist_review_membership import QueueMarker
 from spotify_manager.application.artist_review_membership import playlist_membership
 from spotify_manager.domain.artist_review_values import ArtistReviewError
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
 from spotify_manager.domain.artist_review_values import TrackCandidate
+from spotify_manager.models.your_library import YourLibraryArtist
 from tests.support import artist_review_catalog as original
 from tests.support.artist_review_run import clone
 
@@ -38,6 +39,30 @@ class MemoryCatalog:
     """
 
     edge: original.CatalogObservations
+
+    def cache_for(self, artist: YourLibraryArtist) -> Self:
+        """Resolve this artist's durable metadata authority.
+
+        Args:
+            artist: Artist selected by the parent review use case.
+
+        Returns:
+            Original cache view for that artist.
+        """
+        assert artist.spotify_id == "a" and artist.name == "A"
+        return self
+
+    def reads_for(self, artist: YourLibraryArtist) -> Self:
+        """Resolve this artist's external catalog observations.
+
+        Args:
+            artist: Artist selected by the parent review use case.
+
+        Returns:
+            Original catalog reads for that artist.
+        """
+        assert artist.spotify_id == "a" and artist.name == "A"
+        return self
 
     def tracks(self) -> list[TrackCandidate] | None:
         """Decode the original fixture cache at the injected boundary.
@@ -363,27 +388,19 @@ def _entry_marker(raw: object) -> QueueMarker | None:
 def _invoke(edge: original.CatalogObservations, kind: str) -> object:
     memory = MemoryCatalog(edge)
     if kind == "members":
-        result = playlist_membership("one", memory.read_membership)
+        membership = playlist_membership("one", memory)
         return {
-            "primary_artist_ids": sorted(result.primary_artist_ids),
-            "track_ids": sorted(result.track_ids),
-            "track_uris_by_primary_artist": result.track_uris_by_primary_artist,
+            "primary_artist_ids": sorted(membership.primary_artist_ids),
+            "track_ids": sorted(membership.track_ids),
+            "track_uris_by_primary_artist": membership.track_uris_by_primary_artist,
         }
-    catalog = ArtistCatalog(
-        memory,
-        memory.read_tracks,
-        memory.read_search,
-        memory.read_discography,
-        memory.read_first,
-    )
-    operations: dict[
-        str, Callable[[], list[TrackCandidate] | list[ReleaseCandidate]]
-    ] = {
-        "tracks": catalog.ranked_tracks,
-        "ranked": catalog.ranked_releases,
-        "earliest": catalog.earliest_releases,
-    }
-    return [asdict(item) for item in operations[kind]()]
+    catalog = ReviewCatalog(memory)
+    artist = YourLibraryArtist(name="A", uri="spotify:artist:a")
+    if kind == "tracks":
+        return [asdict(item) for item in catalog.tracks(artist)]
+    if kind == "ranked":
+        return [asdict(item) for item in catalog.ranked(artist)]
+    return [asdict(item) for item in catalog.earliest(artist)]
 
 
 def _outcome(case: Raw) -> Raw:

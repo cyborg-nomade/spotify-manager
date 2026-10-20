@@ -6,6 +6,7 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from tests.support.feature_invocation import FeatureInvocation
 
 
 def release(spotify_id: str, name: str) -> main.slow_listening.DiscographyRelease:
@@ -148,7 +149,9 @@ def test_flush_queue_3_dry_run_uses_configured_playlist(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(main.queue_3, "flush_queue_3", flush)
+    monkeypatch.setattr(
+        main.queue_3, "flush_queue_3", FeatureInvocation(flush, ("playlist_id",))
+    )
 
     result = CliRunner().invoke(main.app, ["flush-queue-3", "--dry-run"])
 

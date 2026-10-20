@@ -78,9 +78,11 @@ def test_primary_catalog_skips_missing_and_empty_id_rows() -> None:
     """Filter first credits before requiring an identity or dependent page."""
     rows: list[object] = [{"artists": [{"id": "artist"}]}]
     assert catalog.primary_ids(rows, "artist") == []
-    assert catalog.primary_tracks(album_batch, no_next, "artist", ["album"], 20) == []
+    assert catalog.primary_tracks(RecordedPages(), "artist", ["album"], 20) == []
     with pytest.raises(SpotifyLookupResponseError, match="empty album track page"):
-        catalog.album_primary_tracks({"items": [], "next": "more"}, no_next, "artist")
+        catalog.album_primary_tracks(
+            {"items": [], "next": "more"}, RecordedPages(), "artist"
+        )
 
 
 def test_history_selects_greatest_timestamp_and_ignores_older_encounters() -> None:
@@ -90,3 +92,52 @@ def test_history_selects_greatest_timestamp_and_ignores_older_encounters() -> No
         {"artist": "artist", "track": "track", "date": 1000},
     ]
     assert latest_timestamp(rows, "track", "artist") == 2000
+
+
+class RecordedPages:
+    """Supply missing album rows and reject unexpected continuation."""
+
+    def albums(self, identifiers: list[str]) -> object:
+        """Observe albums at the recorded boundary.
+
+        Args:
+            identifiers: Ordered requested identities.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return album_batch(identifiers)
+
+    def next_tracks(self, page: object) -> object:
+        """Observe next tracks at the recorded boundary.
+
+        Args:
+            page: Observed unvalidated page.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return no_next(page)
+
+    def next_object(self, page: object) -> object:
+        """Observe next object at the recorded boundary.
+
+        Args:
+            page: Observed unvalidated page.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return no_next(page)
+
+    def release_page(self, artist: str, offset: int) -> object:
+        """Observe release page at the recorded boundary.
+
+        Args:
+            artist: Reviewed artist or matching constraint.
+            offset: Original raw row offset.
+
+        Returns:
+            Recorded boundary result.
+        """
+        raise AssertionError((artist, offset))

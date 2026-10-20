@@ -27,7 +27,8 @@ from spotify_manager.application.discography_values import (
 )
 from spotify_manager.bootstrap import discography as composition
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain import discography_batches
 from spotify_manager.domain import discography_catalog
@@ -51,6 +52,7 @@ from spotify_manager.domain.discography_values import QueueArtist as QueueArtist
 from spotify_manager.domain.discography_values import QueueName as QueueName
 from spotify_manager.infrastructure import discography_files
 from spotify_manager.infrastructure import discography_records
+from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import something_old
@@ -182,15 +184,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="discography",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "discography",
+        DiscographyStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -254,7 +251,9 @@ def select_historical_artist(
     Returns:
         Original complete compatible result.
     """
-    return composition.historical(path, today, random_index_reader, progress_callback)
+    return composition.history_stage(
+        path, today, random_index_reader, progress_callback
+    ).run()
 
 
 def resolve_historical_artist(
@@ -277,7 +276,9 @@ def resolve_historical_artist(
     Raises:
         DiscographyError: Original mapping fails or is cancelled.
     """
-    return composition.resolve_artist(spotify, selection, choice_reader, retry_call)
+    return composition.historical_mapping(spotify, choice_reader, retry_call).resolve(
+        selection
+    )
 
 
 def _load_artist_queues(
@@ -290,7 +291,9 @@ def _load_artist_queues(
     dict[str, tuple[ArtistMarkers, ...]],
 ]:
     """Load ordered, primary-artist queues and every matching marker URI."""
-    return composition.queues(spotify, playlist_ids, retry_call, queue_3_playlist_id)
+    return composition.queue_stage(
+        spotify, playlist_ids, retry_call, queue_3_playlist_id
+    ).run()
 
 
 def _positive_int(value: object) -> int:
@@ -323,7 +326,7 @@ def load_release_catalog(
     Returns:
         Original complete compatible result.
     """
-    return composition.catalog(spotify, artist_id, retry_call)
+    return composition.catalog_stage(spotify, retry_call).run(artist_id)
 
 
 def parse_release_indexes(value: str, total: int) -> tuple[int, ...]:
@@ -385,20 +388,24 @@ def build_discography_plan(
     Returns:
         Original complete compatible result.
     """
-    return composition.planning(
+    from spotify_manager.interfaces.operations.discography import (
+        build_discography_plan as operation,
+    )
+
+    return operation(
         spotify,
         playlist_ids,
         release_selector,
-        queue_3_playlist_id,
-        historical_artist_choice_reader,
-        scrobbles_path,
-        today,
-        random_index_reader,
-        retry_call,
-        progress_callback,
-        state_path,
-        state_service,
-    ).run()
+        queue_3_playlist_id=queue_3_playlist_id,
+        historical_artist_choice_reader=historical_artist_choice_reader,
+        scrobbles_path=scrobbles_path,
+        today=today,
+        random_index_reader=random_index_reader,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
+        state_path=state_path,
+        state_service=state_service,
+    )
 
 
 def _append_log(
@@ -434,14 +441,19 @@ def apply_discography_plan(
     Returns:
         Original complete compatible result.
     """
-    return composition.execution(
+    from spotify_manager.interfaces.operations.discography import (
+        apply_discography_plan as operation,
+    )
+
+    return operation(
         spotify,
-        retry_call,
-        progress_callback,
-        state_path,
-        state_service,
-        log_path,
-    ).run(plan)
+        plan,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+    )
 
 
 def _release_page(

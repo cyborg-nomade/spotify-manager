@@ -1,7 +1,6 @@
 """Compatibility seams for original album refresh and monthly playlists."""
 
-from datetime import datetime
-from functools import partial
+from datetime import datetime as datetime
 from typing import cast
 
 from spotipy.client import Spotify
@@ -9,11 +8,14 @@ from spotipy.client import Spotify
 from spotify_manager.application import legacy_library_control as control
 from spotify_manager.application import legacy_library_refresh as workflow
 from spotify_manager.application.legacy_library_effects import Page
-from spotify_manager.application.legacy_library_effects import PlaylistClock
 from spotify_manager.bootstrap import legacy_library as composition
 from spotify_manager.domain.legacy_library import first_index
 from spotify_manager.domain.legacy_library import monthly_slice
-from spotify_manager.infrastructure.legacy_library_errors import LegacyFailure
+from spotify_manager.infrastructure.legacy_library_resources import LegacyLibraryFiles
+from spotify_manager.infrastructure.legacy_library_resources import SpotifyPlaylistClock
+from spotify_manager.infrastructure.legacy_library_resources import (
+    SpotifyPlaylistWrites,
+)
 from spotify_manager.loaders_savers import (
     load_total_albums_file as load_total_albums_file,
 )
@@ -39,9 +41,11 @@ def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAl
     Returns:
         Published models or the original partially modified fallback authority.
     """
-    return workflow.refresh(
-        composition.album_refresh(sp), just_update, print, LegacyFailure
+    from spotify_manager.interfaces.operations.legacy_library import (
+        update_total_album_list as operation,
     )
+
+    return operation(sp, just_update)
 
 
 def get_months_items(
@@ -68,9 +72,7 @@ def create_playlist(sp: Spotify) -> str:
     Returns:
         Original accepted playlist identity.
     """
-    return workflow.playlist(
-        PlaylistClock(datetime.now, partial(_create_playlist, sp)), print
-    )
+    return workflow.playlist(SpotifyPlaylistClock(sp), print)
 
 
 def get_ordered_tracks(sp: Spotify, album: SimplifiedAlbum) -> list[SimplifiedTrack]:
@@ -99,8 +101,7 @@ def append_to_playlist(
     workflow.append_tracks(
         ordered_tracks,
         playlist_id,
-        partial(_append_single, sp),
-        partial(_append_batch, sp),
+        SpotifyPlaylistWrites(sp),
         print,
     )
 
@@ -128,7 +129,6 @@ def add_monthly_albums(
         total_album_list,
         starting_index,
         print,
-        LegacyFailure,
     )
 
 
@@ -156,7 +156,7 @@ def updated_total_albums_with_results(
         total_albums_file: Original mutable album authority.
         unevaluated_albums: Original observed decisions.
     """
-    control.reconcile(total_albums_file, unevaluated_albums, save_total_albums_file)
+    control.reconcile(total_albums_file, unevaluated_albums, _CompatibilityFiles())
 
 
 def _saved_page(sp: Spotify, offset: int) -> Page:
@@ -189,3 +189,15 @@ def _append_single(sp: Spotify, playlist_id: str, uris: list[str]) -> None:
 
 def _append_batch(sp: Spotify, playlist_id: str, uris: list[str]) -> None:
     sp.playlist_add_items(playlist_id, uris)
+
+
+class _CompatibilityFiles(LegacyLibraryFiles):
+    """Retain the public processor's original album publication seam."""
+
+    def save_albums(self, albums: list[SimplifiedAlbum]) -> None:
+        """Publish reconciled albums.
+
+        Args:
+            albums: Complete ordered authority.
+        """
+        save_total_albums_file(albums)

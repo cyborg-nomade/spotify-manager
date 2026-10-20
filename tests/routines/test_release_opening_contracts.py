@@ -8,6 +8,7 @@ from dataclasses import field
 from datetime import UTC
 from datetime import datetime
 from datetime import tzinfo
+from functools import partialmethod
 from pathlib import Path
 from typing import Protocol
 from typing import Self
@@ -16,9 +17,14 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.domain.history import Scrobble
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
 from spotify_manager.routines import release_check as legacy
 from spotify_manager.routines import scrobble_history
+from tests.support.history_dependencies import release_history
 
 
 STAMP = datetime(2026, 9, 25, tzinfo=UTC)
@@ -154,7 +160,9 @@ def _bind(monkeypatch: pytest.MonkeyPatch, effects: OpeningEffects) -> None:
     monkeypatch.setattr(legacy, "datetime", OpeningClock)
     monkeypatch.setattr(legacy, "save_state", effects.save)
     monkeypatch.setattr(legacy, "append_event", effects.audit)
-    monkeypatch.setattr(scrobble_history, "refresh_scrobble_history", effects.refresh)
+    monkeypatch.setattr(
+        HistoryRefresh, "run", partialmethod(release_history, effects.refresh)
+    )
 
 
 def _active() -> dict[str, object]:
@@ -187,13 +195,16 @@ def _invoke(tmp_path: Path, preview: bool, effects: OpeningEffects) -> None:
     legacy.run_release_check(
         cast(Spotify, object()),
         cast(legacy.LastFmReader, object()),
-        legacy.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="user",
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "audit.jsonl",
-        now=STAMP,
-        dry_run=preview,
-        progress_callback=effects.progress,
+        ReleaseCheckOptions(
+            playlists=legacy.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="user",
+            dry_run=preview,
+            now=STAMP,
+        ),
+        ReleaseCheckCallbacks(progress_callback=effects.progress),
+        ReleaseCheckResources(
+            state_path=tmp_path / "state.json", log_path=tmp_path / "audit.jsonl"
+        ),
     )
 
 

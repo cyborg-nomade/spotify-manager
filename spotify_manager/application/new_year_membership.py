@@ -4,9 +4,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 
+from spotify_manager.application.ports.annual import AnnualPlaylist
 from spotify_manager.domain.annual_selection import marker_position
 from spotify_manager.domain.annual_selection import pending_uris
-from spotify_manager.domain.catalog import PlaylistTrack
 
 
 type RetryCall = Callable[[Callable[[], object], str], object]
@@ -17,15 +17,11 @@ class AnnualMembership:
     """Bind original fresh membership, insertion, reorder and retry boundaries.
 
     Args:
-        playlist: Original complete current marker reader.
-        append: Original exact absent-marker mutation.
-        move: Original single-marker move to the front.
+        catalog: Named external catalog observations used by this stage.
         retry: Original caller retry and cancellation boundary.
     """
 
-    playlist: Callable[[str], tuple[PlaylistTrack, ...]]
-    append: Callable[[str, list[str], bool], None]
-    move: Callable[[str, int], None]
+    catalog: AnnualPlaylist
     retry: RetryCall
 
     def run(self, playlist: str, uris: list[str], top: bool = False) -> None:
@@ -51,13 +47,13 @@ class AnnualMembership:
             )
 
     def _add(self, playlist: str, batch: list[str], top: bool) -> None:
-        existing = self.playlist(playlist)
+        existing = self.catalog.playlist(playlist)
         pending = pending_uris(batch, existing)
         if pending:
-            self.append(playlist, pending, top)
+            self.catalog.append(playlist, pending, top)
 
     def _move(self, playlist: str, uri: str) -> None:
-        live = self.playlist(playlist)
+        live = self.catalog.playlist(playlist)
         position = marker_position(live, uri)
         if position:
-            self.move(playlist, position)
+            self.catalog.move(playlist, position)
