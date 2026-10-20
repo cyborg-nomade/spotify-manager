@@ -1,7 +1,6 @@
 """Verify unusual resumable states and original malformed-page failure boundaries."""
 
 from collections.abc import Sequence
-from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -23,10 +22,10 @@ from spotify_manager.domain.library_analysis_values import (
 )
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
-from spotify_manager.utils.sorting import album_sort_key
 from tests.application.library_analysis_memory import AnalysisMemory
 from tests.application.library_analysis_memory import memory_session
 from tests.application.test_library_analysis_sequence import _publication
+from tests.support.analysis_dependencies import RecordedAnalysisBackups
 
 
 def _artist(identity: str) -> YourLibraryArtist:
@@ -209,7 +208,7 @@ def test_completed_export_resource_uses_staging_without_reprocessing_source(
     session.checkpoint["resources"]["albums"]["status"] = "complete"
     memory.arrays[session.paths.stage("albums")] = [_album("stored")]
     result = prepare_export_resource(
-        session, "albums", [_album("source")], YourLibraryAlbum, album_sort_key
+        session, "albums", [_album("source")], YourLibraryAlbum
     )
     assert result == [_album("stored")]
     if progress:
@@ -229,7 +228,7 @@ def test_large_export_observes_original_coarse_progress_and_cancellation_boundar
     memory = AnalysisMemory()
     session = memory_session(memory, tmp_path)
     source = [_album(str(index)) for index in range(201)]
-    prepare_export_resource(session, "albums", source, YourLibraryAlbum, album_sort_key)
+    prepare_export_resource(session, "albums", source, YourLibraryAlbum)
     progress: list[tuple[str, int, int, str]] = []
     for name, value in memory.effects:
         if name == "progress":
@@ -238,16 +237,34 @@ def test_large_export_observes_original_coarse_progress_and_cancellation_boundar
     assert [value[1] for value in progress[-2:]] == [201, 201]
 
 
-def _memory_backup(
-    paths: LibraryAnalysisPaths,
-    run_id: str,
-    resource: ResourceName,
-    target: Path,
-    previous: Sequence[LibraryModel],
-    current: Sequence[LibraryModel],
-    summary: ResourceSyncSummary,
-) -> Path:
-    return paths.backups_dir / run_id
+class MemoryBackups(RecordedAnalysisBackups):
+    """Accept an in-memory resource backup without physical file copies."""
+
+    def resource_backup(
+        self,
+        paths: LibraryAnalysisPaths,
+        run_id: str,
+        resource: ResourceName,
+        target: Path,
+        previous: Sequence[LibraryModel],
+        current: Sequence[LibraryModel],
+        summary: ResourceSyncSummary,
+    ) -> Path:
+        """Observe resource backup at the recorded boundary.
+
+        Args:
+            paths: Isolated analysis locations.
+            run_id: Recorded invocation identity.
+            resource: Active resource identity.
+            target: Target supplied by this fixture.
+            previous: Previous supplied by this fixture.
+            current: Current supplied by this fixture.
+            summary: Summary supplied by this fixture.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return paths.backups_dir / run_id
 
 
 def test_invalid_publication_manifest_fails_before_any_output_is_replaced(
@@ -291,7 +308,7 @@ def test_full_artist_resume_verifies_accepted_candidates_without_rediscovery(
         }
     )
     memory.arrays[artists.candidate_path(session)] = [_artist("accepted")]
-    publication = replace(_publication(session.files), resource_backup=_memory_backup)
+    publication = MemoryBackups(session.files)
     result = refresh_resource(session, publication, "artists", True)
     assert result.resources[0].source == "live_verified_fallback"
     assert result.resources[0].current == 1

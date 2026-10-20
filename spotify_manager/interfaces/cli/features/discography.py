@@ -8,36 +8,33 @@ import typer
 from rich.console import Console
 from rich.status import Status
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.domain.discography_values import CatalogRelease
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import discography as discography
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
 from spotify_manager.interfaces.operations import something_old as something_old
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class DiscographyCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Plan discographies and present release choices in the terminal.
 
     Args:
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        ask_discography_release_selection: Operator release selection prompt.
-        ask_something_old_artist: Caller-owned ask something old artist.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
+        ask_something_old_artist: Operator prompt for historical artist resolution.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
+    runtime: CliResources
+
     display: ConsoleDisplay
-    configuration: type[Settings]
     ask_something_old_artist: Callable[..., str]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _prompt_discography_release_selection(
@@ -116,7 +113,7 @@ class DiscographyCLI:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._plan_discographies_console = self.display.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_ids = discography.parse_playlist_ids(
                 configuration.discography_newfoundland_playlist,
@@ -355,7 +352,7 @@ class DiscographyCLI:
         ) as self._plan_discographies_status:
             self._plan_discographies_status_ref = self._plan_discographies_status
             plan = discography.build_discography_plan(
-                self.review_client(),
+                self.runtime.review_client(),
                 playlist_ids,
                 self._plan_discographies_ask_discography_release_selection,
                 queue_3_playlist_id=queue_3_playlist_id,
@@ -370,7 +367,7 @@ class DiscographyCLI:
             "Removing confirmed discography artists"
         ) as self._plan_discographies_status:
             return discography.apply_discography_plan(
-                self.review_client(),
+                self.runtime.review_client(),
                 plan,
                 retry_call=self._plan_discographies_retry_call,
                 progress_callback=self._plan_discographies_status.update,

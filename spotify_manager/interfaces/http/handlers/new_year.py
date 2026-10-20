@@ -25,7 +25,8 @@ def cmd_new_year(client: Spotify, dry_run: bool, year: int | None) -> BlastJobRe
         job = _BlastJob(
             result=BlastJobResult(job_id=job_id, command="new_year", dry_run=dry_run)
         )
-        snapshot = register_job(jobs._blast_jobs, job_id, job, jobs._blast_job_snapshot)
+        register_job(jobs._blast_jobs, job_id, job)
+        snapshot = jobs._blast_job_snapshot(job)
     jobs.Thread(
         target=jobs._run_new_year_job,
         args=(job_id, client, year, dry_run),

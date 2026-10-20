@@ -1,8 +1,8 @@
 """Replay original journaled unfollows and queue-one promotions in effect order."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
+from spotify_manager.application.artist_review_membership import MembershipAccess
 from spotify_manager.application.artist_review_session import ReviewSession
 from spotify_manager.domain.artist_review_selection import log_int as _log_int
 from spotify_manager.domain.artist_review_values import ArtistReviewError
@@ -97,17 +97,18 @@ def _complete_unfollow(session: ReviewSession, artist: YourLibraryArtist) -> Non
 
 
 def flush_moves(
-    session: ReviewSession, membership: Callable[[str], PlaylistMembership]
+    session: ReviewSession, authority: MembershipAccess | None = None
 ) -> None:
     """Finish original pending promotions without duplicate destination markers.
 
     Args:
         session: Original current mutable invocation authority.
-        membership: Original caller-owned membership authority.
+        authority: Optional external compatibility authority; normally the session.
 
     Raises:
         ArtistReviewError: A pending move lacks an originally required field.
     """
+    membership = session if authority is None else authority
     artists = {artist.spotify_id: artist for artist in session.artists}
     for identity, raw in list(session.state.pending_queue_moves.items()):
         move = _move_fields(identity, raw)
@@ -144,9 +145,9 @@ def _append_move_target(
     session: ReviewSession,
     item: YourLibraryArtist,
     move: QueueMove,
-    membership: Callable[[str], PlaylistMembership],
+    membership: MembershipAccess,
 ) -> None:
-    target = membership(move.target)
+    target = membership.membership(move.target)
     if item.spotify_id in target.primary_artist_ids:
         return
     session.spotify.append(
@@ -165,9 +166,9 @@ def _remove_move_source(
     session: ReviewSession,
     item: YourLibraryArtist,
     move: QueueMove,
-    membership: Callable[[str], PlaylistMembership],
+    membership: MembershipAccess,
 ) -> list[str]:
-    source = membership(move.source)
+    source = membership.membership(move.source)
     current = set(source.track_uris_by_primary_artist.get(item.spotify_id, []))
     removed = []
     for uri in move.source_uris:

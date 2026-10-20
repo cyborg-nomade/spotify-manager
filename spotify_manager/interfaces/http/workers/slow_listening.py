@@ -20,9 +20,8 @@ from spotify_manager.interfaces.http.models.slow_listening import (
     SlowListeningReleaseOption,
 )
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
-from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.presenters.slow_listening import (
-    slow_listening_track_result as _slow_listening_track_result,
+    slow_listening_track_results,
 )
 from spotify_manager.interfaces.http.workers.errors import (
     _SlowListeningJobCancelledError,
@@ -39,11 +38,14 @@ class SlowListeningWorker:
     """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        context: Invocation-owned context.
-        job_id: Invocation-owned job id.
-        spotify: Invocation-owned spotify.
-        playlist_id: Invocation-owned playlist id.
-        dry_run: Invocation-owned dry run.
+        context: Shared job lock, clock and presentation context.
+        job_id: Job id supplied by the caller.
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        dry_run: Whether to preview without durable writes.
+        job: Mutable job record owned by this worker.
+        spotify_event_setter: SDK event subscription hook.
+        previous_spotify_event_callback: Original SDK event observer restored on exit.
     """
 
     context: PlaylistContext
@@ -275,7 +277,7 @@ class SlowListeningWorker:
         return summary
 
     def _completed(self, summary: slow_listening.FlushSummary) -> None:
-        results = present_entries(summary.results, _slow_listening_track_result)
+        results = slow_listening_track_results(summary.results)
         with self.context.lock:
             self.job.result.status = "paused" if summary.paused else "completed"
             self.job.result.processed = summary.processed

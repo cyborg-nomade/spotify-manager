@@ -4,12 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from spotify_manager.application.upload_run import Preparation
 from spotify_manager.application.upload_run import prepare
 from spotify_manager.application.upload_values import LASTFM_FILENAME
 from spotify_manager.application.upload_values import YOUR_LIBRARY_FILENAME
 from spotify_manager.domain.upload_manifest import LibraryFilesUploadError
-from spotify_manager.infrastructure.upload_files import build_parts
+from spotify_manager.infrastructure.upload_resources import ExportPreparation
 
 
 def read_export(path: Path, key: str) -> tuple[bytes, int]:
@@ -39,7 +38,7 @@ def test_preparation_retains_selection_order(
         tmp_path: Isolated managed directory.
     """
     plan = prepare(
-        Preparation(read_export, build_parts),
+        RecordedPreparation(),
         tmp_path,
         library,
         lastfm,
@@ -67,10 +66,26 @@ def test_preparation_rejects_empty_selection(tmp_path: Path) -> None:
     """
     with pytest.raises(LibraryFilesUploadError, match="at least one"):
         prepare(
-            Preparation(read_export, build_parts),
+            RecordedPreparation(),
             tmp_path,
             False,
             False,
             "repo",
             "main",
         )
+
+
+class RecordedPreparation(ExportPreparation):
+    """Read recorded source bytes through the real deterministic part encoder."""
+
+    def read(self, path: Path, key: str) -> tuple[bytes, int]:
+        """Observe selected source bytes.
+
+        Args:
+            path: Selected export location.
+            key: Required top-level array.
+
+        Returns:
+            Original bytes and row count.
+        """
+        return read_export(path, key)

@@ -5,12 +5,10 @@ move. SDK payloads and routine-specific retry descriptions stay at this boundary
 """
 
 from dataclasses import dataclass
-from functools import partial
 
 from spotipy import Spotify
 
 from spotify_manager.application import lookup_resolution
-from spotify_manager.application.lookup_effects import AlbumLookup
 from spotify_manager.application.music import Album
 from spotify_manager.application.music import NamedTrack
 from spotify_manager.application.music import Track
@@ -19,6 +17,8 @@ from spotify_manager.application.requeue_result import RequeueForADreamError
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
+from spotify_manager.infrastructure.lookup_resources import LiveLikedTracks
+from spotify_manager.infrastructure.lookup_resources import SpotifyAlbumLookup
 from spotify_manager.processors import library_lookups
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening
@@ -52,13 +52,7 @@ class SpotifyAlbumCatalog:
             ValueError: Both name and identifier are absent.
             RuntimeError: Spotify returns malformed data.
         """
-        from spotify_manager.processors.library_lookups import _album_search
-        from spotify_manager.processors.library_lookups import _direct_album
-
-        reads = AlbumLookup(
-            partial(_direct_album, self.client),
-            partial(_album_search, self.client),
-        )
+        reads = SpotifyAlbumLookup(self.client)
         identity = lookup_resolution.album(reads, name, album_id, artist)
         return Album(*identity)
 
@@ -107,11 +101,9 @@ class SpotifyTrackMembership:
         Raises:
             RuntimeError: Spotify returns malformed or mismatched statuses.
         """
-        from spotify_manager.processors.library_lookups import _live_liked_statuses
-
         return lookup_resolution.liked_statuses(
             list(track_ids),
-            partial(_live_liked_statuses, self.client),
+            LiveLikedTracks(self.client),
             library_lookups.SPOTIFY_CONTAINS_BATCH_SIZE,
         )
 

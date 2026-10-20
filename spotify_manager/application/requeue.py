@@ -138,5 +138,5 @@ def flush_requeue(
         _replace_marker(dependencies, playlist_id, plan)
     summary = _summary(dependencies, playlist_id, dry_run, plan)
     if not dry_run and plan.action != "empty":
-        dependencies.audit(summary)
+        dependencies.audit.write(summary)
     return summary

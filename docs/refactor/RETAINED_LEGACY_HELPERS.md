@@ -34,9 +34,13 @@ SDK leaves below retain their recorded source paths and effect order.
 The 2026-10-19 revision moves child workflow execution out of the historical,
 recommendation, Palace, Queue, New Wine, release and annual adapters. Their named
 application stages now call fixed policies directly. SDK/file leaves, genuine
-retry operations and the legacy maintenance public override contracts remain.
-This inventory records imports, not permission to introduce new callback-based
-business wiring.
+retry operations and supported compatibility imports remain. The 2026-10-20
+pass also replaces file/catalog/publication callback bags, fixed codecs, state
+schema hooks, presenter collectors and operational stage callbacks. Retained
+external Python hooks are normalized at entry; normal execution uses resource
+methods. The detailed hook reasons live in the call-path guide and callback
+dependency guard. This inventory records concrete imports, not permission to
+introduce new callback-based business wiring.
 
 ## Named bindings by original source
 
@@ -50,7 +54,9 @@ searchable by exact function name and uses the contracts/decisions above.
 
 ### `processors.library_lookups`
 
+- `_album_batch`
 - `_album_search`
+- `_artist_release_page`
 - `_artist_search_items`
 - `_direct_album`
 - `_direct_artist_identity`
@@ -59,6 +65,8 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_live_artist_release_ids`
 - `_live_liked_statuses`
 - `_live_primary_track_ids`
+- `_next_album_track_page`
+- `_next_object_page`
 - `_saved_artist_statuses`
 - `parse_spotify_lookup_reference`
 
@@ -92,9 +100,11 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_reconcile_artist_page`
 - `_reconcile_offset_reader`
 - `fetch_followed_artists_page`
+- `write_models`
 
 ### `routines.blast_from_past`
 
+- `_playlist_page`
 - `add_spotify_matches`
 - `check_cancel`
 - `fetch_random_indexes`
@@ -104,6 +114,7 @@ searchable by exact function name and uses the contracts/decisions above.
 - `load_playlist_state`
 - `load_scrobble_export`
 - `load_scrobbles_by_date`
+- `matching_spotify_track`
 - `parse_playlist_id`
 - `search_spotify_matches`
 
@@ -117,6 +128,7 @@ searchable by exact function name and uses the contracts/decisions above.
 
 ### `routines.composer_playlists`
 
+- `_playlist_page`
 - `load_owned_playlists`
 
 ### `routines.convert_library_file`
@@ -135,9 +147,11 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_saved_batch`
 - `_state_access`
 - `format_release_indexes`
+- `load_state`
 - `parse_playlist_id`
 - `parse_playlist_ids`
 - `parse_release_indexes`
+- `save_state`
 - `validate_state`
 
 ### `routines.found_art`
@@ -149,10 +163,12 @@ searchable by exact function name and uses the contracts/decisions above.
 
 - `_append_source_tracks`
 - `_default_state`
+- `_load_genre_playlist_source`
+- `_load_state_dict`
 - `_save_source_playlist`
+- `_save_state_dict`
 - `append_genre_reveal_log`
 - `first_incomplete_genre`
-- `load_genre_playlist_source`
 - `load_genre_reveal_state`
 - `mark_genre_completed`
 - `parse_destination_playlist_id`
@@ -185,9 +201,11 @@ searchable by exact function name and uses the contracts/decisions above.
 - `append_event`
 - `load_ranked_catalog`
 - `load_release_tracks`
+- `load_state`
 - `load_top_track_data`
 - `parse_playlist_id`
 - `remove_local_artist`
+- `save_state`
 - `validate_state`
 
 ### `routines.new_wine`
@@ -215,7 +233,9 @@ searchable by exact function name and uses the contracts/decisions above.
 - `get_liked_statuses`
 - `load_playlist_tracks`
 - `load_release_tracks`
+- `load_state`
 - `parse_playlist_id`
+- `save_state`
 - `validate_state`
 
 ### `routines.new_year`
@@ -242,9 +262,11 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_state_access`
 - `load_first_track`
 - `load_saved_albums`
+- `load_state`
 - `palace_cutoff`
 - `parse_playlist_id`
 - `resolve_alphabetical_start`
+- `save_state`
 - `search_spotify_album`
 - `validate_state`
 
@@ -256,7 +278,9 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_state_access`
 - `append_event`
 - `load_owned_playlists`
+- `load_state`
 - `parse_playlist_id`
+- `save_state`
 - `validate_state`
 
 ### `routines.recover_removed_albums`
@@ -267,7 +291,9 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_deserialize_state`
 - `_fetch_album_metadata`
 - `_follow_missing_artists`
+- `_load_log_state`
 - `_restore_album`
+- `_save_log_state`
 - `_saved_album`
 - `_serialize_state`
 - `_state_access`
@@ -291,11 +317,15 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_persist_state`
 - `_playlist_membership`
 - `_playlist_snapshot`
+- `_read_catalog_page`
+- `_read_playlist_page`
+- `_read_track_page`
 - `_run_id`
 - `_state_access`
 - `append_event`
 - `load_recent_catalog`
 - `load_release_tracks`
+- `load_state`
 - `rank_lastfm_artists`
 - `release_tags`
 - `save_state`
@@ -322,35 +352,42 @@ searchable by exact function name and uses the contracts/decisions above.
 - `get_live_liked_track_count`
 - `has_persisted_keep_decision`
 - `known_artist_ids_by_name`
+- `load_review_decisions`
 - `record_followed_artist`
 - `record_review_decision`
 - `remove_album_from_library`
 - `resolve_album_artist`
+- `save_review_decisions`
 - `validate_review_decisions`
 
 ### `routines.review_artists`
 
 - `_default_state`
 - `_deserialize_state`
+- `_load_log_state`
 - `_read_discography_page`
 - `_read_first`
+- `_read_membership_page`
 - `_read_ranked_page`
 - `_read_tracks`
+- `_save_log_state`
 - `_serialize_state`
 - `_state_access`
 - `add_playlist_item`
 - `append_events`
 - `event`
 - `load_cache`
+- `load_json`
 - `load_models`
 - `new_run_id`
-- `playlist_membership`
+- `publish_managed_path`
 - `remove_library_artists`
 - `remove_playlist_items`
 - `save_artists`
 - `save_cache`
 - `update_stats_after_unfollow`
 - `validate_state`
+- `write_json_atomic`
 
 ### `routines.sauvignon`
 
@@ -382,7 +419,9 @@ searchable by exact function name and uses the contracts/decisions above.
 - `append_log`
 - `load_discography`
 - `load_release_tracks`
+- `load_state`
 - `parse_playlist_id`
+- `save_state`
 - `validate_state`
 
 ### `routines.something_old`
@@ -392,6 +431,9 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_direct_retry`
 - `_load_playlist_state`
 - `_read_golden_artist_choice`
+- `_read_lastfm_liked`
+- `_read_lastfm_matches`
+- `_read_studio_tracks`
 - `parse_playlist_id`
 - `rank_golden_oldies`
 - `resolve_spotify_artist`
@@ -418,7 +460,9 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_save_cache`
 - `_state_access`
 - `append_event`
+- `load_state`
 - `previously_added_artist_keys`
+- `save_state`
 - `validate_state`
 
 ### `routines.upload_library_files`

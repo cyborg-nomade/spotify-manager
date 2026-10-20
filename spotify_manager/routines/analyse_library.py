@@ -185,7 +185,9 @@ def append_event(
         event: Original audit event name.
         details: Original complete audit facts, including unknown keys.
     """
-    return analysis_files.append_event(utc_now, paths, run_id, event, **details)
+    return analysis_files.append_event(
+        _CompatibilityStorage(), paths, run_id, event, **details
+    )
 
 
 def write_models(path: Path, models: Sequence[BaseModel]) -> None:
@@ -195,9 +197,7 @@ def write_models(path: Path, models: Sequence[BaseModel]) -> None:
         path: Original complete file or staging location.
         models: Original complete ordered model values.
     """
-    return analysis_files.write_models(
-        path, models, write=write_json_atomic, publish=_publish_restored
-    )
+    return analysis_files.write_models(path, models, storage=_CompatibilityStorage())
 
 
 def append_models_jsonl(path: Path, models: Sequence[BaseModel]) -> None:
@@ -221,7 +221,7 @@ def load_model_list[T: BaseModel](path: Path, model: type[T]) -> list[T]:
     Returns:
         Original complete models in stored array order.
     """
-    return analysis_files.load_model_list(path, model, read=load_json)
+    return analysis_files.load_model_list(path, model, storage=_CompatibilityStorage())
 
 
 def load_models_jsonl[T: BaseModel](path: Path, model: type[T]) -> list[T]:
@@ -265,7 +265,7 @@ def load_your_library(paths: LibraryAnalysisPaths) -> YourLibraryFile:
     Returns:
         Original validated export authority.
     """
-    return analysis_files.load_your_library(paths, read=load_json)
+    return analysis_files.load_your_library(paths, storage=_CompatibilityStorage())
 
 
 def album_from_saved_item(item: object) -> YourLibraryAlbum | None:
@@ -676,18 +676,23 @@ def prepare_export_resource[T: LibraryModel](
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    return analysis_export.prepare_export_resource(
-        analysis_session(
-            paths,
-            cast(Checkpoint, checkpoint),
-            progress=progress_callback,
-            cancel_check=cancel_check,
-        ),
-        resource,
-        models,
-        model_type,
-        sort_key,
+    session = analysis_session(
+        paths,
+        cast(Checkpoint, checkpoint),
+        progress=progress_callback,
+        cancel_check=cancel_check,
     )
+    state = session.checkpoint["resources"][resource]
+    if state["status"] == "complete":
+        completed = session.files.models(paths.stage(resource), model_type)
+        session.notify(resource, len(completed), len(completed), "Complete")
+        return completed
+    total = len(models)
+    session.notify(resource, 0, total, "Reading YourLibrary.json")
+    by_id = analysis_export._read_export(session, resource, models, total)
+    prepared = sorted(by_id.values(), key=sort_key)
+    analysis_export.publish_export_resource(session, resource, prepared, total)
+    return prepared
 
 
 def analyse_library_async_routine(
@@ -974,7 +979,7 @@ def latest_export_artists(paths: LibraryAnalysisPaths) -> list[YourLibraryArtist
     Returns:
         Original complete result with unchanged source and recovery semantics.
     """
-    return analysis_files.latest_export_artists(paths, load_your_library)
+    return [] if not paths.your_library.exists() else load_your_library(paths).artists
 
 
 def prepare_artist_verification(
@@ -1344,3 +1349,47 @@ def _following_artists(sp: Spotify, identities: list[str]) -> object:
 
 def _publish_restored(path: Path, source: str) -> None:
     publish_managed_path(path, source=source)
+
+
+class _CompatibilityStorage:
+    """Adapt the retained public file helpers at their external compatibility edge."""
+
+    def read(self, path: Path, default: object | None = None) -> object:
+        """Read the retained public JSON seam.
+
+        Args:
+            path: File location.
+            default: Missing-file result.
+
+        Returns:
+            Unvalidated stored value.
+        """
+        if default is None:
+            return load_json(path)
+        return load_json(path, default=default)
+
+    def write(self, path: Path, value: object) -> None:
+        """Accept complete JSON atomically.
+
+        Args:
+            path: Destination.
+            value: Complete payload.
+        """
+        write_json_atomic(path, value)
+
+    def publish_path(self, path: Path, source: str) -> None:
+        """Publish an accepted managed artifact.
+
+        Args:
+            path: Accepted file.
+            source: Provenance label.
+        """
+        _publish_restored(path, source)
+
+    def clock(self) -> str:
+        """Observe the original audit clock.
+
+        Returns:
+            Current UTC timestamp.
+        """
+        return utc_now()

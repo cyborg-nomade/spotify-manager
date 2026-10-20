@@ -210,7 +210,7 @@ def _restore_state_locked(
     try:
         candidate = release_check.validate_state(request.state)
         state_access = jobs.get_state_service().namespace(
-            "release_check", release_check._default_state, release_check.validate_state
+            "release_check", jobs.STATE_NAMESPACE_DEFINITIONS["release_check"]
         )
         current = state_access.load()
         current_fingerprint = release_check.state_fingerprint(current)

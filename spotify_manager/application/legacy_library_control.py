@@ -1,9 +1,10 @@
 """Original control decisions, cursor selection and statistics stages."""
 
-from collections.abc import Callable
 from collections.abc import Sequence
 
+from spotify_manager.application.legacy_library_effects import ControlMembership
 from spotify_manager.application.legacy_library_effects import Echo
+from spotify_manager.application.legacy_library_effects import LegacyFiles
 from spotify_manager.domain.legacy_library import LegacyStatistics
 from spotify_manager.domain.legacy_library import first_index
 from spotify_manager.domain.legacy_library import last_kept_index
@@ -31,13 +32,13 @@ def unevaluated(control: list[ControlFileItem], echo: Echo) -> list[ControlFileI
 
 
 def evaluate(
-    control: list[ControlFileItem], contains: Callable[[str], object], echo: Echo
+    control: list[ControlFileItem], catalog: ControlMembership, echo: Echo
 ) -> list[ControlFileItem]:
     """Mutate original control entries after each live membership read.
 
     Args:
         control: Original mutable entries.
-        contains: Original singleton membership query.
+        catalog: Singleton membership reader.
         echo: Original presenter.
 
     Returns:
@@ -45,7 +46,7 @@ def evaluate(
     """
     echo("Checking against library...")
     for item in control:
-        item.result = "keep" if contains(item.album.spotify_id) else "remove"
+        item.result = "keep" if catalog.contains(item.album.spotify_id) else "remove"
         echo(f"album:{item.album.name}: result: {item.result}")
     return control
 
@@ -53,14 +54,14 @@ def evaluate(
 def reconcile(
     albums: list[SimplifiedAlbum],
     decisions: list[ControlFileItem],
-    save: Callable[[list[SimplifiedAlbum]], None],
+    files: LegacyFiles,
 ) -> None:
     """Remove original rejected entries before sorted publication.
 
     Args:
         albums: Original mutable album authority.
         decisions: Original observed decisions.
-        save: Original publication boundary.
+        files: Album publication owner.
 
     Raises:
         IndexError: An original removal targets an empty authority.
@@ -70,16 +71,14 @@ def reconcile(
             continue
         index = first_index(album_ids(albums), item.album.spotify_id)
         albums.pop(index)
-    save(sorted(albums, key=sort_key))
+    files.save_albums(sorted(albums, key=sort_key))
 
 
 def check(
     control: list[ControlFileItem],
     albums: list[SimplifiedAlbum],
-    select: Callable[[list[ControlFileItem]], list[ControlFileItem]],
-    observe: Callable[[list[ControlFileItem]], list[ControlFileItem]],
-    update: Callable[[list[SimplifiedAlbum], list[ControlFileItem]], None],
-    save: Callable[[list[ControlFileItem]], None],
+    catalog: ControlMembership,
+    files: LegacyFiles,
     echo: Echo,
 ) -> bool:
     """Retain original public stage seams and accepted effect order.
@@ -87,20 +86,18 @@ def check(
     Args:
         control: Original control authority.
         albums: Original album authority.
-        select: Original suffix selection.
-        observe: Original live decision stage.
-        update: Original album reconciliation.
-        save: Original control publication.
+        catalog: Singleton membership reader.
+        files: Album and control publication owner.
         echo: Original presenter.
 
     Returns:
         True after the original complete sequence.
     """
     echo("Checking album results...")
-    selected = select(control)
-    observe(selected)
-    update(albums, selected)
-    save(control)
+    selected = unevaluated(control, echo)
+    evaluate(selected, catalog, echo)
+    reconcile(albums, selected, files)
+    files.save_control(control)
     echo("Results checked!")
     return True
 
@@ -158,8 +155,7 @@ def calculate(
 def update_statistics(
     control: list[ControlFileItem],
     albums: list[SimplifiedAlbum],
-    calculate: Callable[[list[ControlFileItem], list[SimplifiedAlbum]], StatsFileItem],
-    save: Callable[[StatsFileItem], None],
+    files: LegacyFiles,
     echo: Echo,
 ) -> bool:
     """Publish original statistics after displaying the complete model.
@@ -167,17 +163,16 @@ def update_statistics(
     Args:
         control: Original decisions.
         albums: Original album authority.
-        calculate: Original public calculation seam.
-        save: Original statistics publication.
+        files: Statistics publication owner.
         echo: Original presenter.
 
     Returns:
         True after accepted publication.
     """
     echo("Updating stats...")
-    stats = calculate(control, albums)
+    stats = calculate(control, albums, echo)
     echo(f"These are your current stats: \n{stats.model_dump()}")
-    save(stats)
+    files.save_stats(stats)
     echo("Stats updated!")
     return True
 

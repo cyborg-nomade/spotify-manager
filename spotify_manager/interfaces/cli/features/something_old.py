@@ -1,6 +1,5 @@
 """Explicit something old CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
@@ -8,7 +7,6 @@ import typer
 from rich.console import Console
 from rich.status import Status
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
@@ -17,6 +15,9 @@ from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
 from spotify_manager.domain.golden_selection import SelectedTrack
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.formatting import scrobble_date
+from spotify_manager.interfaces.cli.history import present_history_summary
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
@@ -24,26 +25,20 @@ from spotify_manager.interfaces.operations import something_old as something_old
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class SomethingOldCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run Golden Oldies selection with artist and track choices.
 
     Args:
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        _scrobble_date: Caller-owned  scrobble date.
-        client: Caller-owned client.
-        print_scrobble_history_summary: Caller-owned print scrobble history summary.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
     """
 
+    runtime: CliResources
+
     display: ConsoleDisplay
-    configuration: type[Settings]
-    _scrobble_date: Callable[..., str]
-    client: Callable[..., Spotify]
-    print_scrobble_history_summary: Callable[..., None]
 
     def _prompt_something_old_artist(
         self,
@@ -121,7 +116,7 @@ class SomethingOldCLI:
             console.print(
                 f"[bold]{artist.artist}[/bold] · {artist.scrobbles:,}"
                 f" scrobbles · average "
-                f"{self._scrobble_date(artist.average_scrobble_ms)} · Spotify: "
+                f"{scrobble_date(artist.average_scrobble_ms)} · Spotify: "
                 f"{spotify_artist.name}"
             )
             table = self.display.create_table(title="Something Old selection")
@@ -219,7 +214,7 @@ class SomethingOldCLI:
             )
             return
         if summary.history_refresh is not None:
-            self.print_scrobble_history_summary(console, summary.history_refresh)
+            present_history_summary(console, summary.history_refresh)
         if summary.ranking_preview:
             self._show_golden_ranking(console, summary)
         if summary.action == "cancelled":
@@ -253,7 +248,7 @@ class SomethingOldCLI:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._something_old_console = self.display.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = something_old.parse_playlist_id(
                 configuration.something_old_new_playlist
@@ -274,7 +269,7 @@ class SomethingOldCLI:
                 "Preparing Something Old"
             ) as self._something_old_status:
                 summary = something_old.run_something_old(
-                    self.client(),
+                    self.runtime.client(),
                     lastfm_client,
                     SomethingOldOptions(
                         playlist_id=playlist_id,
@@ -367,7 +362,7 @@ class SomethingOldCLI:
             str(index),
             artist.artist,
             f"{artist.scrobbles:,}",
-            self._scrobble_date(artist.average_scrobble_ms),
+            scrobble_date(artist.average_scrobble_ms),
         )
 
     def _row_print_something_old_summary_track(

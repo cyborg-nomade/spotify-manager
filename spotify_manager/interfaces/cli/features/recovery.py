@@ -1,15 +1,14 @@
 """Explicit recovery CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
 import typer
 from rich.console import Console
-from spotipy import Spotify
 
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import (
     recover_removed_albums as recover_removed_albums,
 )
@@ -20,17 +19,18 @@ from spotify_manager.interfaces.operations import (
 
 @dataclass(kw_only=True)
 class RecoveryCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run removed-album recovery and present accepted outcomes.
 
     Args:
-        progress_display: Caller-owned progress display.
-        create_console: Caller-owned create console.
-        review_client: Caller-owned review client.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        create_console: Interface presentation resource.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     create_console: type[Console]
-    review_client: Callable[..., Spotify]
 
     def _run_recover_removed_albums(self, dry_run: bool, limit: int | None) -> None:
         """Audit removed albums, follow credited artists, and restore future releases.
@@ -59,7 +59,7 @@ class RecoveryCLI:
                     )
                 )
                 recover_removed_albums.recover_removed_albums(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     echo=self._recover_removed_albums_echo,
                     progress_callback=self._recover_removed_albums_update_progress,
                     dry_run=dry_run,

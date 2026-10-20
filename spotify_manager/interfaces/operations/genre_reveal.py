@@ -24,6 +24,7 @@ from spotify_manager.domain.genres import GenreRouteEntry as GenreRouteEntry
 from spotify_manager.infrastructure.genre_models import (
     GenreRevealRunResult as GenreRevealRunResult,
 )
+from spotify_manager.infrastructure.genre_pages import genre_pages
 from spotify_manager.infrastructure.legacy.genre_run import (
     LegacyGenreReveal as LegacyGenreReveal,
 )
@@ -76,6 +77,6 @@ def process_next_genre(
         GenreRevealLogError: Original completion audit cannot be written.
         ValidationError: Original request values are invalid.
     """
-    effects = LegacyGenreReveal(sp, page_reader, log_path)
+    effects = LegacyGenreReveal(sp, genre_pages(page_reader), log_path)
     GenreReveal(effects).run(slug, name, destination_playlist_id)
     return effects.result

@@ -1,6 +1,7 @@
 """Invoke review artists use cases for CLI and HTTP features."""
 
 from collections.abc import Callable as Callable
+from dataclasses import dataclass
 from time import sleep as default_sleep
 
 from spotipy import Spotify as Spotify
@@ -129,7 +130,7 @@ def flush_pending_queue_moves(
     session = composition.recovery_session(
         sp, artists, state, counts, paths, run_id, retry_call, echo
     )
-    flush_moves(session, get_membership)
+    flush_moves(session, _CompatibilityMembership(get_membership))
 
 
 def review_artists(
@@ -183,3 +184,21 @@ def review_artists(
         transient_max_attempts,
         state_service,
     ).run(refresh_cache, limit)
+
+
+@dataclass(frozen=True)
+class _CompatibilityMembership:
+    """Adapt the retained external Python membership hook at the interface edge."""
+
+    read: Callable[[str], PlaylistMembership]
+
+    def membership(self, identity: str) -> PlaylistMembership:
+        """Observe the retained external Python membership hook.
+
+        Args:
+            identity: Requested queue.
+
+        Returns:
+            Original complete membership.
+        """
+        return self.read(identity)

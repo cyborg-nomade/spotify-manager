@@ -29,6 +29,16 @@ a future targeted refactor; its current integration contracts still apply.
 
 ## Decision
 
+The owner's 2026-10-20 review extends this rule across the codebase: remove
+callback bags for ordinary I/O, serialization, schema validation, presentation,
+checkpoint publication and operational stage sequencing. Give external resources
+named methods; call fixed transformations and presenters directly. Keep existing
+public Python hook APIs compatible by adapting them once at their outer edge.
+Normal state access uses named format objects. SDK endpoint capture remains
+private to its transport leaf when original binding time is observable. A source
+guard resolves callable aliases, protocols and reexports and requires a documented
+interaction, runtime or compatibility reason for each executable dependency.
+
 The owner approved a further application-to-domain simplification on 2026-10-19.
 Fixed domain rules are direct imports and calls, not constructor-supplied
 functions. Application stages are named functions or concrete stage objects;

@@ -6,11 +6,11 @@ from typing import Never
 
 import typer
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.domain.palace_values import PalaceAlbumResult
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import palace_of_memory as palace_of_memory
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -18,23 +18,21 @@ from spotify_manager.interfaces.operations import (
 from spotify_manager.interfaces.requests.palace import PalaceCallbacks
 from spotify_manager.interfaces.requests.palace import PalaceOptions
 from spotify_manager.interfaces.requests.palace import PalaceResources
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class PalaceCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run Palace selection and cursor commands with terminal progress.
 
     Args:
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
+    runtime: CliResources
+
     display: ConsoleDisplay
-    configuration: type[Settings]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _run_fill_palace_of_memory(
@@ -256,7 +254,7 @@ class PalaceCLI:
             "Setting the Palace alphabetical cursor"
         ) as status:
             return palace_of_memory.set_alphabetical_cursor(
-                self.review_client(),
+                self.runtime.review_client(),
                 position,
                 progress_callback=status.update,
                 retry_call=self._fill_palace_of_memory_retry_call,
@@ -265,7 +263,7 @@ class PalaceCLI:
     def _execute_palace_fill(
         self, dry_run: bool, alphabetical_start: str | None
     ) -> palace_of_memory.PalaceOfMemorySummary:
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         playlist_id = palace_of_memory.parse_playlist_id(
             configuration.palace_of_memory_playlist
         )
@@ -273,7 +271,7 @@ class PalaceCLI:
             "Planning Palace of Memory" + (" (dry run)" if dry_run else "")
         ) as status:
             return palace_of_memory.fill_palace_of_memory(
-                self.review_client(),
+                self.runtime.review_client(),
                 PalaceOptions(
                     playlist_id=playlist_id,
                     dry_run=dry_run,

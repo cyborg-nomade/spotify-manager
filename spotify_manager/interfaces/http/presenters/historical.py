@@ -1,5 +1,7 @@
 """Stable historical result serialization."""
 
+from collections.abc import Iterable
+
 from spotify_manager.interfaces.http.models.historical import BlastSelectionResult
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 
@@ -45,3 +47,20 @@ def blast_selection_result(
         qualifying_matches=result.qualifying_matches,
         action=result.action,
     )
+
+
+def blast_selection_results(
+    values: Iterable[blast_from_past.SpotifySelectionResult],
+) -> list[BlastSelectionResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(blast_selection_result(value))
+    return entries

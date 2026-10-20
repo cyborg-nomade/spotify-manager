@@ -8,7 +8,6 @@ import sys
 import time
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import cast
 from urllib.request import urlopen as urlopen
@@ -55,7 +54,6 @@ from spotify_manager.application.automation_values import refresh_jobs as refres
 from spotify_manager.domain import automation_calendar as calendar
 from spotify_manager.infrastructure.automation_http import OpenResponse
 from spotify_manager.infrastructure.automation_http import SpaceHttpClient
-from spotify_manager.infrastructure.automation_records import artifact_updates
 from spotify_manager.infrastructure.automation_records import decode_response
 
 
@@ -229,11 +227,11 @@ def poll_job(client: workflow.SpaceAccess, spec: JobSpec, job_id: str) -> str:
     Raises:
         AutomationError: Original polling or cancellation fails.
     """
-    return workflow.poll_job(client, spec, job_id, partial(cancel_job, client), _emit)
+    return workflow.poll_job(client, spec, job_id, _now, _emit)
 
 
 def run_job(client: workflow.SpaceAccess, spec: JobSpec) -> str:
-    """Retain original public start/poll seams and checkpoint resume behavior.
+    """Run direct start, poll and checkpoint-resume stages.
 
     Args:
         client: Original caller-owned API client.
@@ -242,9 +240,7 @@ def run_job(client: workflow.SpaceAccess, spec: JobSpec) -> str:
     Returns:
         Original terminal outcome.
     """
-    return workflow.run_job(
-        client, spec, partial(start_job, client), partial(poll_job, client), _emit
-    )
+    return workflow.run_job(client, spec, _now, _emit)
 
 
 def run_nightly_refresh(
@@ -268,8 +264,7 @@ def run_nightly_refresh(
         jobs,
         freshness_threshold,
         BERLIN,
-        partial(durable_artifacts_are_fresh, client),
-        partial(run_job, client),
+        _now,
         _emit,
     )
 
@@ -286,7 +281,7 @@ def durable_artifacts_are_fresh(
     Returns:
         Original all-artifacts qualification.
     """
-    return workflow.durable_artifacts_are_fresh(client, threshold, artifact_updates)
+    return workflow.durable_artifacts_are_fresh(client, threshold)
 
 
 def run_connection_check(client: workflow.SpaceAccess) -> int:

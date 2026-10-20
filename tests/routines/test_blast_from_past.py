@@ -3,6 +3,7 @@
 import base64
 import gzip
 import json
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
@@ -10,12 +11,14 @@ from email.message import Message
 from functools import partial
 from io import BytesIO
 from pathlib import Path
+from types import TracebackType
 from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
 import pytest
+from pytest_mock import MockerFixture
 
 from spotify_manager.bootstrap import historical_playlists as historical_composition
 from spotify_manager.interfaces.operations import blast_from_past as blast_execution
@@ -438,32 +441,20 @@ def test_fetch_random_indexes_rejects_invalid_random_org_responses(
 
 def test_fetch_random_indexes_rejects_invalid_and_normalizes_naive_timestamp(
     monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
-    class FakeResponse:
-        headers = {"Date": "not-a-date"}
+    """Verify fetch random indexes rejects invalid and normalizes naive timestamp.
 
-        def __enter__(self) -> FakeResponse:
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return b"0\n"
-
-    monkeypatch.setattr(
-        blast_from_past,
-        "urlopen",
-        lambda *_args, **_kwargs: FakeResponse(),
-    )
+    Args:
+        monkeypatch: Isolated replacements at the actual dependency owners.
+        mocker: Isolated mocks for the original I/O and application boundaries.
+    """
+    response = RandomHeaderResponse({"Date": "not-a-date"})
+    monkeypatch.setattr(blast_from_past, "urlopen", mocker.Mock(return_value=response))
     with pytest.raises(blast_from_past.RandomOrgError, match="invalid timestamp"):
         blast_from_past.fetch_random_indexes(1, 1)
 
-    monkeypatch.setattr(
-        blast_from_past,
-        "parsedate_to_datetime",
-        lambda _value: datetime(2026, 7, 22, 13, 0, 52),
-    )
+    response.headers["Date"] = "Wed, 22 Jul 2026 13:00:52"
     assert blast_from_past.fetch_random_indexes(1, 1).generated_at == datetime(
         2026, 7, 22, 13, 0, 52, tzinfo=UTC
     )
@@ -896,3 +887,44 @@ def test_full_maximum_playlist_skips_random_org_and_search() -> None:
     assert summary.requested_count == 0
     assert sp.search_calls == []
     assert sp.posts == []
+
+
+@dataclass
+class RandomHeaderResponse:
+    """Supply raw Date headers for real timestamp validation.
+
+    Args:
+        headers: Original HTTP response headers.
+    """
+
+    headers: dict[str, str]
+
+    def __enter__(self) -> RandomHeaderResponse:
+        """Open the recorded response.
+
+        Returns:
+            The same response.
+        """
+        return self
+
+    def __exit__(
+        self,
+        kind: type[BaseException] | None,
+        error: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close the response without suppressing errors.
+
+        Args:
+            kind: Raised error type.
+            error: Raised error.
+            traceback: Original traceback.
+        """
+
+    def read(self) -> bytes:
+        """Read the original one-index response.
+
+        Returns:
+            Raw response bytes.
+        """
+        return b"0\n"

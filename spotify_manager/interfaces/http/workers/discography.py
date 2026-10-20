@@ -20,9 +20,8 @@ from spotify_manager.interfaces.http.models.something_old import (
     SomethingOldArtistOption,
 )
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
-from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.presenters.discography import (
-    discography_artist_result as _discography_artist_result,
+    discography_artist_results,
 )
 from spotify_manager.interfaces.http.workers.errors import _DiscographyJobCancelledError
 from spotify_manager.interfaces.operations import discography as discography
@@ -37,12 +36,15 @@ class DiscographyWorker:
     """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        context: Invocation-owned context.
-        job_id: Invocation-owned job id.
-        spotify: Invocation-owned spotify.
-        playlist_ids: Invocation-owned playlist ids.
-        queue_3_playlist_id: Invocation-owned queue 3 playlist id.
-        dry_run: Invocation-owned dry run.
+        context: Shared job lock, clock and presentation context.
+        job_id: Job id supplied by the caller.
+        spotify: Caller-owned Spotify client.
+        playlist_ids: Ordered playlist identities.
+        queue_3_playlist_id: Configured queue 3 playlist identity.
+        dry_run: Whether to preview without durable writes.
+        job: Mutable job record owned by this worker.
+        spotify_event_setter: SDK event subscription hook.
+        previous_spotify_event_callback: Original SDK event observer restored on exit.
     """
 
     context: PlaylistContext
@@ -358,8 +360,8 @@ class DiscographyWorker:
             self.job.result.discography_total_releases = plan.total_releases
             self.job.result.discography_days = plan.days
             self.job.result.discography_open_slots = plan.open_slots
-            self.job.result.discography_results = present_entries(
-                plan.artists, _discography_artist_result
+            self.job.result.discography_results = discography_artist_results(
+                plan.artists
             )
 
     def _complete_or_apply_plan(self, plan: discography.DiscographyPlan) -> None:

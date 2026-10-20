@@ -1,9 +1,8 @@
 """Original ID precedence, exact-search selection and live membership stages."""
 
-from collections.abc import Callable
-
 from spotify_manager.application.lookup_effects import AlbumLookup
 from spotify_manager.application.lookup_effects import ArtistLookup
+from spotify_manager.application.lookup_effects import LookupMembership
 from spotify_manager.application.lookup_effects import TrackLookup
 from spotify_manager.domain import lookup_selection as selection
 from spotify_manager.domain.lookup_values import LiveAlbumCandidate
@@ -112,7 +111,7 @@ def track(deps: TrackLookup, name: str | None, identifier: str | None) -> Resolv
 
 
 def liked_statuses(
-    ids: list[str], contains: Callable[[list[str]], object], batch_size: int
+    ids: list[str], contains: LookupMembership, batch_size: int
 ) -> dict[str, bool]:
     """Retain original duplicate requests and last-observed identity statuses.
 
@@ -130,7 +129,7 @@ def liked_statuses(
     liked = {}
     for start in range(0, len(ids), batch_size):
         batch = ids[start : start + batch_size]
-        response = contains(batch)
+        response = contains.contains(batch)
         if not isinstance(response, list) or len(response) != len(batch):
             raise SpotifyLookupResponseError(
                 "Spotify returned invalid Liked Songs statuses."

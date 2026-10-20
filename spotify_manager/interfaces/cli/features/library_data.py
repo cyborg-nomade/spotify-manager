@@ -1,6 +1,5 @@
 """Explicit library data CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Annotated
@@ -13,29 +12,27 @@ from rich.table import Table
 from spotify_manager.core.library_data import ALL_ARTIFACTS
 from spotify_manager.core.library_data import ArtifactName
 from spotify_manager.core.library_data import LibraryDataError
+from spotify_manager.core.library_data.models import validate_artifact_name
 from spotify_manager.core.library_data.service import ArtifactStatus
 from spotify_manager.core.library_data.service import LibraryDataService
+from spotify_manager.interfaces.cli.formatting import format_file_size
+from spotify_manager.interfaces.cli.resources import CliResources
 
 
 @dataclass(kw_only=True)
 class LibraryDataCLI:
-    """Execute and present library data through explicit facade dependencies.
+    """Inspect, hydrate and publish durable library artifacts.
 
     Args:
-        create_console: Factory for console instances.
-        create_table: Factory for table instances.
-        format_file_size: Original format file size boundary supplied by the facade.
-        get_library_data_service: Original get library data service boundary supplied by
-            the facade.
-        selected_artifacts: Original selected artifacts boundary supplied by the facade.
-        validate_artifact_name: Original validate artifact name boundary supplied by the
-            facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        create_console: Interface presentation resource.
+        create_table: Interface presentation resource.
     """
+
+    runtime: CliResources
 
     create_console: type[Console]
     create_table: type[Table]
-    get_library_data_service: Callable[..., LibraryDataService]
-    validate_artifact_name: Callable[..., ArtifactName]
 
     def _selected_artifacts(self, values: Iterable[str]) -> tuple[ArtifactName, ...]:
         """Validate repeated artifact options, defaulting to every artifact.
@@ -51,7 +48,7 @@ class LibraryDataCLI:
             return ALL_ARTIFACTS
         try:
             return tuple(
-                dict.fromkeys(self.validate_artifact_name(value) for value in requested)
+                dict.fromkeys(validate_artifact_name(value) for value in requested)
             )
         except LibraryDataError as exc:
             self._report_selected_artifacts_library_data_failure(exc)
@@ -60,23 +57,18 @@ class LibraryDataCLI:
         """Format a byte count for a compact CLI summary.
 
         Args:
-            size_bytes: Size bytes supplied by the caller.
+            size_bytes: Byte count.
 
         Returns:
-            The original value selected or formatted by this adapter.
+            Original display text.
         """
-        size = float(size_bytes)
-        for unit in ("B", "KiB", "MiB", "GiB"):
-            if size < 1024 or unit == "GiB":
-                return f"{size:.1f} {unit}"
-            size /= 1024
-        raise AssertionError("unreachable")
+        return format_file_size(size_bytes)
 
     def _run_library_data_status(self) -> None:
         """Show durable versions and local synchronization for canonical files."""
         console = self.create_console()
         try:
-            statuses = self.get_library_data_service().statuses()
+            statuses = self.runtime.get_library_data_service().statuses()
         except LibraryDataError as exc:
             self._report_library_data_status_library_data_failure(exc, console)
         table = self.create_table(title="Shared library data")
@@ -114,7 +106,7 @@ class LibraryDataCLI:
             artifact: Artifact supplied by the caller.
         """
         console = self.create_console()
-        service = self.get_library_data_service()
+        service = self.runtime.get_library_data_service()
         try:
             statuses = self._hydrate_artifacts(
                 service, self._selected_artifacts(artifact or ())
@@ -154,7 +146,7 @@ class LibraryDataCLI:
             typer.echo("Library data was not changed.")
             return
         console = self.create_console()
-        service = self.get_library_data_service()
+        service = self.runtime.get_library_data_service()
         try:
             for name in names:
                 saved = service.publish(name, source="manual CLI publication")

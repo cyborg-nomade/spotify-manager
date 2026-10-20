@@ -1,6 +1,5 @@
 """Explicit genre CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -9,29 +8,27 @@ from typing import Never
 import typer
 from rich.console import Console
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import genre_reveal as genre_reveal
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class GenreCLI:
-    """Execute and present genre through explicit facade dependencies.
+    """Run Genre Reveal and present source and destination results.
 
     Args:
-        create_console: Factory for console instances.
-        configuration: Original settings factory supplied by the facade.
-        create_table: Factory for table instances.
-        client: Client supplied by the caller.
+        runtime: Lazy client, configuration and shared-service resources.
+        create_console: Interface presentation resource.
+        create_table: Interface presentation resource.
     """
 
+    runtime: CliResources
+
     create_console: type[Console]
-    configuration: type[Settings]
     create_table: type[Table]
-    client: Callable[..., Spotify]
 
     def _run_genre_reveal(
         self,
@@ -58,7 +55,7 @@ class GenreCLI:
             open_pages: Open pages supplied by the caller.
         """
         console = self.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             destination_playlist_id = genre_reveal.parse_destination_playlist_id(
                 configuration.genre_reveal_playlist
@@ -74,7 +71,7 @@ class GenreCLI:
         try:
             with console.status(f"Processing {entry.name}"):
                 result = genre_reveal.process_next_genre(
-                    self.client(),
+                    self.runtime.client(),
                     entry.slug,
                     entry.name,
                     destination_playlist_id,

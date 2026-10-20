@@ -1,7 +1,5 @@
 """Original preparation and ordered remote/local upload stages."""
 
-from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import Protocol
@@ -46,36 +44,91 @@ class FailureScope(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class Preparation:
-    """Supply original shallow export validation and deterministic part encoding.
+class Preparation(Protocol):
+    """Read selected exports and encode deterministic fallback parts."""
 
-    Args:
-        read: Original selected export read.
-        parts: Original inline part generation.
-    """
+    def read(self, path: Path, key: str) -> tuple[bytes, int]:
+        """Read and shallowly validate an export.
 
-    read: Callable[[Path, str], tuple[bytes, int]]
-    parts: Callable[[Path, bytes], tuple[GeneratedPart, ...]]
+        Args:
+            path: Export location.
+            key: Required top-level array.
+
+        Returns:
+            Original bytes and row count.
+        """
+        ...
+
+    def parts(self, path: Path, content: bytes) -> tuple[GeneratedPart, ...]:
+        """Encode history fallback parts without publishing files.
+
+        Args:
+            path: Original history location.
+            content: Accepted export bytes.
+
+        Returns:
+            Deterministic parts.
+        """
+        ...
 
 
-@dataclass(frozen=True)
-class UploadActions:
-    """Supply original remote and local publication boundaries.
+class UploadActions(Protocol):
+    """Read remote state and publish local and remote upload artifacts."""
 
-    Args:
-        remote: Complete remote file read.
-        materialize: Original local publication and cleanup.
-        manifest: Original ordered SDK operation construction.
-        commit: Original single remote commit.
-        failure: Original boundary error translation.
-    """
+    def remote(self, plan: LibraryFilesUploadPlan) -> list[str]:
+        """Read complete remote file names.
 
-    remote: Callable[[LibraryFilesUploadPlan], list[str]]
-    materialize: Callable[[LibraryFilesUploadPlan], None]
-    manifest: Callable[[LibraryFilesUploadPlan, set[str]], list[object]]
-    commit: Callable[[LibraryFilesUploadPlan, list[object]], object]
-    failure: Callable[[str, str], FailureScope]
+        Args:
+            plan: Target repository and revision.
+
+        Returns:
+            Remote file names.
+        """
+        ...
+
+    def materialize(self, plan: LibraryFilesUploadPlan) -> None:
+        """Accept local fallback parts and remove obsolete local parts.
+
+        Args:
+            plan: Complete upload plan.
+        """
+        ...
+
+    def manifest(self, plan: LibraryFilesUploadPlan, stale: set[str]) -> list[object]:
+        """Encode ordered SDK commit operations.
+
+        Args:
+            plan: Complete upload plan.
+            stale: Obsolete remote fallbacks.
+
+        Returns:
+            Ordered operations.
+        """
+        ...
+
+    def commit(self, plan: LibraryFilesUploadPlan, operations: list[object]) -> object:
+        """Accept one remote commit.
+
+        Args:
+            plan: Target revision and source order.
+            operations: Ordered SDK operations.
+
+        Returns:
+            Commit metadata.
+        """
+        ...
+
+    def failure(self, stage: str, repo: str) -> FailureScope:
+        """Open the transport error translation scope.
+
+        Args:
+            stage: Listing or commit boundary.
+            repo: Target repository.
+
+        Returns:
+            Error translation context.
+        """
+        ...
 
 
 def prepare(

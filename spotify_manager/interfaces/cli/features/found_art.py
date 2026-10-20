@@ -1,36 +1,33 @@
 """Explicit found art CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Never
 
 import typer
 from rich.console import Console
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class FoundArtCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Gather unheard recommendations and present their results.
 
     Args:
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        client: Caller-owned client.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
     """
 
+    runtime: CliResources
+
     display: ConsoleDisplay
-    configuration: type[Settings]
-    client: Callable[..., Spotify]
 
     def _render_found_art_table(
         self, console: Console, results: tuple[found_art.FoundArtResult, ...]
@@ -109,7 +106,7 @@ class FoundArtCLI:
             raise typer.BadParameter(
                 "use either --count or --max-playlist-length, not both"
             )
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = found_art.parse_found_art_playlist_id(
                 configuration.found_art_playlist
@@ -132,7 +129,7 @@ class FoundArtCLI:
                 "Preparing Found Art recommendations"
             ) as status:
                 summary = found_art.run_found_art(
-                    self.client(),
+                    self.runtime.client(),
                     lastfm_client,
                     playlist_id,
                     count=effective_count,

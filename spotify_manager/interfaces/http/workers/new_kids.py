@@ -23,10 +23,10 @@ from spotify_manager.interfaces.http.models.discovery import NewKidsPendingChoic
 from spotify_manager.interfaces.http.models.discovery import NewKidsReleaseOption
 from spotify_manager.interfaces.http.models.discovery import NewKidsTrackResult
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
-from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.presenters.discovery import (
     new_kids_fill_result as _new_kids_fill_result,
 )
+from spotify_manager.interfaces.http.presenters.discovery import new_kids_fill_results
 from spotify_manager.interfaces.http.presenters.discovery import (
     new_kids_track_result as _new_kids_track_result,
 )
@@ -41,7 +41,6 @@ from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.routines import composer_playlists
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
@@ -49,14 +48,18 @@ class NewKidsWorker:
     """Execute one reconnectable job with invocation-owned inputs.
 
     Args:
-        options: Caller-owned options.
-        context: Caller-owned context.
-        job_id: Caller-owned job id.
-        spotify: Caller-owned spotify.
-        command: Caller-owned command.
-        rate_limit_delay: Caller-owned rate limit delay.
-        connection_failure: Caller-owned connection failure.
-        configuration: Caller-owned configuration.
+        options: Options supplied by the caller.
+        context: Shared job lock, clock and presentation context.
+        job_id: Job id supplied by the caller.
+        spotify: Caller-owned Spotify client.
+        command: Command supplied by the caller.
+        rate_limit_delay: Rate limit delay supplied by the caller.
+        connection_failure: Connection failure supplied by the caller.
+        job: Mutable job record owned by this worker.
+        label: Visible command label.
+        lastfm: Caller-owned Last.fm client.
+        spotify_event_setter: SDK event subscription hook.
+        previous_spotify_event_callback: Original SDK event observer restored on exit.
     """
 
     options: DiscoveryOptions
@@ -66,7 +69,6 @@ class NewKidsWorker:
     command: Literal["flush_new_kids", "flush_queue_2"]
     rate_limit_delay: int
     connection_failure: str
-    configuration: Callable[[], Settings]
     job: _BlastJob = field(init=False)
     label: str = field(init=False)
     lastfm: LastFmClient = field(init=False)
@@ -209,7 +211,7 @@ class NewKidsWorker:
             self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
 
     def _execute(self) -> new_kids.FlushSummary | new_kids.Queue2Summary:
-        configuration = self.configuration()
+        configuration = self.context.settings.load()
         lastfm_api_key, lastfm_username = found_art.validate_lastfm_configuration(
             configuration.lastfm_api_key, configuration.lastfm_username
         )
@@ -381,9 +383,7 @@ class NewKidsWorker:
         )
         self.job.result.skipped = self._count_actions(summary.results, {"skip"})
         self.job.result.new_kids_results = results
-        self.job.result.new_kids_prefill = present_entries(
-            summary.prefill, _new_kids_fill_result
-        )
+        self.job.result.new_kids_prefill = new_kids_fill_results(summary.prefill)
         self.job.result.new_kids_postfill = (
             []
             if isinstance(summary, new_kids.Queue2Summary)

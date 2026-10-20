@@ -94,7 +94,7 @@ def _started(session: ReviewSession) -> None:
 
 def _recover(session: ReviewSession) -> None:
     flush_unfollows(session)
-    flush_moves(session, session.membership)
+    flush_moves(session)
 
 
 def _pending(session: ReviewSession, limit: int | None) -> list[YourLibraryArtist]:

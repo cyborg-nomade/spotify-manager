@@ -138,7 +138,9 @@ def test_palace_mirror_backup_retains_original_bytes_before_unicode_replacement(
     """
     path = tmp_path / "albums.json"
     path.write_text("original bytes")
-    backup = replace_saved_albums(path, tmp_path / "backups", (ALBUM,), _clock, _write)
+    backup = replace_saved_albums(
+        path, tmp_path / "backups", (ALBUM,), RecordedAlbumFiles()
+    )
     assert backup is not None
     assert Path(backup).read_text() == "original bytes"
     assert (
@@ -147,7 +149,7 @@ def test_palace_mirror_backup_retains_original_bytes_before_unicode_replacement(
     assert json.loads(path.read_text()) == [ALBUM.model_dump()]
     assert (
         replace_saved_albums(
-            tmp_path / "new.json", tmp_path / "backups", (ALBUM,), _clock, _write
+            tmp_path / "new.json", tmp_path / "backups", (ALBUM,), RecordedAlbumFiles()
         )
         is None
     )
@@ -167,5 +169,26 @@ def test_palace_mirror_backup_failure_preserves_original_before_replacement(
     path.write_text("original bytes")
     monkeypatch.setattr(shutil, "copy2", _fail_copy)
     with pytest.raises(PalaceOfMemoryStateError, match="Could not publish refreshed"):
-        replace_saved_albums(path, tmp_path / "backups", (ALBUM,), _clock, _write)
+        replace_saved_albums(path, tmp_path / "backups", (ALBUM,), RecordedAlbumFiles())
     assert path.read_text() == "original bytes"
+
+
+class RecordedAlbumFiles:
+    """Observe the original fixed backup clock and accepted JSON replacement."""
+
+    def clock(self) -> datetime:
+        """Observe the fixed backup instant.
+
+        Returns:
+            Original UTC instant.
+        """
+        return _clock()
+
+    def write(self, path: Path, albums: tuple[YourLibraryAlbum, ...]) -> None:
+        """Accept the original complete model bytes.
+
+        Args:
+            path: Canonical mirror location.
+            albums: Complete ordered replacement.
+        """
+        _write(path, albums)

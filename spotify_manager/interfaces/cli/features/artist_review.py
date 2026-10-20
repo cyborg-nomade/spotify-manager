@@ -1,6 +1,5 @@
 """Explicit artist review CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
@@ -8,34 +7,32 @@ import typer
 from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
 from spotify_manager.interfaces.operations import review_artists as artist_review
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class ArtistReviewCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run followed-artist review with terminal choices.
 
     Args:
-        progress_display: Caller-owned progress display.
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        review_client: Caller-owned review client.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    configuration: type[Settings]
-    review_client: Callable[..., Spotify]
 
     def _prompt_artist_track_choice(
         self,
@@ -129,7 +126,7 @@ class ArtistReviewCLI:
         """
         self._review_artists_console = self.display.create_console()
         self._review_artists_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlists = artist_review.QueuePlaylists.from_references(
                 configuration.the_queue_playlist,
@@ -155,7 +152,7 @@ class ArtistReviewCLI:
                     "Reviewing artists", total=None
                 )
                 summary = artist_review.review_artists(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     playlists,
                     track_choice_reader=self._review_artists_ask_artist_track_choice,
                     release_choice_reader=self._review_artists_ask_artist_release_choice,

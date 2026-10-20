@@ -8,7 +8,6 @@ from typing import Never
 import typer
 from rich.console import Console
 from rich.progress import Progress
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
@@ -19,6 +18,7 @@ from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -26,25 +26,23 @@ from spotify_manager.interfaces.operations import (
 from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
 from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
 from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class SauvignonCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run Sauvignon recommendations with album choices and progress.
 
     Args:
-        progress_display: Caller-owned progress display.
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    configuration: type[Settings]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _render_sauvignon_table(
@@ -181,7 +179,7 @@ class SauvignonCLI:
                 "use either --count or --max-playlist-length, not both"
             )
         self._fill_sauvignon_from_lastfm_console = self.display.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = sauvignon.parse_playlist_id(
                 configuration.sauvignon_terre_neuve_playlist
@@ -371,7 +369,7 @@ class SauvignonCLI:
                     )
                 )
                 summary = sauvignon.fill_sauvignon_from_lastfm(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     lastfm_client,
                     SauvignonOptions(
                         playlist_id=playlist_id,

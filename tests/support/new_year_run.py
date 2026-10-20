@@ -19,6 +19,7 @@ from spotipy import Spotify
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
+from spotify_manager.core.state.definitions import StateDefinition
 from spotify_manager.core.state.service import StateNamespace
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
@@ -246,20 +247,18 @@ class AnnualObservations:
     def namespace(
         self,
         name: str,
-        default: Callable[[], dict[str, object]],
-        validator: Callable[[object], dict[str, object]],
+        definition: StateDefinition,
     ) -> StateNamespace:
         """Observe original namespace resolution and default authority.
 
         Args:
             name: Original annual namespace.
-            default: Original complete missing-state factory.
-            validator: Original shallow validator.
+            definition: Original complete missing-state format.
 
         Returns:
             Original in-memory annual access.
         """
-        self.record("namespace", name, default())
+        self.record("namespace", name, definition.default())
         return cast(StateNamespace, self)
 
     def load(self) -> dict[str, object]:

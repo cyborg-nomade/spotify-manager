@@ -12,6 +12,7 @@ from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.checkpoints import Checkpoint
 from spotify_manager.application.slow_listening import new_run
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
 from spotify_manager.application.slow_listening_values import FlushResult as FlushResult
@@ -31,7 +32,8 @@ from spotify_manager.application.slow_listening_values import (
     SlowListeningStateError as SlowListeningStateError,
 )
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 
 # UFI
@@ -40,7 +42,7 @@ from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRele
 from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.slow_listening import track_index
 from spotify_manager.infrastructure import studio_records
-from spotify_manager.infrastructure.callbacks import LegacyCheckpoint
+from spotify_manager.infrastructure.routine_state_codecs import SlowListeningStateCodec
 from spotify_manager.routines import new_wine
 
 
@@ -238,11 +240,11 @@ def _ordered_date_group(
     releases: tuple[DiscographyRelease, ...],
     order_reader: ReleaseOrderReader,
     release_orders: dict[str, object],
-    order_saved: Callable[[], None],
+    checkpoint: Checkpoint,
 ) -> tuple[DiscographyRelease, ...]:
-    return ReleaseOrdering(
-        order_reader, release_orders, LegacyCheckpoint(order_saved)
-    ).ordered(artist_id, releases)
+    return ReleaseOrdering(order_reader, release_orders, checkpoint).ordered(
+        artist_id, releases
+    )
 
 
 def _next_release(
@@ -250,11 +252,11 @@ def _next_release(
     discography: tuple[DiscographyRelease, ...],
     order_reader: ReleaseOrderReader,
     release_orders: dict[str, object],
-    order_saved: Callable[[], None],
+    checkpoint: Checkpoint,
 ) -> DiscographyRelease | None:
-    return ReleaseOrdering(
-        order_reader, release_orders, LegacyCheckpoint(order_saved)
-    ).following(current_release, discography)
+    return ReleaseOrdering(order_reader, release_orders, checkpoint).following(
+        current_release, discography
+    )
 
 
 def _as_release_candidate(
@@ -377,15 +379,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="slow_listening",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "slow_listening",
+        SlowListeningStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 

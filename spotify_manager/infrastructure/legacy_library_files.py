@@ -4,11 +4,9 @@ Unchecked JSON values remain permissive here; callers retain native legacy error
 """
 
 import json
-from collections.abc import Callable
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
-from typing import Protocol
 from typing import cast
 
 from pydantic import BaseModel
@@ -24,23 +22,35 @@ from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 
 
-type Serialize = Callable[[Sequence[BaseModel]], list[dict[str, Any]]]
+class LegacyModelFiles:
+    """Own compatibility serialization and managed publication of legacy models."""
 
-
-class Publish(Protocol):
-    """Publish a managed file after its original accepted replacement."""
-
-    def __call__(self, path: Path, *, source: str) -> object:
-        """Accept the original publication.
+    def serialize(self, models: Sequence[BaseModel]) -> list[dict[str, Any]]:
+        """Serialize complete models at their original write boundary.
 
         Args:
-            path: Original accepted file.
-            source: Original publication label.
+            models: Complete ordered model values.
 
         Returns:
-            Original external publication outcome.
+            Original permissive JSON dictionaries.
         """
-        ...
+        from spotify_manager.loaders_savers import serialize_model_list
+
+        return serialize_model_list(models)
+
+    def publish(self, path: Path, *, source: str) -> object:
+        """Publish an accepted managed file.
+
+        Args:
+            path: Accepted artifact location.
+            source: Provenance label.
+
+        Returns:
+            Original publication acknowledgment.
+        """
+        from spotify_manager.loaders_savers import publish_managed_path
+
+        return publish_managed_path(path, source=source)
 
 
 def serialize_model_list(model_list: Sequence[BaseModel]) -> list[dict[str, Any]]:
@@ -209,7 +219,7 @@ def save_total_albums_file(
     total_albums_file_items: list[SimplifiedAlbum],
     path: Path,
     echo: Echo,
-    serialize: Serialize,
+    files: LegacyModelFiles,
 ) -> None:
     """Save total albums file.
 
@@ -217,11 +227,13 @@ def save_total_albums_file(
         total_albums_file_items: Original album entries.
         path: Original file location; encoding and write timing remain unchanged.
         echo: Original visible presenter.
-        serialize: Original serializer, evaluated after opening the target.
+        files: Serializer observed after opening the target.
     """
     echo("Saving total albums file...")
     with open(path, "w") as main_file:
-        json.dump(serialize(total_albums_file_items), main_file, ensure_ascii=False)
+        json.dump(
+            files.serialize(total_albums_file_items), main_file, ensure_ascii=False
+        )
         echo("OK!")
 
 
@@ -229,8 +241,7 @@ def save_total_albums_new_file(
     total_albums_file_items: list[YourLibraryAlbum],
     path: Path,
     echo: Echo,
-    serialize: Serialize,
-    publish: Publish,
+    files: LegacyModelFiles,
 ) -> None:
     """Save total albums file.
 
@@ -238,15 +249,16 @@ def save_total_albums_new_file(
         total_albums_file_items: Original album entries.
         path: Original file location; encoding and write timing remain unchanged.
         echo: Original visible presenter.
-        serialize: Original serializer, evaluated after opening the target.
-        publish: Original managed-file publication after accepted replacement.
+        files: Serialization and subsequent managed publication owner.
     """
     echo("Saving total albums file...")
     temporary = path.with_suffix(".json.tmp")
     with temporary.open("w") as main_file:
-        json.dump(serialize(total_albums_file_items), main_file, ensure_ascii=False)
+        json.dump(
+            files.serialize(total_albums_file_items), main_file, ensure_ascii=False
+        )
     temporary.replace(path)
-    publish(path, source="library routine")
+    files.publish(path, source="library routine")
     echo("OK!")
 
 
@@ -254,8 +266,7 @@ def save_total_artists_file(
     total_artists_file_items: list[YourLibraryArtist],
     path: Path,
     echo: Echo,
-    serialize: Serialize,
-    publish: Publish,
+    files: LegacyModelFiles,
 ) -> None:
     """Save total artists file.
 
@@ -263,19 +274,18 @@ def save_total_artists_file(
         total_artists_file_items: Original artist entries.
         path: Original file location; encoding and write timing remain unchanged.
         echo: Original visible presenter.
-        serialize: Original serializer, evaluated after opening the target.
-        publish: Original managed-file publication after accepted replacement.
+        files: Serialization and subsequent managed publication owner.
     """
     echo("Saving total artists file...")
     temporary = path.with_suffix(".json.tmp")
     with temporary.open("w") as main_file:
         json.dump(
-            serialize(total_artists_file_items),
+            files.serialize(total_artists_file_items),
             main_file,
             ensure_ascii=False,
         )
     temporary.replace(path)
-    publish(path, source="library routine")
+    files.publish(path, source="library routine")
     echo("OK!")
 
 
@@ -283,7 +293,7 @@ def save_control_file(
     control_file_items: list[ControlFileItem],
     path: Path,
     echo: Echo,
-    serialize: Serialize,
+    files: LegacyModelFiles,
 ) -> None:
     """Save total albums file.
 
@@ -291,11 +301,11 @@ def save_control_file(
         control_file_items: Original control entries.
         path: Original file location; encoding and write timing remain unchanged.
         echo: Original visible presenter.
-        serialize: Original serializer, evaluated after opening the target.
+        files: Serializer observed after opening the target.
     """
     echo("Saving control file...")
     with open(path, "w") as main_file:
-        json.dump(serialize(control_file_items), main_file, ensure_ascii=False)
+        json.dump(files.serialize(control_file_items), main_file, ensure_ascii=False)
         echo("OK!")
 
 

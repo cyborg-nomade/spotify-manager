@@ -1,11 +1,11 @@
 """Run original upload traces against independently supplied application effects."""
 
+from dataclasses import dataclass
 from typing import cast
 
 from huggingface_hub import CommitOperationAdd
 from huggingface_hub import CommitOperationDelete
 
-from spotify_manager.application.upload_run import UploadActions
 from spotify_manager.application.upload_run import upload
 from spotify_manager.application.upload_values import LibraryFilesUploadPlan
 from spotify_manager.infrastructure.upload_files import materialize
@@ -62,15 +62,7 @@ def run_upload(plan: LibraryFilesUploadPlan, memory: UploadMemory) -> object:
     Returns:
         Original result or translated/native failure.
     """
-    from functools import partial
-
-    actions = UploadActions(
-        partial(remote, memory),
-        materialize,
-        manifest,
-        partial(commit, memory),
-        UploadFailure,
-    )
+    actions = RecordedUpload(memory)
     try:
         return upload(actions, plan)
     except (RuntimeError, OSError) as error:
@@ -79,3 +71,69 @@ def run_upload(plan: LibraryFilesUploadPlan, memory: UploadMemory) -> object:
             "message": str(error),
             "cause": type(error.__cause__).__name__ if error.__cause__ else None,
         }
+
+
+@dataclass(frozen=True)
+class RecordedUpload:
+    """Observe upload effects independently of production composition.
+
+    Args:
+        memory: Recorded remote authority.
+    """
+
+    memory: UploadMemory
+
+    def remote(self, plan: LibraryFilesUploadPlan) -> list[str]:
+        """Observe remote at the recorded boundary.
+
+        Args:
+            plan: Original upload sources, target and revision.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return remote(self.memory, plan)
+
+    def materialize(self, plan: LibraryFilesUploadPlan) -> None:
+        """Observe materialize at the recorded boundary.
+
+        Args:
+            plan: Original upload sources, target and revision.
+        """
+        materialize(plan)
+
+    def manifest(self, plan: LibraryFilesUploadPlan, stale: set[str]) -> list[object]:
+        """Observe manifest at the recorded boundary.
+
+        Args:
+            plan: Original upload sources, target and revision.
+            stale: Obsolete remote fallback names.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return manifest(plan, stale)
+
+    def commit(self, plan: LibraryFilesUploadPlan, operations: list[object]) -> object:
+        """Observe commit at the recorded boundary.
+
+        Args:
+            plan: Original upload sources, target and revision.
+            operations: Ordered SDK commit operations.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return commit(self.memory, plan, operations)
+
+    def failure(self, stage: str, repo: str) -> UploadFailure:
+        """Observe failure at the recorded boundary.
+
+        Args:
+            stage: Observed listing or commit boundary.
+            repo: Target repository identity.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return UploadFailure(stage, repo)

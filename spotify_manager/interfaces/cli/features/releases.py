@@ -1,6 +1,5 @@
 """Explicit releases CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
@@ -9,7 +8,6 @@ from requests.exceptions import RequestException
 from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
@@ -19,32 +17,30 @@ from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.release_check_values import ReleaseCheckResult
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
+from spotify_manager.interfaces.cli.history import present_history_summary
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import release_check as release_check
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class ReleasesCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run release checking with artist and release choices.
 
     Args:
-        progress_display: Caller-owned progress display.
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        client: Caller-owned client.
-        print_scrobble_history_summary: Caller-owned print scrobble history summary.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    configuration: type[Settings]
-    client: Callable[..., Spotify]
-    print_scrobble_history_summary: Callable[..., None]
 
     def _prompt_release_check_artist(
         self,
@@ -148,7 +144,7 @@ class ReleasesCLI:
             summary: Completed routine outcome to render.
         """
         if summary.history_refresh is not None:
-            self.print_scrobble_history_summary(console, summary.history_refresh)
+            present_history_summary(console, summary.history_refresh)
         self._show_release_decisions(console, summary)
         mode = "Dry run" if summary.dry_run else "Release check"
         resumed = " · resumed" if summary.resumed else ""
@@ -202,7 +198,7 @@ class ReleasesCLI:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._check_new_releases_console = self.display.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlists = release_check.ReleaseCheckPlaylists.from_references(
                 configuration.wine_cellar_playlist, configuration.new_vintage_playlist
@@ -237,7 +233,7 @@ class ReleasesCLI:
                     )
                 )
                 summary = release_check.run_release_check(
-                    self.client(),
+                    self.runtime.client(),
                     lastfm_client,
                     ReleaseCheckOptions(
                         playlists=playlists, expected_username=username, dry_run=dry_run

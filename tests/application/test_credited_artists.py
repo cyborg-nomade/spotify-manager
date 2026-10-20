@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 
 import pytest
 
@@ -43,6 +42,14 @@ class MemoryCredits:
         self.effects.append(name)
         if name == self.fail:
             raise RuntimeError(name)
+
+    def save(self, state: RecoveryState) -> None:
+        """Observe accepted recovery progress.
+
+        Args:
+            state: Complete current progress model.
+        """
+        self.effect("checkpoint")
 
     def statuses(self, artists: list[AlbumArtist]) -> list[bool]:
         """Read current membership in the supplied order.
@@ -121,7 +128,7 @@ def test_credits_keep_last_duplicate_name_first_position_and_forty_id_batches() 
     fixture = MemoryCredits(followed={"2"})
     artists = [AlbumArtist(str(index), f"Artist {index}") for index in range(42)]
     artists.append(AlbumArtist("0", "Last observed name"))
-    state = RecoveryState(set(), {"1"}, partial(fixture.effect, "checkpoint"))
+    state = RecoveryState(set(), {"1"}, fixture)
     result = follow_credited_artists(fixture.dependencies(), artists, state, False)
     assert result == (41, 40)
     assert [len(batch) for batch in fixture.batches] == [40, 1]
@@ -136,7 +143,7 @@ def test_credits_keep_last_duplicate_name_first_position_and_forty_id_batches() 
 def test_credit_preview_marks_checked_without_persisting_or_writing() -> None:
     """Preview retains run-local deduplication and clocks but omits durable effects."""
     fixture = MemoryCredits()
-    state = RecoveryState(set(), set(), partial(fixture.effect, "checkpoint"))
+    state = RecoveryState(set(), set(), fixture)
     result = follow_credited_artists(
         fixture.dependencies(), [AlbumArtist("a", "A")], state, True
     )
@@ -184,7 +191,7 @@ def test_credit_publication_failure_retains_follow_for_restart() -> None:
 def test_credit_audit_failure_retains_in_memory_check_before_checkpoint() -> None:
     """Audit failure occurs after marking checked but before durable persistence."""
     fixture = MemoryCredits(fail="audit")
-    state = RecoveryState(set(), set(), partial(fixture.effect, "checkpoint"))
+    state = RecoveryState(set(), set(), fixture)
     with pytest.raises(RuntimeError, match="audit"):
         follow_credited_artists(
             fixture.dependencies(), [AlbumArtist("a", "A")], state, False

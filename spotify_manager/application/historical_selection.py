@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-from datetime import datetime
 
 from spotify_manager.application.historical_values import BlastFromPastBatch
 from spotify_manager.application.historical_values import BlastFromPastError
@@ -11,16 +10,12 @@ from spotify_manager.application.historical_values import DailyMindRadioBatch
 from spotify_manager.application.historical_values import LastFmExportError
 from spotify_manager.application.ports.history import HistoricalInputs
 from spotify_manager.domain.history import Scrobble
-from spotify_manager.domain.history import ScrobbleSelection
 from spotify_manager.domain.history import anniversary_dates
 from spotify_manager.domain.history import eligible_dates
 from spotify_manager.domain.history import select_scrobble
 
 
 type HistoryByDate = dict[date, list[Scrobble]]
-type ScrobbleSelector = Callable[
-    [date, int, list[Scrobble], datetime], ScrobbleSelection
-]
 
 
 @dataclass(frozen=True)

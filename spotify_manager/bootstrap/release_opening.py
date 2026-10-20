@@ -1,7 +1,5 @@
 """Compose original release startup with caller-owned history and durable state."""
 
-from datetime import UTC
-from datetime import date
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -9,17 +7,10 @@ from pathlib import Path
 from spotify_manager.application.release_opening import ReleaseRunOpening
 from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.core.state.service import StateService
+from spotify_manager.infrastructure.legacy.release_clock import ReleaseClock
 from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
 from spotify_manager.infrastructure.legacy.release_opening import _history_progress
 from spotify_manager.routines import release_check as legacy
-
-
-def _clock(now: datetime | None) -> datetime:
-    return (now or legacy.datetime.now(UTC)).astimezone(UTC)
-
-
-def _local_date(stamp: datetime) -> date:
-    return stamp.astimezone(legacy.blast_from_past.SCROBBLE_TIMEZONE).date()
 
 
 def release_opening(
@@ -53,8 +44,6 @@ def release_opening(
     Returns:
     The application opening stage and its state acquisition boundary.
     """
-    from spotify_manager.routines.release_check import _run_id
-
     effects = LegacyReleaseOpening(
         lastfm,
         expected_username,
@@ -84,9 +73,7 @@ def release_opening(
         effects,
         history,
         expected_username,
-        partial(_clock, now),
-        _local_date,
-        _run_id,
+        ReleaseClock(now),
         legacy.MIN_ARTIST_SCROBBLES,
     )
     return (opening, effects)

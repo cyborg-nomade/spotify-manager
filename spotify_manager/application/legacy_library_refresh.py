@@ -1,16 +1,17 @@
 """Original incremental album refresh, paging and playlist execution stages."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
 from spotify_manager.application.legacy_library_effects import AlbumRefresh
 from spotify_manager.application.legacy_library_effects import Echo
-from spotify_manager.application.legacy_library_effects import FailureFactory
 from spotify_manager.application.legacy_library_effects import MonthlyPlaylist
 from spotify_manager.application.legacy_library_effects import Page
 from spotify_manager.application.legacy_library_effects import PlaylistClock
+from spotify_manager.application.legacy_library_effects import PlaylistWrites
 from spotify_manager.application.legacy_library_effects import TrackRead
+from spotify_manager.application.legacy_library_errors import LegacyFailure
+from spotify_manager.domain.legacy_library import monthly_slice
 from spotify_manager.domain.legacy_library import playlist_batches
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
@@ -39,24 +40,21 @@ class Scan:
     next_observed: bool = False
 
 
-def refresh(
-    deps: AlbumRefresh, incremental: bool, echo: Echo, failure: FailureFactory
-) -> list[SimplifiedAlbum]:
+def refresh(deps: AlbumRefresh, incremental: bool, echo: Echo) -> list[SimplifiedAlbum]:
     """Retain original load scope and partial-mutation fallback.
 
     Args:
         deps: Original catalog, conversion and file boundaries.
         incremental: Original update-only flag.
         echo: Original presenter.
-        failure: Original ordinary-error reporting scope.
 
     Returns:
         Published models or the original mutable fallback authority.
     """
     echo("Updating total albums...")
     stored = deps.load() if incremental else []
-    with failure(echo):
-        raw = gather(deps, len(stored), echo, failure)
+    with LegacyFailure(echo):
+        raw = gather(deps, len(stored), echo)
         invalid_rows(raw, echo)
         albums = deps.parse(raw)
         if incremental:
@@ -69,16 +67,13 @@ def refresh(
     return stored if incremental else []
 
 
-def gather(
-    deps: AlbumRefresh, offset: int, echo: Echo, failure: FailureFactory
-) -> list[object]:
+def gather(deps: AlbumRefresh, offset: int, echo: Echo) -> list[object]:
     """Collect original pages, retaining the failed-next recovery omission.
 
     Args:
         deps: Original raw page boundaries.
         offset: Original incremental offset.
         echo: Original presenter.
-        failure: Original page-failure scope.
 
     Returns:
         Original shared first-page row list extended only by successful next reads.
@@ -89,7 +84,7 @@ def gather(
     offset = page["offset"]
     scan = Scan(page, round((total - offset) / deps.limit()), offset)
     while scan.page["next"]:
-        advance(scan, rows, deps, echo, failure)
+        advance(scan, rows, deps, echo)
     return rows
 
 
@@ -98,7 +93,6 @@ def advance(
     rows: list[object],
     deps: AlbumRefresh,
     echo: Echo,
-    failure: FailureFactory,
 ) -> None:
     """Attempt one original next read before its separate recovery request.
 
@@ -107,12 +101,11 @@ def advance(
         rows: Original accepted rows.
         deps: Original catalog boundaries.
         echo: Original presenter.
-        failure: Original page-failure scope.
 
     Raises:
         UnboundLocalError: Original presentation fails before assigning last_next.
     """
-    with failure(echo) as attempt:
+    with LegacyFailure(echo) as attempt:
         echo(f"{scan.index}/{scan.pages}")
         scan.index += 1
         scan.next_url = scan.page["next"]
@@ -203,7 +196,6 @@ def add_monthly(
     albums: list[SimplifiedAlbum],
     index: int,
     echo: Echo,
-    failure: FailureFactory,
 ) -> bool:
     """Retain original partial playlist and control acceptance on failure.
 
@@ -213,18 +205,17 @@ def add_monthly(
         albums: Original album authority.
         index: Original slice start.
         echo: Original presenter.
-        failure: Original ordinary-failure scope.
 
     Returns:
         Whether every original effect completed.
     """
     echo("Adding monthly albums to playlist and control file...")
-    with failure(echo):
-        selected = deps.select(albums, index)
-        identifier = deps.create()
+    with LegacyFailure(echo):
+        selected = monthly_slice(albums, index, deps.limits.count())
+        identifier = playlist(deps.clock, echo)
         for album in selected:
             append_album(deps, control, album, identifier, echo)
-        deps.save(control)
+        deps.files.save_control(control)
         return True
     return False
 
@@ -245,8 +236,8 @@ def append_album(
         identifier: Original destination playlist identity.
         echo: Original visible presenter.
     """
-    tracks = deps.tracks(album)
-    deps.append(tracks, identifier)
+    ordered = tracks(deps.tracks, album, echo)
+    append_tracks(ordered, identifier, deps.writes, echo)
     control.append(ControlFileItem(album=album, result=""))
     echo(f"Added album {album.name} to control file")
 
@@ -280,8 +271,7 @@ def tracks(
 def append_tracks(
     ordered_tracks: list[SimplifiedTrack],
     identifier: str,
-    single: Callable[[str, list[str]], None],
-    batch: Callable[[str, list[str]], None],
+    writes: PlaylistWrites,
     echo: Echo,
 ) -> None:
     """Retain original small/large request seams and empty additions.
@@ -289,28 +279,25 @@ def append_tracks(
     Args:
         ordered_tracks: Original playback order.
         identifier: Original target playlist.
-        single: Original small-request SDK seam.
-        batch: Original batched SDK seam.
+        writes: Original small and batched playlist request owner.
         echo: Original presenter.
     """
     echo("Appending tracks to playlist...")
     uris = [track.uri for track in ordered_tracks]
     if len(ordered_tracks) <= 100:
-        single(identifier, uris)
+        writes.single(identifier, uris)
     else:
-        append_batches(uris, identifier, batch)
+        append_batches(uris, identifier, writes)
     echo("Done!")
 
 
-def append_batches(
-    uris: list[str], identifier: str, append: Callable[[str, list[str]], None]
-) -> None:
+def append_batches(uris: list[str], identifier: str, writes: PlaylistWrites) -> None:
     """Accept hundred-track batches in their original playback order.
 
     Args:
         uris: Original playback order.
         identifier: Original destination playlist identity.
-        append: Original accepted playlist mutation.
+        writes: Accepted playlist mutation owner.
     """
     for batch in playlist_batches(uris):
-        append(identifier, batch)
+        writes.batch(identifier, batch)

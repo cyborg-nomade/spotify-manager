@@ -33,7 +33,8 @@ from spotify_manager.application.release_evaluation import evaluate_catalog_rele
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.domain import completion
 
 # UFI
@@ -51,6 +52,7 @@ from spotify_manager.domain.discovery_progression import (
 )
 from spotify_manager.domain.discovery_progression import LIVE_PATTERN as LIVE_PATTERN
 from spotify_manager.domain.releases import release_identity
+from spotify_manager.infrastructure.routine_state_codecs import NewKidsStateCodec
 from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
@@ -372,23 +374,26 @@ def _composer_plan(
     )
 
 
-def _batched_contains(
-    ids: list[str],
-    operation: Callable[[list[str]], object],
-    resource: str,
-    retry_call: RetryCall,
+def _saved_release_statuses(
+    sp: Spotify, ids: list[str], retry_call: RetryCall
 ) -> dict[str, bool]:
     statuses: dict[str, bool] = {}
     for start in range(0, len(ids), CONTAINS_BATCH_SIZE):
         batch = ids[start : start + CONTAINS_BATCH_SIZE]
         response = retry_call(
-            partial(operation, batch),
-            f"checking {len(batch)} {resource}",
+            partial(sp.current_user_saved_albums_contains, batch),
+            f"checking {len(batch)} Saved Albums",
         )
-        if not isinstance(response, list) or len(response) != len(batch):
-            raise NewKidsError(f"Spotify returned invalid {resource} statuses.")
-        _record_statuses(statuses, batch, response)
+        _accept_statuses(statuses, batch, response, "Saved Albums")
     return statuses
+
+
+def _accept_statuses(
+    statuses: dict[str, bool], batch: list[str], response: object, resource: str
+) -> None:
+    if not isinstance(response, list) or len(response) != len(batch):
+        raise NewKidsError(f"Spotify returned invalid {resource} statuses.")
+    _record_statuses(statuses, batch, response)
 
 
 def load_top_track_data(
@@ -496,9 +501,7 @@ def load_ranked_catalog(
     release_ids = list(simplified)
     if not release_ids:
         return ()
-    saved = _batched_contains(
-        release_ids, sp.current_user_saved_albums_contains, "Saved Albums", retry_call
-    )
+    saved = _saved_release_statuses(sp, release_ids, retry_call)
     top_ranks, _top_tracks = load_top_track_data(sp, artist_id, retry_call)
     full_by_id = _release_details(sp, release_ids, retry_call)
     candidates = _catalog_candidates(
@@ -842,15 +845,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="new_kids",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "new_kids",
+        NewKidsStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -1116,25 +1114,43 @@ def assess_artist(
 def _assessment_saved(
     sp: Spotify, release_ids: list[str], retry_call: RetryCall
 ) -> dict[str, bool]:
-    return _batched_contains(
-        release_ids, sp.current_user_saved_albums_contains, "Saved Albums", retry_call
-    )
+    statuses: dict[str, bool] = {}
+    for start in range(0, len(release_ids), CONTAINS_BATCH_SIZE):
+        batch = release_ids[start : start + CONTAINS_BATCH_SIZE]
+        response = retry_call(
+            partial(sp.current_user_saved_albums_contains, batch),
+            f"checking {len(batch)} Saved Albums",
+        )
+        _accept_statuses(statuses, batch, response, "Saved Albums")
+    return statuses
 
 
 def _assessment_liked(
     sp: Spotify, track_ids: list[str], retry_call: RetryCall
 ) -> dict[str, bool]:
-    return _batched_contains(
-        track_ids, sp.current_user_saved_tracks_contains, "Liked Songs", retry_call
-    )
+    statuses: dict[str, bool] = {}
+    for start in range(0, len(track_ids), CONTAINS_BATCH_SIZE):
+        batch = track_ids[start : start + CONTAINS_BATCH_SIZE]
+        response = retry_call(
+            partial(sp.current_user_saved_tracks_contains, batch),
+            f"checking {len(batch)} Liked Songs",
+        )
+        _accept_statuses(statuses, batch, response, "Liked Songs")
+    return statuses
 
 
 def _assessment_top_liked(
     sp: Spotify, track_ids: list[str], retry_call: RetryCall
 ) -> dict[str, bool]:
-    return _batched_contains(
-        track_ids, sp.current_user_saved_tracks_contains, "top Liked Songs", retry_call
-    )
+    statuses: dict[str, bool] = {}
+    for start in range(0, len(track_ids), CONTAINS_BATCH_SIZE):
+        batch = track_ids[start : start + CONTAINS_BATCH_SIZE]
+        response = retry_call(
+            partial(sp.current_user_saved_tracks_contains, batch),
+            f"checking {len(batch)} top Liked Songs",
+        )
+        _accept_statuses(statuses, batch, response, "top Liked Songs")
+    return statuses
 
 
 def _playlist_artist_ids(

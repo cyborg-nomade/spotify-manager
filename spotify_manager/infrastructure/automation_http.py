@@ -120,6 +120,16 @@ class SpaceHttpClient:
         self._sleep = sleep
         self._emit = emit
 
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Read and decode durable artifact timestamps at the freshness boundary.
+
+        Returns:
+            Original valid aware timestamps, or none for an invalid container.
+        """
+        from spotify_manager.infrastructure.automation_records import artifact_updates
+
+        return artifact_updates(self.request("GET", "/library-mirrors/status"))
+
     def remaining_seconds(self) -> float:
         """Observe the original signed maintenance time remaining.
 

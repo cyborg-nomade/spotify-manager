@@ -1,7 +1,6 @@
 """Decode original Queue cache records and append-only addition logs."""
 
 import json
-from collections.abc import Callable
 from collections.abc import Iterable
 from datetime import UTC
 from datetime import date
@@ -9,6 +8,7 @@ from datetime import datetime
 from typing import cast
 
 from spotify_manager.domain.queue_candidates import LastFmSimilarArtist
+from spotify_manager.infrastructure.recommendation_calendar import listening_week_start
 
 
 def _cache_timestamp(raw: dict[str, object]) -> datetime:
@@ -25,14 +25,12 @@ def _neighbor(raw: dict[str, object]) -> LastFmSimilarArtist:
 def cached_artists(
     raw: object,
     week: date,
-    listening_week: Callable[[datetime], date],
 ) -> tuple[LastFmSimilarArtist, ...] | None:
     """Decode the original permissive current-week neighborhood record.
 
     Args:
         raw: Original unchecked cache entry.
         week: Original effective listening week.
-        listening_week: Existing local-calendar boundary.
 
     Returns:
         Original observations, including empty hits, or a cache miss.
@@ -43,7 +41,7 @@ def cached_artists(
     if not isinstance(raw, dict):
         return None
     try:
-        return _current_artists(raw, week, listening_week)
+        return _current_artists(raw, week)
     except KeyError, TypeError, ValueError:
         return None
 
@@ -51,9 +49,8 @@ def cached_artists(
 def _current_artists(
     raw: dict[str, object],
     week: date,
-    listening_week: Callable[[datetime], date],
 ) -> tuple[LastFmSimilarArtist, ...] | None:
-    if listening_week(_cache_timestamp(raw)) != week:
+    if listening_week_start(_cache_timestamp(raw)) != week:
         return None
     values = raw["artists"]
     if not isinstance(values, list):

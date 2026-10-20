@@ -13,6 +13,7 @@ from spotify_manager.application.new_year_membership import RetryCall
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.infrastructure.legacy.new_year_state import LegacyAnnualState
+from spotify_manager.infrastructure.routine_state_codecs import NewYearStateDefinition
 from spotify_manager.routines import queue_3
 from spotify_manager.routines import scrobble_history
 from spotify_manager.settings import Settings
@@ -78,11 +79,10 @@ class AnnualResources:
             Original shallow namespace read/write bridge.
         """
         from spotify_manager.bootstrap.state import get_state_service
-        from spotify_manager.routines.new_year import validate_state
 
         service = self.supplied_service or get_state_service()
         self.selected_service = service
-        access = service.namespace("new_year", _default_state, validate_state)
+        access = service.namespace("new_year", NewYearStateDefinition())
         return LegacyAnnualState(access)
 
     def owned(self) -> tuple[OwnedPlaylist, ...]:

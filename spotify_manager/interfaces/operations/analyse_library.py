@@ -16,7 +16,6 @@ from spotify_manager.application.library_analysis_values import (
 from spotify_manager.application.library_analysis_values import (
     scoped_paths as live_mirror_resource_paths,
 )
-from spotify_manager.bootstrap.library_analysis import _publish as _publish_restored
 from spotify_manager.bootstrap.library_analysis import (
     analysis_files as analysis_storage,
 )
@@ -298,6 +297,4 @@ def restore_library_sync(
         if paths is not None
         else [DEFAULT_SYNC_PATHS, DEFAULT_ASYNC_PATHS, DEFAULT_LIVE_MIRROR_PATHS]
     )
-    return analysis_restore.restore_library_sync(
-        run_id, candidates, analysis_storage(), _publish_restored
-    )
+    return analysis_restore.restore_library_sync(run_id, candidates, analysis_storage())

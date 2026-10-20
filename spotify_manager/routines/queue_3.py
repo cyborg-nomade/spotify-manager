@@ -11,6 +11,8 @@ from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.checkpoints import Checkpoint
+from spotify_manager.application.checkpoints import NoCheckpoint
 from spotify_manager.application.queue_3_values import (
     AnnualImportResult as AnnualImportResult,
 )
@@ -35,10 +37,11 @@ from spotify_manager.application.release_evaluation import evaluate_release
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import release_candidate
-from spotify_manager.infrastructure.callbacks import LegacyCheckpoint
+from spotify_manager.infrastructure.routine_state_codecs import Queue3StateCodec
 from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
 from spotify_manager.interfaces.requests.queue_3 import Queue3Options
 from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
@@ -188,15 +191,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="queue_3",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "queue_3",
+        Queue3StateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -499,7 +497,6 @@ def _transition_plan(
     evaluation: AlbumEvaluation | None = None,
     reason: str | None = None,
 ) -> dict[str, object] | None:
-    from spotify_manager.bootstrap.queue_3 import _no_checkpoint
     from spotify_manager.bootstrap.queue_3 import review_planner
 
     planner = review_planner(
@@ -508,7 +505,7 @@ def _transition_plan(
         track_cache,
         {},
         {},
-        LegacyCheckpoint(_no_checkpoint),
+        NoCheckpoint(),
         transition_reader,
     )
     return planner.transition(
@@ -524,7 +521,7 @@ def _build_plan(
     track_cache: dict[str, tuple[new_wine.ReleaseTrack, ...]],
     liked_cache: dict[str, bool],
     release_orders: dict[str, object],
-    order_saved: Callable[[], None],
+    checkpoint: Checkpoint,
     transition_reader: ReleaseTransitionReader,
 ) -> dict[str, object] | None:
     from spotify_manager.bootstrap.queue_3 import review_planner
@@ -535,7 +532,7 @@ def _build_plan(
         track_cache,
         liked_cache,
         release_orders,
-        LegacyCheckpoint(order_saved),
+        checkpoint,
         transition_reader,
     )
     return planner.plan(source, discography)

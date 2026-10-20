@@ -20,7 +20,8 @@ from spotify_manager.application.library_statistics import (
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist as AlbumArtist
 from spotify_manager.infrastructure.library_records import (
@@ -28,6 +29,9 @@ from spotify_manager.infrastructure.library_records import (
 )
 from spotify_manager.infrastructure.library_records import (
     current_stats_history_key as current_stats_history_key,
+)
+from spotify_manager.infrastructure.routine_state_codecs import (
+    ReviewAlbumLimitsStateCodec,
 )
 from spotify_manager.infrastructure.spotify.retry import (
     RETRY_AFTER_SECONDS_PATTERN as RETRY_AFTER_SECONDS_PATTERN,
@@ -363,15 +367,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="review_album_limits",
-        default_factory=dict,
-        validator=validate_review_decisions,
-        legacy_path=decisions_path,
-        default_legacy_path=REVIEW_DECISIONS_PATH,
-        legacy_loader=load_review_decisions,
-        legacy_saver=save_review_decisions,
-        service=state_service,
+    return routine_state_from(
+        "review_album_limits",
+        ReviewAlbumLimitsStateCodec(),
+        StateLocation(decisions_path, REVIEW_DECISIONS_PATH, state_service),
     )
 
 

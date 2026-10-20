@@ -14,9 +14,8 @@ from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.playlist_retry import PlaylistRetry
-from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.presenters.historical import (
-    blast_selection_result as _blast_selection_result,
+    blast_selection_results,
 )
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import (
@@ -29,14 +28,17 @@ class BlastWorker:
     """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        context: Invocation-owned context.
-        job_id: Invocation-owned job id.
-        spotify: Invocation-owned spotify.
-        playlist_id: Invocation-owned playlist id.
-        count: Invocation-owned count.
-        max_playlist_length: Invocation-owned max playlist length.
-        dry_run: Invocation-owned dry run.
-        connection_failure: Invocation-owned connection failure.
+        context: Shared job lock, clock and presentation context.
+        job_id: Job id supplied by the caller.
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        count: Requested number of selections.
+        max_playlist_length: Existing playlist size limit.
+        dry_run: Whether to preview without durable writes.
+        connection_failure: Connection failure supplied by the caller.
+        job: Mutable job record owned by this worker.
+        spotify_event_setter: SDK event subscription hook.
+        previous_spotify_event_callback: Original SDK event observer restored on exit.
     """
 
     context: PlaylistContext
@@ -113,7 +115,7 @@ class BlastWorker:
         return summary
 
     def _completed(self, summary: blast_from_past.BlastFromPastSpotifySummary) -> None:
-        selections = present_entries(summary.results, _blast_selection_result)
+        selections = blast_selection_results(summary.results)
         with self.context.lock:
             self.job.result.status = "completed"
             self.job.result.requested_count = summary.requested_count

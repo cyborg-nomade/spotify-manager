@@ -8,7 +8,6 @@ from typing import Never
 import typer
 from rich.console import Console
 from rich.progress import Progress
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
@@ -18,6 +17,7 @@ from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import release_check as release_check
 from spotify_manager.interfaces.operations import (
@@ -32,20 +32,19 @@ from spotify_manager.settings import Settings
 
 @dataclass(kw_only=True)
 class QueueCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run queue recommendation and review commands with terminal interaction.
 
     Args:
-        progress_display: Caller-owned progress display.
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    configuration: type[Settings]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _render_queue_fill_table(
@@ -202,7 +201,7 @@ class QueueCLI:
                 "use either --count or --max-playlist-length, not both"
             )
         self._fill_queue_from_lastfm_console = self.display.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlists = self._configured_queue_playlists(configuration)
             api_key, username = found_art.validate_lastfm_configuration(
@@ -281,7 +280,7 @@ class QueueCLI:
         """
         self._flush_queue_console = self.display.create_console()
         try:
-            playlists = self._configured_queue_playlists(self.configuration())
+            playlists = self._configured_queue_playlists(self.runtime.configuration())
         except the_queue.QueueConfigError as exc:
             self._report_flush_queue_configuration_failure(exc)
         try:
@@ -302,7 +301,7 @@ class QueueCLI:
                     description, total=None
                 )
                 summary = the_queue.flush_queue(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     playlists,
                     dry_run=dry_run,
                     echo=self._flush_queue_echo,
@@ -568,7 +567,7 @@ class QueueCLI:
                     )
                 )
                 summary = the_queue.fill_queue_from_lastfm(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     lastfm_client,
                     QueueFillOptions(
                         playlists=playlists,

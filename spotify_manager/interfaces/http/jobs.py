@@ -51,6 +51,7 @@ from spotify_manager.core.library_data import LibraryDataError as LibraryDataErr
 from spotify_manager.core.library_data.runtime import (
     get_library_data_service as get_library_data_service,
 )
+from spotify_manager.core.state.definitions import StateDefinition
 from spotify_manager.core.state.editor import state_editor_schema as state_editor_schema
 from spotify_manager.core.state.editor import (
     validate_namespace_editor_change as validate_namespace_editor_change,
@@ -66,7 +67,25 @@ from spotify_manager.core.state.models import namespace_value as namespace_value
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
 from spotify_manager.core.state.service import StateFactory as StateFactory
 from spotify_manager.core.state.service import StateValidator as StateValidator
+from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
+from spotify_manager.infrastructure.routine_state_codecs import GenreRevealStateCodec
+from spotify_manager.infrastructure.routine_state_codecs import NewKidsStateCodec
+from spotify_manager.infrastructure.routine_state_codecs import NewWineStateCodec
+from spotify_manager.infrastructure.routine_state_codecs import NewYearStateDefinition
+from spotify_manager.infrastructure.routine_state_codecs import PalaceOfMemoryStateCodec
+from spotify_manager.infrastructure.routine_state_codecs import Queue3StateCodec
+from spotify_manager.infrastructure.routine_state_codecs import (
+    RecoverRemovedAlbumsStateCodec,
+)
+from spotify_manager.infrastructure.routine_state_codecs import ReleaseCheckStateCodec
+from spotify_manager.infrastructure.routine_state_codecs import (
+    ReviewAlbumLimitsStateCodec,
+)
+from spotify_manager.infrastructure.routine_state_codecs import ReviewArtistsStateCodec
+from spotify_manager.infrastructure.routine_state_codecs import SlowListeningStateCodec
+from spotify_manager.infrastructure.routine_state_codecs import TheQueueStateCodec
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
+from spotify_manager.interfaces.http.analysis_context import AnalysisContext
 from spotify_manager.interfaces.http.analysis_worker import (
     AnalysisWorker as AnalysisWorker,
 )
@@ -84,6 +103,7 @@ from spotify_manager.interfaces.http.job_records import PlaylistJob as PlaylistJ
 from spotify_manager.interfaces.http.job_registry import lookup_job as lookup_job
 from spotify_manager.interfaces.http.job_registry import register_job
 from spotify_manager.interfaces.http.job_registry import require_slot
+from spotify_manager.interfaces.http.logging import JobLogFormatter
 from spotify_manager.interfaces.http.models.analysis import (
     AnalysisJobLog as AnalysisJobLog,
 )
@@ -469,26 +489,20 @@ def _new_year_default_state() -> dict[str, object]:
     return {"years": {}}
 
 
-STATE_NAMESPACE_DEFINITIONS: dict[str, tuple[StateFactory, StateValidator]] = {
-    "discography": (discography._default_state, discography.validate_state),
-    "genre_reveal": (genre_reveal._default_state, genre_reveal.validate_state),
-    "new_kids": (new_kids._default_state, new_kids.validate_state),
-    "new_wine": (new_wine._default_state, new_wine.validate_state),
-    "new_year": (_new_year_default_state, new_year.validate_state),
-    "palace_of_memory": (
-        palace_of_memory._default_state,
-        palace_of_memory.validate_state,
-    ),
-    "queue": (the_queue._default_state, the_queue.validate_state),
-    "queue_3": (queue_3._default_state, queue_3.validate_state),
-    "recover_removed_albums": (
-        recover_removed_albums._default_state,
-        recover_removed_albums.validate_state,
-    ),
-    "release_check": (release_check._default_state, release_check.validate_state),
-    "review_album_limits": (dict, review_album_limits.validate_review_decisions),
-    "review_artists": (review_artists._default_state, review_artists.validate_state),
-    "slow_listening": (slow_listening._default_state, slow_listening.validate_state),
+STATE_NAMESPACE_DEFINITIONS: dict[str, StateDefinition] = {
+    "discography": DiscographyStateCodec(),
+    "genre_reveal": GenreRevealStateCodec(),
+    "new_kids": NewKidsStateCodec(),
+    "new_wine": NewWineStateCodec(),
+    "new_year": NewYearStateDefinition(),
+    "palace_of_memory": PalaceOfMemoryStateCodec(),
+    "queue": TheQueueStateCodec(),
+    "queue_3": Queue3StateCodec(),
+    "recover_removed_albums": RecoverRemovedAlbumsStateCodec(),
+    "release_check": ReleaseCheckStateCodec(),
+    "review_album_limits": ReviewAlbumLimitsStateCodec(),
+    "review_artists": ReviewArtistsStateCodec(),
+    "slow_listening": SlowListeningStateCodec(),
 }
 
 _AnalysisJob = AnalysisJob
@@ -587,7 +601,7 @@ def _append_job_log_locked(job: _AnalysisJob, message: str) -> None:
     if not message:
         return
     job.next_log_sequence = append_log(
-        job.result.logs, job.next_log_sequence, message, _create_job_log
+        job.result.logs, job.next_log_sequence, message, JobLogFormatter(datetime)
     )
     retain_logs(job.result.logs, _MAX_ANALYSIS_LOGS)
 
@@ -602,7 +616,7 @@ def _append_blast_log_locked(job: _BlastJob, message: str) -> None:
     if not message:
         return
     job.next_log_sequence = append_log(
-        job.result.logs, job.next_log_sequence, message, _create_job_log
+        job.result.logs, job.next_log_sequence, message, JobLogFormatter(datetime)
     )
     retain_logs(job.result.logs, _MAX_BLAST_LOGS)
 
@@ -656,11 +670,7 @@ def _release_check_state_snapshot(
 ) -> ReleaseCheckStateSnapshot:
     """Load one state snapshot, omitting its body when the browser is current."""
     state = (
-        get_state_service()
-        .namespace(
-            "release_check", release_check._default_state, release_check.validate_state
-        )
-        .load()
+        get_state_service().namespace("release_check", ReleaseCheckStateCodec()).load()
     )
     fingerprint = release_check.state_fingerprint(state)
     return ReleaseCheckStateSnapshot(
@@ -764,9 +774,7 @@ def _analysis_worker(
 ) -> AnalysisWorker:
     return AnalysisWorker(
         job=get_analysis_job(job_id),
-        lock=_analysis_jobs_lock,
-        now=_job_time,
-        append=_append_job_log_locked,
+        context=AnalysisContext(_analysis_jobs_lock, datetime, _MAX_ANALYSIS_LOGS),
         mode=mode,
         spotify=spotify,
         full_rebuild=full_rebuild,
@@ -784,7 +792,17 @@ def start_analysis_job(
     full_rebuild: bool = False,
     mirror_resource: library_analysis.ResourceName | None = None,
 ) -> AnalysisJobResult:
-    """Start one background analysis, rejecting duplicate active modes."""
+    """Start one background analysis, rejecting duplicate active modes.
+
+    Args:
+        mode: Original library analysis mode.
+        spotify: Caller-owned Spotify client.
+        full_rebuild: Whether to discard prior incremental progress.
+        mirror_resource: Optional mirror scope.
+
+    Returns:
+        Original operation result.
+    """
     if mode == "mirrors" and mirror_resource is not None:
         command = f"refresh_library_mirror_{mirror_resource}"
     else:
@@ -815,7 +833,8 @@ def start_analysis_job(
             cancel_event=Event(),
         )
         _append_job_log_locked(job, f"{mode.title()} analysis queued.")
-        snapshot = register_job(_analysis_jobs, job_id, job, _job_snapshot)
+        register_job(_analysis_jobs, job_id, job)
+        snapshot = _job_snapshot(job)
     Thread(
         target=_run_analysis_job,
         args=(job_id, mode, spotify, full_rebuild, mirror_resource),
@@ -832,13 +851,25 @@ def _playlist_job_retry(
     return PlaylistRetry(job, echo).call
 
 
+class JobConfiguration:
+    """Observe HTTP configuration at the original worker setup boundary."""
+
+    def load(self) -> Settings:
+        """Read current environment-backed settings.
+
+        Returns:
+            Original settings model.
+        """
+        return Settings()
+
+
 def _playlist_context() -> PlaylistContext:
     return PlaylistContext(
         registry=_blast_jobs,
         lock=_blast_jobs_lock,
         logger=_analysis_logger,
         clock=datetime,
-        log_entry=_create_job_log,
+        settings=JobConfiguration(),
         log_limit=_MAX_BLAST_LOGS,
     )
 
@@ -1002,7 +1033,6 @@ def _run_new_kids_job(
         command=command,
         rate_limit_delay=DEFAULT_SPOTIFY_RATE_LIMIT_RETRY_SECONDS,
         connection_failure=SPOTIFY_CONNECTION_FAILURE_DETAIL,
-        configuration=Settings,
         context=_playlist_context(),
         options=DiscoveryOptions(
             dry_run=dry_run,
@@ -1188,7 +1218,18 @@ def start_blast_job(
     max_playlist_length: int | None,
     dry_run: bool,
 ) -> BlastJobResult:
-    """Start one playlist job, rejecting another active invocation."""
+    """Start one playlist job, rejecting another active invocation.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        count: Requested number of selections.
+        max_playlist_length: Existing playlist size limit.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1197,7 +1238,8 @@ def start_blast_job(
             job,
             "A blast from the past queued" + (" in dry-run mode." if dry_run else "."),
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_blast_job,
         args=(job_id, spotify, playlist_id, count, max_playlist_length, dry_run),
@@ -1210,7 +1252,17 @@ def start_blast_job(
 def start_blast_artist_job(
     spotify: Spotify, playlist_id: str, count: int, dry_run: bool
 ) -> BlastJobResult:
-    """Start one dormant-artist recovery job."""
+    """Start one dormant-artist recovery job.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        count: Requested number of selections.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1227,7 +1279,8 @@ def start_blast_artist_job(
             "Dormant-artist recovery queued"
             + (" in dry-run mode." if dry_run else "."),
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_blast_artist_job,
         args=(job_id, spotify, playlist_id, count, dry_run),
@@ -1240,7 +1293,16 @@ def start_blast_artist_job(
 def start_daily_mind_radio_job(
     spotify: Spotify, playlist_id: str, dry_run: bool
 ) -> BlastJobResult:
-    """Start one Daily Mind Radio job, rejecting another playlist routine."""
+    """Start one Daily Mind Radio job, rejecting another playlist routine.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1252,7 +1314,8 @@ def start_daily_mind_radio_job(
         _append_blast_log_locked(
             job, "Daily Mind Radio queued" + (" in dry-run mode." if dry_run else ".")
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_daily_mind_radio_job,
         args=(job_id, spotify, playlist_id, dry_run),
@@ -1265,7 +1328,18 @@ def start_daily_mind_radio_job(
 def start_found_art_job(
     spotify: Spotify, playlist_id: str, api_key: str, username: str, count: int
 ) -> BlastJobResult:
-    """Start one Found Art job, rejecting another playlist routine."""
+    """Start one Found Art job, rejecting another playlist routine.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        api_key: Configured Last.fm API credential.
+        username: Configured Last.fm username.
+        count: Requested number of selections.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1275,7 +1349,8 @@ def start_found_art_job(
             )
         )
         _append_blast_log_locked(job, "Found Art queued.")
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_found_art_job,
         args=(job_id, spotify, playlist_id, api_key, username, count),
@@ -1296,7 +1371,21 @@ def start_sauvignon_job(
     seed_count: int,
     dry_run: bool,
 ) -> BlastJobResult:
-    """Start a Sauvignon album-discovery job, rejecting playlist overlap."""
+    """Start a Sauvignon album-discovery job, rejecting playlist overlap.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        api_key: Configured Last.fm API credential.
+        username: Configured Last.fm username.
+        count: Requested number of selections.
+        max_playlist_length: Existing playlist size limit.
+        seed_count: Requested recommendation seed count.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1313,7 +1402,8 @@ def start_sauvignon_job(
             "Sauvignon album discovery queued"
             + (" in dry-run mode." if dry_run else "."),
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_sauvignon_job,
         args=(
@@ -1344,7 +1434,21 @@ def start_queue_fill_job(
     seed_count: int,
     dry_run: bool,
 ) -> BlastJobResult:
-    """Start a Queue artist-discovery job, rejecting playlist overlap."""
+    """Start a Queue artist-discovery job, rejecting playlist overlap.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlists: Configured playlist identities.
+        api_key: Configured Last.fm API credential.
+        username: Configured Last.fm username.
+        count: Requested number of selections.
+        max_playlist_length: Existing playlist size limit.
+        seed_count: Requested recommendation seed count.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1361,7 +1465,8 @@ def start_queue_fill_job(
             job,
             f"Queue artist discovery queued{(' in dry-run mode' if dry_run else '')}.",
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_queue_fill_job,
         args=(
@@ -1384,7 +1489,16 @@ def start_queue_fill_job(
 def start_queue_flush_job(
     spotify: Spotify, playlists: the_queue.QueuePlaylists, *, dry_run: bool
 ) -> BlastJobResult:
-    """Start a Queue flush job, rejecting another playlist routine."""
+    """Start a Queue flush job, rejecting another playlist routine.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlists: Configured playlist identities.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1394,7 +1508,8 @@ def start_queue_flush_job(
         _append_blast_log_locked(
             job, f"Queue flush queued{(' in dry-run mode' if dry_run else '')}."
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_queue_flush_job,
         args=(job_id, spotify, playlists, dry_run),
@@ -1414,7 +1529,20 @@ def start_new_kids_job(
     *,
     dry_run: bool,
 ) -> BlastJobResult:
-    """Start one New Kids web job, rejecting another playlist routine."""
+    """Start one New Kids web job, rejecting another playlist routine.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        new_kids_playlist_id: Configured new kids playlist identity.
+        queue_2_playlist_id: Configured queue 2 playlist identity.
+        great_discoveries_playlist_id: Configured great discoveries playlist identity.
+        unlucky_ones_playlist_id: Configured unlucky ones playlist identity.
+        newfoundland_playlist_id: Configured newfoundland playlist identity.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1426,7 +1554,8 @@ def start_new_kids_job(
         _append_blast_log_locked(
             job, f"New Kids flush queued{(' in dry-run mode' if dry_run else '')}."
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_new_kids_job,
         args=(
@@ -1455,7 +1584,20 @@ def start_queue_2_job(
     *,
     dry_run: bool,
 ) -> BlastJobResult:
-    """Start one Queue 2 web job, rejecting another playlist routine."""
+    """Start one Queue 2 web job, rejecting another playlist routine.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        new_kids_playlist_id: Configured new kids playlist identity.
+        queue_2_playlist_id: Configured queue 2 playlist identity.
+        great_discoveries_playlist_id: Configured great discoveries playlist identity.
+        unlucky_ones_playlist_id: Configured unlucky ones playlist identity.
+        newfoundland_playlist_id: Configured newfoundland playlist identity.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1467,7 +1609,8 @@ def start_queue_2_job(
         _append_blast_log_locked(
             job, f"Queue 2 flush queued{(' in dry-run mode' if dry_run else '')}."
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_new_kids_job,
         args=(
@@ -1490,7 +1633,17 @@ def start_queue_2_job(
 def start_queue_3_job(
     spotify: Spotify, playlist_id: str, *, dry_run: bool, annual_only: bool = False
 ) -> BlastJobResult:
-    """Start one Queue 3 flush or standalone annual-import web job."""
+    """Start one Queue 3 flush or standalone annual-import web job.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        dry_run: Whether to preview without durable writes.
+        annual_only: Whether to import annual discoveries only.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1507,7 +1660,8 @@ def start_queue_3_job(
             ("Previous-year Queue 3 import" if annual_only else "Queue 3 flush")
             + f" queued{(' in dry-run mode' if dry_run else '')}.",
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_queue_3_job,
         args=(job_id, spotify, playlist_id, dry_run, annual_only),
@@ -1527,7 +1681,20 @@ def start_new_wine_job(
     no_discovery: bool,
     choose_album_endpoints: bool = False,
 ) -> BlastJobResult:
-    """Start one New Wine web job, rejecting another playlist routine."""
+    """Start one New Wine web job, rejecting another playlist routine.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        new_wine_playlist_id: Configured new wine playlist identity.
+        sauvignon_playlist_id: Configured sauvignon playlist identity.
+        wine_cellar_playlist_id: Configured wine cellar playlist identity.
+        dry_run: Whether to preview without durable writes.
+        no_discovery: Whether to skip new discovery candidates.
+        choose_album_endpoints: Whether to ask for release endpoints.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1543,7 +1710,8 @@ def start_new_wine_job(
         _append_blast_log_locked(
             job, f"New Wine flush queued{(' in dry-run mode' if dry_run else '')}."
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_new_wine_job,
         args=(
@@ -1565,7 +1733,16 @@ def start_new_wine_job(
 def start_slow_listening_job(
     spotify: Spotify, playlist_id: str, *, dry_run: bool
 ) -> BlastJobResult:
-    """Start one Slow Listening web job, rejecting another playlist routine."""
+    """Start one Slow Listening web job, rejecting another playlist routine.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1580,7 +1757,8 @@ def start_slow_listening_job(
             if dry_run
             else "Slow Listening flush queued.",
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_slow_listening_job,
         args=(job_id, spotify, playlist_id, dry_run),
@@ -1593,7 +1771,18 @@ def start_slow_listening_job(
 def start_something_old_job(
     spotify: Spotify, playlist_id: str, api_key: str, username: str, *, dry_run: bool
 ) -> BlastJobResult:
-    """Start one interactive Something Old job with reload-safe state."""
+    """Start one interactive Something Old job with reload-safe state.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        api_key: Configured Last.fm API credential.
+        username: Configured Last.fm username.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1608,7 +1797,8 @@ def start_something_old_job(
             if dry_run
             else "Something Old queued.",
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_something_old_job,
         args=(job_id, spotify, playlist_id, api_key, username, dry_run),
@@ -1626,7 +1816,18 @@ def start_release_check_job(
     *,
     dry_run: bool,
 ) -> BlastJobResult:
-    """Start one interactive release check with reload-safe web state."""
+    """Start one interactive release check with reload-safe web state.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlists: Configured playlist identities.
+        api_key: Configured Last.fm API credential.
+        username: Configured Last.fm username.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1641,7 +1842,8 @@ def start_release_check_job(
             if dry_run
             else "New-release check queued.",
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_release_check_job,
         args=(job_id, spotify, playlists, api_key, username, dry_run),
@@ -1658,7 +1860,17 @@ def start_discography_job(
     *,
     dry_run: bool,
 ) -> BlastJobResult:
-    """Start one interactive discography planner with reload-safe state."""
+    """Start one interactive discography planner with reload-safe state.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_ids: Ordered playlist identities.
+        queue_3_playlist_id: Configured queue 3 playlist identity.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1673,7 +1885,8 @@ def start_discography_job(
             if dry_run
             else "Discography planning queued.",
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_discography_job,
         args=(job_id, spotify, playlist_ids, queue_3_playlist_id, dry_run),
@@ -1686,7 +1899,16 @@ def start_discography_job(
 def start_requeue_for_a_dream_job(
     spotify: Spotify, playlist_id: str, *, dry_run: bool
 ) -> BlastJobResult:
-    """Start one Requeue for a Dream job with reload-safe state."""
+    """Start one Requeue for a Dream job with reload-safe state.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        dry_run: Whether to preview without durable writes.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1701,7 +1923,8 @@ def start_requeue_for_a_dream_job(
             if dry_run
             else "Requeue for a Dream queued.",
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_requeue_for_a_dream_job,
         args=(job_id, spotify, playlist_id, dry_run),
@@ -1719,7 +1942,18 @@ def start_palace_of_memory_job(
     alphabetical_start: str | None,
     cursor_position: int | None,
 ) -> BlastJobResult:
-    """Start one reload-safe Palace fill or cursor adjustment."""
+    """Start one reload-safe Palace fill or cursor adjustment.
+
+    Args:
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        dry_run: Whether to preview without durable writes.
+        alphabetical_start: Optional alphabetical cursor override.
+        cursor_position: Optional explicit cursor position.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist routine is already running")
         job_id = uuid4().hex
@@ -1743,7 +1977,8 @@ def start_palace_of_memory_job(
             else "Palace of Memory queued."
         )
         _append_blast_log_locked(job, queued_message)
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_palace_of_memory_job,
         args=(
@@ -1763,7 +1998,17 @@ def start_palace_of_memory_job(
 def start_scrobble_history_job(
     api_key: str, username: str, *, dry_run: bool, full_rebuild: bool = False
 ) -> BlastJobResult:
-    """Start one shared Last.fm history refresh with reload-safe state."""
+    """Start one shared Last.fm history refresh with reload-safe state.
+
+    Args:
+        api_key: Configured Last.fm API credential.
+        username: Configured Last.fm username.
+        dry_run: Whether to preview without durable writes.
+        full_rebuild: Whether to discard prior incremental progress.
+
+    Returns:
+        Original operation result.
+    """
     with _blast_jobs_lock:
         _require_playlist_slot("another playlist or history routine is running")
         job_id = uuid4().hex
@@ -1781,7 +2026,8 @@ def start_scrobble_history_job(
             if dry_run
             else "Last.fm scrobble history update queued.",
         )
-        snapshot = register_job(_blast_jobs, job_id, job, _blast_job_snapshot)
+        register_job(_blast_jobs, job_id, job)
+        snapshot = _blast_job_snapshot(job)
     Thread(
         target=_run_scrobble_history_job,
         args=(job_id, api_key, username, dry_run, full_rebuild),
@@ -1944,24 +2190,18 @@ def _run_new_year_job(
         spotify=spotify,
         year=year,
         dry_run=dry_run,
-        configuration=Settings,
-        append=_append_blast_log_locked,
-        lock=_blast_jobs_lock,
-        clock=datetime,
-        lookup=get_blast_job,
+        context=_playlist_context(),
     ).run()
 
 
 def _active_playlist_jobs(command: str) -> list[BlastJobResult]:
     with _blast_jobs_lock:
-        return active_playlist_snapshots(
-            _blast_jobs.values(), command, _blast_job_snapshot
-        )
+        return active_playlist_snapshots(_blast_jobs.values(), command)
 
 
 def _active_analysis_jobs() -> list[AnalysisJobResult]:
     with _analysis_jobs_lock:
-        return active_analysis_snapshots(_analysis_jobs.values(), _job_snapshot)
+        return active_analysis_snapshots(_analysis_jobs.values())
 
 
 def _analysis_resources(

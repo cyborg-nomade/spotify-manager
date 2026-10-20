@@ -8,10 +8,9 @@ from typing import Protocol
 from spotify_manager.domain.history import Scrobble
 
 
-# These effects need no object hierarchy: existing callbacks implement the ports.
+# Interactions, time observations and retry operations retain genuine hooks.
 type MessageSink = Callable[[str], None]
 type ChoiceReader[Context, Choices] = Callable[[Context, Choices], str]
-type AuditWriter[Result] = Callable[[Result], None]
 type Clock = Callable[[], datetime]
 type RandomTimestamp = Callable[[], datetime]
 type RetryCall = Callable[[Callable[[], object], str], object]
@@ -26,3 +25,15 @@ class ListeningHistory(Protocol):
         Returns:
             Original events and ordering inside each date bucket.
         """
+
+
+class AuditWriter[Result](Protocol):
+    """Persist complete routine audit outcomes."""
+
+    def write(self, result: Result) -> None:
+        """Accept a complete audit record.
+
+        Args:
+            result: Completed routine outcome.
+        """
+        ...

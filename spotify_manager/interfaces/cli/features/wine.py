@@ -8,7 +8,6 @@ import typer
 from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.new_wine import NewWineOptions
@@ -17,31 +16,30 @@ from spotify_manager.application.new_wine_values import FlushResult
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import new_wine as new_wine
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
 from spotify_manager.interfaces.requests.new_wine import NewWineStorage
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class WineCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run New Wine progression with terminal release choices.
 
     Args:
-        progress_display: Caller-owned progress display.
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    configuration: type[Settings]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _prompt_new_wine_release_choice(
@@ -130,7 +128,7 @@ class WineCLI:
         choose_album_endpoints = choose_album_endpoints is True
         self._flush_new_wine_console = self.display.create_console()
         self._flush_new_wine_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             new_wine_playlist_id = new_wine.parse_playlist_id(
                 configuration.new_wine_from_old_bottles_playlist,
@@ -163,7 +161,7 @@ class WineCLI:
                     description, total=None
                 )
                 summary = new_wine.flush_new_wine(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     NewWineOptions(
                         destination=new_wine_playlist_id,
                         sauvignon=sauvignon_playlist_id,

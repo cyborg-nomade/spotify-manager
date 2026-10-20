@@ -1,7 +1,6 @@
 """Original recommendation cache and append-only audit codecs and filesystem IO."""
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -69,10 +68,8 @@ def save_cache(payload: dict[str, object], path: Path) -> None:
         raise FoundArtStateError(f"Could not save Found Art cache: {path}") from exc
 
 
-def _fetched_at(
-    entry: dict[str, object], parse_timestamp: Callable[[str], datetime]
-) -> datetime:
-    stamp = parse_timestamp(str(entry["fetched_at"]))
+def _fetched_at(entry: dict[str, object]) -> datetime:
+    stamp = datetime.fromisoformat(str(entry["fetched_at"]))
     return stamp.replace(tzinfo=UTC) if stamp.tzinfo is None else stamp
 
 
@@ -97,14 +94,12 @@ def _neighbors(raw: object) -> tuple[LastFmSimilarTrack, ...] | None:
 def cached_neighbors(
     entry: object,
     week: date,
-    parse_timestamp: Callable[[str], datetime] = datetime.fromisoformat,
 ) -> tuple[LastFmSimilarTrack, ...] | None:
     """Decode original current-week entries with permissive row coercion.
 
     Args:
         entry: Original raw cache entry.
         week: Effective listening week.
-        parse_timestamp: Original ISO constructor, preserving injected clock types.
 
     Returns:
         Ordered decoded neighbors, including empty hits, or a complete cache miss.
@@ -115,7 +110,7 @@ def cached_neighbors(
     if not isinstance(entry, dict):
         return None
     try:
-        if listening_week_start(_fetched_at(entry, parse_timestamp)) != week:
+        if listening_week_start(_fetched_at(entry)) != week:
             return None
         return _neighbors(entry["tracks"])
     except KeyError, TypeError, ValueError:

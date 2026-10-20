@@ -16,9 +16,8 @@ from spotify_manager.interfaces.http.analysis_worker import EventCallback
 from spotify_manager.interfaces.http.analysis_worker import EventSetter
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
-from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.presenters.recommendations import (
-    found_art_selection_result as _found_art_selection_result,
+    found_art_selection_results,
 )
 from spotify_manager.interfaces.operations import found_art as found_art
 
@@ -28,15 +27,18 @@ class FoundArtWorker:
     """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        context: Invocation-owned context.
-        job_id: Invocation-owned job id.
-        spotify: Invocation-owned spotify.
-        playlist_id: Invocation-owned playlist id.
-        api_key: Invocation-owned api key.
-        username: Invocation-owned username.
-        count: Invocation-owned count.
-        create_lastfm: Invocation-owned create lastfm.
-        connection_failure: Invocation-owned connection failure.
+        context: Shared job lock, clock and presentation context.
+        job_id: Job id supplied by the caller.
+        spotify: Caller-owned Spotify client.
+        playlist_id: Destination playlist identity.
+        api_key: Configured Last.fm API credential.
+        username: Configured Last.fm username.
+        count: Requested number of selections.
+        connection_failure: Connection failure supplied by the caller.
+        job: Mutable job record owned by this worker.
+        lastfm: Caller-owned Last.fm client.
+        spotify_event_setter: SDK event subscription hook.
+        previous_spotify_event_callback: Original SDK event observer restored on exit.
     """
 
     context: PlaylistContext
@@ -104,7 +106,7 @@ class FoundArtWorker:
         return summary
 
     def _completed(self, summary: found_art.FoundArtSummary) -> None:
-        results = present_entries(summary.results, _found_art_selection_result)
+        results = found_art_selection_results(summary.results)
         with self.context.lock:
             self.job.result.status = "completed"
             self.job.result.requested_count = summary.requested_count

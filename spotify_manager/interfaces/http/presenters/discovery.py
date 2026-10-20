@@ -1,12 +1,13 @@
 """Stable discovery result serialization."""
 
+from collections.abc import Iterable
+
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.discovery import NewKidsFillResult
 from spotify_manager.interfaces.http.models.discovery import NewKidsTrackResult
 from spotify_manager.interfaces.http.models.discovery import Queue3AnnualImportEntry
 from spotify_manager.interfaces.http.models.discovery import Queue3ReleaseOption
 from spotify_manager.interfaces.http.models.discovery import Queue3TrackResult
-from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.operations import new_kids as new_kids
 from spotify_manager.interfaces.operations import queue_3 as queue_3
 from spotify_manager.interfaces.operations import slow_listening as slow_listening
@@ -157,7 +158,7 @@ def _apply_queue_3_flush_summary(job: _BlastJob, summary: queue_3.FlushSummary) 
     job.result.queue_3_changed_releases = summary.changed_releases
     job.result.completed_artists = summary.completed_artists
     job.result.skipped = summary.skipped
-    job.result.queue_3_results = present_entries(summary.results, queue_3_track_result)
+    job.result.queue_3_results = queue_3_track_results(summary.results)
     job.result.queue_3_annual_import = queue_3_annual_entries(summary.annual_import)
     job.result.queue_3_resumed = summary.resumed
     job.result.queue_3_paused = summary.paused
@@ -169,3 +170,37 @@ def _apply_queue_3_flush_summary(job: _BlastJob, summary: queue_3.FlushSummary) 
             f"{summary.changed_releases} release changes; "
             f"{summary.completed_artists} completed artists."
         )
+
+
+def queue_3_track_results(
+    values: Iterable[queue_3.FlushResult],
+) -> list[Queue3TrackResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(queue_3_track_result(value))
+    return entries
+
+
+def new_kids_fill_results(
+    values: Iterable[new_kids.FillResult],
+) -> list[NewKidsFillResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(new_kids_fill_result(value))
+    return entries

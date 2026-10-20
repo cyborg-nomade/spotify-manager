@@ -198,9 +198,7 @@ def _workflow(effects: Effects) -> ReleaseRunOpening:
         effects,
         cast(HistoryRefresh, ScriptedHistory(effects)),
         None,
-        effects.clock,
-        effects.local_date,
-        effects.run_id,
+        effects,
     )
 
 

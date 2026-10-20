@@ -7,12 +7,12 @@ from typing import Never
 import typer
 from rich.console import Console
 from rich.progress import Progress
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import new_wine as new_wine
 from spotify_manager.interfaces.operations import queue_3 as queue_3
 from spotify_manager.interfaces.operations import (
@@ -22,25 +22,23 @@ from spotify_manager.interfaces.operations import slow_listening as slow_listeni
 from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
 from spotify_manager.interfaces.requests.queue_3 import Queue3Options
 from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class Queue3CLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run annual imports and Queue 3 review with terminal choices.
 
     Args:
-        progress_display: Caller-owned progress display.
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    configuration: type[Settings]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _prompt_queue_3_release_transition(
@@ -177,7 +175,7 @@ class Queue3CLI:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._import_queue_3_previous_year_console = self.display.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
         except queue_3.Queue3ConfigError as exc:
@@ -200,7 +198,7 @@ class Queue3CLI:
                     )
                 )
                 summary = queue_3.import_previous_year_discoveries(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     playlist_id,
                     dry_run=dry_run,
                     echo=self._import_queue_3_previous_year_echo,
@@ -253,7 +251,7 @@ class Queue3CLI:
         """
         self._flush_queue_3_console = self.display.create_console()
         self._flush_queue_3_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = queue_3.parse_playlist_id(configuration.the_queue_3_playlist)
         except queue_3.Queue3ConfigError as exc:
@@ -276,7 +274,7 @@ class Queue3CLI:
                     description, total=None
                 )
                 summary = queue_3.flush_queue_3(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     Queue3Options(playlist_id=playlist_id, dry_run=dry_run),
                     Queue3Callbacks(
                         transition_reader=self._flush_queue_3_ask_queue_3_release_transition,

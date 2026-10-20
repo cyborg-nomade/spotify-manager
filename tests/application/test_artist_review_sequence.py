@@ -1,19 +1,20 @@
 """Replay original artist-review outcomes through independently injected stages."""
 
 from dataclasses import dataclass
-from functools import partial
 from typing import cast
 
 import pytest
 
 from spotify_manager.application.artist_review_effects import ReviewCatalog
 from spotify_manager.application.artist_review_effects import ReviewInteraction
-from spotify_manager.application.artist_review_effects import ReviewSpotify
-from spotify_manager.application.artist_review_effects import ReviewStorage
+from spotify_manager.application.artist_review_membership import MembershipPage
 from spotify_manager.application.artist_review_run import ArtistReview
 from spotify_manager.application.artist_review_values import ArtistReviewState
 from spotify_manager.application.artist_review_values import ArtistReviewSummary
 from spotify_manager.domain.artist_review_values import PlaylistMembership
+from spotify_manager.domain.artist_review_values import ReleaseCandidate
+from spotify_manager.domain.artist_review_values import TrackCandidate
+from spotify_manager.infrastructure.artist_review_records import membership_page
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
 from tests.support import artist_review_run as original
@@ -42,7 +43,7 @@ class MemoryReview:
             cast(dict[str, dict[str, object]], raw["pending_unfollows"]),
             cast(dict[str, dict[str, object]], raw["pending_queue_moves"]),
         )
-        state.persist = partial(_persist, self.edge, state)
+        state.checkpoint = MemoryReviewCheckpoint(self.edge)
         return state
 
     def cache(self, refresh: bool) -> None:
@@ -53,20 +54,16 @@ class MemoryReview:
         """
         self.edge.cache(original.PATHS.cache, refresh)
 
-    def membership(self, identity: str) -> PlaylistMembership:
-        """Supply original complete fake queue facts and record the read.
+    def pages(self, identity: str) -> MemoryMembershipPages:
+        """Select a recorded queue page reader.
 
         Args:
-            identity: Original queue identity.
+            identity: Queue identity.
 
         Returns:
-            Independent original primary-credit and track indexes.
+            Named raw page reader.
         """
-        self.edge._get(f"playlists/{identity}/items", 50, 0)
-        membership = PlaylistMembership(set(), set(), {})
-        for raw in self.edge.playlists.get(identity, []):
-            _retain_marker(membership, raw)
-        return membership
+        return MemoryMembershipPages(self.edge, identity)
 
     def append(self, identity: str, uri: str, description: str) -> object:
         """Accept the original fake destination effect.
@@ -109,15 +106,30 @@ class MemoryReview:
         return self.edge._delete("me/library", uris=",".join(uris))
 
 
-def _persist(edge: original.ReviewObservations, state: ArtistReviewState) -> None:
-    edge.save(
-        {
-            "version": 1,
-            "completed_artist_ids": sorted(state.completed_artist_ids),
-            "pending_unfollows": state.pending_unfollows,
-            "pending_queue_moves": state.pending_queue_moves,
-        }
-    )
+@dataclass(frozen=True)
+class MemoryReviewCheckpoint:
+    """Observe complete model persistence through the recorded state authority.
+
+    Args:
+        edge: Recorded state owner.
+    """
+
+    edge: original.ReviewObservations
+
+    def save(self, state: ArtistReviewState) -> None:
+        """Accept the complete current model.
+
+        Args:
+            state: Current review progress.
+        """
+        self.edge.save(
+            {
+                "version": 1,
+                "completed_artist_ids": sorted(state.completed_artist_ids),
+                "pending_unfollows": state.pending_unfollows,
+                "pending_queue_moves": state.pending_queue_moves,
+            }
+        )
 
 
 def _retain_marker(membership: PlaylistMembership, raw: dict[str, object]) -> None:
@@ -143,26 +155,9 @@ def _event(run_id: str, name: str, **details: object) -> dict[str, object]:
 
 def _run(edge: original.ReviewObservations) -> ArtistReviewSummary:
     memory = MemoryReview(edge)
-    paths = original.PATHS
-    storage = ReviewStorage(
-        partial(edge.load_models, paths.artists, YourLibraryArtist),
-        partial(edge.load_models, paths.liked_tracks, YourLibraryTrack),
-        memory.state,
-        memory.cache,
-        edge.run_id,
-        _event,
-        partial(edge.append, paths.log),
-        partial(edge.save_artists, paths.artists),
-        partial(edge.stats, paths.stats_history),
-    )
-    catalog = ReviewCatalog(
-        edge.ranked_tracks,
-        partial(edge.ranked, "ranked"),
-        partial(edge.ranked, "earliest"),
-    )
-    spotify = ReviewSpotify(
-        memory.membership, memory.append, memory.remove, memory.unfollow
-    )
+    storage = MemoryReviewFiles(edge)
+    catalog = cast(ReviewCatalog, ScriptedReviewCatalog(edge))
+    spotify = memory
     interaction = ReviewInteraction(
         edge.echo,
         None if edge.profile == "no-progress" else edge.progress,
@@ -221,3 +216,163 @@ def test_plain_review_state_has_an_explicit_noop_persistence_default() -> None:
     assert state.completed_artist_ids == set()
     assert state.pending_unfollows == {}
     assert state.pending_queue_moves == {}
+
+
+@dataclass(frozen=True)
+class MemoryMembershipPages:
+    """Observe queue pages independently of production composition.
+
+    Args:
+        edge: Recorded SDK authority.
+        identity: Queue identity.
+    """
+
+    edge: original.ReviewObservations
+    identity: str
+
+    def read_membership(self, offset: int) -> MembershipPage:
+        """Read and parse the recorded queue response.
+
+        Args:
+            offset: Raw row offset.
+
+        Returns:
+            Parsed markers and raw continuation facts.
+        """
+        return membership_page(
+            self.edge._get(f"playlists/{self.identity}/items", 50, offset),
+            self.identity,
+        )
+
+
+@dataclass(frozen=True)
+class MemoryReviewFiles:
+    """Observe file and progress effects through explicit methods.
+
+    Args:
+        edge: Recorded file authority.
+    """
+
+    edge: original.ReviewObservations
+
+    def artists(self) -> list[YourLibraryArtist]:
+        """Observe artists at the recorded boundary.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.edge.load_models(original.PATHS.artists, YourLibraryArtist)
+
+    def tracks(self) -> list[YourLibraryTrack]:
+        """Observe tracks at the recorded boundary.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.edge.load_models(original.PATHS.liked_tracks, YourLibraryTrack)
+
+    def state(self) -> ArtistReviewState:
+        """Observe state at the recorded boundary.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return MemoryReview(self.edge).state()
+
+    def cache(self, refresh: bool) -> None:
+        """Observe cache at the recorded boundary.
+
+        Args:
+            refresh: Whether the fixture bypasses existing cache values.
+        """
+        MemoryReview(self.edge).cache(refresh)
+
+    def run_id(self) -> str:
+        """Observe run id at the recorded boundary.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.edge.run_id()
+
+    def event(self, run_id: str, name: str, **details: object) -> dict[str, object]:
+        """Observe event at the recorded boundary.
+
+        Args:
+            run_id: Recorded invocation identity.
+            name: Observed label or reference.
+            details: Complete recorded event fields.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return _event(run_id, name, **details)
+
+    def append(self, events: list[dict[str, object]]) -> None:
+        """Observe append at the recorded boundary.
+
+        Args:
+            events: Ordered accepted events.
+        """
+        self.edge.append(original.PATHS.log, events)
+
+    def save_artists(self, artists: list[YourLibraryArtist]) -> None:
+        """Observe save artists at the recorded boundary.
+
+        Args:
+            artists: Complete followed-artist models.
+        """
+        self.edge.save_artists(original.PATHS.artists, artists)
+
+    def stats(self, total: int, removed: int) -> None:
+        """Observe stats at the recorded boundary.
+
+        Args:
+            total: Original total artist count.
+            removed: Original removed artist count.
+        """
+        self.edge.stats(original.PATHS.stats_history, total, removed)
+
+
+@dataclass(frozen=True)
+class ScriptedReviewCatalog:
+    """Supply the original recorded child-stage outcomes.
+
+    Args:
+        edge: Recorded catalog stage outcomes.
+    """
+
+    edge: original.ReviewObservations
+
+    def tracks(self, artist: YourLibraryArtist) -> list[TrackCandidate]:
+        """Observe tracks at the recorded boundary.
+
+        Args:
+            artist: Reviewed artist or matching constraint.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.edge.ranked_tracks(artist)
+
+    def ranked(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
+        """Observe ranked at the recorded boundary.
+
+        Args:
+            artist: Reviewed artist or matching constraint.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.edge.ranked("ranked", artist)
+
+    def earliest(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
+        """Observe earliest at the recorded boundary.
+
+        Args:
+            artist: Reviewed artist or matching constraint.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.edge.ranked("earliest", artist)

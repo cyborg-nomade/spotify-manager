@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Iterable
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+from pytest_mock import MockerFixture
+
+from spotify_manager.application import automation_run
+from spotify_manager.infrastructure.automation_records import artifact_updates
 
 
 SCRIPT_PATH = (
@@ -80,24 +85,52 @@ def test_required_environment_never_allows_missing_secrets(
 
 
 class FakeClient:
-    def __init__(self, responses, *, remaining: float = 100) -> None:
+    def __init__(self, responses: Iterable[object], *, remaining: float = 100) -> None:
         self.responses = iter(responses)
         self.calls: list[tuple[str, str]] = []
         self.sleeps: list[int] = []
         self.remaining = remaining
         self.deadline = datetime(2026, 8, 25, 3, 0, tzinfo=UTC)
 
-    def request(self, method, path, **_kwargs):
+    def request(self, method: str, path: str, **_kwargs: object) -> object:
+        """Observe request at the recorded boundary.
+
+        Args:
+            method: Original HTTP method.
+            path: Isolated fixture file location.
+            _kwargs:  kwargs supplied by this fixture.
+
+        Returns:
+            Recorded boundary result.
+        """
         self.calls.append((method, path))
         response = next(self.responses)
         if isinstance(response, Exception):
             raise response
         return response
 
-    def sleep(self, seconds):
+    def sleep(self, seconds: int) -> None:
+        """Observe sleep at the recorded boundary.
+
+        Args:
+            seconds: Requested bounded wait.
+        """
         self.sleeps.append(seconds)
 
-    def remaining_seconds(self):
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Observe durable artifact timestamp authority.
+
+        Returns:
+            Decoded aware timestamps, or none for an invalid container.
+        """
+        return artifact_updates(self.request("GET", "/library-mirrors/status"))
+
+    def remaining_seconds(self) -> float:
+        """Observe remaining seconds at the recorded boundary.
+
+        Returns:
+            Recorded boundary result.
+        """
         return self.remaining
 
 
@@ -154,20 +187,34 @@ def test_poll_job_cancels_at_the_deadline(nightly: ModuleType) -> None:
 
 def test_nightly_refresh_stops_cleanly_after_a_rate_limit(
     nightly: ModuleType,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
+    """Verify nightly refresh stops cleanly after a rate limit.
+
+    Args:
+        nightly: Loaded automation entry point.
+        mocker: Isolated mocks for the original I/O and application boundaries.
+    """
     client = FakeClient([{"status": "ok"}])
-    outcomes = iter(["completed", "paused"])
-    monkeypatch.setattr(nightly, "run_job", lambda _client, _spec: next(outcomes))
+    stages = mocker.patch.object(
+        automation_run, "run_job", side_effect=["completed", "paused"]
+    )
 
     assert nightly.run_nightly_refresh(client) == 0
     assert client.calls == [("GET", "/health")]
+    assert stages.call_count == 2
 
 
 def test_duplicate_schedule_skips_when_all_artifacts_are_fresh(
     nightly: ModuleType,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
+    """Verify duplicate schedule skips when all artifacts are fresh.
+
+    Args:
+        nightly: Loaded automation entry point.
+        mocker: Isolated mocks for the original I/O and application boundaries.
+    """
     files = [
         {
             "filename": filename,
@@ -177,10 +224,10 @@ def test_duplicate_schedule_skips_when_all_artifacts_are_fresh(
         for filename in nightly.DURABLE_ARTIFACT_FILENAMES
     ]
     client = FakeClient([{"status": "ok"}, {"files": files}])
-    monkeypatch.setattr(
-        nightly,
+    stage = mocker.patch.object(
+        automation_run,
         "run_job",
-        lambda *_args: pytest.fail("fresh duplicate must not start jobs"),
+        side_effect=AssertionError("fresh duplicate must not start jobs"),
     )
 
     assert (
@@ -194,6 +241,7 @@ def test_duplicate_schedule_skips_when_all_artifacts_are_fresh(
         ("GET", "/health"),
         ("GET", "/library-mirrors/status"),
     ]
+    stage.assert_not_called()
 
 
 def test_stale_artifact_does_not_suppress_scheduled_refresh(

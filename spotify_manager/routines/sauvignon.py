@@ -152,9 +152,7 @@ def _album_option(
 ) -> SpotifyAlbumOption | None:
     from spotify_manager.infrastructure.album_recommendations import parse_album_option
 
-    return parse_album_option(
-        raw_track, candidate, search_rank, blast_from_past.matching_spotify_track
-    )
+    return parse_album_option(raw_track, candidate, search_rank)
 
 
 def search_candidate_albums(
@@ -193,7 +191,7 @@ def search_candidate_albums(
     )
     from spotify_manager.infrastructure.album_recommendations import parse_album_search
 
-    return parse_album_search(response, candidate, _album_option)
+    return parse_album_search(response, candidate)
 
 
 def _option_rank(option: SpotifyAlbumOption) -> tuple[float, int, int]:

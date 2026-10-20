@@ -159,6 +159,13 @@ operator, notification, cancellation, retry and clock callbacks remain at their
 interaction boundaries. The [call-path guide](refactor/CALL_PATH_SIMPLIFICATION.md)
 shows the entry, decision and result paths by family.
 
+Ordinary I/O, schema validation and checkpoint ownership use named objects, not
+bags of functions. Fixed presenters and operational stages are direct calls.
+Existing Python hook APIs are adapted at compatibility entries; normal routines
+use named state codecs and named catalog/file resources. A callback dependency
+guard rejects new execution indirection and records why each retained hook is
+necessary. See the [boundary inventory](refactor/CALL_PATH_SIMPLIFICATION.md#ordinary-io-and-execution-dependencies-2026-10-20).
+
 The [retained helper inventory](refactor/RETAINED_LEGACY_HELPERS.md) records the
 remaining compatibility and frozen SDK source boundaries.
 

@@ -34,7 +34,8 @@ from spotify_manager.application.release_check_values import (
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain import release_check as release_policy
 from spotify_manager.domain.artist_mapping import (
@@ -64,6 +65,10 @@ from spotify_manager.domain.release_check_values import (
     ReleaseCheckResult as ReleaseCheckResult,
 )
 from spotify_manager.domain.release_check_values import ReleaseTrack as ReleaseTrack
+from spotify_manager.infrastructure.release_readers import SpotifyReleasePages
+from spotify_manager.infrastructure.release_readers import SpotifyReleasePlaylist
+from spotify_manager.infrastructure.release_readers import SpotifyReleaseTracks
+from spotify_manager.infrastructure.routine_state_codecs import ReleaseCheckStateCodec
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
@@ -220,7 +225,7 @@ def search_spotify_artists(
     )
     from spotify_manager.infrastructure.release_check_catalog import parse_artist_search
 
-    return parse_artist_search(response, artist.name, _spotify_artist)
+    return parse_artist_search(response, artist.name)
 
 
 def resolve_spotify_artist(
@@ -297,12 +302,22 @@ def load_recent_catalog(
     checked_from: date,
     retry_call: RetryCall,
 ) -> tuple[ReleaseCandidate, ...]:
-    """Load recent and future releases from every Spotify catalog page."""
+    """Load recent and future releases from every Spotify catalog page.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        artist: Original artist catalog reference.
+        spotify_artist: Resolved Spotify artist identity.
+        checked_from: Earliest release date to include.
+        retry_call: Retry and cancellation hook.
+
+    Returns:
+        Original operation result.
+    """
     from spotify_manager.infrastructure.release_pages import load_catalog_pages
 
     return load_catalog_pages(
-        partial(_read_catalog_page, sp, artist, spotify_artist, retry_call),
-        _release_candidate,
+        SpotifyReleasePages(sp, artist, spotify_artist, retry_call),
         artist.name,
         spotify_artist.spotify_id,
         checked_from,
@@ -342,12 +357,21 @@ def load_release_tracks(
     *,
     first_only: bool = False,
 ) -> tuple[ReleaseTrack, ...]:
-    """Load tracks in Spotify disc and track order."""
+    """Load tracks in Spotify disc and track order.
+
+    Args:
+        sp: Caller-owned Spotify client.
+        release: Selected release metadata.
+        retry_call: Retry and cancellation hook.
+        first_only: Whether to read only the first track.
+
+    Returns:
+        Original operation result.
+    """
     from spotify_manager.infrastructure.release_pages import load_track_pages
 
     return load_track_pages(
-        partial(_read_track_page, sp, release, retry_call),
-        _track_candidate,
+        SpotifyReleaseTracks(sp, release, retry_call),
         release.name,
         first_only,
         RELEASE_TRACK_PAGE_LIMIT,
@@ -487,15 +511,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="release_check",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "release_check",
+        ReleaseCheckStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -606,23 +625,12 @@ def _run_id(now: datetime) -> str:
 
 
 def _playlist_entry(raw_entry: object) -> PlaylistEntry | None:
-    """Parse one playlist item while preserving its original URI and order."""
-    if not isinstance(raw_entry, dict):
-        return None
-    raw_track = raw_entry.get("item") or raw_entry.get("track")
-    if not isinstance(raw_track, dict):
-        return None
-    uri = str(raw_track.get("uri") or "").strip()
-    if not uri:
-        return None
-    artists = _artist_pairs(raw_track.get("artists"))
-    return PlaylistEntry(
-        uri=uri,
-        spotify_id=str(raw_track.get("id") or "").strip(),
-        name=str(raw_track.get("name") or uri).strip(),
-        primary_artist_id=artists[0][0] if artists else None,
-        primary_artist_name=artists[0][1] if artists else None,
+    """Parse one playlist item with original URI and ordering semantics."""
+    from spotify_manager.infrastructure.release_check_catalog import (
+        parse_playlist_entry,
     )
+
+    return parse_playlist_entry(raw_entry)
 
 
 def _membership(entries: tuple[PlaylistEntry, ...]) -> PlaylistMembership:
@@ -639,8 +647,7 @@ def _playlist_snapshot(
     from spotify_manager.infrastructure.release_pages import load_playlist_pages
 
     parsed = load_playlist_pages(
-        partial(_read_playlist_page, sp, playlist_id, retry_call),
-        _playlist_entry,
+        SpotifyReleasePlaylist(sp, playlist_id, retry_call),
         playlist_id,
     )
     return PlaylistSnapshot(parsed, _membership(parsed))

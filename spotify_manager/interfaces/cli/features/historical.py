@@ -3,15 +3,15 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-from datetime import datetime
 from typing import Never
 
 import typer
 from rich.console import Console
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.formatting import scrobble_date
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import (
     blast_from_past_artists as blast_from_past_artists,
@@ -21,25 +21,21 @@ from spotify_manager.interfaces.operations import new_kids as new_kids
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class HistoricalCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run historical playlist commands and render their selections.
 
     Args:
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        client: Caller-owned client.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
+    runtime: CliResources
+
     display: ConsoleDisplay
-    configuration: type[Settings]
-    client: Callable[..., Spotify]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _scrobble_date(self, timestamp_ms: int) -> str:
@@ -51,9 +47,7 @@ class HistoricalCLI:
         Returns:
             The original value selected or formatted by this adapter.
         """
-        return datetime.fromtimestamp(
-            timestamp_ms / 1000, blast_from_past.SCROBBLE_TIMEZONE
-        ).strftime("%Y-%m-%d")
+        return scrobble_date(timestamp_ms)
 
     def _run_blast_from_the_past(
         self, count: int | None, max_playlist_length: int | None, dry_run: bool
@@ -70,7 +64,7 @@ class HistoricalCLI:
             raise typer.BadParameter(
                 "use either --count or --max-playlist-length, not both"
             )
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
                 configuration.blast_from_the_past_playlist
@@ -84,7 +78,7 @@ class HistoricalCLI:
         try:
             with console.status(status_text) as status:
                 summary = blast_from_past.add_blast_from_past_to_spotify(
-                    self.client(),
+                    self.runtime.client(),
                     playlist_id,
                     count=effective_count,
                     max_playlist_length=max_playlist_length,
@@ -142,7 +136,7 @@ class HistoricalCLI:
         self._blast_from_the_past_artists_console = self.display.create_console()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
-                self.configuration().blast_from_the_past_playlist
+                self.runtime.configuration().blast_from_the_past_playlist
             )
         except blast_from_past.BlastFromPastConfigError as exc:
             self._report_blast_from_the_past_artists_configuration_failure(exc)
@@ -152,7 +146,7 @@ class HistoricalCLI:
             ) as self._blast_from_the_past_artists_status:
                 summary = (
                     blast_from_past_artists.add_dormant_artists_to_blast_from_past(
-                        self.review_client(),
+                        self.runtime.review_client(),
                         playlist_id,
                         count=count,
                         echo=self._blast_from_the_past_artists_echo,
@@ -230,7 +224,7 @@ class HistoricalCLI:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         console = self.display.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
                 configuration.daily_mind_radio_playlist,
@@ -241,7 +235,7 @@ class HistoricalCLI:
         try:
             with console.status("Preparing anniversary scrobbles") as status:
                 summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
-                    self.client(),
+                    self.runtime.client(),
                     playlist_id,
                     progress_callback=status.update,
                     dry_run=dry_run,

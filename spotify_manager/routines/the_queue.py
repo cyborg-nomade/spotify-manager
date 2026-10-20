@@ -33,7 +33,8 @@ from spotify_manager.application.queue_values import QueueStateError as QueueSta
 # UFI
 from spotify_manager.client.lastfm import LastFmSimilarArtist
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist
 from spotify_manager.domain.queue_values import ArtistHistory as ArtistHistory
@@ -42,6 +43,7 @@ from spotify_manager.domain.queue_values import (
 )
 from spotify_manager.domain.queue_values import ArtistSeed as ArtistSeed
 from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
+from spotify_manager.infrastructure.routine_state_codecs import TheQueueStateCodec
 from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
 from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
 from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
@@ -258,15 +260,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="queue",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "queue",
+        TheQueueStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -388,7 +385,7 @@ def _cached_similar_artists(
 ) -> tuple[LastFmSimilarArtist, ...] | None:
     from spotify_manager.infrastructure.queue_neighborhoods import cached_artists
 
-    return cached_artists(raw, week_start, found_art.listening_week_start)
+    return cached_artists(raw, week_start)
 
 
 def previously_added_artist_keys(path: Path = DEFAULT_LOG_PATH) -> set[str]:

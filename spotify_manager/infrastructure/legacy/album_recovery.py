@@ -92,10 +92,25 @@ class CreditedArtistAdapter:
         append_recovery_events(events, self.audit_path)
 
 
-def _persist_state(access: RoutineState, state: RecoveryState) -> None:
-    from spotify_manager.routines.recover_removed_albums import _serialize_state
+@dataclass(frozen=True)
+class RecoveryCheckpoint:
+    """Persist typed recovery progress through its original namespace.
 
-    access.save(_serialize_state(state))
+    Args:
+        access: Caller-selected durable state authority.
+    """
+
+    access: RoutineState
+
+    def save(self, state: RecoveryState) -> None:
+        """Serialize and accept complete progress.
+
+        Args:
+            state: Current recovery model.
+        """
+        from spotify_manager.routines.recover_removed_albums import _serialize_state
+
+        self.access.save(_serialize_state(state))
 
 
 def _text(value: object) -> str | None:
@@ -169,7 +184,7 @@ class LegacyAlbumRecovery:
         """Load records, progress, artists, and albums in their original order.
 
         Returns:
-            Original records and state with a bound persistence callback.
+            Original records and state with a named checkpoint store.
         """
         from spotify_manager.loaders_savers import load_total_albums_new_file
         from spotify_manager.loaders_savers import load_total_artists_file
@@ -182,7 +197,7 @@ class LegacyAlbumRecovery:
         records = load_removed_album_records(self.removal_log_path)
         access = _state_access(self.recovery_log_path, self.state_service)
         state = _deserialize_state(access.load())
-        state.persist = partial(_persist_state, access, state)
+        state.checkpoint = RecoveryCheckpoint(access)
         self._artists = load_total_artists_file()
         self._albums = load_total_albums_new_file()
         self._artist_ids = {artist.spotify_id for artist in self._artists}

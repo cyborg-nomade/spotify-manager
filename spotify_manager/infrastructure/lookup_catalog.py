@@ -1,6 +1,6 @@
 """Original catalog pagination and raw lookup-record conversion boundaries."""
 
-from collections.abc import Callable
+from typing import Protocol
 from typing import cast
 
 from spotify_manager.application.lookup_effects import LookupTrack
@@ -9,13 +9,60 @@ from spotify_manager.domain.lookup_values import SpotifyLookupResponseError
 from spotify_manager.infrastructure import lookup_records as records
 
 
-def all_items(
-    next_page: Callable[[object], object], page: object
-) -> list[dict[str, object]]:
+class LookupPages(Protocol):
+    """Read catalog pages through explicit transport methods."""
+
+    def next_object(self, page: object) -> object:
+        """Read object continuation.
+
+        Args:
+            page: Previous page.
+
+        Returns:
+            Next response.
+        """
+        ...
+
+    def release_page(self, artist: str, offset: int) -> object:
+        """Read an artist release page.
+
+        Args:
+            artist: Primary identity.
+            offset: Raw row offset.
+
+        Returns:
+            Unvalidated response.
+        """
+        ...
+
+    def albums(self, identifiers: list[str]) -> object:
+        """Read an album batch.
+
+        Args:
+            identifiers: Ordered release identities.
+
+        Returns:
+            Unvalidated response.
+        """
+        ...
+
+    def next_tracks(self, page: object) -> object:
+        """Read embedded album-track continuation.
+
+        Args:
+            page: Previous page.
+
+        Returns:
+            Next response.
+        """
+        ...
+
+
+def all_items(pages: LookupPages, page: object) -> list[dict[str, object]]:
     """Collect original object rows while validating each page and continuation.
 
     Args:
-        next_page: Original caller-owned continuation request.
+        pages: Named catalog page reader.
         page: Original first response.
 
     Returns:
@@ -34,7 +81,7 @@ def all_items(
             raise SpotifyLookupResponseError(
                 "Spotify returned an empty track page with a next link."
             )
-        page = next_page(page)
+        page = pages.next_object(page)
 
 
 def _object_rows(rows: list[object]) -> list[dict[str, object]]:
@@ -67,11 +114,11 @@ def primary_ids(rows: list[object], artist: str) -> list[str]:
     return result
 
 
-def releases(read: Callable[[int], object], artist: str) -> list[str]:
+def releases(pages: LookupPages, artist: str) -> list[str]:
     """Read original raw-offset release pages without collapsing row counts.
 
     Args:
-        read: Original explicit-offset read.
+        pages: Named catalog page reader.
         artist: Original primary identity.
 
     Returns:
@@ -84,7 +131,8 @@ def releases(read: Callable[[int], object], artist: str) -> list[str]:
     offset = 0
     while True:
         facts = records.page(
-            read(offset), "Spotify returned invalid artist release data."
+            pages.release_page(artist, offset),
+            "Spotify returned invalid artist release data.",
         )
         for identifier in primary_ids(facts.rows, artist):
             identifiers[identifier] = None
@@ -98,8 +146,7 @@ def releases(read: Callable[[int], object], artist: str) -> list[str]:
 
 
 def primary_tracks(
-    read: Callable[[list[str]], object],
-    next_page: Callable[[object], object],
+    pages: LookupPages,
     artist: str,
     release_ids: list[str],
     batch_size: int,
@@ -107,8 +154,7 @@ def primary_tracks(
     """Read original ordered album batches and their dependent track pages.
 
     Args:
-        read: Original album batch request.
-        next_page: Original track continuation.
+        pages: Named album and track page reader.
         artist: Original primary identity.
         release_ids: Original release encounter order.
         batch_size: Original album batch size.
@@ -118,33 +164,33 @@ def primary_tracks(
     """
     identifiers: dict[str, None] = {}
     for start in range(0, len(release_ids), batch_size):
-        albums = records.album_batch(read(release_ids[start : start + batch_size]))
-        _collect_album_tracks(albums, next_page, artist, identifiers)
+        albums = records.album_batch(
+            pages.albums(release_ids[start : start + batch_size])
+        )
+        _collect_album_tracks(albums, pages, artist, identifiers)
     return list(identifiers)
 
 
 def _collect_album_tracks(
     albums: list[object],
-    next_page: Callable[[object], object],
+    pages: LookupPages,
     artist: str,
     identifiers: dict[str, None],
 ) -> None:
     for album in albums:
         if not isinstance(album, dict):
             continue
-        track_ids = album_primary_tracks(album.get("tracks"), next_page, artist)
+        track_ids = album_primary_tracks(album.get("tracks"), pages, artist)
         for identifier in track_ids:
             identifiers[identifier] = None
 
 
-def album_primary_tracks(
-    page: object, next_page: Callable[[object], object], artist: str
-) -> list[str]:
+def album_primary_tracks(page: object, pages: LookupPages, artist: str) -> list[str]:
     """Read original track pages with their distinct empty-next error label.
 
     Args:
         page: Original embedded first track page.
-        next_page: Original continuation.
+        pages: Named track page reader.
         artist: Original resolved primary identity.
 
     Returns:
@@ -163,7 +209,7 @@ def album_primary_tracks(
             raise SpotifyLookupResponseError(
                 "Spotify returned an empty album track page with a next link."
             )
-        page = next_page(page)
+        page = pages.next_tracks(page)
 
 
 def minimize_tracks(

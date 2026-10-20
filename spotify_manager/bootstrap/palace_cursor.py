@@ -1,6 +1,5 @@
 """Compose original manual cursor preflight with caller-owned state and retry."""
 
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -8,12 +7,8 @@ from spotipy import Spotify
 from spotify_manager.application.palace_cursor import PalaceCursor
 from spotify_manager.bootstrap.palace_mirror import saved_mirror
 from spotify_manager.core.state.service import StateService
+from spotify_manager.infrastructure.palace_cursor import PalaceCursorAccess
 from spotify_manager.routines import palace_of_memory as legacy
-
-
-def _present(callback: legacy.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
 
 
 def palace_cursor(
@@ -41,9 +36,7 @@ def palace_cursor(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.routines.palace_of_memory import _cursor_payload
     from spotify_manager.routines.palace_of_memory import _direct_retry
-    from spotify_manager.routines.palace_of_memory import _state_access
 
     retry = retry_call or _direct_retry
     refresh = saved_mirror(
@@ -55,8 +48,6 @@ def palace_cursor(
         callback,
     )
     return PalaceCursor(
-        partial(_present, callback),
+        PalaceCursorAccess(state_path, state_service, callback),
         refresh,
-        partial(_state_access, state_path, state_service),
-        _cursor_payload,
     )

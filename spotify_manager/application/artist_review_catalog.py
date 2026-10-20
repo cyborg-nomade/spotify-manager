@@ -1,6 +1,5 @@
 """Gather original ranked/chronological catalogs with per-unit cache checkpoints."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -145,23 +144,62 @@ class CatalogCache(Protocol):
         ...
 
 
+class CatalogReads(Protocol):
+    """Read one artist's tracks, release pages and first-track metadata."""
+
+    def read_tracks(self) -> list[TrackCandidate]:
+        """Read ranked associated tracks.
+
+        Returns:
+            Complete candidates.
+        """
+        ...
+
+    def read_search(self, offset: int) -> ReleasePage:
+        """Read ranked releases.
+
+        Args:
+            offset: Raw row offset.
+
+        Returns:
+            Parsed search page.
+        """
+        ...
+
+    def read_discography(self, offset: int) -> RawReleasePage:
+        """Read chronological catalog scan facts.
+
+        Args:
+            offset: Raw row offset.
+
+        Returns:
+            Complete raw page.
+        """
+        ...
+
+    def read_first(self, release: ReleaseCandidate) -> FirstTrack | None:
+        """Read the first playable track, retaining original 404 behavior.
+
+        Args:
+            release: Selected release.
+
+        Returns:
+            First-track facts, or none.
+        """
+        ...
+
+
 @dataclass(frozen=True)
 class ArtistCatalog:
     """Coordinate original reads, qualification and metadata checkpoint ordering.
 
     Args:
         cache: Original per-artist durable catalog metadata.
-        tracks: Original one-page complete ranked-track reader.
-        search: Original ranked release-page reader.
-        discography: Original complete raw release-page reader.
-        first: Original tolerant first-track reader with original 404 handling.
+        reads: Named artist-specific catalog observations.
     """
 
     cache: CatalogCache
-    tracks: Callable[[], list[TrackCandidate]]
-    search: Callable[[int], ReleasePage]
-    discography: Callable[[int], RawReleasePage]
-    first: Callable[[ReleaseCandidate], FirstTrack | None]
+    reads: CatalogReads
 
     def ranked_tracks(self) -> list[TrackCandidate]:
         """Retain authoritative empty hits and checkpoint the first ten candidates.
@@ -172,7 +210,7 @@ class ArtistCatalog:
         cached = self.cache.tracks()
         if cached is not None:
             return cached
-        tracks = self.tracks()[:10]
+        tracks = self.reads.read_tracks()[:10]
         self.cache.save_tracks(tracks)
         return tracks
 
@@ -194,7 +232,7 @@ class ArtistCatalog:
         Returns:
             Original associated album/EP candidates in search order.
         """
-        return search_releases(self.search)
+        return search_releases(self.reads)
 
     def earliest_releases(self) -> list[ReleaseCandidate]:
         """Complete the original raw scan before chronological qualification.
@@ -208,7 +246,7 @@ class ArtistCatalog:
         scan = self.cache.scan()
         while not scan.complete():
             offset = scan.offset()
-            scan.accept(self.discography(offset), offset)
+            scan.accept(self.reads.read_discography(offset), offset)
         releases = earliest_releases(scan.candidates())
         self.cache.save_releases("earliest_releases", releases)
         return self.enrich(releases, "earliest_releases")
@@ -228,7 +266,7 @@ class ArtistCatalog:
         for release in releases:
             if release.first_track_checked:
                 continue
-            first = self.first(release)
+            first = self.reads.read_first(release)
             release.first_track_checked = True
             if first is not None:
                 _assign_first(release, first)
@@ -261,11 +299,11 @@ def _assign_first(release: ReleaseCandidate, first: FirstTrack) -> None:
     release.first_track_primary_artist_name = first.primary_name
 
 
-def search_releases(read: Callable[[int], ReleasePage]) -> list[ReleaseCandidate]:
+def search_releases(reads: CatalogReads) -> list[ReleaseCandidate]:
     """Read at most three raw pages and retain ten distinct ranked album/EP releases.
 
     Args:
-        read: Original retried complete parsed search-page reader.
+        reads: Named catalog page reader.
 
     Returns:
         Original complete qualifying release list in raw search order.
@@ -273,7 +311,7 @@ def search_releases(read: Callable[[int], ReleasePage]) -> list[ReleaseCandidate
     releases: list[ReleaseCandidate] = []
     seen: set[str] = set()
     for page_index in range(3):
-        page = read(page_index * 10)
+        page = reads.read_search(page_index * 10)
         _retain_ranked(releases, seen, page.releases)
         if len(releases) == 10:
             return releases

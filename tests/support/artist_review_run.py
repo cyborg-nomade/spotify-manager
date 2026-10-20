@@ -15,7 +15,7 @@ from unittest.mock import patch
 from pydantic import BaseModel
 from spotipy import Spotify
 
-from spotify_manager.bootstrap.artist_review import ReviewResources
+from spotify_manager.application.artist_review_effects import ReviewCatalog
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
@@ -657,16 +657,16 @@ def _patch_reads(stack: ExitStack, edge: ReviewObservations) -> None:
         "update_stats_after_unfollow": edge.stats,
     }
     stack.enter_context(
-        patch.object(ReviewResources, "tracks", partialmethod(_resource_tracks, edge))
+        patch.object(ReviewCatalog, "tracks", partialmethod(_resource_tracks, edge))
     )
     stack.enter_context(
         patch.object(
-            ReviewResources, "ranked", partialmethod(_resource_releases, edge, "ranked")
+            ReviewCatalog, "ranked", partialmethod(_resource_releases, edge, "ranked")
         )
     )
     stack.enter_context(
         patch.object(
-            ReviewResources,
+            ReviewCatalog,
             "earliest",
             partialmethod(_resource_releases, edge, "earliest"),
         )
@@ -755,7 +755,7 @@ def _without_uris(
 
 
 def _resource_tracks(
-    resources: ReviewResources,
+    resources: ReviewCatalog,
     edge: ReviewObservations,
     artist: YourLibraryArtist,
 ) -> list[legacy.TrackCandidate]:
@@ -763,7 +763,7 @@ def _resource_tracks(
 
 
 def _resource_releases(
-    resources: ReviewResources,
+    resources: ReviewCatalog,
     edge: ReviewObservations,
     kind: str,
     artist: YourLibraryArtist,

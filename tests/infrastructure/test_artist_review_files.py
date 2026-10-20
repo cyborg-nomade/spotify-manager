@@ -3,7 +3,6 @@
 import json
 from dataclasses import dataclass
 from dataclasses import field
-from functools import partial
 from pathlib import Path
 
 import pytest
@@ -14,7 +13,7 @@ from spotify_manager.models.your_library import YourLibraryArtist
 
 
 @dataclass
-class Publications:
+class Publications(files.ReviewJsonFiles):
     """Observe original sorted mirror publication after its durable replacement.
 
     Args:
@@ -117,12 +116,12 @@ def test_review_model_list_guard_and_complete_model_validation(tmp_path: Path) -
         tmp_path: Isolated original mirror location.
     """
     path = tmp_path / "artists.json"
-    assert files.load_models(path, YourLibraryArtist, files.load_json) == []
+    assert files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles()) == []
     path.write_text("{}")
     with pytest.raises(ArtistReviewError, match=f"Expected a JSON list in {path}"):
-        files.load_models(path, YourLibraryArtist, files.load_json)
+        files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles())
     path.write_text('[{"name": "A", "uri": "spotify:artist:a"}]')
-    assert files.load_models(path, YourLibraryArtist, files.load_json) == [
+    assert files.load_models(path, YourLibraryArtist, files.ReviewJsonFiles()) == [
         YourLibraryArtist(name="A", uri="spotify:artist:a")
     ]
 
@@ -141,7 +140,7 @@ def test_review_artist_publication_sorts_same_list_after_successful_write(
         YourLibraryArtist(name="A", uri="spotify:artist:a"),
     ]
     effects = Publications()
-    files.save_artists(path, artists, effects.write, effects.publish)
+    files.save_artists(path, artists, effects)
     assert [artist.name for artist in artists] == ["A", "B"]
     expected = [artist.model_dump() for artist in artists]
     assert effects.calls == [("write", expected), ("publish", expected)]
@@ -156,8 +155,38 @@ def test_review_cache_keeps_original_refresh_and_shallow_root_semantics(
         tmp_path: Isolated complete metadata cache.
     """
     path = tmp_path / "cache.json"
-    assert files.load_cache(path, True, _unexpected_read) == {}
+    assert files.load_cache(path, True, CacheFacts(None, True)) == {}
     with pytest.raises(ArtistReviewError, match=f"Expected a JSON object in {path}"):
-        files.load_cache(path, False, partial(_read_value, []))
+        files.load_cache(path, False, CacheFacts([]))
     raw: dict[str, object] = {"artist": "unvalidated", "retained": True}
-    assert files.load_cache(path, False, partial(_read_value, raw)) is raw
+    assert files.load_cache(path, False, CacheFacts(raw)) is raw
+
+
+@dataclass(frozen=True)
+class CacheFacts(files.ReviewJsonFiles):
+    """Observe unchecked cache facts and forbid reads during refresh.
+
+    Args:
+        value: Raw cache authority.
+        forbidden: Whether any read is unexpected.
+    """
+
+    value: object
+    forbidden: bool = False
+
+    def read(self, path: Path, default: object) -> object:
+        """Observe raw cache authority.
+
+        Args:
+            path: Original cache location.
+            default: Original missing-file fallback.
+
+        Returns:
+            The same original unchecked value.
+
+        Raises:
+            AssertionError: A refresh unexpectedly reads stored facts.
+        """
+        if self.forbidden:
+            raise AssertionError("Original refresh must skip the cache read")
+        return self.value

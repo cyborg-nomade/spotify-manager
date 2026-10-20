@@ -45,10 +45,8 @@ def _outcome(position: int, failure: str | None) -> object:
     result: dict[str, object] = {}
     try:
         update = PalaceCursor(
-            effects.progress,
+            effects,
             cast(SavedMirror, ScriptedMirror(effects)),
-            effects.state_access,
-            effects.cursor_payload,
         ).update(position)
         result["result"] = {
             "next_index": update.next_index,

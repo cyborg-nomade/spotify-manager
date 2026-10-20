@@ -1,13 +1,14 @@
 """Compatibility seams for original legacy control processing."""
 
-from functools import partial
-
 from spotipy.client import Spotify
 
 from spotify_manager.application import legacy_library_control as workflow
 from spotify_manager.domain.legacy_library import first_index
 from spotify_manager.domain.legacy_library import last_kept_index
 from spotify_manager.infrastructure.legacy_library_records import album as parse_album
+from spotify_manager.infrastructure.legacy_library_resources import (
+    SpotifyControlMembership,
+)
 from spotify_manager.loaders_savers import save_control_file as save_control_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
@@ -54,7 +55,7 @@ def get_album_results_from_library(
     Returns:
         The same selected list.
     """
-    return workflow.evaluate(unevaluated_albums, partial(_contains, sp), print)
+    return workflow.evaluate(unevaluated_albums, SpotifyControlMembership(sp), print)
 
 
 def check_album_results(
@@ -72,15 +73,13 @@ def check_album_results(
     Returns:
         True after accepted completion.
     """
-    return workflow.check(
-        control_file,
-        total_albums_file,
-        get_unevaluated_albums,
-        partial(get_album_results_from_library, sp),
-        updated_total_albums_with_results,
-        save_control_file,
-        print,
-    )
+    print("Checking album results...")
+    selected = get_unevaluated_albums(control_file)
+    get_album_results_from_library(sp, selected)
+    updated_total_albums_with_results(total_albums_file, selected)
+    save_control_file(control_file)
+    print("Results checked!")
+    return True
 
 
 def get_last_kept_album_item_index(control_file: list[ControlFileItem]) -> int:

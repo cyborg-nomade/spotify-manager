@@ -1,9 +1,54 @@
 """Tolerant playlist paging and ownership observations for composer routes."""
 
 from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Protocol
 from typing import cast
 
+from spotipy import Spotify
+
 from spotify_manager.domain.composers import OwnedPlaylist
+
+
+class PlaylistPages(Protocol):
+    """Read account playlist pages with explicit raw offsets."""
+
+    def read(self, offset: int) -> object:
+        """Read one original transport page.
+
+        Args:
+            offset: Raw row offset.
+
+        Returns:
+            Unvalidated transport response.
+        """
+        ...
+
+
+@dataclass(frozen=True)
+class SpotifyPlaylistPages:
+    """Own caller-supplied account playlist transport resources.
+
+    Args:
+        spotify: Caller-owned synchronous client.
+        retry: Original transport retry policy.
+    """
+
+    spotify: Spotify
+    retry: Callable[[Callable[[], object], str], object]
+
+    def read(self, offset: int) -> object:
+        """Read one account playlist page.
+
+        Args:
+            offset: Raw row offset.
+
+        Returns:
+            Unvalidated transport response.
+        """
+        from spotify_manager.routines.composer_playlists import _playlist_page
+
+        return _playlist_page(self.spotify, self.retry, offset)
 
 
 class ComposerPlaylistError(RuntimeError):
@@ -41,11 +86,11 @@ def _has_more(response: dict[str, object], offset: int) -> bool:
     return bool(response.get("next")) or (isinstance(total, int) and offset < total)
 
 
-def _collect(fetch_page: Callable[[int], object]) -> list[object]:
+def _collect(pages: PlaylistPages) -> list[object]:
     playlists: list[object] = []
     offset = 0
     while True:
-        response = _page(fetch_page(offset))
+        response = _page(pages.read(offset))
         items = cast(list[object], response["items"])
         playlists.extend(items)
         offset += len(items)
@@ -73,13 +118,13 @@ def _owner_id(playlists: list[object], anchors: frozenset[str]) -> str:
 
 
 def observe_owned_playlists(
-    fetch_page: Callable[[int], object],
+    pages: PlaylistPages,
     anchors: frozenset[str],
 ) -> tuple[OwnedPlaylist, ...]:
     """Page account playlists and determine ownership from a configured queue.
 
     Args:
-        fetch_page: Synchronous reader accepting the original item offset.
+        pages: Named synchronous transport page reader.
         anchors: Configured queue IDs used to establish the owner.
 
     Returns:
@@ -88,7 +133,7 @@ def observe_owned_playlists(
     Raises:
         ComposerPlaylistError: Pages are malformed or no owner can be established.
     """
-    playlists = _collect(fetch_page)
+    playlists = _collect(pages)
     owner_id = _owner_id(playlists, anchors)
     owned = []
     for raw in playlists:

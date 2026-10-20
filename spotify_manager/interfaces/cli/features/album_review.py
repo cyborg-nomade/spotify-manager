@@ -1,6 +1,5 @@
 """Explicit album review CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
@@ -8,9 +7,9 @@ import typer
 from rich.console import Console
 from rich.progress import Progress
 from rich.prompt import Prompt
-from spotipy import Spotify
 
 from spotify_manager.interfaces.cli.display import ProgressDisplay
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
@@ -18,21 +17,22 @@ from spotify_manager.interfaces.operations import (
 
 @dataclass(kw_only=True)
 class AlbumReviewCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run album-limit review with terminal choices and progress.
 
     Args:
-        progress_display: Caller-owned progress display.
-        create_console: Caller-owned create console.
-        prompt: Caller-owned prompt.
-        REVIEW_ACTION_CHOICES: Caller-owned REVIEW ACTION CHOICES.
-        review_client: Caller-owned review client.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        create_console: Interface presentation resource.
+        prompt: Interface presentation resource.
+        REVIEW_ACTION_CHOICES: Interface presentation resource.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     create_console: type[Console]
     prompt: type[Prompt]
     REVIEW_ACTION_CHOICES: list[str]
-    review_client: Callable[..., Spotify]
 
     def _prompt_review_action(
         self, console: Console, evaluation: object, progress: Progress | None
@@ -98,7 +98,7 @@ class AlbumReviewCLI:
                     )
                 )
                 review_album_limits.review_album_limits(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     action_reader=self._review_album_limits_read_action,
                     threshold=threshold,
                     use_cache=not no_cache,

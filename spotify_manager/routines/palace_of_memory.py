@@ -31,7 +31,8 @@ from spotify_manager.application.palace_values import (
     SavedAlbumRefresh as SavedAlbumRefresh,
 )
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 
 # UFI
@@ -50,11 +51,11 @@ from spotify_manager.domain.palace_values import SpotifyFirstTrack as SpotifyFir
 from spotify_manager.infrastructure import palace_catalog
 from spotify_manager.infrastructure import palace_cursor
 from spotify_manager.infrastructure import palace_files
+from spotify_manager.infrastructure.routine_state_codecs import PalaceOfMemoryStateCodec
 from spotify_manager.interfaces.requests.palace import PalaceCallbacks
 from spotify_manager.interfaces.requests.palace import PalaceOptions
 from spotify_manager.interfaces.requests.palace import PalaceResources
 from spotify_manager.models.your_library import YourLibraryAlbum
-from spotify_manager.routines import analyse_library as library_analysis
 from spotify_manager.routines import blast_from_past
 
 
@@ -440,15 +441,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="palace_of_memory",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "palace_of_memory",
+        PalaceOfMemoryStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -595,8 +591,7 @@ def _replace_saved_albums(
         path,
         backups_dir,
         refreshed,
-        partial(datetime.now, UTC),
-        library_analysis.write_models,
+        palace_files.PalaceSavedAlbumFiles(),
     )
 
 

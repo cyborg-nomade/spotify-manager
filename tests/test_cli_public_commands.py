@@ -1,12 +1,16 @@
 """Contract tests for small public Typer commands and CLI error rendering."""
 
-from types import SimpleNamespace
+from dataclasses import dataclass
+from dataclasses import field
+from unittest.mock import Mock
 
 import pytest
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager import main
+from spotify_manager.interfaces import lookup_operations
+from spotify_manager.interfaces.operations import legacy_library as library_operations
 
 
 def test_spotify_client_is_lazy_cached_and_reports_configuration_errors(
@@ -58,43 +62,49 @@ def test_legacy_cli_commands_delegate_to_current_workflows(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Verify legacy cli commands delegate to current workflows.
+
+    Args:
+        monkeypatch: Isolated replacements at the actual dependency owners.
+        capsys: Captured operator-facing output.
+    """
     spotify = object()
-    calls: list[tuple[str, object | None]] = []
-    monkeypatch.setattr(main, "client", lambda: spotify)
+    calls = WorkflowCalls()
+    monkeypatch.setattr(main, "client", Mock(return_value=spotify))
     monkeypatch.setattr(
-        main,
+        library_operations,
         "compare_your_library_and_all_albums",
-        lambda: calls.append(("compare", None)),
+        calls.compare,
     )
     monkeypatch.setattr(
-        main,
+        library_operations,
         "convert_your_library_file",
-        lambda value: calls.append(("convert", value)),
+        calls.convert,
     )
     monkeypatch.setattr(
-        main,
+        library_operations,
         "run_monthly_routines",
-        lambda value: calls.append(("monthly", value)),
+        calls.monthly,
     )
     monkeypatch.setattr(
-        main,
+        library_operations,
         "update_total_album_list",
-        lambda value, just_update: calls.append((f"update:{just_update}", value)),
+        calls.update,
     )
     monkeypatch.setattr(
-        main,
+        library_operations,
         "restore_your_library_from_file",
-        lambda value: calls.append(("restore", value)),
+        calls.restore,
     )
     monkeypatch.setattr(
-        main,
+        library_operations,
         "analyse_comparison",
-        lambda value: calls.append(("analyse", value)),
+        calls.analyse,
     )
     monkeypatch.setattr(
-        main,
+        library_operations,
         "count_artists_in_library",
-        lambda: 42,
+        Mock(return_value=42),
     )
 
     main.monthly_routines()
@@ -105,7 +115,7 @@ def test_legacy_cli_commands_delegate_to_current_workflows(
     main.convert_lib()
     main.count_artists()
 
-    assert [name for name, _value in calls] == [
+    assert [name for name, _value in calls.events] == [
         "compare",
         "convert",
         "monthly",
@@ -115,7 +125,7 @@ def test_legacy_cli_commands_delegate_to_current_workflows(
         "analyse",
         "convert",
     ]
-    assert all(value is spotify for _name, value in calls if value is not None)
+    assert all(value is spotify for _name, value in calls.events if value is not None)
     assert capsys.readouterr().out.strip() == "42"
 
 
@@ -168,12 +178,18 @@ def test_artist_stats_reports_lookup_failures(
     capsys: pytest.CaptureFixture[str],
     error: Exception,
 ) -> None:
-    monkeypatch.setattr(main, "client", lambda: object())
+    """Verify artist stats reports lookup failures.
 
-    def fail(*_args: object, **_kwargs: object) -> None:
-        raise error
+    Args:
+        monkeypatch: Isolated replacements at the actual dependency owners.
+        capsys: Captured operator-facing output.
+        error: Configured original failure.
+    """
+    monkeypatch.setattr(main, "client", Mock(return_value=object()))
 
-    monkeypatch.setattr(main, "get_live_artist_library_stats", fail)
+    monkeypatch.setattr(
+        lookup_operations, "get_live_artist_library_stats", Mock(side_effect=error)
+    )
     with pytest.raises(main.typer.Exit) as exc:
         main.artist_stats(name="Artist", artist_id=None)
     assert exc.value.exit_code == 1
@@ -184,12 +200,20 @@ def test_artist_stats_validates_input_and_prints_json(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Verify artist stats validates input and prints json.
+
+    Args:
+        monkeypatch: Isolated replacements at the actual dependency owners.
+        capsys: Captured operator-facing output.
+    """
     with pytest.raises(main.typer.BadParameter):
         main.artist_stats(name=None, artist_id=None)
 
-    result = SimpleNamespace(model_dump_json=lambda **_kwargs: '{"artist": "A"}')
-    monkeypatch.setattr(main, "client", lambda: object())
-    monkeypatch.setattr(main, "get_live_artist_library_stats", lambda *_a, **_k: result)
+    result = Mock(model_dump_json=Mock(return_value='{"artist": "A"}'))
+    monkeypatch.setattr(main, "client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        lookup_operations, "get_live_artist_library_stats", Mock(return_value=result)
+    )
 
     main.artist_stats(name=None, artist_id="artist-id")
     assert '{"artist": "A"}' in capsys.readouterr().out
@@ -213,12 +237,18 @@ def test_album_decision_reports_lookup_failures(
     capsys: pytest.CaptureFixture[str],
     error: Exception,
 ) -> None:
-    monkeypatch.setattr(main, "client", lambda: object())
+    """Verify album decision reports lookup failures.
 
-    def fail(*_args: object, **_kwargs: object) -> None:
-        raise error
+    Args:
+        monkeypatch: Isolated replacements at the actual dependency owners.
+        capsys: Captured operator-facing output.
+        error: Configured original failure.
+    """
+    monkeypatch.setattr(main, "client", Mock(return_value=object()))
 
-    monkeypatch.setattr(main, "evaluate_album_live", fail)
+    monkeypatch.setattr(
+        lookup_operations, "evaluate_live_album", Mock(side_effect=error)
+    )
     with pytest.raises(main.typer.Exit) as exc:
         main.album_decision(
             name="Album",
@@ -234,6 +264,12 @@ def test_album_decision_validates_input_and_prints_json(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Verify album decision validates input and prints json.
+
+    Args:
+        monkeypatch: Isolated replacements at the actual dependency owners.
+        capsys: Captured operator-facing output.
+    """
     with pytest.raises(main.typer.BadParameter):
         main.album_decision(
             name=None,
@@ -242,9 +278,11 @@ def test_album_decision_validates_input_and_prints_json(
             threshold=0.5,
         )
 
-    result = SimpleNamespace(model_dump_json=lambda **_kwargs: '{"decision": "keep"}')
-    monkeypatch.setattr(main, "client", lambda: object())
-    monkeypatch.setattr(main, "evaluate_album_live", lambda *_a, **_k: result)
+    result = Mock(model_dump_json=Mock(return_value='{"decision": "keep"}'))
+    monkeypatch.setattr(main, "client", Mock(return_value=object()))
+    monkeypatch.setattr(
+        lookup_operations, "evaluate_live_album", Mock(return_value=result)
+    )
 
     main.album_decision(
         name=None,
@@ -286,3 +324,59 @@ def test_refresh_spotify_tokens_validates_client_and_reports_failures(
     monkeypatch.setattr(main, "review_client", FakeRotatingSpotify)
     main.refresh_spotify_tokens()
     assert "app5, app6" in capsys.readouterr().out
+
+
+@dataclass
+class WorkflowCalls:
+    """Record the command's original ordered workflow delegation.
+
+    Args:
+        events: Observed stage names and caller-owned clients.
+    """
+
+    events: list[tuple[str, object | None]] = field(default_factory=list)
+
+    def compare(self) -> None:
+        """Observe comparison before conversion and monthly work."""
+        self.events.append(("compare", None))
+
+    def convert(self, client: object) -> None:
+        """Observe conversion with the caller's client.
+
+        Args:
+            client: Original client identity.
+        """
+        self.events.append(("convert", client))
+
+    def monthly(self, client: object) -> None:
+        """Observe monthly processing after conversion.
+
+        Args:
+            client: Original client identity.
+        """
+        self.events.append(("monthly", client))
+
+    def update(self, client: object, just_update: bool) -> None:
+        """Observe the explicit incremental-refresh flag.
+
+        Args:
+            client: Original client identity.
+            just_update: Original CLI update-only flag.
+        """
+        self.events.append((f"update:{just_update}", client))
+
+    def restore(self, client: object) -> None:
+        """Observe restoration with the caller's client.
+
+        Args:
+            client: Original client identity.
+        """
+        self.events.append(("restore", client))
+
+    def analyse(self, client: object) -> None:
+        """Observe live comparison analysis with the caller's client.
+
+        Args:
+            client: Original client identity.
+        """
+        self.events.append(("analyse", client))

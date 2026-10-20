@@ -1,7 +1,5 @@
 """Invoke legacy library maintenance through explicitly composed application stages."""
 
-from functools import partial
-
 from spotipy import Spotify
 
 from spotify_manager.application import legacy_library_conversion as workflow
@@ -13,13 +11,16 @@ from spotify_manager.bootstrap.legacy_library import conversion_catalog
 from spotify_manager.bootstrap.legacy_library import conversion_files
 from spotify_manager.bootstrap.legacy_library import monthly_actions
 from spotify_manager.bootstrap.legacy_library import monthly_files
-from spotify_manager.infrastructure.legacy_library_errors import LegacyFailure
+from spotify_manager.infrastructure.legacy_library_resources import (
+    LegacyComparisonMetadata,
+)
+from spotify_manager.infrastructure.legacy_library_resources import (
+    SpotifyComparisonMembership,
+)
 from spotify_manager.loaders_savers import (
     load_your_library_file as load_your_library_file,
 )
 from spotify_manager.models.albums import SimplifiedAlbum
-from spotify_manager.routines.convert_library_file import _analyse_added
-from spotify_manager.routines.convert_library_file import _analyse_removed
 from spotify_manager.utils.comparison import (
     compare_and_get_dict as compare_and_get_dict,
 )
@@ -36,7 +37,7 @@ def run_monthly_routines(sp: Spotify) -> None:
 
 def compare_your_library_and_all_albums() -> None:
     """Publish the original comparison after export and legacy file reads."""
-    workflow.compare(conversion_files(), compare_and_get_dict)
+    workflow.compare(conversion_files(), LegacyComparisonMetadata(), print)
 
 
 def analyse_comparison(sp: Spotify) -> None:
@@ -47,8 +48,7 @@ def analyse_comparison(sp: Spotify) -> None:
     """
     workflow.analyse(
         conversion_files(),
-        partial(_analyse_removed, sp),
-        partial(_analyse_added, sp),
+        SpotifyComparisonMembership(sp),
         print,
     )
 
@@ -77,9 +77,7 @@ def count_artists_in_library() -> int:
     Returns:
         Original raw artist-list length.
     """
-    from spotify_manager.loaders_savers import load_your_library_file
-
-    return count_artists(load_your_library_file)
+    return count_artists(conversion_files())
 
 
 def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAlbum]:
@@ -92,4 +90,4 @@ def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAl
     Returns:
         Published albums or the original partially modified fallback authority.
     """
-    return refresh(album_refresh(sp), just_update, print, LegacyFailure)
+    return refresh(album_refresh(sp), just_update, print)

@@ -36,6 +36,7 @@ from spotify_manager.domain.golden_selection import (
     SpotifyArtistCandidate as SpotifyArtistCandidate,
 )
 from spotify_manager.infrastructure import golden_records
+from spotify_manager.infrastructure.golden_catalog import GoldenCatalog
 from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
@@ -183,8 +184,7 @@ def select_lastfm_top_tracks(
     """
     return selections.select_lastfm(
         artist,
-        partial(_read_lastfm_matches, sp, artist, retry_call),
-        partial(_read_lastfm_liked, sp, artist, retry_call),
+        GoldenCatalog(sp, retry_call),
         blast_from_past.ALBUM_MATCH_THRESHOLD,
     )
 
@@ -297,7 +297,7 @@ def select_album_tracks(
         spotify_artist,
         releases,
         album_choice_reader,
-        partial(_read_studio_tracks, sp, retry_call),
+        GoldenCatalog(sp, retry_call),
     )
 
 

@@ -43,3 +43,22 @@ class NamespaceCheckpoint:
         """Persist accepted preferences only during real execution."""
         if not self.dry_run:
             self.store.save(self.state)
+
+
+class ModelCheckpoint[T](Protocol):
+    """Persist a complete typed progress model."""
+
+    def save(self, state: T) -> None:
+        """Accept current progress.
+
+        Args:
+            state: Complete current model.
+        """
+        ...
+
+
+class NoCheckpoint:
+    """Keep standalone preview planning detached from persistent preferences."""
+
+    def save(self) -> None:
+        """Accept a detached planning checkpoint without storing state."""

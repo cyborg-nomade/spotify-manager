@@ -1,5 +1,7 @@
 """Stable slow listening result serialization."""
 
+from collections.abc import Iterable
+
 from spotify_manager.interfaces.http.models.slow_listening import (
     SlowListeningTrackResult,
 )
@@ -27,3 +29,20 @@ def slow_listening_track_result(
         skipped_candidates=list(result.skipped_candidates),
         reason=result.reason,
     )
+
+
+def slow_listening_track_results(
+    values: Iterable[slow_listening.FlushResult],
+) -> list[SlowListeningTrackResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(slow_listening_track_result(value))
+    return entries

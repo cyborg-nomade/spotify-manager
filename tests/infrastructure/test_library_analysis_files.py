@@ -9,6 +9,7 @@ import pytest
 from spotify_manager.domain.library_analysis_values import IncompleteLiveResourceError
 from spotify_manager.domain.library_analysis_values import LibrarySyncError
 from spotify_manager.infrastructure import library_analysis_files as files
+from spotify_manager.infrastructure.library_analysis_storage import AnalysisStorage
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from tests.application.library_analysis_memory import AnalysisMemory
@@ -107,7 +108,7 @@ def test_export_read_retains_original_error_translation(
     session = memory_session(AnalysisMemory(), tmp_path)
     session.paths.your_library.write_text(payload)
     with pytest.raises(LibrarySyncError) as failure:
-        files.load_your_library(session.paths, read=files.load_json)
+        files.load_your_library(session.paths, storage=AnalysisStorage())
     assert failure.value.__cause__ is not None
 
 
@@ -121,7 +122,7 @@ def test_json_and_export_missing_file_semantics_are_distinct(tmp_path: Path) -> 
     missing = session.paths.your_library
     assert files.load_json(missing, default="default") == "default"
     with pytest.raises(LibrarySyncError, match="export not found"):
-        files.load_your_library(session.paths, read=files.load_json)
+        files.load_your_library(session.paths, storage=AnalysisStorage())
     with pytest.raises(LibrarySyncError, match="export not found"):
         files.export_fingerprint(missing)
 
@@ -136,7 +137,7 @@ def test_model_array_rejects_nonlist_json_and_propagates_model_validation(
     """
     target = tmp_path / "models.json"
     reader = partial(
-        files.load_model_list, model=YourLibraryAlbum, read=files.load_json
+        files.load_model_list, model=YourLibraryAlbum, storage=AnalysisStorage()
     )
     assert reader(target) == []
     target.write_text("{}")
@@ -203,7 +204,7 @@ def test_audit_retains_unknown_details_named_like_the_clock_dependency(
     """
     session = memory_session(AnalysisMemory(), tmp_path)
     files.append_event(
-        _clock,
+        AnalysisStorage(),
         session.paths,
         "run",
         "name",

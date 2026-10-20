@@ -1,10 +1,9 @@
 """Repeatable publication of completed mirrors after accepted undo snapshots."""
 
-from collections.abc import Callable
 from collections.abc import Sequence
 from dataclasses import asdict
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 from typing import cast
 
 from spotify_manager.application.library_analysis_effects import AnalysisSession
@@ -32,57 +31,134 @@ from spotify_manager.utils.sorting import track_sort_key
 type Resources = dict[ResourceName, Sequence[LibraryModel]]
 
 
-@dataclass(frozen=True)
-class AnalysisPublication:
-    """Bind original undo storage, permissive recovery parsing and history period.
+class AnalysisPublication(Protocol):
+    """Accept undo snapshots and read publication recovery facts."""
 
-    Args:
-        analysis_backup: Original complete analysis undo boundary.
-        mirror_backup: Original two-mirror undo boundary.
-        resource_backup: Original independent one-resource undo boundary.
-        history: Original backed-up pre-analysis history read.
-        period: Original stats-history period observation.
-        summaries: Original permissive manifest summary parsing.
-        resource_summary: Original first-summary parsing.
-    """
+    def analysis_backup(
+        self,
+        paths: LibraryAnalysisPaths,
+        run_id: str,
+        previous: Resources,
+        current: Resources,
+        report: StatsReport,
+        summaries: tuple[ResourceSyncSummary, ...],
+    ) -> Path:
+        """Copy all original outputs before recording complete analysis differences.
 
-    analysis_backup: Callable[
-        [
-            LibraryAnalysisPaths,
-            str,
-            Resources,
-            Resources,
-            StatsReport,
-            tuple[ResourceSyncSummary, ...],
-        ],
-        Path,
-    ]
-    mirror_backup: Callable[
-        [
-            LibraryAnalysisPaths,
-            str,
-            Resources,
-            Resources,
-            tuple[ResourceSyncSummary, ...],
-        ],
-        Path,
-    ]
-    resource_backup: Callable[
-        [
-            LibraryAnalysisPaths,
-            str,
-            ResourceName,
-            Path,
-            Sequence[LibraryModel],
-            Sequence[LibraryModel],
-            ResourceSyncSummary,
-        ],
-        Path,
-    ]
-    history: Callable[[LibraryAnalysisPaths, Path], dict[str, object]]
-    period: Callable[[], str]
-    summaries: Callable[[object], tuple[ResourceSyncSummary, ...]]
-    resource_summary: Callable[[object], ResourceSyncSummary]
+        Args:
+            paths: Original output family.
+            run_id: Original sortable run identity.
+            previous: Original complete pre-analysis models.
+            current: Original sorted post-analysis models.
+            report: Original complete analysis counts.
+            summaries: Original ordered resource outcomes.
+
+        Returns:
+            Original accepted backup directory.
+        """
+        ...
+
+    def mirror_backup(
+        self,
+        paths: LibraryAnalysisPaths,
+        run_id: str,
+        previous: Resources,
+        current: Resources,
+        summaries: tuple[ResourceSyncSummary, ...],
+    ) -> Path:
+        """Preserve original interleaved album/track copies and difference recording.
+
+        Args:
+            paths: Original canonical mirror output family.
+            run_id: Original sortable run identity.
+            previous: Original pre-refresh models.
+            current: Original post-refresh models.
+            summaries: Original ordered resource outcomes.
+
+        Returns:
+            Original accepted backup directory.
+        """
+        ...
+
+    def resource_backup(
+        self,
+        paths: LibraryAnalysisPaths,
+        run_id: str,
+        resource: ResourceName,
+        target: Path,
+        previous: Sequence[LibraryModel],
+        current: Sequence[LibraryModel],
+        summary: ResourceSyncSummary,
+    ) -> Path:
+        """Copy only the original requested canonical resource before publication.
+
+        Args:
+            paths: Original independent resource workspace.
+            run_id: Original sortable run identity.
+            resource: Original requested resource.
+            target: Original canonical mirror location.
+            previous: Original pre-refresh models.
+            current: Original post-refresh models.
+            summary: Original resource outcome.
+
+        Returns:
+            Original accepted backup directory.
+        """
+        ...
+
+    def history(
+        self, paths: LibraryAnalysisPaths, backup_dir: Path
+    ) -> dict[str, object]:
+        """Read backed-up history for repeatable publication.
+
+        Args:
+            paths: Original independent output family.
+            backup_dir: Original accepted backup location.
+
+        Returns:
+            Original unmodified pre-analysis history.
+
+        Raises:
+            LibrarySyncError: Original manifest or backed-up history is not an object.
+        """
+        ...
+
+    def summaries(self, raw: object) -> tuple[ResourceSyncSummary, ...]:
+        """Use the original permissive constructor at the unvalidated manifest boundary.
+
+        Args:
+            raw: Original unvalidated manifest summary array.
+
+        Returns:
+            Original ordered resource summaries.
+
+        Raises:
+            TypeError: Original native constructor or iteration rejects malformed input.
+        """
+        ...
+
+    def resource_summary(self, raw: object) -> ResourceSyncSummary:
+        """Preserve original first-summary indexing and permissive construction.
+
+        Args:
+            raw: Original unvalidated manifest summary array.
+
+        Returns:
+            Original first recorded resource outcome.
+
+        Raises:
+            IndexError: The original summary array is empty.
+            TypeError: Original native indexing or construction rejects malformed input.
+        """
+        ...
+
+    def period(self) -> str:
+        """Observe the current statistics history period.
+
+        Returns:
+            Current period key.
+        """
+        ...
 
 
 def finalize_analysis(

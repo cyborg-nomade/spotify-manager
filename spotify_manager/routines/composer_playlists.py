@@ -27,6 +27,9 @@ from spotify_manager.infrastructure.spotify.composer_playlists import (
     ComposerPlaylistError as ComposerPlaylistError,
 )
 from spotify_manager.infrastructure.spotify.composer_playlists import (
+    SpotifyPlaylistPages,
+)
+from spotify_manager.infrastructure.spotify.composer_playlists import (
     observe_owned_playlists,
 )
 
@@ -65,5 +68,5 @@ def load_owned_playlists(
         ComposerPlaylistError: Playlist responses or owner anchors are invalid.
     """
     return observe_owned_playlists(
-        partial(_playlist_page, sp, retry_call), anchor_playlist_ids
+        SpotifyPlaylistPages(sp, retry_call), anchor_playlist_ids
     )

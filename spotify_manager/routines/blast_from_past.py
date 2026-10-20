@@ -4,7 +4,6 @@ import re
 from collections.abc import Callable
 from datetime import date
 from datetime import datetime
-from email.utils import parsedate_to_datetime
 from functools import partial
 from pathlib import Path
 from typing import Literal
@@ -69,6 +68,7 @@ from spotify_manager.infrastructure import history_export
 from spotify_manager.infrastructure import history_matching_records
 from spotify_manager.infrastructure import history_playlist
 from spotify_manager.infrastructure import random_indexes
+from spotify_manager.infrastructure.history_playlist_pages import SpotifyHistoryPages
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -145,7 +145,7 @@ def load_scrobbles_by_date(
     Returns:
         Original load scrobbles by date result.
     """
-    return history_export.by_date(load_scrobble_export, path, SCROBBLE_TIMEZONE)
+    return history_export.by_date(load_scrobble_export(path), SCROBBLE_TIMEZONE)
 
 
 def eligible_dates(
@@ -438,9 +438,7 @@ def fetch_random_indexes(population_size: int, count: int) -> RandomIndexSet:
     except (TimeoutError, URLError) as exc:
         raise RandomOrgError(f"Could not reach Random.org: {exc}") from exc
 
-    return random_indexes.result(
-        body, timestamp_header, population_size, count, parsedate_to_datetime
-    )
+    return random_indexes.result(body, timestamp_header, population_size, count)
 
 
 def fetch_random_timestamp() -> datetime:
@@ -542,8 +540,7 @@ def load_playlist_state(
         Original load playlist state result.
     """
     return history_playlist.state(
-        partial(_playlist_page, sp, playlist_id, retry_call, cancel_check),
-        _spotify_artist_names,
+        SpotifyHistoryPages(sp, playlist_id, retry_call, cancel_check),
         playlist_id,
     )
 

@@ -98,12 +98,12 @@ def scan_initial(session: AnalysisSession) -> None:
 def _save_initial_page(
     session: AnalysisSession, state: ResourceState, after: str | None
 ) -> tuple[list[object], dict[str, object], str | None]:
-    response = session.request(
+    response = session.request.call(
         partial(session.catalog.artists, after),
         f"reading followed artists after {after or 'the beginning'}",
     )
     rows, page = session.catalog.artist_items(response)
-    converted = converted_items(rows, session.catalog.artist)
+    converted = converted_items(rows, session.catalog, "artists")
     session.files.append(session.paths.stage("artists"), converted)
     state["skipped"] += len(rows) - len(converted)
     state["pages"] += 1
@@ -156,7 +156,7 @@ def reconcile(session: AnalysisSession) -> None:
     while int(state["stable_passes"]) < RECONCILIATION_STABLE_PASSES:
         added = _reconcile_pass(session, state)
         finish_pass(session, "artists", state, added)
-    complete_resource(session, "artists", partial(staged_artists, session))
+    complete_resource(session, "artists")
 
 
 def _reconcile_pass(session: AnalysisSession, state: ResourceState) -> int:
@@ -178,12 +178,12 @@ def _reconcile_page(
     session: AnalysisSession, state: ResourceState, known: set[str], after: str | None
 ) -> tuple[list[object], dict[str, object], int]:
     session.check_cancel()
-    response = session.request(
+    response = session.request.call(
         partial(session.catalog.reconcile_artists, after),
         f"reconciling followed artists after {after or 'the beginning'}",
     )
     rows, page = session.catalog.artist_items(response)
-    converted = converted_items(rows, session.catalog.artist)
+    converted = converted_items(rows, session.catalog, "artists")
     unseen = unseen_items(converted, known)
     session.files.append(session.paths.stage("artists"), unseen)
     known.update(item.spotify_id for item in unseen)
@@ -284,7 +284,7 @@ def _verify_batch(
     start = int(state.get("candidate_index", 0))
     batch = candidates[start : start + ARTIST_VERIFICATION_BATCH_LIMIT]
     identities = [item.spotify_id for item in batch]
-    response = session.request(
+    response = session.request.call(
         partial(session.catalog.following, identities),
         f"verifying followed artists {start + 1}-{start + len(batch)}",
         max_attempts=ARTIST_VERIFICATION_MAX_ATTEMPTS,

@@ -327,7 +327,7 @@ def test_audit_adapter_keeps_existing_jsonl_bytes(tmp_path: Path) -> None:
     requeue_for_a_dream._append_log(summary, original)
     writer = requeue_audit(adapted)
     assert not adapted.exists()
-    writer(summary)
+    writer.write(summary)
     assert adapted.read_bytes() == original.read_bytes()
 
 
@@ -343,4 +343,4 @@ def test_audit_failure_keeps_original_error(tmp_path: Path) -> None:
         datetime(2026, 9, 25, tzinfo=UTC), "p", False, "drop", 1, 0
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamLogError):
-        requeue_audit(parent / "log.jsonl")(summary)
+        requeue_audit(parent / "log.jsonl").write(summary)

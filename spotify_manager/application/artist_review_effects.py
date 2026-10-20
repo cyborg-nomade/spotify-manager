@@ -4,88 +4,225 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
+from spotify_manager.application.artist_review_catalog import ArtistCatalog
+from spotify_manager.application.artist_review_catalog import CatalogCache
+from spotify_manager.application.artist_review_catalog import CatalogReads
+from spotify_manager.application.artist_review_membership import MembershipPages
 from spotify_manager.application.artist_review_values import ArtistReviewState
-from spotify_manager.domain.artist_review_values import PlaylistMembership
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
 from spotify_manager.domain.artist_review_values import TrackCandidate
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
 
 
-class ReviewEvent(Protocol):
-    """Build the original complete audit payload at the supplied clock boundary."""
+class ReviewStorage(Protocol):
+    """Bind ordered local reads, accepted progress and durable publications."""
 
-    def __call__(self, run_id: str, name: str, **details: object) -> dict[str, object]:
-        """Attach original clock and run identity to an audit decision.
-
-        Args:
-            run_id: Original invocation identity.
-            name: Original audit event name.
-            details: Original complete decision facts.
+    def artists(self) -> list[YourLibraryArtist]:
+        """Complete current followed-artist mirror.
 
         Returns:
-            Original audit record.
+            Original boundary result.
+        """
+        ...
+
+    def tracks(self) -> list[YourLibraryTrack]:
+        """Complete current liked-track mirror.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def state(self) -> ArtistReviewState:
+        """Load original progress and attach its named checkpoint store.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def cache(self, refresh: bool) -> None:
+        """Initialize original metadata cache for subsequent catalog reads.
+
+        Args:
+            refresh: Original refresh.
+        """
+        ...
+
+    def run_id(self) -> str:
+        """Create the original sortable invocation identity.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def event(self, run_id: str, name: str, **details: object) -> dict[str, object]:
+        """Observe the event clock and encode complete audit facts.
+
+        Args:
+            run_id: Invocation identity.
+            name: Event classification.
+            details: Complete decision facts.
+
+        Returns:
+            Timestamped audit record.
+        """
+        ...
+
+    def append(self, events: list[dict[str, object]]) -> None:
+        """Append original ordered audit records.
+
+        Args:
+            events: Original events.
+        """
+        ...
+
+    def save_artists(self, artists: list[YourLibraryArtist]) -> None:
+        """Publish original remaining followed artists.
+
+        Args:
+            artists: Original artists.
+        """
+        ...
+
+    def stats(self, total: int, removed: int) -> None:
+        """Publish original post-unfollow statistics.
+
+        Args:
+            total: Original total.
+            removed: Original removed.
+        """
+        ...
+
+
+class CatalogSources(Protocol):
+    """Supply artist-specific external cache and transport resources."""
+
+    def cache_for(self, artist: YourLibraryArtist) -> CatalogCache:
+        """Resolve the artist's cache view.
+
+        Args:
+            artist: Reviewed artist.
+
+        Returns:
+            Artist-specific durable metadata.
+        """
+        ...
+
+    def reads_for(self, artist: YourLibraryArtist) -> CatalogReads:
+        """Resolve artist-specific transport observations.
+
+        Args:
+            artist: Reviewed artist.
+
+        Returns:
+            Named read methods.
         """
         ...
 
 
 @dataclass(frozen=True)
-class ReviewStorage:
-    """Bind ordered local reads, accepted progress and durable publications.
-
-    Args:
-        artists: Complete current followed-artist mirror.
-        tracks: Complete current liked-track mirror.
-        state: Load original progress and attach its persistence callback.
-        cache: Initialize original metadata cache for subsequent catalog reads.
-        run_id: Create the original sortable invocation identity.
-        event: Build original complete timestamped audit records.
-        append: Append original ordered audit records.
-        save_artists: Publish original remaining followed artists.
-        stats: Publish original post-unfollow statistics.
-    """
-
-    artists: Callable[[], list[YourLibraryArtist]]
-    tracks: Callable[[], list[YourLibraryTrack]]
-    state: Callable[[], ArtistReviewState]
-    cache: Callable[[bool], None]
-    run_id: Callable[[], str]
-    event: ReviewEvent
-    append: Callable[[list[dict[str, object]]], None]
-    save_artists: Callable[[list[YourLibraryArtist]], None]
-    stats: Callable[[int, int], None]
-
-
-@dataclass(frozen=True)
 class ReviewCatalog:
-    """Supply original catalog facts using the invocation's shared metadata cache.
+    """Call named catalog stages directly from review execution.
 
     Args:
-        tracks: Original ranked associated tracks.
-        ranked: Original ranked album/EP candidates, enriched with first tracks.
-        earliest: Original chronological catalog, enriched with first tracks.
+        sources: Shared cache and caller-owned catalog resources.
     """
 
-    tracks: Callable[[YourLibraryArtist], list[TrackCandidate]]
-    ranked: Callable[[YourLibraryArtist], list[ReleaseCandidate]]
-    earliest: Callable[[YourLibraryArtist], list[ReleaseCandidate]]
+    sources: CatalogSources
+
+    def tracks(self, artist: YourLibraryArtist) -> list[TrackCandidate]:
+        """Gather ranked associated tracks through the named catalog stage.
+
+        Args:
+            artist: Reviewed artist.
+
+        Returns:
+            Complete candidates.
+        """
+        return self._artist(artist).ranked_tracks()
+
+    def ranked(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
+        """Gather ranked releases through the named catalog stage.
+
+        Args:
+            artist: Reviewed artist.
+
+        Returns:
+            Complete enriched releases.
+        """
+        return self._artist(artist).ranked_releases()
+
+    def earliest(self, artist: YourLibraryArtist) -> list[ReleaseCandidate]:
+        """Gather chronological releases through the named catalog stage.
+
+        Args:
+            artist: Reviewed artist.
+
+        Returns:
+            Complete enriched releases.
+        """
+        return self._artist(artist).earliest_releases()
+
+    def _artist(self, artist: YourLibraryArtist) -> ArtistCatalog:
+        return ArtistCatalog(
+            self.sources.cache_for(artist), self.sources.reads_for(artist)
+        )
 
 
-@dataclass(frozen=True)
-class ReviewSpotify:
-    """Bind original retried Spotify reads and ordered writes.
+class ReviewSpotify(Protocol):
+    """Bind original retried Spotify reads and ordered writes."""
 
-    Args:
-        membership: Complete fresh primary-credit membership for one queue.
-        append: Original single-marker addition.
-        remove: Original requested marker removal, retaining batch order.
-        unfollow: Original forty-artist mutation boundary.
-    """
+    def pages(self, identity: str) -> MembershipPages:
+        """Complete fresh primary-credit membership for one queue.
 
-    membership: Callable[[str], PlaylistMembership]
-    append: Callable[[str, str, str], object]
-    remove: Callable[[str, list[str], str], object]
-    unfollow: Callable[[list[str], str], object]
+        Args:
+            identity: Original identity.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def append(self, identity: str, uri: str, description: str) -> object:
+        """Original single-marker addition.
+
+        Args:
+            identity: Original identity.
+            uri: Original uri.
+            description: Original description.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def remove(self, identity: str, uris: list[str], description: str) -> object:
+        """Original requested marker removal, retaining batch order.
+
+        Args:
+            identity: Original identity.
+            uris: Original uris.
+            description: Original description.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def unfollow(self, uris: list[str], description: str) -> object:
+        """Original forty-artist mutation boundary.
+
+        Args:
+            uris: Original uris.
+            description: Original description.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
 
 
 @dataclass(frozen=True)

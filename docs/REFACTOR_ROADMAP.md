@@ -261,6 +261,13 @@ stage behind an integration adapter. Keep genuine operator, progress,
 cancellation, retry and time callbacks. This revision is included in PR #67 and
 must be reviewed before the Item 7a release; it does not authorize Item 8.
 
+The 2026-10-20 review extends this to ordinary I/O, state schemas, checkpoint
+publication, serialization, presentation and operational sequencing throughout
+the package. Replace callback dependencies with cohesive named resources or
+direct calls. Preserve existing Python hook APIs only at compatibility edges,
+and record their reasons in the callback dependency guard. PR #67 includes this
+pass; approval is still required before deployment and merge.
+
 1. Inventory HTTP, CLI and background execution paths by routine family. Identify
    each wrapper's responsibility and distinguish public compatibility seams from
    forwarding-only internals. Record any necessary exception explicitly.

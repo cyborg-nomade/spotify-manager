@@ -195,7 +195,7 @@ class EntryFactory:
     fail: bool = False
     observations: list[tuple[int, str]] = field(default_factory=list)
 
-    def __call__(self, sequence: int, message: str) -> Entry:
+    def create(self, sequence: int, message: str) -> Entry:
         """Construct one portable log entry at the explicit boundary.
 
         Args:

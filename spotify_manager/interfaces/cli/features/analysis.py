@@ -19,6 +19,7 @@ from spotipy import Spotify
 
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import analyse_library as library_sync
 from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
@@ -27,22 +28,23 @@ from spotify_manager.interfaces.operations import (
 
 @dataclass(kw_only=True)
 class AnalysisCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run library mirror analysis and present progress and recovery.
 
     Args:
-        progress_display: Caller-owned progress display.
-        display: Caller-owned display.
-        create_live: Caller-owned create live.
-        monotonic: Caller-owned monotonic.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        create_live: Interface presentation resource.
+        monotonic: Monotonic observation for elapsed-time reporting.
+        sleep: Bounded retry wait supplied by the interface.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
     create_live: type[Live]
     monotonic: Callable[[], float]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _wait_for_library_retry(
@@ -392,7 +394,7 @@ class AnalysisCLI:
                 echo=self._run_library_analysis_log,
                 progress_callback=self._run_library_analysis_update_progress,
             )
-        self._run_library_analysis_spotify = self.review_client()
+        self._run_library_analysis_spotify = self.runtime.review_client()
         return library_sync.analyse_library_sync_routine(
             self._run_library_analysis_spotify,
             echo=self._run_library_analysis_log,

@@ -24,9 +24,8 @@ from spotify_manager.interfaces.http.models.recommendations import (
     SauvignonPendingChoice,
 )
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
-from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.presenters.recommendations import (
-    sauvignon_selection_result as _sauvignon_selection_result,
+    sauvignon_selection_results,
 )
 from spotify_manager.interfaces.http.workers.errors import _SauvignonJobCancelledError
 from spotify_manager.interfaces.operations import found_art as found_art
@@ -43,12 +42,17 @@ class SauvignonWorker:
     """Execute one reconnectable job with invocation-owned inputs.
 
     Args:
-        credentials: Caller-owned credentials.
-        options: Caller-owned options.
-        context: Caller-owned context.
-        job_id: Caller-owned job id.
-        spotify: Caller-owned spotify.
-        connection_failure: Caller-owned connection failure.
+        credentials: Credentials supplied by the caller.
+        options: Options supplied by the caller.
+        context: Shared job lock, clock and presentation context.
+        job_id: Job id supplied by the caller.
+        spotify: Caller-owned Spotify client.
+        connection_failure: Connection failure supplied by the caller.
+        job: Mutable job record owned by this worker.
+        last_progress: Last visible progress observation.
+        lastfm: Caller-owned Last.fm client.
+        spotify_event_setter: SDK event subscription hook.
+        previous_spotify_event_callback: Original SDK event observer restored on exit.
     """
 
     credentials: LastFmCredentials
@@ -219,7 +223,7 @@ class SauvignonWorker:
         return summary
 
     def _completed(self, summary: sauvignon.SauvignonSummary) -> None:
-        results = present_entries(summary.results, _sauvignon_selection_result)
+        results = sauvignon_selection_results(summary.results)
         with self.context.lock:
             self.job.result.status = "paused" if summary.paused else "completed"
             self.job.result.requested_count = summary.requested_count

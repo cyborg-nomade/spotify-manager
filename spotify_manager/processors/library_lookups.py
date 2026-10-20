@@ -7,7 +7,6 @@ Songs status directly from the API.
 
 import re
 from collections.abc import Callable
-from functools import partial
 from typing import Literal
 
 from spotipy import Spotify
@@ -43,6 +42,8 @@ from spotify_manager.domain.lookup_values import (
 from spotify_manager.infrastructure import lookup_catalog
 from spotify_manager.infrastructure import lookup_records
 from spotify_manager.infrastructure import lookup_reference
+from spotify_manager.infrastructure.lookup_resources import LiveLikedTracks
+from spotify_manager.infrastructure.lookup_resources import SpotifyLookupPages
 from spotify_manager.loaders_savers import (
     load_album_tracks_cache as load_album_tracks_cache,
 )
@@ -93,7 +94,7 @@ def _load_library(library: YourLibraryFile | None) -> YourLibraryFile:
 
 def _all_items(sp: Spotify, page: object) -> list[dict[str, object]]:
     """Collect and validate every item across a paginated Spotify response."""
-    return lookup_catalog.all_items(partial(_next_object_page, sp), page)
+    return lookup_catalog.all_items(SpotifyLookupPages(sp), page)
 
 
 def _spotify_artist_identity(raw: object) -> tuple[str, str] | None:
@@ -129,9 +130,7 @@ def _primary_artist_id(raw: object) -> str | None:
 
 def _live_artist_release_ids(sp: Spotify, artist_id: str) -> list[str]:
     """Return unique catalog releases where the artist is credited first."""
-    return lookup_catalog.releases(
-        partial(_artist_release_page, sp, artist_id), artist_id
-    )
+    return lookup_catalog.releases(SpotifyLookupPages(sp), artist_id)
 
 
 def _live_primary_track_ids(
@@ -141,22 +140,10 @@ def _live_primary_track_ids(
 ) -> list[str]:
     """Return unique catalog track ids where the artist is credited first."""
     return lookup_catalog.primary_tracks(
-        partial(_album_batch, sp),
-        partial(_next_album_track_page, sp),
+        SpotifyLookupPages(sp),
         artist_id,
         release_ids,
         SPOTIFY_ALBUM_BATCH_SIZE,
-    )
-
-
-def _count_live_contains(
-    ids: list[str],
-    contains: Callable[[list[str]], object],
-    resource: str,
-) -> int:
-    """Count live saved statuses in conservative Spotify-sized batches."""
-    return lookup_workflow.count_contains(
-        ids, contains, resource, SPOTIFY_CONTAINS_BATCH_SIZE
     )
 
 
@@ -339,7 +326,7 @@ def load_live_liked_statuses(sp: Spotify, track_ids: list[str]) -> dict[str, boo
         SpotifyLookupResponseError: A status response has the wrong shape or length.
     """
     return lookup_resolution.liked_statuses(
-        track_ids, partial(_live_liked_statuses, sp), SPOTIFY_CONTAINS_BATCH_SIZE
+        track_ids, LiveLikedTracks(sp), SPOTIFY_CONTAINS_BATCH_SIZE
     )
 
 

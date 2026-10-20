@@ -12,6 +12,7 @@ from spotipy import Spotify
 from spotify_manager.application.genre_values import GenreOutcome
 from spotify_manager.domain.genres import GenrePlaylistSource
 from spotify_manager.domain.genres import GenreSource
+from spotify_manager.infrastructure.genre_pages import GenrePages
 from spotify_manager.routines import genre_reveal as legacy
 
 
@@ -21,12 +22,15 @@ class LegacyGenreReveal:
 
     Args:
         spotify: Caller-owned Spotify client.
-        reader: Original public-page reader.
+        pages: Named public-page reader.
         path: Original audit location.
+
+    Attributes:
+        result: Accepted legacy result, populated after a successful run.
     """
 
     spotify: Spotify
-    reader: legacy.PageReader
+    pages: GenrePages
     path: Path
     result: legacy.GenreRevealRunResult = field(init=False)
 
@@ -40,9 +44,9 @@ class LegacyGenreReveal:
         Returns:
             Typed original public links and ordered markers.
         """
-        from spotify_manager.routines.genre_reveal import load_genre_playlist_source
+        from spotify_manager.routines.genre_reveal import _load_genre_playlist_source
 
-        source = load_genre_playlist_source(slug, name, self.reader)
+        source = _load_genre_playlist_source(slug, name, self.pages)
         preview = source.preview
         values = GenreSource(
             preview.slug,

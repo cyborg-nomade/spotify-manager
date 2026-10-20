@@ -1,6 +1,5 @@
 """Open or resume the original release-check window before destination observations."""
 
-from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -142,6 +141,40 @@ def _active_record(
     }
 
 
+class ReleaseCalendar(Protocol):
+    """Observe effective time and its original local-date and run-id representations."""
+
+    def clock(self) -> datetime:
+        """Observe effective UTC time.
+
+        Returns:
+            Original supplied or current timestamp.
+        """
+        ...
+
+    def local_date(self, stamp: datetime) -> date:
+        """Convert the observed timestamp to its local date.
+
+        Args:
+            stamp: Observed UTC instant.
+
+        Returns:
+            Original local calendar date.
+        """
+        ...
+
+    def run_id(self, stamp: datetime) -> str:
+        """Encode the observed instant as a sortable run identity.
+
+        Args:
+            stamp: Observed UTC instant.
+
+        Returns:
+            Original run identity.
+        """
+        ...
+
+
 @dataclass(frozen=True)
 class ReleaseRunOpening:
     """Preserve original resume authority and preview refresh/checkpoint semantics.
@@ -150,18 +183,14 @@ class ReleaseRunOpening:
         effects: Original history, durable state and accepted-start boundaries.
         history: Named complete canonical history or historical-selection stage.
         username: Original expected canonical history account.
-        clock: Original effective UTC clock.
-        local_date: Original local calendar conversion.
-        run_id: Original sortable run identifier.
+        calendar: Effective time and its original local-date/run-id representations.
         minimum_scrobbles: Original threshold included in the empty-ranking error.
     """
 
     effects: ReleaseOpeningEffects
     history: HistoryRefresh
     username: str | None
-    clock: Callable[[], datetime]
-    local_date: Callable[[datetime], date]
-    run_id: Callable[[datetime], str]
+    calendar: ReleaseCalendar
     minimum_scrobbles: int = 100
 
     def run(self, dry_run: bool) -> OpenedReleaseRun:
@@ -177,8 +206,8 @@ class ReleaseRunOpening:
             ReleaseCheckError: Original history has no sufficiently listened artists.
             ReleaseCheckStateError: Original window or frozen ranking is unusable.
         """
-        stamp = self.clock()
-        today = self.local_date(stamp)
+        stamp = self.calendar.clock()
+        today = self.calendar.local_date(stamp)
         persisted = self.effects.load()
         state = deepcopy(persisted)
         active = state.get("active_run")
@@ -227,7 +256,7 @@ class ReleaseRunOpening:
                 f"No Last.fm artists have at least {self.minimum_scrobbles} scrobbles."
             )
         start = _window_start(state.get("last_checked_through"), today)
-        run_id = self.run_id(stamp)
+        run_id = self.calendar.run_id(stamp)
         active = _active_record(run_id, stamp, start, today, artists)
         state["active_run"] = active
         if not dry_run:

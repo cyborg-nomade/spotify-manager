@@ -1,9 +1,8 @@
 """Original Random.org response validation and timestamp normalization."""
 
 import re
-from collections.abc import Callable
 from datetime import UTC
-from datetime import datetime
+from email.utils import parsedate_to_datetime
 
 from spotify_manager.application.historical_values import RandomIndexSet
 from spotify_manager.application.historical_values import RandomOrgError
@@ -51,7 +50,6 @@ def result(
     header: str | None,
     population: int,
     count: int,
-    parse_time: Callable[[str], datetime],
 ) -> RandomIndexSet:
     """Retain original index validation before the service timestamp observation.
 
@@ -60,7 +58,6 @@ def result(
         header: Original server Date header.
         population: Original population bound.
         count: Original requested count.
-        parse_time: Original RFC timestamp codec seam.
 
     Returns:
         Original distinct indexes and shared UTC observation time.
@@ -72,7 +69,7 @@ def result(
     if not header:
         raise RandomOrgError("Random.org response did not include a timestamp.")
     try:
-        generated = parse_time(header)
+        generated = parsedate_to_datetime(header)
     except (TypeError, ValueError) as error:
         raise RandomOrgError(
             f"Random.org returned an invalid timestamp: {header}"

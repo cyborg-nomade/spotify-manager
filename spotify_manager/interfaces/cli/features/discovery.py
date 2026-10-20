@@ -8,7 +8,6 @@ import typer
 from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
@@ -20,6 +19,7 @@ from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
+from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import new_kids as new_kids
 from spotify_manager.interfaces.operations import (
@@ -30,25 +30,23 @@ from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.routines import composer_playlists
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class DiscoveryCLI:
-    """Run one CLI feature with explicit interaction and presentation resources.
+    """Run New Kids and Queue 2 reviews with terminal interaction.
 
     Args:
-        progress_display: Caller-owned progress display.
-        display: Caller-owned display.
-        configuration: Caller-owned configuration.
-        review_client: Caller-owned review client.
-        sleep: Caller-owned sleep.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
+
+    runtime: CliResources
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    configuration: type[Settings]
-    review_client: Callable[..., Spotify]
     sleep: Callable[[float], None]
 
     def _prompt_new_kids_release_choice(
@@ -135,7 +133,7 @@ class DiscoveryCLI:
         """
         self._flush_new_kids_console = self.display.create_console()
         self._flush_new_kids_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             new_kids_playlist_id = new_kids.parse_playlist_id(
                 configuration.new_kids_on_the_block_playlist,
@@ -235,7 +233,7 @@ class DiscoveryCLI:
         """
         self._flush_queue_2_console = self.display.create_console()
         self._flush_queue_2_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             new_kids_playlist_id = new_kids.parse_playlist_id(
                 configuration.new_kids_on_the_block_playlist,
@@ -591,7 +589,7 @@ class DiscoveryCLI:
                     description, total=None
                 )
                 summary = new_kids.flush_new_kids(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     DiscoveryOptions(
                         new_kids_playlist_id=new_kids_playlist_id,
                         queue_2_playlist_id=queue_2_playlist_id,
@@ -669,7 +667,7 @@ class DiscoveryCLI:
                     description, total=None
                 )
                 summary = new_kids.flush_queue_2(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     DiscoveryOptions(
                         new_kids_playlist_id=new_kids_playlist_id,
                         queue_2_playlist_id=queue_2_playlist_id,

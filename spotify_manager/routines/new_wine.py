@@ -40,13 +40,15 @@ from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
 from spotify_manager.core.state import StateService
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.domain import new_wine as wine_policy
 
 # UFI
 from spotify_manager.domain.catalog import PlaylistTrack as PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate as ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack as ReleaseTrack
+from spotify_manager.infrastructure.routine_state_codecs import NewWineStateCodec
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
 from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 from spotify_manager.models.lookups import AlbumEvaluation
@@ -507,15 +509,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="new_wine",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "new_wine",
+        NewWineStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 

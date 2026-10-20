@@ -27,7 +27,8 @@ from spotify_manager.application.discography_values import (
 )
 from spotify_manager.bootstrap import discography as composition
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain import discography_batches
 from spotify_manager.domain import discography_catalog
@@ -51,6 +52,7 @@ from spotify_manager.domain.discography_values import QueueArtist as QueueArtist
 from spotify_manager.domain.discography_values import QueueName as QueueName
 from spotify_manager.infrastructure import discography_files
 from spotify_manager.infrastructure import discography_records
+from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import something_old
@@ -182,15 +184,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="discography",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "discography",
+        DiscographyStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 

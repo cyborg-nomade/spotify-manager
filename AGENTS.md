@@ -37,6 +37,11 @@ Python, including tests and tooling:
    for real operator interactions, notifications, cancellation, retries and time
    observations; do not use them to make fixed business decisions replaceable.
    Integration adapters must not conceal execution of another application stage.
+   Do not pass file readers/writers, serializers, validators, presenters or fixed
+   workflow functions as execution dependencies. Use named resource/schema methods
+   and direct presenter calls. Existing external Python hook APIs are adapted once
+   at compatibility edges; they are not a pattern for new internal code. The
+   callback dependency guard records the narrow retained hook reasons.
 
 Apply these rules throughout the approved incremental refactor, preserving the
 frozen behavior contracts. Existing legacy code is brought into compliance as

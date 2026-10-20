@@ -2,7 +2,6 @@
 
 import json
 import shutil
-from collections.abc import Callable
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -11,6 +10,7 @@ from typing import cast
 
 from pydantic import BaseModel
 
+from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.domain.library_analysis_values import IncompleteLiveResourceError
 from spotify_manager.domain.library_analysis_values import LibrarySyncError
@@ -20,18 +20,44 @@ from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
 
 
-class JsonReader(Protocol):
-    """Load unvalidated legacy JSON while preserving caller default semantics."""
+class JsonStorage(Protocol):
+    """Read, accept and publish analysis JSON through one storage owner."""
 
-    def __call__(self, path: Path, default: object | None = None) -> Any:
-        """Read the permissive external JSON boundary.
+    def read(self, path: Path, default: object | None = None) -> object:
+        """Read JSON.
 
         Args:
-            path: Original complete file location.
-            default: Original missing-file value.
+            path: File location.
+            default: Missing-file value.
 
         Returns:
-            Unvalidated legacy JSON, preserving native malformed-value errors.
+            Unvalidated payload.
+        """
+        ...
+
+    def write(self, path: Path, value: object) -> None:
+        """Accept JSON atomically.
+
+        Args:
+            path: File location.
+            value: Complete payload.
+        """
+        ...
+
+    def publish_path(self, path: Path, source: str) -> None:
+        """Publish an accepted managed artifact.
+
+        Args:
+            path: Accepted file.
+            source: Provenance label.
+        """
+        ...
+
+    def clock(self) -> str:
+        """Observe UTC time.
+
+        Returns:
+            ISO timestamp.
         """
         ...
 
@@ -57,7 +83,7 @@ def remove(path: Path) -> None:
 
 
 def append_event(
-    now: Callable[[], str],
+    storage: JsonStorage,
     /,
     paths: LibraryAnalysisPaths,
     run_id: str,
@@ -70,12 +96,12 @@ def append_event(
         paths: Original independent output family.
         run_id: Original sortable run identity.
         event: Original audit event name.
-        now: Original UTC timestamp observation.
+        storage: Storage owning the audit clock.
         details: Original complete event facts.
     """
     paths.event_log.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "timestamp": now(),
+        "timestamp": storage.clock(),
         "run_id": run_id,
         "mode": paths.mode,
         "event": event,
@@ -89,36 +115,34 @@ def write_models(
     path: Path,
     models: Sequence[BaseModel],
     *,
-    write: Callable[[Path, object], None],
-    publish: Callable[[Path, str], None],
+    storage: JsonStorage,
 ) -> None:
     """Accept original complete model bytes before managed-file publication.
 
     Args:
         path: Original complete output location.
         models: Original ordered complete model values.
-        write: Original atomic JSON acceptance boundary.
-        publish: Original subsequent managed-file publication.
+        storage: Atomic acceptance and subsequent artifact publication.
     """
-    write(path, [model.model_dump() for model in models])
-    publish(path, "Spotify live library refresh")
+    storage.write(path, [model.model_dump() for model in models])
+    storage.publish_path(path, "Spotify live library refresh")
 
 
 def latest_export_artists(
-    paths: LibraryAnalysisPaths, load: Callable[[LibraryAnalysisPaths], YourLibraryFile]
+    paths: LibraryAnalysisPaths, storage: AnalysisFiles
 ) -> list[YourLibraryArtist]:
     """Read original export artist candidates only when the durable file exists.
 
     Args:
         paths: Original independent output family.
-        load: Original tolerant export read.
+        storage: Export storage owner.
 
     Returns:
         Original latest export artists, or no candidates for an absent export.
     """
     if not paths.your_library.exists():
         return []
-    return load(paths).artists
+    return storage.export(paths).artists
 
 
 def write_json_atomic(path: Path, value: object) -> None:
@@ -281,39 +305,39 @@ def export_fingerprint(path: Path) -> dict[str, int]:
 
 
 def load_model_list[T: BaseModel](
-    path: Path, model: type[T], *, read: JsonReader
+    path: Path, model: type[T], *, storage: JsonStorage
 ) -> list[T]:
     """Load a JSON array of models, treating a missing file as empty.
 
     Args:
         path: Original complete file or staging location.
         model: Original tolerant model constructor.
-        read: Original permissive external JSON read.
+        storage: Permissive JSON storage owner.
 
 
     Returns:
         Original complete models in stored array order.
     """
-    raw = read(path, default=[])
+    raw = storage.read(path, default=[])
     if not isinstance(raw, list):
         raise LibrarySyncError(f"Expected a JSON list in {path}.")
     return [model.model_validate(item) for item in raw]
 
 
 def load_your_library(
-    paths: LibraryAnalysisPaths, *, read: JsonReader
+    paths: LibraryAnalysisPaths, *, storage: JsonStorage
 ) -> YourLibraryFile:
     """Load the Spotify export used exclusively by async analysis.
 
     Args:
         paths: Original independent output family.
-        read: Original permissive external JSON read.
+        storage: Permissive JSON storage owner.
 
 
     Returns:
         Original validated export authority.
     """
-    raw = read(paths.your_library)
+    raw = storage.read(paths.your_library)
     if raw is None:
         raise LibrarySyncError(f"Your Library export not found: {paths.your_library}")
     try:

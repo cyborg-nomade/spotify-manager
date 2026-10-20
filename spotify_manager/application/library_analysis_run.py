@@ -19,9 +19,6 @@ from spotify_manager.domain.library_analysis_values import (
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
-from spotify_manager.utils.sorting import album_sort_key
-from spotify_manager.utils.sorting import artist_sort_key
-from spotify_manager.utils.sorting import track_sort_key
 
 
 def analyse_export(
@@ -44,13 +41,13 @@ def analyse_export(
         return finalize_analysis(session, publication, albums, tracks, followed)
     library = session.files.export(session.paths)
     albums = prepare_export_resource(
-        session, "albums", library.albums, YourLibraryAlbum, album_sort_key
+        session, "albums", library.albums, YourLibraryAlbum
     )
     tracks = prepare_export_resource(
-        session, "tracks", library.tracks, YourLibraryTrack, track_sort_key
+        session, "tracks", library.tracks, YourLibraryTrack
     )
     followed = prepare_export_resource(
-        session, "artists", library.artists, YourLibraryArtist, artist_sort_key
+        session, "artists", library.artists, YourLibraryArtist
     )
     return finalize_analysis(session, publication, albums, tracks, followed)
 

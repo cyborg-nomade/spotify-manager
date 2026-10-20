@@ -1,7 +1,6 @@
 """Process-local resources shared by the threaded playlist workers."""
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Lock
@@ -10,7 +9,8 @@ from spotify_manager.application.job_lifecycle import append_log
 from spotify_manager.application.job_lifecycle import retain_logs
 from spotify_manager.interfaces.http.job_records import PlaylistJob
 from spotify_manager.interfaces.http.job_registry import lookup_job
-from spotify_manager.interfaces.http.models.analysis import AnalysisJobLog
+from spotify_manager.interfaces.http.logging import JobLogFormatter
+from spotify_manager.interfaces.http.resources import JobConfigurationReader
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class PlaylistContext:
         lock: Lock protecting registry entries and response snapshots.
         logger: Server diagnostic logger.
         clock: Original overridable clock used for timestamps.
-        log_entry: Original log timestamp and serialization boundary.
+        settings: Deferred environment configuration owner.
         log_limit: Maximum retained entries per job.
     """
 
@@ -30,7 +30,7 @@ class PlaylistContext:
     lock: Lock
     logger: logging.Logger
     clock: type[datetime]
-    log_entry: Callable[[int, str], AnalysisJobLog]
+    settings: JobConfigurationReader
     log_limit: int
 
     def lookup(self, job_id: str, command: str | None = None) -> PlaylistJob:
@@ -60,6 +60,6 @@ class PlaylistContext:
         if not message:
             return
         job.next_log_sequence = append_log(
-            job.result.logs, job.next_log_sequence, message, self.log_entry
+            job.result.logs, job.next_log_sequence, message, JobLogFormatter(self.clock)
         )
         retain_logs(job.result.logs, self.log_limit)

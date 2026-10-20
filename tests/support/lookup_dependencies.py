@@ -1,32 +1,49 @@
-"""Inject observed cache authorities without replacing filesystem implementations."""
+"""Observe retained cache compatibility seams through named methods."""
 
-from functools import partial
 from typing import cast
 
 from spotipy import Spotify
 
-from spotify_manager.application.lookup_effects import CachedTracks
-from spotify_manager.bootstrap.library_lookups import CacheRead
-from spotify_manager.bootstrap.library_lookups import CacheWrite
-from spotify_manager.bootstrap.library_lookups import ClientFactory
-from spotify_manager.bootstrap.library_lookups import fetch_tracks
+from spotify_manager.application.lookup_effects import LookupTrack
+from spotify_manager.infrastructure.lookup_resources import AlbumTrackCache
+from spotify_manager.infrastructure.lookup_resources import ClientFactory
 from spotify_manager.processors import library_lookups
+
+
+class ObservedTrackCache(AlbumTrackCache):
+    """Observe public cache reads and writes while using real track acquisition."""
+
+    def load(self) -> dict[str, list[LookupTrack]]:
+        """Read fixture cache authority.
+
+        Returns:
+            Original unchecked cache.
+        """
+        return cast(
+            dict[str, list[LookupTrack]], library_lookups.load_album_tracks_cache()
+        )
+
+    def save(self, cache: dict[str, list[LookupTrack]]) -> None:
+        """Accept fixture cache authority.
+
+        Args:
+            cache: Complete accepted cache.
+        """
+        library_lookups.save_album_tracks_cache(
+            cast(dict[str, list[dict[str, object]]], cache)
+        )
 
 
 def observed_cached_tracks(
     sp: Spotify | None, factory: ClientFactory | None
-) -> CachedTracks:
-    """Supply fixture-owned cache callbacks and the concrete delayed SDK reader.
+) -> AlbumTrackCache:
+    """Construct observed cache storage.
 
     Args:
-        sp: Original explicit client, if supplied.
-        factory: Original delayed client factory.
+        sp: Optional explicit client.
+        factory: Public delayed client hook.
 
     Returns:
-        Original cache observations without changing file-helper behavior tests.
+        Named cache owner.
     """
-    return CachedTracks(
-        cast(CacheRead, library_lookups.load_album_tracks_cache),
-        cast(CacheWrite, library_lookups.save_album_tracks_cache),
-        partial(fetch_tracks, sp, factory),
-    )
+    return ObservedTrackCache(sp, factory)

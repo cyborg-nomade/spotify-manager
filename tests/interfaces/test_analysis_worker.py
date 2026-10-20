@@ -34,7 +34,7 @@ class LogRecorder:
     lock: Lock
     calls: list[tuple[AnalysisJob, str]] = field(default_factory=list)
 
-    def __call__(self, job: AnalysisJob, message: str) -> None:
+    def append(self, job: AnalysisJob, message: str) -> None:
         """Observe one sink call under the owner's lock.
 
         Args:
@@ -43,6 +43,14 @@ class LogRecorder:
         """
         assert self.lock.locked()
         self.calls.append((job, message))
+
+    def now(self) -> datetime:
+        """Observe the original fixture instant.
+
+        Returns:
+            Frozen UTC job time.
+        """
+        return _now()
 
 
 def _now() -> datetime:
@@ -62,8 +70,6 @@ def _worker(identifier: str = "analysis", lock: Lock | None = None) -> AnalysisW
     )
     return AnalysisWorker(
         AnalysisJob(result, Event()),
-        registry_lock,
-        _now,
         LogRecorder(registry_lock),
         "async",
         None,
@@ -73,8 +79,8 @@ def _worker(identifier: str = "analysis", lock: Lock | None = None) -> AnalysisW
 
 
 def _messages(worker: AnalysisWorker) -> list[str]:
-    assert isinstance(worker.append, LogRecorder)
-    return [message for _, message in worker.append.calls]
+    assert isinstance(worker.context, LogRecorder)
+    return [message for _, message in worker.context.calls]
 
 
 def _summary() -> analysis.LibrarySyncSummary:
@@ -401,5 +407,5 @@ def test_parallel_callbacks_and_cancellation_keep_distinct_owners() -> None:
     assert second.job.cancel_event.is_set() is False
     assert _messages(first) == ["left"]
     assert _messages(second) == ["right"]
-    assert isinstance(first.append, LogRecorder)
-    assert first.append.calls[0][0] is first.job
+    assert isinstance(first.context, LogRecorder)
+    assert first.context.calls[0][0] is first.job

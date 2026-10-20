@@ -51,9 +51,11 @@ from spotify_manager.core.library_data.models import (
 from spotify_manager.core.library_data.runtime import (
     get_library_data_service as get_library_data_service,
 )
+from spotify_manager.core.library_data.service import LibraryDataService
 from spotify_manager.core.state.models import StateDocumentError as StateDocumentError
 from spotify_manager.core.state.models import StateError as StateError
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
+from spotify_manager.core.state.service import StateService
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
@@ -107,9 +109,6 @@ from spotify_manager.interfaces.cli.features.wine import WineCLI as WineCLI
 from spotify_manager.interfaces.cli.history import HistoryCommand as HistoryCommand
 from spotify_manager.interfaces.cli.history import (
     present_history_summary as present_history_summary,
-)
-from spotify_manager.interfaces.lookup_operations import (
-    evaluate_live_album as evaluate_album_live,
 )
 from spotify_manager.interfaces.lookup_operations import (
     get_live_artist_library_stats as get_live_artist_library_stats,
@@ -202,21 +201,62 @@ REVIEW_ACTION_CHOICES = [
 ]
 
 
+class CommandResources:
+    """Own deferred CLI resources while preserving their process-wide lifetime."""
+
+    def client(self) -> Spotify:
+        """Resolve the original cached client.
+
+        Returns:
+            Caller-owned standard client.
+        """
+        return client()
+
+    def review_client(self) -> Spotify:
+        """Resolve the original client without automatic SDK retries.
+
+        Returns:
+            Caller-owned review client.
+        """
+        return review_client()
+
+    def configuration(self) -> Settings:
+        """Observe configuration at the original command boundary.
+
+        Returns:
+            Current settings.
+        """
+        return Settings()
+
+    def get_state_service(self) -> StateService:
+        """Resolve the shared state service.
+
+        Returns:
+            Existing state authority.
+        """
+        return get_state_service()
+
+    def get_library_data_service(self) -> LibraryDataService:
+        """Resolve the shared artifact service.
+
+        Returns:
+            Existing artifact authority.
+        """
+        return get_library_data_service()
+
+
 def _library_data_cli() -> LibraryDataCLI:
     return LibraryDataCLI(
-        create_console=Console,
-        create_table=Table,
-        get_library_data_service=get_library_data_service,
-        validate_artifact_name=validate_artifact_name,
+        runtime=CommandResources(), create_console=Console, create_table=Table
     )
 
 
 def _album_review_cli() -> AlbumReviewCLI:
     return AlbumReviewCLI(
+        runtime=CommandResources(),
         create_console=Console,
         prompt=Prompt,
         REVIEW_ACTION_CHOICES=REVIEW_ACTION_CHOICES,
-        review_client=review_client,
         progress_display=ProgressDisplay(
             bar_column=BarColumn,
             complete_column=MofNCompleteColumn,
@@ -230,8 +270,7 @@ def _album_review_cli() -> AlbumReviewCLI:
 
 def _artist_review_cli() -> ArtistReviewCLI:
     return ArtistReviewCLI(
-        configuration=Settings,
-        review_client=review_client,
+        runtime=CommandResources(),
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -248,8 +287,7 @@ def _artist_review_cli() -> ArtistReviewCLI:
 
 def _wine_cli() -> WineCLI:
     return WineCLI(
-        configuration=Settings,
-        review_client=review_client,
+        runtime=CommandResources(),
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
@@ -267,8 +305,7 @@ def _wine_cli() -> WineCLI:
 
 def _discovery_cli() -> DiscoveryCLI:
     return DiscoveryCLI(
-        configuration=Settings,
-        review_client=review_client,
+        runtime=CommandResources(),
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
@@ -286,8 +323,7 @@ def _discovery_cli() -> DiscoveryCLI:
 
 def _slow_listening_cli() -> SlowListeningCLI:
     return SlowListeningCLI(
-        configuration=Settings,
-        review_client=review_client,
+        runtime=CommandResources(),
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
@@ -305,8 +341,7 @@ def _slow_listening_cli() -> SlowListeningCLI:
 
 def _queue_3_cli() -> Queue3CLI:
     return Queue3CLI(
-        configuration=Settings,
-        review_client=review_client,
+        runtime=CommandResources(),
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
@@ -324,9 +359,8 @@ def _queue_3_cli() -> Queue3CLI:
 
 def _discography_cli() -> DiscographyCLI:
     return DiscographyCLI(
-        configuration=Settings,
+        runtime=CommandResources(),
         ask_something_old_artist=ask_something_old_artist,
-        review_client=review_client,
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
@@ -335,32 +369,20 @@ def _discography_cli() -> DiscographyCLI:
 
 
 def _library_commands_cli() -> LibraryCommandsCLI:
-    return LibraryCommandsCLI(
-        analyse_comparison=analyse_comparison,
-        client=client,
-        compare_your_library_and_all_albums=compare_your_library_and_all_albums,
-        convert_your_library_file=convert_your_library_file,
-        count_artists_in_library=count_artists_in_library,
-        restore_your_library_from_file=restore_your_library_from_file,
-        run_monthly_routines=run_monthly_routines,
-        update_total_album_list=update_total_album_list,
-    )
+    return LibraryCommandsCLI(runtime=CommandResources())
 
 
 def _state_cli() -> StateCLI:
-    return StateCLI(create_console=Console, get_state_service=get_state_service)
+    return StateCLI(runtime=CommandResources(), create_console=Console)
 
 
 def _library_upload_cli() -> LibraryUploadCLI:
-    return LibraryUploadCLI(
-        create_console=Console, create_table=Table, format_file_size=format_file_size
-    )
+    return LibraryUploadCLI(create_console=Console, create_table=Table)
 
 
 def _found_art_cli() -> FoundArtCLI:
     return FoundArtCLI(
-        configuration=Settings,
-        client=client,
+        runtime=CommandResources(),
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
         ),
@@ -369,8 +391,7 @@ def _found_art_cli() -> FoundArtCLI:
 
 def _sauvignon_cli() -> SauvignonCLI:
     return SauvignonCLI(
-        configuration=Settings,
-        review_client=review_client,
+        runtime=CommandResources(),
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
@@ -387,8 +408,7 @@ def _sauvignon_cli() -> SauvignonCLI:
 
 def _queue_cli() -> QueueCLI:
     return QueueCLI(
-        configuration=Settings,
-        review_client=review_client,
+        runtime=CommandResources(),
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
@@ -406,9 +426,7 @@ def _queue_cli() -> QueueCLI:
 
 def _historical_cli() -> HistoricalCLI:
     return HistoricalCLI(
-        configuration=Settings,
-        client=client,
-        review_client=review_client,
+        runtime=CommandResources(),
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
@@ -418,10 +436,7 @@ def _historical_cli() -> HistoricalCLI:
 
 def _something_old_cli() -> SomethingOldCLI:
     return SomethingOldCLI(
-        configuration=Settings,
-        _scrobble_date=_scrobble_date,
-        client=client,
-        print_scrobble_history_summary=print_scrobble_history_summary,
+        runtime=CommandResources(),
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -430,9 +445,7 @@ def _something_old_cli() -> SomethingOldCLI:
 
 def _releases_cli() -> ReleasesCLI:
     return ReleasesCLI(
-        configuration=Settings,
-        client=client,
-        print_scrobble_history_summary=print_scrobble_history_summary,
+        runtime=CommandResources(),
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -448,27 +461,21 @@ def _releases_cli() -> ReleasesCLI:
 
 
 def _new_year_cli() -> NewYearCLI:
-    return NewYearCLI(
-        create_console=Console,
-        configuration=Settings,
-        client=client,
-    )
+    return NewYearCLI(runtime=CommandResources(), create_console=Console)
 
 
 def _requeue_cli() -> RequeueCLI:
     return RequeueCLI(
+        runtime=CommandResources(),
         create_console=Console,
-        configuration=Settings,
         create_table=Table,
-        review_client=review_client,
         sleep=sleep,
     )
 
 
 def _palace_cli() -> PalaceCLI:
     return PalaceCLI(
-        configuration=Settings,
-        review_client=review_client,
+        runtime=CommandResources(),
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
@@ -478,18 +485,15 @@ def _palace_cli() -> PalaceCLI:
 
 def _genre_cli() -> GenreCLI:
     return GenreCLI(
-        create_console=Console,
-        configuration=Settings,
-        create_table=Table,
-        client=client,
+        runtime=CommandResources(), create_console=Console, create_table=Table
     )
 
 
 def _analysis_cli() -> AnalysisCLI:
     return AnalysisCLI(
+        runtime=CommandResources(),
         create_live=Live,
         monotonic=monotonic,
-        review_client=review_client,
         sleep=sleep,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
@@ -506,17 +510,13 @@ def _analysis_cli() -> AnalysisCLI:
 
 
 def _lookups_cli() -> LookupsCLI:
-    return LookupsCLI(
-        client=client,
-        evaluate_album_live=evaluate_album_live,
-        get_live_artist_library_stats=get_live_artist_library_stats,
-    )
+    return LookupsCLI(runtime=CommandResources())
 
 
 def _recovery_cli() -> RecoveryCLI:
     return RecoveryCLI(
+        runtime=CommandResources(),
         create_console=Console,
-        review_client=review_client,
         progress_display=ProgressDisplay(
             bar_column=BarColumn,
             complete_column=MofNCompleteColumn,
@@ -1048,7 +1048,10 @@ def new_year_command(
     return _new_year_cli()._run_new_year(year, dry_run)
 
 
-@app.command(name="update-scrobble-history")
+@app.command(
+    name="update-scrobble-history",
+    help="Update the canonical Last.fm export used by every history routine.",
+)
 def update_scrobble_history_command(
     full_rebuild: bool = typer.Option(
         False,
@@ -1061,13 +1064,15 @@ def update_scrobble_history_command(
         help="Fetch and report new scrobbles without changing local files.",
     ),
 ) -> None:
-    """Update the canonical Last.fm export used by every history routine."""
+    """Update the canonical Last.fm export used by every history routine.
+
+    Args:
+        full_rebuild: Whether to discard prior incremental progress.
+        dry_run: Whether to preview without durable writes.
+    """
     HistoryCommand(
         console=Console(),
         configuration=Settings(),
-        validate=found_art.validate_lastfm_configuration,
-        refresh=scrobble_history.refresh_scrobble_history,
-        present=print_scrobble_history_summary,
     ).run(full_rebuild, dry_run)
 
 
@@ -1562,7 +1567,7 @@ def review_artists_command(
 
 def _spotify_auth_cli() -> SpotifyAuthCLI:
     return SpotifyAuthCLI(
-        review_client=review_client, rotating_client_type=RotatingSpotify
+        runtime=CommandResources(), rotating_client_type=RotatingSpotify
     )
 
 

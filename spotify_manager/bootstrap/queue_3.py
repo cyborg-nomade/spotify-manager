@@ -93,10 +93,6 @@ def review_planner(
     return Queue3Planner(catalog, tracks, ordering, choose)
 
 
-def _no_checkpoint() -> None:
-    return None
-
-
 def _datetime() -> datetime:
     return legacy.datetime.now(UTC)
 

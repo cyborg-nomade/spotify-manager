@@ -96,21 +96,20 @@ def replace_shared_state_namespace(
     definition = jobs.STATE_NAMESPACE_DEFINITIONS.get(namespace)
     if definition is None:
         raise HTTPException(status_code=404, detail="Unknown state namespace.")
-    default_factory, validator = definition
     service = jobs.get_state_service()
     try:
         current_snapshot = service.snapshot()
         current = jobs.namespace_value(current_snapshot.document, namespace)
         jobs.validate_namespace_editor_change(
             namespace,
-            current if current is not None else default_factory(),
+            current if current is not None else definition.default(),
             request.value,
         )
         snapshot = service.replace_namespace(
             namespace,
             request.value,
             expected_revision=request.expected_revision,
-            validator=validator,
+            validator=definition,
             message=f"Edit {namespace} state from web app",
         )
     except StateConflictError as exc:

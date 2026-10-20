@@ -1,6 +1,5 @@
 """Original process-local lookup boundaries shared by HTTP job families."""
 
-from collections.abc import Callable
 from collections.abc import Iterable
 from threading import Lock
 
@@ -39,25 +38,15 @@ def require_slot(
     raise HTTPException(status_code=409, detail=detail)
 
 
-def register_job[T, R](
-    jobs: dict[str, T], job_id: str, job: T, snapshot: Callable[[T], R]
-) -> R:
-    """Register before snapshotting under the caller's existing reservation lock.
+def register_job[T](jobs: dict[str, T], job_id: str, job: T) -> None:
+    """Accept a fully constructed job under the caller's existing reservation lock.
 
     Args:
-        jobs: Original process-local registry, including retained terminal jobs.
-        job_id: Opaque identifier allocated after the slot was checked.
-        job: Fully constructed handle with its original initial log and signals.
-        snapshot: Original overridable presentation boundary.
-
-    Returns:
-        Detached queued view captured before worker dispatch.
-
-    Raises:
-        RuntimeError: A failing snapshot boundary leaves the handle registered.
+        jobs: Existing process-local registry.
+        job_id: Allocated opaque identity.
+        job: Fully constructed mutable handle.
     """
     jobs[job_id] = job
-    return snapshot(job)
 
 
 def lookup_job[T: AnalysisJob | PlaylistJob](

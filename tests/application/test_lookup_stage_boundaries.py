@@ -7,17 +7,11 @@ import pytest
 
 from spotify_manager.application import library_lookup_run as workflow
 from spotify_manager.application import lookup_resolution as resolution
-from spotify_manager.application.lookup_effects import AlbumLookup
-from spotify_manager.application.lookup_effects import ArtistLookup
-from spotify_manager.application.lookup_effects import CachedTracks
 from spotify_manager.application.lookup_effects import LookupTrack
-from spotify_manager.application.lookup_effects import TrackLookup
 from spotify_manager.application.scrobble_lookup_run import latest_history_timestamp
 from spotify_manager.domain.lookup_values import LiveAlbumCandidate
 from spotify_manager.domain.lookup_values import ResolvedTrack
 from spotify_manager.domain.lookup_values import SpotifyLookupResponseError
-from spotify_manager.infrastructure.scrobble_lookup import checked_row
-from spotify_manager.infrastructure.scrobble_lookup import checked_timestamp
 
 
 @dataclass
@@ -32,7 +26,7 @@ class MembershipRead:
     values: list[object]
     requests: list[list[str]] = field(default_factory=list)
 
-    def read(self, identifiers: list[str]) -> object:
+    def contains(self, identifiers: list[str]) -> object:
         """Observe one ordered membership batch.
 
         Args:
@@ -83,17 +77,15 @@ def no_artists(name: str) -> list[tuple[str, str]]:
 
 def test_lookup_reference_guards_precede_effects() -> None:
     """Reject missing original artist, album and track references before reads."""
-    artist = ArtistLookup(missing_artist, no_artists)
+    artist = MissingArtists()
     with pytest.raises(ValueError, match="name or artist_id"):
         resolution.artist(artist, None, None)
     with pytest.raises(SpotifyLookupResponseError, match="invalid artist"):
         resolution.artist(artist, None, "artist")
     with pytest.raises(ValueError, match="name or album_id"):
-        resolution.album(
-            AlbumLookup(unavailable_album, unavailable_albums), None, None, None
-        )
+        resolution.album(UnavailableAlbums(), None, None, None)
     with pytest.raises(ValueError, match="name or track_id"):
-        resolution.track(TrackLookup(unavailable_track, unavailable_tracks), None, None)
+        resolution.track(UnavailableTracks(), None, None)
 
 
 def unavailable_album(identifier: str) -> LiveAlbumCandidate:
@@ -154,18 +146,18 @@ def test_live_status_shape_is_preserved(raw: object) -> None:
     """
     source = MembershipRead([raw])
     with pytest.raises(SpotifyLookupResponseError, match="Liked Songs"):
-        resolution.liked_statuses(["one"], source.read, 20)
+        resolution.liked_statuses(["one"], source, 20)
 
 
 def test_membership_keeps_duplicates_and_last_observation() -> None:
     """Preserve duplicate requests, truthy values and last-value identity overwrite."""
     source = MembershipRead([[True, ""], ["yes"]])
-    assert resolution.liked_statuses(["one", "two", "one"], source.read, 2) == {
+    assert resolution.liked_statuses(["one", "two", "one"], source, 2) == {
         "one": True,
         "two": False,
     }
     assert source.requests == [["one", "two"], ["one"]]
-    assert resolution.liked_statuses([], source.read, 20) == {}
+    assert resolution.liked_statuses([], source, 20) == {}
 
 
 def empty_cache() -> dict[str, list[LookupTrack]]:
@@ -203,7 +195,7 @@ def empty_tracks(identifier: str) -> list[LookupTrack]:
 
 def test_disabled_cache_does_not_publish() -> None:
     """Keep cache writes disabled after successful uncached fetching."""
-    deps = CachedTracks(empty_cache, reject_cache_write, empty_tracks)
+    deps = DisabledCache()
     assert workflow.tracklist(deps, "album", False, False) == ([], False)
 
 
@@ -213,9 +205,114 @@ def test_latest_history_ignores_older_matching_encounters() -> None:
         {"artist": "Artist", "track": "Track", "date": 2000},
         {"artist": "Artist", "track": "Track", "date": 1000},
     ]
-    assert (
-        latest_history_timestamp(
-            rows, "track", "artist", checked_row, checked_timestamp
-        )
-        == 2000
-    )
+    assert latest_history_timestamp(rows, "track", "artist") == 2000
+
+
+class MissingArtists:
+    """Supply incomplete direct artist metadata and no search matches."""
+
+    def direct(self, identifier: str) -> tuple[str, str] | None:
+        """Observe direct at the recorded boundary.
+
+        Args:
+            identifier: Requested resource identity.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return missing_artist(identifier)
+
+    def search(self, name: str) -> list[tuple[str, str]]:
+        """Observe search at the recorded boundary.
+
+        Args:
+            name: Observed label or reference.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return no_artists(name)
+
+
+class UnavailableAlbums:
+    """Reject observations before reference validation."""
+
+    def direct(self, identifier: str) -> LiveAlbumCandidate:
+        """Observe direct at the recorded boundary.
+
+        Args:
+            identifier: Requested resource identity.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return unavailable_album(identifier)
+
+    def search(self, name: str, artist: str | None) -> list[LiveAlbumCandidate]:
+        """Observe search at the recorded boundary.
+
+        Args:
+            name: Observed label or reference.
+            artist: Reviewed artist or matching constraint.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return unavailable_albums(name, artist)
+
+
+class UnavailableTracks:
+    """Reject observations before reference validation."""
+
+    def direct(self, identifier: str) -> ResolvedTrack:
+        """Observe direct at the recorded boundary.
+
+        Args:
+            identifier: Requested resource identity.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return unavailable_track(identifier)
+
+    def search(self, name: str) -> list[ResolvedTrack]:
+        """Observe search at the recorded boundary.
+
+        Args:
+            name: Observed label or reference.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return unavailable_tracks(name)
+
+
+class DisabledCache:
+    """Provide track facts while rejecting cache publication."""
+
+    def load(self) -> dict[str, list[LookupTrack]]:
+        """Observe load at the recorded boundary.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return empty_cache()
+
+    def save(self, cache: dict[str, list[LookupTrack]]) -> None:
+        """Observe save at the recorded boundary.
+
+        Args:
+            cache: Complete observed track cache.
+        """
+        reject_cache_write(cache)
+
+    def fetch(self, identifier: str) -> list[LookupTrack]:
+        """Observe fetch at the recorded boundary.
+
+        Args:
+            identifier: Requested resource identity.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return empty_tracks(identifier)

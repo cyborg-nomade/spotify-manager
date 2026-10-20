@@ -213,17 +213,59 @@ without an infrastructure detour. The annual execution sequence has five explici
 calls and accepted checkpoints instead of a tuple of executable callbacks.
 
 Callbacks remain appropriate for operator choices, progress, cancellation,
-external time and retry operations. `LegacyCheckpoint` only adapts retained
-callback-based Python compatibility entries into the named checkpoint port.
-Existing low-level codec and legacy maintenance override contracts remain
-listed in the retained-helper inventory; fixed domain functions are never
-supplied as executable constructor dependencies. A source guard checks this
-rule, including aliased imports, while allowing ordinary collection keys and
-real external clocks.
+external time and retry operations. Checkpoint ownership is explicit through
+named stores. Fixed domain functions are called at their decision sites; a source
+guard rejects policy injection, including aliased imports, while allowing normal
+collection keys and real external clocks.
 
 The original expected results, ordered effects and failure/restart traces are
 unchanged. Unit coordinators use typed child-stage doubles; the actual named
 stages also execute in isolated application tests and compatibility tests.
+
+## Ordinary I/O and execution dependencies (2026-10-20)
+
+Internal resource models no longer contain file readers/writers, serializer
+functions, validation functions, catalog readers, audit appenders or checkpoint
+callbacks. Protocols describe named I/O methods; concrete adapters own the client,
+path, schema or current namespace needed to implement them. Application stages
+call fixed domain functions directly and invoke other application stages by name.
+
+| Path | Calls visible in application execution | External resource ownership |
+| --- | --- | --- |
+| Live artist statistics | `artist_statistics` → `artist` → release membership → tracks → liked membership | `SpotifyArtistLookup`, saved/liked membership readers |
+| Monthly library maintenance | `run` → `check` → `update_statistics` → `add_monthly` → `monthly_slice`, playlist and track stages | Named files, catalog, playlist writes and clock |
+| Mirror analysis | Export preparation or offset/cursor scan → fixed resource decoding → publication/checkpoint | `AnalysisStorage`, `SpotifyAnalysisCatalog`, `SpotifyOffsetPages`, `AnalysisBackups` |
+| Artist review | `ReviewSession` → `ReviewCatalog.tracks/ranked/earliest` → `ArtistCatalog` → fixed candidate rules | Per-artist cache/read objects and whole-state checkpoint stores |
+| Upload | `prepare` → fixed manifest rules; `upload` → remote read → local publication → manifest → commit | `ExportPreparation`, `HubUpload` |
+| Nightly refresh | `nightly_refresh` → freshness rule → `run_job` → `start_job` → `poll_job` → `cancel_job` when needed | `SpaceHttpClient` exposes HTTP and decoded artifact observations |
+| HTTP result handling | Worker → feature-specific plural presenter → job snapshot | Context owns registry, lock, clock and log formatting |
+
+The CLI owns one lazy `CommandResources` object rather than a set of factories
+and forwarding functions. Its feature adapters call shared operations and named
+formatters directly. Ordinary routine state access uses `routine_state_from`
+with a named `*StateCodec`; HTTP namespace edits use the same schema methods.
+Genre discovery uses a `GenrePages.read` resource. Golden-track selection, release
+pages, recommendation decoding, history export and queue decoding call their
+fixed transformations directly.
+
+The remaining executable hooks have specific reasons:
+
+| Boundary | Why the hook remains |
+| --- | --- |
+| Operator choices, progress and SDK events | Interfaces supply answers and receive notifications while a routine is running. |
+| Retry, cancellation, clock, random observations and bounded waits | The caller controls runtime conditions; the application retains its fixed business decisions and ordering. |
+| Starlette, Typer, Rich, urllib and SDK integration | Framework entry points and transport protocols require executable handlers. |
+| Public Python state hooks | Existing `StateService` and `routine_state` callers may supply custom defaults, validators or file handlers. Compatibility adapters normalize these once; internal routines use named codecs. |
+| Public cache, genre and artist-review helpers | Existing lazy client, page-reader and membership hooks remain accepted at those external APIs. Internal execution uses resource methods. |
+| Public export ordering helper | Its custom sort key is retained at the compatibility edge; application export ordering is fixed. |
+| Private offset-page SDK handle | Original endpoint selection time is observable. One adapter captures its handle privately; it is never a business-stage dependency. |
+
+`tests/bootstrap/test_callback_dependencies.py` scans the production package.
+Its helper resolves imported and reexported callable aliases and callable
+protocols. Unrecognized executable dependencies fail the check. Narrow retained
+hooks and their reasons are recorded in `tests/support/callback_policy.py`.
+The separate fixed-policy and facade guards continue to apply. None of these
+exceptions permits new callback-based business or ordinary I/O wiring.
 
 ## Acceptance and evidence
 
@@ -297,33 +339,39 @@ recordings were not changed. New tests reject execution-facade dependencies and
 mutable facade-function lookup, prove aliases/re-exports are detected, and cover
 fresh-process entry import orders.
 
-Final verification of the 2026-10-19 revision:
+Final verification of the 2026-10-20 revision:
 
-- **10,417 tests passed**, randomized seed `20261019`.
-- Package statement coverage: **96.20%** (31,241 / 32,475); branch coverage:
-  **92.49%** (5,385 / 5,822). Both exceed the approved 95% / 90% gates.
+- **10,432 tests passed**, randomized seed `20261020`. The callback dependency
+  guard's 14 scenarios also pass independently. A final 22-test Genre replay
+  verifies its effect/failure boundaries after documentation line moves.
+- Package statement coverage: **96.17%** (32,206 / 33,487); branch coverage:
+  **92.45%** (5,434 / 5,878). Both exceed the approved 95% / 90% gates.
 - Domain/application statement and branch coverage is **100%**. Separate isolated
-  gates passed **1,201 domain** and **3,635 application** tests. The application
-  gate now also includes the new checkpoint, Queue mapping and annual discovery
-  stages.
-- Ruff and formatting pass; package mypy passes **611 source files**. Strict
-  domain/application typing and the nine dependency/fixture modules pass.
+  gates passed **1,201 domain** and **3,636 application** tests. The application
+  gate includes the named review catalog paths and legacy error reporting owner.
+- Ruff and formatting pass across **1,014 Python files**; package mypy passes
+  **632 source files**. Strict domain/application typing and the nine selected
+  dependency/fixture/guard modules pass.
 - The structural audit reports no local functions/classes, compound
   comprehensions, missing annotations, functions above 25 executable statements,
-  or control nesting above two in changed/new production functions. Ordinary
-  `elif` clauses are measured at their actual source indentation. Public
-  signatures retain the 13-parameter ceiling and cohesive typed inputs.
+  or control nesting above two in changed/new production functions. Changed
+  tests also pass that audit. Ordinary `elif` clauses are measured at their
+  actual source indentation. Public signatures and generated constructors
+  retain the 13-parameter ceiling and cohesive typed inputs.
 - A fresh capture matches all **11 frozen public artifacts**. Baseline source
   locations may move; route metadata, SDK expressions/source ownership, schemas,
   defaults, imports and CLI contracts retain their approved comparison rules.
-  Baseline files, frontend source and expected behavior fixtures are unchanged.
+  The capture tool now observes named namespace schemas and patches the actual
+  CLI dependency owners; canned output values and frozen expected bytes are
+  unchanged. Baseline files, frontend source and expected behavior fixtures are
+  unchanged.
 - Dependency checks reject inward execution through legacy facades, mutable
-  facade-function lookup and injected fixed domain rules. Fresh-process import
-  checks also cover the shared dated-history and discography adapters.
+  facade-function lookup, injected fixed domain rules and unrecognized callback
+  dependencies. Callable aliases, protocols and reexports are covered.
 - Local review server: **http://127.0.0.1:8766/** on the revised branch. Local
-  unlock uses any non-empty text. Review smoke checks cover health, source and
-  state loading, job reconnection and browser unlock/reload. No live routine or
-  Spotify mutation is part of these checks.
+  unlock uses any non-empty text. Read-only review smoke checks pass for health,
+  source and shared-state loading, and all 20 job reconnect endpoints; no jobs
+  are active. No routine or Spotify mutation is part of these smoke checks.
 
 The four hydrated local runtime-data files are excluded from the implementation
 commit and retained for review. The previous Item 7 release stashes remain intact.

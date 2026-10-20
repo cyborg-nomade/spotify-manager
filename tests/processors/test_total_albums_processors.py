@@ -3,6 +3,8 @@
 # Standard Library
 from datetime import datetime
 
+from pytest_mock import MockerFixture
+
 # UFI
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
@@ -244,24 +246,29 @@ def test_append_to_playlist_uses_one_or_several_batches(mocker) -> None:
     ]
 
 
-def test_add_monthly_albums_updates_playlist_and_control_file(mocker) -> None:
+def test_add_monthly_albums_updates_playlist_and_control_file(
+    mocker: MockerFixture,
+) -> None:
+    """Verify add monthly albums updates playlist and control file.
+
+    Args:
+        mocker: Isolated mocks for the original I/O and application boundaries.
+    """
     spotify = mocker.Mock()
     control: list[ControlFileItem] = []
     selected = [album("one", "One"), album("two", "Two")]
     tracks = [SimplifiedTrack(disc_number=1, track_number=1, uri="track")]
     mocker.patch(
-        "spotify_manager.bootstrap.legacy_library._monthly_selection",
-        return_value=selected,
-    )
-    mocker.patch(
-        "spotify_manager.bootstrap.legacy_library._monthly_create",
+        "spotify_manager.application.legacy_library_refresh.playlist",
         return_value="playlist",
     )
     get_tracks = mocker.patch(
-        "spotify_manager.bootstrap.legacy_library._ordered_tracks",
+        "spotify_manager.application.legacy_library_refresh.tracks",
         return_value=tracks,
     )
-    append = mocker.patch("spotify_manager.bootstrap.legacy_library._monthly_append")
+    append = mocker.patch(
+        "spotify_manager.application.legacy_library_refresh.append_tracks"
+    )
     save = mocker.patch("spotify_manager.loaders_savers.save_control_file")
 
     result = add_monthly_albums(spotify, control, selected, 0)
@@ -273,9 +280,16 @@ def test_add_monthly_albums_updates_playlist_and_control_file(mocker) -> None:
     save.assert_called_once_with(control)
 
 
-def test_add_monthly_albums_returns_false_when_a_stage_fails(mocker) -> None:
+def test_add_monthly_albums_returns_false_when_a_stage_fails(
+    mocker: MockerFixture,
+) -> None:
+    """Verify add monthly albums returns false when a stage fails.
+
+    Args:
+        mocker: Isolated mocks for the original I/O and application boundaries.
+    """
     mocker.patch(
-        "spotify_manager.bootstrap.legacy_library._monthly_selection",
+        "spotify_manager.infrastructure.legacy_library_resources.LegacyMonthlyLimits.count",
         side_effect=RuntimeError("failed"),
     )
 

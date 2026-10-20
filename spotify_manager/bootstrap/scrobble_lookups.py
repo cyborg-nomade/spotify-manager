@@ -1,17 +1,14 @@
 """Compose original track-history reads without private routine dependencies."""
 
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from spotipy import Spotify
 
-from spotify_manager.application.lookup_effects import TrackLookup
-from spotify_manager.application.lookup_resolution import track
 from spotify_manager.application.scrobble_lookup_run import TrackHistoryLookup
-from spotify_manager.domain.lookup_values import ResolvedTrack
 from spotify_manager.infrastructure import scrobble_lookup as history
+from spotify_manager.infrastructure.lookup_resources import SpotifyTrackLookup
 
 
 TIMEZONE = ZoneInfo("Europe/Berlin")
@@ -31,9 +28,7 @@ def latest(path: Path, track: str, artist: str) -> datetime | None:
     Returns:
         Original latest matching play or none.
     """
-    from spotify_manager.routines.blast_from_past import load_scrobble_export
-
-    return history.latest(load_scrobble_export, path, track, artist, TIMEZONE)
+    return history.latest(path, track, artist, TIMEZONE)
 
 
 def resources(
@@ -56,47 +51,22 @@ def resources(
         Explicit original ordered lookup dependencies.
     """
     return TrackHistoryLookup(
-        partial(_resolve_track, client, name, identifier),
-        partial(_read_latest, path),
-        partial(_current_time, now),
+        SpotifyTrackLookup(client),
+        history.ScrobbleHistory(path, TIMEZONE),
+        name,
+        identifier,
+        history.ScrobbleClock(now, TIMEZONE),
         TIMEZONE,
     )
 
 
-def _read_latest(path: Path, track: str, artist: str) -> datetime | None:
-    return latest(path, track, artist)
-
-
-def _current_time(now: datetime | None) -> datetime:
-    return now or datetime.now(TIMEZONE)
-
-
-def track_lookup(client: Spotify) -> TrackLookup:
-    """Bind original direct and search track observation seams.
+def track_lookup(client: Spotify) -> SpotifyTrackLookup:
+    """Construct direct and search observations.
 
     Args:
-        client: Original caller-owned synchronous client.
+        client: Caller-owned synchronous client.
 
     Returns:
-        Original track reads without constructing an environment client.
+        Named track catalog.
     """
-    from spotify_manager.processors.scrobble_lookups import _direct_track
-
-    return TrackLookup(
-        partial(_direct_track, client), partial(_track_candidates, client)
-    )
-
-
-def _track_candidates(client: Spotify, name: str) -> list[ResolvedTrack]:
-    from spotify_manager.infrastructure import lookup_records
-    from spotify_manager.processors.scrobble_lookups import _track_search
-
-    return lookup_records.track_identities(_track_search(client, name))
-
-
-def _resolve_track(
-    client: Spotify,
-    name: str | None,
-    identifier: str | None,
-) -> ResolvedTrack:
-    return track(track_lookup(client), name, identifier)
+    return SpotifyTrackLookup(client)
