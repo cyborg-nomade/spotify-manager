@@ -1,8 +1,12 @@
 # Item 7a: simplify internal call paths
 
-**Status:** implemented and ready for PR review on `codex/refactor-07a-direct-use-cases`,
-starting from clean Item 7 merge `7fe292c`. Deployment and merge await approval. The architectural direction and added
-roadmap item were approved on 2026-10-03. Item 8 waits for the Item 7a release.
+**Status:** approved, deployed and merged in PR #67 on 2026-10-26. Source
+`fca21e5` was deployed as Space revision
+`b1a3c0cec8cf497f6a907147d0cd7824185f5d3a` and merged in `cb6f191`.
+All 442 deployed Python paths matched; shared state and data stayed unchanged.
+Authenticated before/after checks passed for all four durable artifacts and
+20 active-job endpoints. [Item 8](ASYNC_SPOTIFY_TRANSPORT.md) follows this release.
+The architectural direction was approved on 2026-10-03.
 
 Item 7 PR #66 was approved, deployed to Space revision
 `702365bae980a4a7f0036f36bb24a7f4239d5cfc`, and merged. All 155 deployed paths
@@ -409,4 +413,4 @@ change; frozen HTTP/CLI results, SDK calls, errors and ordered effects do not.
 
 This clarification extends the existing Item 7a PR. The October 26 verification
 record above covers the tightened rule, including operator/runtime and public
-Python interfaces. Deployment and merge still require the owner's approval.
+Python interfaces. The owner subsequently approved and released PR #67.

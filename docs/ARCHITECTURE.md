@@ -260,6 +260,14 @@ The library analyzer controls retries itself: its 5xx backoff starts at 10
 seconds and is capped at 30 minutes. In the CLI, a waiting analysis can quit
 cleanly or force credential rotation.
 
+The Item 8 native adapter is available separately through
+`bootstrap/spotify_async.py`. One async context owns its HTTPX pool and bounded
+OAuth/cache work, with per-credential refresh coordination and the existing
+request/retry contracts. The current CLI and web routines remain synchronous;
+Item 9 installs that runtime at their entry boundaries. See the
+[native transport guide](refactor/ASYNC_SPOTIFY_TRANSPORT.md) for call paths,
+recorded contracts, cancellation and cleanup guarantees.
+
 ### Last.fm
 
 `spotify_manager/client/lastfm.py` provides read-only API access. The canonical

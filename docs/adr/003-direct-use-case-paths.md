@@ -1,7 +1,7 @@
 # ADR-003: direct paths from feature adapters to business use cases
 
-**Status:** Accepted; Item 7a tightening is implemented on PR #67. Release awaits
-owner review and approval.
+**Status:** Accepted; Item 7a was approved, deployed and merged in PR #67 on
+2026-10-26.
 
 **Date:** 2026-10-03
 
@@ -133,7 +133,7 @@ move transport/presentation into the business rules.
 3. [x] Inventory the runtime and compatibility paths for every routine family.
 4. [x] Simplify album evaluation and Sauvignon, then the remaining families.
 5. [x] Verify contracts/effects, typing, boundaries, coverage and local web behavior.
-6. [ ] Review the dedicated Item 7a PR; obtain approval before deployment/merge.
+6. [x] Review, approve, deploy and merge Item 7a PR #67 (2026-10-26).
 7. [ ] Carry the call-path acceptance criteria through Items 8–12.
 
 
@@ -158,7 +158,7 @@ scope preserves the original failure classification, attempt count, wait,
 cancellation and accepted-result boundary. Python wiring and test doubles may
 change; frozen HTTP/CLI results, SDK calls, errors and ordered effects do not.
 
-This clarification extends the existing Item 7a PR. Its earlier verification
-record describes the October 20 revision; fresh verification is required before
-this tightened pass is ready for review. Deployment and merge still require the
-owner's approval.
+This clarification was implemented and verified in Item 7a PR #67. The owner
+approved it on 2026-10-26; the Space deployment and merge were verified before
+Item 8 began. The [verification guide](../refactor/CALL_PATH_SIMPLIFICATION.md)
+records its final evidence. These call-path rules continue through later items.

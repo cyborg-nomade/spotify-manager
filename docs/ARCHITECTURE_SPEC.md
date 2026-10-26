@@ -1,6 +1,7 @@
 # Architecture Specification
 
-**Status:** modular monolith; refactor Items 1–7 deployed, Item 7a prepared for review.
+**Status:** modular monolith; refactor Items 1–7a deployed, Item 8 native transport
+prepared for review. Async application/interface activation remains Item 9.
 
 **Baseline:** Item 7 merge `7fe292c` (2026-10-03); Item 7a on `codex/refactor-07a-direct-use-cases`.
 

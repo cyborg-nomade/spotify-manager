@@ -38,6 +38,26 @@ SORT_PARTIALS = {
 }
 
 
+ASYNC_SDK_CALLS = {
+    (
+        "spotify_manager.infrastructure.spotify_async.blocking.BlockingOAuth.refresh",
+        "source.refresh",
+    ),
+    (
+        "spotify_manager.infrastructure.spotify_async.blocking.BlockingOAuth.token",
+        "source.token",
+    ),
+    (
+        "spotify_manager.infrastructure.spotify_async.blocking.BlockingOAuth.open_sources",
+        "provisioner.open_sources",
+    ),
+    (
+        "spotify_manager.infrastructure.spotify_async.blocking.BlockingOAuth.close",
+        "source.close",
+    ),
+}
+
+
 def function_argument_reason(use: FunctionArgument) -> str | None:
     """Explain the external API requirement for a function-valued argument.
 
@@ -47,6 +67,15 @@ def function_argument_reason(use: FunctionArgument) -> str | None:
     Returns:
         Narrow library or framework requirement, or none for execution injection.
     """
+    if (
+        (use.owner, use.function) in ASYNC_SDK_CALLS
+        and use.callee == "asyncio.to_thread"
+        and use.parameter == "0"
+    ):
+        return (
+            "asyncio.to_thread requires the SDK/cache method; capacity stays held "
+            "until its worker finishes."
+        )
     if use.parameter == "key" and use.callee in {"sorted", "min", "max"}:
         return "Python's ordering API requires a key function."
     if use.parameter == "key" and use.callee.endswith(".sort"):

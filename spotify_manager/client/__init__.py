@@ -20,6 +20,7 @@ from spotipy.oauth2 import SpotifyOAuth
 from urllib3.util.retry import Retry
 
 from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.client.events import SpotifyOutput
 
 # UFI
 from spotify_manager.settings import Settings
@@ -222,12 +223,7 @@ class RotatingSpotify(spotipy.Spotify):
 
     def _emit(self, message: str) -> None:
         """Log a safe rotation event and forward it to the active interface."""
-        logger.warning(message)
-        if self._event_callback is not None:
-            try:
-                self._event_callback.echo(message)
-            except Exception:  # pragma: no cover - display callbacks are best-effort
-                logger.exception("Spotify event callback failed")
+        SpotifyOutput(self._event_callback).echo(message)
 
     def _refresh_auth_manager(self, index: int) -> None:
         """Force-refresh one app token, authenticating locally if necessary."""

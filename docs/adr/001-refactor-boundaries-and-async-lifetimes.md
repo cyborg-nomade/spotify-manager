@@ -131,9 +131,11 @@ accident in this refactor.
    [Item 5 album and Requeue slices](../refactor/VERTICAL_SLICES.md) were deployed
    and merged in PR #64; [Item 6 routine families](../refactor/ROUTINE_FAMILIES.md)
    were deployed and merged in PR #65.
-5. [ ] Consolidate interface/job ownership without schema changes (item 7).
-   Then simplify internal call paths in the additional Item 7a before async work.
+5. [x] Consolidate interface/job ownership (Item 7, PR #66), then simplify internal
+   call paths (Item 7a, PR #67), both approved, deployed and merged.
 6. [ ] Implement async transport and execution with compatibility evidence (items 8–9).
+   [Item 8 native transport](../refactor/ASYNC_SPOTIFY_TRANSPORT.md) is implemented
+   for review; application/interface activation remains in Item 9.
 7. [ ] Optimize proven independent reads and enforce dependency boundaries (items 10–11).
 
 ## References

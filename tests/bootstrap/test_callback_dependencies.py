@@ -229,3 +229,32 @@ def test_argument_guard_resolves_a_bound_method_alias() -> None:
     uses = function_arguments("example", tree, defined_functions({"example": tree}))
     assert len(uses) == 1
     assert function_argument_reason(uses[0]) is None
+
+
+@pytest.mark.parametrize(
+    "method, function",
+    [
+        ("token", "source.token"),
+        ("refresh", "source.refresh"),
+        ("open_sources", "provisioner.open_sources"),
+        ("close", "source.close"),
+    ],
+)
+def test_only_bounded_sdk_work_can_use_the_required_thread_bridge(
+    method: str, function: str
+) -> None:
+    """Keep native Spotify HTTP out of the narrow OAuth/cache thread exemption.
+
+    Args:
+        method: Named bounded SDK/cache boundary.
+        function: Exact method required by asyncio.to_thread.
+    """
+    from tests.support.callback_arguments import FunctionArgument
+
+    owner = (
+        "spotify_manager.infrastructure.spotify_async.blocking.BlockingOAuth." + method
+    )
+    use = FunctionArgument(owner, "asyncio.to_thread", "0", function, 1)
+    assert function_argument_reason(use)
+    forbidden = FunctionArgument(owner, "asyncio.to_thread", "0", "spotify.request", 1)
+    assert function_argument_reason(forbidden) is None

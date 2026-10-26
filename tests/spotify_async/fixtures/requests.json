@@ -1,0 +1,320 @@
+{
+  "sdk_version": "2.26.0",
+  "requests": [
+    {
+      "name": "album",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/albums/abc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "album",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/albums/abc?market=DE",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "album_tracks",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/albums/abc/tracks/?limit=50&offset=0",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "album_tracks",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/albums/abc/tracks/?limit=1&offset=9&market=DE",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "albums",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/albums/?ids=abc,def,abc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "albums",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/albums/?ids=abc,def,abc&market=DE",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "artist",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/artists/abc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "artist_albums",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/artists/abc/albums?limit=20&offset=0",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "artist_albums",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/artists/abc/albums?include_groups=album%2Csingle&country=DE&limit=50&offset=7",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "artist_top_tracks",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/artists/abc/top-tracks?country=US",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "artist_top_tracks",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/artists/abc/top-tracks?country=DE",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_followed_artists",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/following?type=artist&limit=20",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_followed_artists",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/following?type=artist&limit=50&after=abc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_following_artists",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/library/contains?uris=",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_following_artists",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/library/contains?uris=spotify%3Aartist%3Aabc%2Cspotify%3Aartist%3Adef%2Cspotify%3Aartist%3Aabc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_playlists",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/playlists?limit=50&offset=0",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_playlists",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/playlists?limit=1&offset=4",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_albums",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/albums?limit=20&offset=0",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_albums",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/albums?limit=2&offset=7&market=DE",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_albums_add",
+      "method": "PUT",
+      "url": "https://api.spotify.com/v1/me/library?uris=",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_albums_add",
+      "method": "PUT",
+      "url": "https://api.spotify.com/v1/me/library?uris=spotify%3Aalbum%3Aabc%2Cspotify%3Aalbum%3Adef%2Cspotify%3Aalbum%3Aabc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_albums_contains",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/library/contains?uris=",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_albums_contains",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/library/contains?uris=spotify%3Aalbum%3Aabc%2Cspotify%3Aalbum%3Adef%2Cspotify%3Aalbum%3Aabc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_albums_delete",
+      "method": "DELETE",
+      "url": "https://api.spotify.com/v1/me/library?uris=",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_albums_delete",
+      "method": "DELETE",
+      "url": "https://api.spotify.com/v1/me/library?uris=spotify%3Aalbum%3Aabc%2Cspotify%3Aalbum%3Adef%2Cspotify%3Aalbum%3Aabc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_tracks",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/tracks?limit=20&offset=0",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_tracks",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/tracks?limit=2&offset=4&market=DE",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_tracks_add",
+      "method": "PUT",
+      "url": "https://api.spotify.com/v1/me/library?uris=",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_tracks_add",
+      "method": "PUT",
+      "url": "https://api.spotify.com/v1/me/library?uris=spotify%3Atrack%3Aabc%2Cspotify%3Atrack%3Adef%2Cspotify%3Atrack%3Aabc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_tracks_contains",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/library/contains?uris=",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "current_user_saved_tracks_contains",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/library/contains?uris=spotify%3Atrack%3Aabc%2Cspotify%3Atrack%3Adef%2Cspotify%3Atrack%3Aabc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "next",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/me/tracks?offset=20&limit=20",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "playlist_add_items",
+      "method": "POST",
+      "url": "https://api.spotify.com/v1/playlists/abc/items",
+      "body": "[\"spotify:track:def\", \"spotify:track:ghi\"]",
+      "content_type": "application/json"
+    },
+    {
+      "name": "playlist_add_items",
+      "method": "POST",
+      "url": "https://api.spotify.com/v1/playlists/abc/items?position=0",
+      "body": "[\"spotify:track:def\", \"spotify:track:ghi\"]",
+      "content_type": "application/json"
+    },
+    {
+      "name": "search",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/search?q=Bj%C3%B6rk+%26+Bach&limit=10&offset=0&type=track",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "search",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/search?q=Bj%C3%B6rk+%26+Bach&limit=50&offset=2&type=artist%2Calbum&market=from_token",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "track",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/tracks/abc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "track",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/tracks/abc?market=DE",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "tracks",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/tracks/?ids=abc,def,abc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "tracks",
+      "method": "GET",
+      "url": "https://api.spotify.com/v1/tracks/?ids=abc,def,abc&market=DE",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "user_follow_artists",
+      "method": "PUT",
+      "url": "https://api.spotify.com/v1/me/library?uris=",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "user_follow_artists",
+      "method": "PUT",
+      "url": "https://api.spotify.com/v1/me/library?uris=spotify%3Aartist%3Aabc%2Cspotify%3Aartist%3Adef%2Cspotify%3Aartist%3Aabc",
+      "body": null,
+      "content_type": "application/json"
+    },
+    {
+      "name": "user_playlist_create",
+      "method": "POST",
+      "url": "https://api.spotify.com/v1/users/owner/playlists",
+      "body": "{\"name\": \"Bj\\u00f6rk \\ud83c\\udf77\", \"public\": true, \"collaborative\": false, \"description\": \"\"}",
+      "content_type": "application/json"
+    },
+    {
+      "name": "user_playlist_create",
+      "method": "POST",
+      "url": "https://api.spotify.com/v1/users/owner/playlists",
+      "body": "{\"name\": \"Bj\\u00f6rk \\ud83c\\udf77\", \"public\": false, \"collaborative\": true, \"description\": \"Caf\\u00e9 \\ud83c\\udf77\"}",
+      "content_type": "application/json"
+    }
+  ]
+}

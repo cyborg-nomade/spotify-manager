@@ -1,6 +1,6 @@
 # Behavior-preserving Clean Architecture refactor
 
-**Status: items 1–7 deployed and merged; item 7a implemented and ready for PR review.**
+**Status: items 1–7a deployed and merged; item 8 implemented for PR review.**
 
 **Approved sequence update, 2026-10-03:** add item **7a**, simplifying internal
 call paths, after item 7 is approved, deployed, and merged and before item 8.
@@ -20,10 +20,12 @@ and merged in PR #64. The [item 6 wave inventory](refactor/ROUTINE_FAMILIES.md)
 and [ownership audit](refactor/ROUTINE_OWNERSHIP.md) were deployed and merged
 in PR #65. [Item 7 interface and job migration](refactor/INTERFACES_AND_JOBS.md)
 was deployed and merged in PR #66. Item 7a starts from merge `7fe292c` and is
-ready for review on `codex/refactor-07a-direct-use-cases`; its
+approved, deployed and merged in PR #67. Its
 [family call-path and verification guide](refactor/CALL_PATH_SIMPLIFICATION.md)
-records the completed wiring and preserved contracts. Deployment and merge await
-Item 7a PR approval. Later items remain pending.
+records the preserved contracts. Item 8's
+[native transport and verification guide](refactor/ASYNC_SPOTIFY_TRANSPORT.md)
+records the new adapter, ownership, compatibility limits and review environment.
+Item 8 deployment and merge await its own PR approval. Later items remain pending.
 
 Audited on 2026-09-24 at commit `fbcfc65`. This proposal is based on source,
 dependency, entry-point, test, and coverage inspection. No implementation,
