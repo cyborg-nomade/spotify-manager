@@ -21,6 +21,7 @@ from spotify_manager.domain.album_selection import PendingAlbum
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_history import TrackHistory
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
+from tests.support.runtime_resources import ProgressMessages
 from tests.support.sauvignon_run import STAMP
 from tests.support.sauvignon_run import WEEK
 from tests.support.sauvignon_run import RunObservations
@@ -35,6 +36,9 @@ class Effects(RunObservations):
     Args:
         failure: Optional boundary to fail after recording acceptance.
     """
+
+    def prepare(self) -> None:
+        """Keep the scripted invocation's existing retry authority."""
 
     def append(self, additions: list[PendingAlbum]) -> None:
         """Record accepted proposals before their possible ambiguous failure.
@@ -145,7 +149,12 @@ def _stages(effects: Effects) -> SauvignonStages:
 
 def _workflow(effects: Effects) -> SauvignonRun:
     return SauvignonRun(
-        effects, _stages(effects), _clock, effects, effects.progress, effects.echo
+        effects,
+        _stages(effects),
+        ClockResource(),
+        effects,
+        ProgressMessages(effects),
+        effects,
     )
 
 
@@ -294,3 +303,15 @@ def test_sauvignon_validation(
     with pytest.raises(SauvignonConfigError):
         _workflow(effects).run("destination", count, maximum, seeds, False)
     assert effects.events == []
+
+
+class ClockResource:
+    """Own the original fixed fixture observation."""
+
+    def now(self) -> datetime:
+        """Observe the original fixture boundary.
+
+        Returns:
+            Original fixture response.
+        """
+        return _clock()

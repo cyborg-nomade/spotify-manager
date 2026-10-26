@@ -219,7 +219,23 @@ class RunMemory:
         Returns:
             Injected recommendation coordinator.
         """
-        return RecommendationRun(self, _stages(self), self.clock, self, self.progress)
+        return RecommendationRun(self, _stages(self), self, self, self)
+
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
 
 
 @dataclass(frozen=True)
@@ -481,7 +497,7 @@ def test_existing_configuration_values_are_injected_without_new_defaults() -> No
     """Bind mutable outer limits rather than silently hard-code application defaults."""
     memory = RunMemory()
     workflow = RecommendationRun(
-        memory, _stages(memory), memory.clock, memory, memory.progress, 7, 2, 3
+        memory, _stages(memory), memory, memory, memory, 7, 2, 3
     )
     summary = workflow.run("destination", None, None, 1, False)
     assert summary.requested_count == 7 and memory.pools == [21]

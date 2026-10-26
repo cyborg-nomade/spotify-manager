@@ -5,6 +5,7 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.palace_mirror import SavedMirror
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.infrastructure.legacy.palace_mirror import LegacySavedMirror
 from spotify_manager.routines import palace_of_memory as legacy
 
@@ -30,8 +31,6 @@ def saved_mirror(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.routines.palace_of_memory import _direct_retry
-
-    retry = retry_call or _direct_retry
+    retry = retry_call or NoRetry()
     effects = LegacySavedMirror(spotify, path, backups, log_path, retry, callback)
     return SavedMirror(effects, legacy.ALPHABETICAL_COUNT)

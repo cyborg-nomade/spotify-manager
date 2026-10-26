@@ -1,7 +1,8 @@
 """Explicit file, catalog, retry and interaction boundaries for library analysis."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
 from collections.abc import Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -23,21 +24,17 @@ from spotify_manager.models.your_library import YourLibraryFile
 class RetryOperation(Protocol):
     """Execute bounded synchronous requests with the configured retry policy."""
 
-    def call[T](
-        self,
-        operation: Callable[[], T],
-        description: str,
-        max_attempts: int | None = None,
-    ) -> T:
-        """Retry a request.
+    def attempts(
+        self, description: str, max_attempts: int | None = None
+    ) -> Iterator[AbstractContextManager[None]]:
+        """Provide scopes for the directly visible request.
 
         Args:
-            operation: Request to repeat on a transient failure.
-            description: Visible operation label.
-            max_attempts: Optional attempt limit.
+            description: Original operation description.
+            max_attempts: Original optional attempt limit.
 
         Returns:
-            Accepted response.
+            Original bounded or unbounded attempt scopes.
         """
         ...
 
@@ -306,7 +303,7 @@ class AnalysisSession:
         files: Original storage and clock boundaries.
         catalog: Original live catalog and conversion boundaries.
         request: Original invocation-scoped retry boundary.
-        echo: Original presenter.
+        output: Original presenter.
         progress: Original optional resource progress callback.
         cancelled: Original optional cancellation observation.
     """
@@ -316,7 +313,7 @@ class AnalysisSession:
     files: AnalysisFiles
     catalog: AnalysisCatalog
     request: RetryOperation
-    echo: Echo
+    output: Echo
     progress: ProgressCallback | None
     cancelled: CancelCheck | None
 
@@ -345,7 +342,7 @@ class AnalysisSession:
             label: Original visible stage label.
         """
         if self.progress:
-            self.progress(resource, done, total, label)
+            self.progress.progress(resource, done, total, label)
 
     def check_cancel(self) -> None:
         """Observe original cancellation at a durable boundary.
@@ -353,5 +350,5 @@ class AnalysisSession:
         Raises:
             LibraryAnalysisCancelledError: The original caller requested a pause.
         """
-        if self.cancelled is not None and self.cancelled():
+        if self.cancelled is not None and self.cancelled.is_set():
             raise LibraryAnalysisCancelledError("Live analysis paused by request.")

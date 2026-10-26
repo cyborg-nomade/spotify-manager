@@ -2,7 +2,6 @@
 
 import json
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
@@ -53,8 +52,8 @@ from spotify_manager.infrastructure.genre_models import (
 from spotify_manager.infrastructure.genre_models import (
     GenreRevealStateUpdate as GenreRevealStateUpdate,
 )
+from spotify_manager.infrastructure.genre_pages import PUBLIC_GENRE_PAGES
 from spotify_manager.infrastructure.genre_pages import GenrePages
-from spotify_manager.infrastructure.genre_pages import genre_pages
 from spotify_manager.infrastructure.genre_sources import (
     EveryNoisePlaylistParser as _EveryNoisePlaylistParser,
 )
@@ -85,7 +84,7 @@ GENRE_ROUTE_PATTERN = re.compile(
     r"const genres = (?P<route>\[\[.*?\]\]);\s+const STORAGE_KEY",
     re.DOTALL,
 )
-PageReader = Callable[[str], str]
+type PageReader = GenrePages
 
 
 @dataclass(frozen=True)
@@ -383,7 +382,7 @@ def _playlist_id_from_url(url: str) -> str:
 
 
 def discover_genre_source(
-    slug: str, name: str, page_reader: PageReader = read_public_page
+    slug: str, name: str, page_reader: PageReader = PUBLIC_GENRE_PAGES
 ) -> GenreRevealSourcePreview:
     """Find the primary Spotify playlist linked by an Every Noise genre page.
 
@@ -399,7 +398,7 @@ def discover_genre_source(
         ValidationError: Original request values are invalid.
         GenreRevealSourceError: Original page or primary link is unavailable.
     """
-    return _discover_genre_source(slug, name, genre_pages(page_reader))
+    return _discover_genre_source(slug, name, page_reader)
 
 
 def _discover_genre_source(
@@ -449,7 +448,7 @@ def _first_track_uris(embed_html: str) -> tuple[str, ...]:
 
 
 def load_genre_playlist_source(
-    slug: str, name: str, page_reader: PageReader = read_public_page
+    slug: str, name: str, page_reader: PageReader = PUBLIC_GENRE_PAGES
 ) -> _GenrePlaylistSource:
     """Resolve a genre's source playlist and its first ten ordered tracks.
 
@@ -465,7 +464,7 @@ def load_genre_playlist_source(
         ValidationError: Original request values are invalid.
         GenreRevealSourceError: Original source or ten markers are unavailable.
     """
-    return _load_genre_playlist_source(slug, name, genre_pages(page_reader))
+    return _load_genre_playlist_source(slug, name, page_reader)
 
 
 def _load_genre_playlist_source(
@@ -539,7 +538,7 @@ def process_next_genre(
     destination_playlist_id: str,
     *,
     log_path: Path = DEFAULT_LOG_PATH,
-    page_reader: PageReader = read_public_page,
+    page_reader: PageReader = PUBLIC_GENRE_PAGES,
 ) -> GenreRevealRunResult:
     """Save one genre playlist and copy its first ten missing tracks.
 

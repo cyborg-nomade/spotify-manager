@@ -1,10 +1,8 @@
 """Fill Palace of Memory from saved albums and Last.fm history."""
 
-from collections.abc import Callable
 from datetime import UTC
 from datetime import date
 from datetime import datetime as datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -30,6 +28,9 @@ from spotify_manager.application.palace_values import (
 from spotify_manager.application.palace_values import (
     SavedAlbumRefresh as SavedAlbumRefresh,
 )
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import RandomIndexes
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
@@ -51,12 +52,22 @@ from spotify_manager.domain.palace_values import SpotifyFirstTrack as SpotifyFir
 from spotify_manager.infrastructure import palace_catalog
 from spotify_manager.infrastructure import palace_cursor
 from spotify_manager.infrastructure import palace_files
+from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 from spotify_manager.infrastructure.routine_state_codecs import PalaceOfMemoryStateCodec
 from spotify_manager.interfaces.requests.palace import PalaceCallbacks
 from spotify_manager.interfaces.requests.palace import PalaceOptions
 from spotify_manager.interfaces.requests.palace import PalaceResources
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import blast_from_past
+
+
+type ProgressCallback = Messages
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -72,10 +83,8 @@ SAVED_ALBUM_PAGE_SIZE = 50
 SPOTIFY_SEARCH_LIMIT = 10
 ALBUM_MATCH_THRESHOLD = 0.9
 
-ProgressCallback = Callable[[str], None]
-Echo = Callable[[str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-RandomIndexReader = Callable[[int, int], blast_from_past.RandomIndexSet]
+
+RandomIndexReader = RandomIndexes
 
 
 def parse_playlist_id(reference: str | None) -> str:
@@ -285,7 +294,7 @@ def select_historical_albums(
     count: int = HISTORY_COUNT,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = blast_from_past.fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[
     datetime,
@@ -359,10 +368,9 @@ def search_spotify_album(
     """
     clean_artist = artist.replace('"', " ").strip()
     clean_album = album.replace('"', " ").strip()
-    response = retry_call(
-        partial(_search_album, spotify, clean_album, clean_artist),
-        f"searching Spotify for {artist} - {album}",
-    )
+    for attempt in retry_call.attempts(f"searching Spotify for {artist} - {album}"):
+        with attempt:
+            response = _search_album(spotify, clean_album, clean_artist)
     return palace_albums.preferred_catalog(
         artist,
         album,
@@ -389,10 +397,9 @@ def load_first_track(
     Raises:
         PalaceOfMemoryDataError: Original track data is invalid or has no marker.
     """
-    response = retry_call(
-        partial(_first_album_page, spotify, album),
-        f"loading the first track of {album.album}",
-    )
+    for attempt in retry_call.attempts(f"loading the first track of {album.album}"):
+        with attempt:
+            response = _first_album_page(spotify, album)
     return palace_catalog.first_track(response, album)
 
 
@@ -528,10 +535,6 @@ def fill_palace_of_memory(
     return operation(spotify, options, callbacks, resources)
 
 
-def _direct_retry(operation: Callable[[], object], _description: str) -> object:
-    return operation()
-
-
 def _read_palace_playlist(
     spotify: Spotify,
     playlist_id: str,
@@ -541,9 +544,9 @@ def _read_palace_playlist(
     description = (
         "rechecking Palace of Memory" if recheck else "loading Palace of Memory"
     )
-    playlist = retry(
-        partial(blast_from_past.load_playlist_state, spotify, playlist_id), description
-    )
+    for attempt in retry.attempts(description):
+        with attempt:
+            playlist = blast_from_past.load_playlist_state(spotify, playlist_id)
     if not isinstance(playlist, blast_from_past.PlaylistState):
         raise PalaceOfMemoryDataError("Spotify returned invalid Palace playlist data.")
     return playlist
@@ -555,10 +558,9 @@ def _append_first_tracks(
     pending: tuple[SpotifyFirstTrack, ...],
     retry: RetryCall,
 ) -> None:
-    retry(
-        partial(_post_first_tracks, spotify, playlist_id, pending),
-        "adding first tracks to Palace of Memory",
-    )
+    for attempt in retry.attempts("adding first tracks to Palace of Memory"):
+        with attempt:
+            _post_first_tracks(spotify, playlist_id, pending)
 
 
 def _post_first_tracks(

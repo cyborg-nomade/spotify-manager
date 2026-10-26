@@ -4,7 +4,6 @@ import select
 import sys
 import termios
 import tty
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
@@ -17,6 +16,8 @@ from rich.progress import Progress
 from rich.progress import TaskID
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import MonotonicClock
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.resources import CliResources
@@ -44,8 +45,8 @@ class AnalysisCLI:
     progress_display: ProgressDisplay
     display: ConsoleDisplay
     create_live: type[Live]
-    monotonic: Callable[[], float]
-    sleep: Callable[[float], None]
+    monotonic: MonotonicClock
+    sleep: Wait
 
     def _wait_for_library_retry(
         self,
@@ -70,7 +71,7 @@ class AnalysisCLI:
         self._show_retry_notice(console, notice)
         try:
             if not sys.stdin.isatty():
-                self.sleep(notice.delay_seconds)
+                self.sleep.sleep(notice.delay_seconds)
                 return True
             return self._wait_terminal_retry(console, spotify, notice.delay_seconds)
         finally:
@@ -304,7 +305,7 @@ class AnalysisCLI:
         """
         descriptor = sys.stdin.fileno()
         old_settings = termios.tcgetattr(descriptor)
-        deadline = self.monotonic() + delay
+        deadline = self.monotonic.monotonic() + delay
         try:
             tty.setcbreak(descriptor)
             with self.create_live(
@@ -329,7 +330,7 @@ class AnalysisCLI:
             The original value selected or formatted by this adapter.
         """
         while True:
-            remaining = max(0, int(deadline - self.monotonic() + 0.999))
+            remaining = max(0, int(deadline - self.monotonic.monotonic() + 0.999))
             if remaining == 0:
                 return True
             live.update(
@@ -391,13 +392,69 @@ class AnalysisCLI:
     ) -> library_sync.LibrarySyncSummary:
         if mode == "async":
             return library_sync.analyse_library_async_routine(
-                echo=self._run_library_analysis_log,
-                progress_callback=self._run_library_analysis_update_progress,
+                echo=RunLibraryAnalysisDiagnostics(self),
+                progress_callback=RunLibraryAnalysisInteraction(self),
             )
         self._run_library_analysis_spotify = self.runtime.review_client()
         return library_sync.analyse_library_sync_routine(
             self._run_library_analysis_spotify,
-            echo=self._run_library_analysis_log,
-            progress_callback=self._run_library_analysis_update_progress,
-            retry_wait=self._run_library_analysis_wait_for_library_retry,
+            echo=RunLibraryAnalysisDiagnostics(self),
+            progress_callback=RunLibraryAnalysisInteraction(self),
+            retry_wait=RunLibraryAnalysisInteraction(self),
         )
+
+
+@dataclass(frozen=True)
+class RunLibraryAnalysisDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: AnalysisCLI
+
+    def echo(self, line: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            line: Original line.
+        """
+        self.owner._run_library_analysis_log(line)
+
+
+@dataclass(frozen=True)
+class RunLibraryAnalysisInteraction:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: AnalysisCLI
+
+    def progress(
+        self, resource: str, completed: int, total: int | None, status: str
+    ) -> None:
+        """Present the command's original progress.
+
+        Args:
+            resource: Original resource.
+            completed: Original completed.
+            total: Original total.
+            status: Original status.
+        """
+        self.owner._run_library_analysis_update_progress(
+            resource, completed, total, status
+        )
+
+    def wait(self, notice: library_sync.RetryNotice) -> bool:
+        """Use the command's original retry-wait interaction.
+
+        Args:
+            notice: Original retry status, attempt and delay.
+
+        Returns:
+            Whether the operator accepted another attempt.
+        """
+        return self.owner._run_library_analysis_wait_for_library_retry(notice)

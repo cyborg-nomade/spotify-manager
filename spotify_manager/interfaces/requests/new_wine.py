@@ -1,13 +1,15 @@
 """Interaction callbacks and persistence resources for a New Wine invocation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from spotify_manager.application.new_wine_values import EndpointChoiceReader
 from spotify_manager.application.new_wine_values import ReleaseChoiceReader
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.core.state import StateService
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 
 
 FILES_DIR = Path(__file__).resolve().parents[2] / "files"
@@ -20,15 +22,15 @@ class NewWineCallbacks:
     Args:
         choose: Release selection, including skip and quit.
         endpoint: Optional album endpoint selection.
-        echo: Output sink for decisions and completed effects.
+        output: Output sink for decisions and completed effects.
         progress: Optional progress and cancellation callback.
         retry: Caller-owned retry policy, or direct invocation when absent.
     """
 
     choose: ReleaseChoiceReader
     endpoint: EndpointChoiceReader | None = None
-    echo: Callable[[str], None] = print
-    progress: Callable[[int, int, str], None] | None = None
+    output: Messages = STANDARD_OUTPUT
+    progress: ReviewProgress | None = None
     retry: RetryCall | None = None
 
 

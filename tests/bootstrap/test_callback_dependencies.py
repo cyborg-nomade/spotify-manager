@@ -5,10 +5,13 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.callback_arguments import defined_functions
+from tests.support.callback_arguments import function_arguments
 from tests.support.callback_paths import callable_types
 from tests.support.callback_paths import callback_uses
 from tests.support.callback_paths import module_trees
 from tests.support.callback_policy import callback_reason
+from tests.support.callback_policy import function_argument_reason
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -85,10 +88,10 @@ def test_callback_guard_resolves_imported_aliases() -> None:
         ("choose", "ReleaseChoiceReader"),
     ],
 )
-def test_callback_guard_allows_real_operator_and_runtime_hooks(
+def test_callback_guard_rejects_replaceable_operator_and_runtime_hooks(
     parameter: str, annotation: str
 ) -> None:
-    """Retain the hooks whose values originate outside fixed execution rules.
+    """Require named owners even for interactions, clocks and retry operations.
 
     Args:
         parameter: Genuine hook role.
@@ -103,7 +106,7 @@ def test_callback_guard_allows_real_operator_and_runtime_hooks(
         source, "example", callable_types({"example": ast.parse(source)})
     )
     assert len(uses) == 1
-    assert callback_reason(uses[0])
+    assert callback_reason(uses[0]) is None
 
 
 def test_callback_guard_resolves_reexported_aliases() -> None:
@@ -119,3 +122,110 @@ def test_callback_guard_resolves_reexported_aliases() -> None:
     uses = callback_uses(source, "example.run", callable_types(modules))
     assert len(uses) == 1
     assert callback_reason(uses[0]) is None
+
+
+@pytest.mark.parametrize(
+    "owner, parameter",
+    [
+        (
+            "spotify_manager.infrastructure.library_analysis_catalog.SpotifyOffsetPages",
+            "_method",
+        ),
+        ("spotify_manager.infrastructure.spotify.events.SpotifyEvents", "_setter"),
+    ],
+)
+def test_callback_guard_retains_only_specific_sdk_bindings(
+    owner: str, parameter: str
+) -> None:
+    """Document exact method captures without enabling a general role exception.
+
+    Args:
+        owner: Concrete SDK compatibility leaf.
+        parameter: Private field retaining the original bound method.
+    """
+    from tests.support.callback_paths import CallbackUse
+
+    use = CallbackUse(owner, parameter, "Callable[..., object]", 1)
+    assert callback_reason(use)
+    renamed = CallbackUse(owner + "Copy", parameter, use.annotation, 1)
+    assert callback_reason(renamed) is None
+
+
+def test_execution_arguments_require_an_external_api_reason() -> None:
+    """Reject function values even when dependency annotations conceal them."""
+    modules = module_trees(ROOT)
+    modules["nightly_refresh"] = ast.parse(
+        (ROOT / ".github/scripts/nightly_refresh.py").read_text()
+    )
+    known = defined_functions(modules)
+    violations = []
+    for module, tree in modules.items():
+        violations.extend(_prohibited_arguments(module, tree, known))
+    assert violations == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "execute(fixed)",
+        "execute(operation=fixed)",
+        "dependencies = Dependencies(fixed)",
+        "alias = fixed\nexecute(alias)",
+        "execute(lambda: 1)",
+    ],
+)
+def test_argument_guard_rejects_untyped_execution_dependencies(body: str) -> None:
+    """Detect callback values independently of parameter and field annotations.
+
+    Args:
+        body: Deliberately hidden ordinary execution dependency.
+    """
+    tree = ast.parse("def fixed() -> int: return 1\n" + body)
+    known = defined_functions({"example": tree})
+    uses = function_arguments("example", tree, known)
+    assert uses
+    assert all(function_argument_reason(use) is None for use in uses)
+
+
+def test_argument_guard_rejects_bound_methods() -> None:
+    """Require the named owner instead of its bound execution method."""
+    tree = ast.parse(
+        "class Worker:\n"
+        "    def fixed(self) -> int: return 1\n"
+        "    def run(self) -> None: execute(self.fixed)\n"
+    )
+    uses = function_arguments("example", tree, defined_functions({"example": tree}))
+    assert len(uses) == 1
+    assert function_argument_reason(uses[0]) is None
+
+
+def test_argument_guard_ignores_data_shadowing_a_function() -> None:
+    """Do not mistake an ordinary parameter for an imported function name."""
+    tree = ast.parse(
+        "def artist() -> int: return 1\ndef run(artist: str) -> None: execute(artist)\n"
+    )
+    assert (
+        function_arguments("example", tree, defined_functions({"example": tree})) == []
+    )
+
+
+def _prohibited_arguments(module: str, tree: ast.Module, known: set[str]) -> list[str]:
+    violations = []
+    for use in function_arguments(module, tree, known):
+        if function_argument_reason(use) is None:
+            violations.append(f"{use.owner}:{use.line}:{use.function}")
+    return violations
+
+
+def test_argument_guard_resolves_a_bound_method_alias() -> None:
+    """Keep a local alias from concealing bound-method execution injection."""
+    tree = ast.parse(
+        "class Worker:\n"
+        "    def fixed(self) -> int: return 1\n"
+        "    def run(self) -> None:\n"
+        "        alias = self.fixed\n"
+        "        execute(alias)\n"
+    )
+    uses = function_arguments("example", tree, defined_functions({"example": tree}))
+    assert len(uses) == 1
+    assert function_argument_reason(uses[0]) is None

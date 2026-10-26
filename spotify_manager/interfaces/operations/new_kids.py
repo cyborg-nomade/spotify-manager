@@ -41,13 +41,14 @@ from spotify_manager.infrastructure.library_records import (
     REMOVED_ALBUMS_LOG_PATH as REMOVED_ALBUMS_LOG_PATH,
 )
 from spotify_manager.interfaces.operations.discovery_inputs import review_inputs
-from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
+from spotify_manager.interfaces.requests.discovery import DiscoveryInteraction
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.interfaces.requests.discovery import DiscoveryReviewMode
 from spotify_manager.routines import new_kids as legacy
 from spotify_manager.routines import new_wine as new_wine
 from spotify_manager.routines import scrobble_history as scrobble_history
+from spotify_manager.routines.new_kids import _UTC_NOW_RESOURCE
 from spotify_manager.routines.new_kids import CHOICE_QUIT as CHOICE_QUIT
 from spotify_manager.routines.new_kids import CHOICE_SKIP as CHOICE_SKIP
 from spotify_manager.routines.new_kids import DEFAULT_ALBUMS_PATH as DEFAULT_ALBUMS_PATH
@@ -72,7 +73,7 @@ from spotify_manager.routines.new_kids import validate_state as validate_state
 def _flush_review_playlist(
     sp: Spotify,
     options: DiscoveryOptions,
-    callbacks: DiscoveryCallbacks,
+    interaction: DiscoveryInteraction,
     resources: DiscoveryResources | None = None,
     mode: DiscoveryReviewMode | None = None,
 ) -> FlushSummary:
@@ -81,7 +82,7 @@ def _flush_review_playlist(
     Args:
         sp: Caller-owned synchronous Spotify client.
         options: Destinations and execution mode.
-        callbacks: Operator decisions and notifications.
+        interaction: Operator decisions and notifications.
         resources: History, checkpoints, mirrors and audit files.
         mode: Review label, checkpoint keys and accepted queue snapshot.
 
@@ -93,15 +94,14 @@ def _flush_review_playlist(
     """
     resources = resources or DiscoveryResources()
     mode = mode or DiscoveryReviewMode()
-    from spotify_manager.routines.new_kids import _utc_now
 
-    inputs = review_inputs(sp, options, callbacks, resources)
+    inputs = review_inputs(sp, options, interaction, resources)
     lifecycle = review_run(
-        sp, inputs, options, resources, mode, callbacks.echo, _utc_now
+        sp, inputs, options, resources, mode, interaction, _UTC_NOW_RESOURCE
     )
     snapshot = lifecycle.prepare(mode.initial_tracks, mode.live_tracks)
     caches = ReviewCaches()
-    planner = review_planner(sp, inputs, options, callbacks, resources, caches)
+    planner = review_planner(sp, inputs, options, interaction, resources, caches)
     execution = review_execution(
         sp,
         inputs,
@@ -109,18 +109,18 @@ def _flush_review_playlist(
         resources,
         snapshot.live_ids,
         mode.label,
-        callbacks.echo,
-        _utc_now,
+        interaction,
+        _UTC_NOW_RESOURCE,
     )
     reviewer = entry_review(
         planner,
         execution,
         inputs.owned_playlists,
         frozenset({options.new_kids_playlist_id, options.queue_2_playlist_id}),
-        _utc_now,
+        _UTC_NOW_RESOURCE,
         legacy.COMPOSER_TRACKS_PER_ARTIST,
-        callbacks.progress,
-        callbacks.echo,
+        interaction,
+        interaction,
     )
     reviewed, paused = reviewer.review(snapshot.entries, snapshot.run.get("run_id"))
     return lifecycle.finish(snapshot, reviewed, paused)
@@ -129,7 +129,7 @@ def _flush_review_playlist(
 def flush_new_kids(
     sp: Spotify,
     options: DiscoveryOptions,
-    callbacks: DiscoveryCallbacks,
+    interaction: DiscoveryInteraction,
     resources: DiscoveryResources | None = None,
 ) -> FlushSummary:
     """Advance every snapshotted artist once, then refill New Kids to ten.
@@ -137,7 +137,7 @@ def flush_new_kids(
     Args:
         sp: Caller-owned synchronous Spotify client.
         options: Destinations and execution mode.
-        callbacks: Operator decisions and notifications.
+        interaction: Operator decisions and notifications.
         resources: History, checkpoints, mirrors and audit files.
 
     Returns:
@@ -147,13 +147,13 @@ def flush_new_kids(
         NewKidsError: Observations, decisions or checkpoints are invalid.
     """
     resources = resources or DiscoveryResources()
-    return _flush_review_playlist(sp, options, callbacks, resources)
+    return _flush_review_playlist(sp, options, interaction, resources)
 
 
 def flush_queue_2(
     sp: Spotify,
     options: DiscoveryOptions,
-    callbacks: DiscoveryCallbacks,
+    interaction: DiscoveryInteraction,
     resources: DiscoveryResources | None = None,
 ) -> Queue2Summary:
     """Fill New Kids, then advance the first ten remaining Queue 2 artists.
@@ -161,7 +161,7 @@ def flush_queue_2(
     Args:
         sp: Caller-owned synchronous Spotify client.
         options: Destinations and execution mode.
-        callbacks: Operator decisions and notifications.
+        interaction: Operator decisions and notifications.
         resources: History, checkpoints, mirrors and audit files.
 
     Returns:
@@ -174,7 +174,6 @@ def flush_queue_2(
     from spotify_manager.infrastructure.discovery_history import (
         refresh_release_history as _refresh_history,
     )
-    from spotify_manager.routines.new_kids import _direct_call
     from spotify_manager.routines.new_kids import _state_access
 
     _refresh_history(
@@ -182,10 +181,10 @@ def flush_queue_2(
         resources.lastfm_username,
         "Queue 2",
         resources.scrobbles_path,
-        callbacks.echo,
-        callbacks.progress,
+        interaction,
+        interaction,
     )
-    retry = callbacks.retry or _direct_call
+    retry = interaction
     state_access = _state_access(resources.state_path, resources.state_service)
     persisted_state = state_access.load()
     state = (
@@ -199,13 +198,13 @@ def flush_queue_2(
         legacy.PLAYLIST_CAP,
         options.dry_run,
         resources.log_path,
-        callbacks.echo,
+        interaction,
     )
     snapshot = prepare_queue_review(transfer, state, legacy.QUEUE_2_DAILY_LIMIT)
     review = _flush_review_playlist(
         sp,
         replace(options, new_kids_playlist_id=options.queue_2_playlist_id),
-        replace(callbacks, retry=retry),
+        interaction,
         replace(resources, lastfm=None, lastfm_username=None),
         DiscoveryReviewMode(
             label="Queue 2",

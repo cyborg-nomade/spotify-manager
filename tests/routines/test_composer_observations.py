@@ -8,6 +8,7 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines.composer_playlists import ComposerPlaylistError
 from spotify_manager.routines.composer_playlists import OwnedPlaylist
 from spotify_manager.routines.composer_playlists import load_owned_playlists
@@ -63,7 +64,9 @@ def test_paging_retains_duplicates_and_anchor_owner_selection() -> None:
             {"items": [_raw("same", total=True), _raw("text", total="7")], "total": 1},
         ]
     )
-    result = load_owned_playlists(cast(Spotify, pages), _retry, frozenset({"anchor"}))
+    result = load_owned_playlists(
+        cast(Spotify, pages), NoRetry(), frozenset({"anchor"})
+    )
     assert result == (
         OwnedPlaylist("anchor", "anchor", 3),
         OwnedPlaylist("same", "same", 3),
@@ -82,7 +85,7 @@ def test_invalid_page_fails_before_another_read(payload: object) -> None:
     """
     pages = PlaylistPages([payload])
     with pytest.raises(ComposerPlaylistError, match="invalid user playlist data"):
-        load_owned_playlists(cast(Spotify, pages), _retry, frozenset({"anchor"}))
+        load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"}))
     assert pages.calls == [(50, 0)]
 
 
@@ -95,7 +98,7 @@ def test_empty_page_with_more_results_fails(paging: dict[str, object]) -> None:
     """
     pages = PlaylistPages([{"items": [], **paging}])
     with pytest.raises(ComposerPlaylistError, match="empty user-playlist page"):
-        load_owned_playlists(cast(Spotify, pages), _retry, frozenset({"anchor"}))
+        load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"}))
 
 
 @pytest.mark.parametrize(
@@ -118,7 +121,7 @@ def test_missing_owner_anchor_fails(items: list[object]) -> None:
     with pytest.raises(
         ComposerPlaylistError, match="Could not establish playlist ownership"
     ):
-        load_owned_playlists(cast(Spotify, pages), _retry, frozenset({"anchor"}))
+        load_owned_playlists(cast(Spotify, pages), NoRetry(), frozenset({"anchor"}))
 
 
 def test_malformed_and_foreign_playlists_are_filtered_tolerantly() -> None:
@@ -140,7 +143,9 @@ def test_malformed_and_foreign_playlists_are_filtered_tolerantly() -> None:
             }
         ]
     )
-    result = load_owned_playlists(cast(Spotify, pages), _retry, frozenset({"anchor"}))
+    result = load_owned_playlists(
+        cast(Spotify, pages), NoRetry(), frozenset({"anchor"})
+    )
     assert result == (
         OwnedPlaylist("anchor", "anchor", 3),
         OwnedPlaylist("missing-tracks", "missing-tracks", 0),

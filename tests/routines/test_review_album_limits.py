@@ -1,9 +1,16 @@
 """Tests for the interactive album-limit review routine."""
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from functools import partial
+from pathlib import Path
+from typing import Any
+from typing import Never
+from typing import TypedDict
+from unittest.mock import Mock
 
 import pytest
 from requests.exceptions import ConnectionError as RequestsConnectionError
@@ -11,6 +18,7 @@ from requests.exceptions import Timeout as RequestsTimeout
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager import loaders_savers as file_boundaries
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.models.stats import AlbumsStats
 from spotify_manager.models.stats import ArtistsStats
 from spotify_manager.models.stats import StatsReport
@@ -21,6 +29,13 @@ from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
 from spotify_manager.routines import review_album_limits
 from spotify_manager.routines.review_album_limits import SpotifyRateLimitError
+from tests.support.framework_stubs import snapshot_items
+from tests.support.runtime_resources import Answer
+from tests.support.runtime_resources import CountEvents
+from tests.support.runtime_resources import DelayList
+from tests.support.runtime_resources import DiscardMessages
+from tests.support.runtime_resources import MessageList
+from tests.support.runtime_resources import NoWait
 
 
 def _album(album_id: str = "alb1") -> YourLibraryAlbum:
@@ -238,8 +253,14 @@ class FakeSpotify:
 
 
 def test_review_removes_album_from_spotify_and_total_file(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review removes album from spotify and total file.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     output: list[str] = []
@@ -247,7 +268,7 @@ def test_review_removes_album_from_spotify_and_total_file(
     sp = FakeSpotify(saved_tracks={"t1"})
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -263,13 +284,13 @@ def test_review_removes_album_from_spotify_and_total_file(
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "r",
-        echo=output.append,
+        action_reader=Answer("r"),
+        echo=MessageList(output),
         log_path=log_path,
     )
 
@@ -289,19 +310,21 @@ def test_review_removes_album_from_spotify_and_total_file(
 
 
 def test_review_auto_removes_album_with_zero_live_liked_tracks(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review auto removes album with zero live liked tracks.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     output: list[str] = []
     log_path = tmp_path / "removed_albums_log.jsonl"
     sp = FakeSpotify(saved_tracks=set())
-
-    def fail_action_reader(_album, _evaluation):
-        raise AssertionError("zero-live-like albums should not prompt")
-
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -317,16 +340,12 @@ def test_review_auto_removes_album_with_zero_live_liked_tracks(
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
-
+    scenario = ReviewAutoRemovesAlbumWithZeroLiveLikedTracksScenario()
     review_album_limits.review_album_limits(
-        sp,
-        action_reader=fail_action_reader,
-        echo=output.append,
-        log_path=log_path,
+        sp, action_reader=scenario, echo=MessageList(output), log_path=log_path
     )
-
     assert sp.saved_track_checks == [["t1", "t2"]]
     assert sp.deleted == [["alb1"]]
     assert saved_albums == [[]]
@@ -339,7 +358,15 @@ def test_review_auto_removes_album_with_zero_live_liked_tracks(
     )
 
 
-def test_review_prompts_when_live_liked_tracks_exist(monkeypatch, tmp_path) -> None:
+def test_review_prompts_when_live_liked_tracks_exist(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Review prompts when live liked tracks exist.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     output: list[str] = []
@@ -347,7 +374,7 @@ def test_review_prompts_when_live_liked_tracks_exist(monkeypatch, tmp_path) -> N
     sp = FakeSpotify(saved_tracks={"t2"})
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -363,13 +390,13 @@ def test_review_prompts_when_live_liked_tracks_exist(monkeypatch, tmp_path) -> N
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "s",
-        echo=output.append,
+        action_reader=Answer("s"),
+        echo=MessageList(output),
         log_path=log_path,
     )
 
@@ -382,8 +409,14 @@ def test_review_prompts_when_live_liked_tracks_exist(monkeypatch, tmp_path) -> N
 
 
 def test_live_liked_track_checks_are_batched_for_large_albums(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Live liked track checks are batched for large albums.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     output: list[str] = []
     album_tracks = [
@@ -397,7 +430,7 @@ def test_live_liked_track_checks_are_batched_for_large_albums(
     sp = FakeSpotify(album_tracks=album_tracks, saved_tracks={"t44"})
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -413,8 +446,8 @@ def test_live_liked_track_checks_are_batched_for_large_albums(
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "s",
-        echo=output.append,
+        action_reader=Answer("s"),
+        echo=MessageList(output),
         log_path=tmp_path / "removed_albums_log.jsonl",
     )
 
@@ -424,16 +457,23 @@ def test_live_liked_track_checks_are_batched_for_large_albums(
     assert any(line == "Live liked tracks: 1" for line in output)
 
 
-def test_keep_decision_persists_between_review_runs(monkeypatch, tmp_path) -> None:
+def test_keep_decision_persists_between_review_runs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Keep decision persists between review runs.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     decisions_path = tmp_path / "review_decisions.json"
     first_output: list[str] = []
     second_output: list[str] = []
     first_sp = FakeSpotify(saved_tracks={"t1"})
     second_sp = FakeSpotify(saved_tracks={"t1"})
-
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -446,26 +486,21 @@ def test_keep_decision_persists_between_review_runs(monkeypatch, tmp_path) -> No
         "load_your_library_file",
         review_album_limits.load_your_library_file,
     )
-
     review_album_limits.review_album_limits(
         first_sp,
-        action_reader=lambda _album, _evaluation: "k",
-        echo=first_output.append,
+        action_reader=Answer("k"),
+        echo=MessageList(first_output),
         log_path=tmp_path / "removed_albums_log.jsonl",
         decisions_path=decisions_path,
     )
-
-    def fail_action_reader(_album, _evaluation):
-        raise AssertionError("persisted keep decisions should not prompt again")
-
+    scenario = KeepDecisionPersistsBetweenReviewRunsScenario()
     review_album_limits.review_album_limits(
         second_sp,
-        action_reader=fail_action_reader,
-        echo=second_output.append,
+        action_reader=scenario,
+        echo=MessageList(second_output),
         log_path=tmp_path / "removed_albums_log.jsonl",
         decisions_path=decisions_path,
     )
-
     decisions = json.loads(decisions_path.read_text())
     assert decisions["alb1"]["decision"] == "keep"
     assert first_sp.saved_track_checks == [["t1", "t2"]]
@@ -479,7 +514,15 @@ def test_keep_decision_persists_between_review_runs(monkeypatch, tmp_path) -> No
     )
 
 
-def test_review_retries_transient_spotify_server_errors(monkeypatch, tmp_path) -> None:
+def test_review_retries_transient_spotify_server_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Review retries transient spotify server errors.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     output: list[str] = []
     sleeps: list[float] = []
@@ -489,7 +532,7 @@ def test_review_retries_transient_spotify_server_errors(monkeypatch, tmp_path) -
     )
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -497,7 +540,9 @@ def test_review_retries_transient_spotify_server_errors(monkeypatch, tmp_path) -
         review_album_limits.load_total_albums_new_file,
     )
     monkeypatch.setattr(
-        review_album_limits, "load_your_library_file", lambda: _library(True)
+        review_album_limits,
+        "load_your_library_file",
+        Mock(return_value=_library(True)),
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -507,10 +552,10 @@ def test_review_retries_transient_spotify_server_errors(monkeypatch, tmp_path) -
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "s",
-        echo=output.append,
+        action_reader=Answer("s"),
+        echo=MessageList(output),
         log_path=tmp_path / "removed_albums_log.jsonl",
-        sleep=sleeps.append,
+        sleep=DelayList(sleeps),
         transient_retry_delay_seconds=123,
     )
 
@@ -528,14 +573,20 @@ def test_review_retries_transient_spotify_server_errors(monkeypatch, tmp_path) -
 
 
 def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review stops cleanly after transient spotify retries are exhausted.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     sleeps: list[float] = []
     sp = FakeSpotify(transient_failures_on_follow_check=2)
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -543,7 +594,9 @@ def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
         review_album_limits.load_total_albums_new_file,
     )
     monkeypatch.setattr(
-        review_album_limits, "load_your_library_file", lambda: _library(True)
+        review_album_limits,
+        "load_your_library_file",
+        Mock(return_value=_library(True)),
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -554,10 +607,10 @@ def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
     with pytest.raises(review_album_limits.SpotifyTransientServerError) as exc:
         review_album_limits.review_album_limits(
             sp,
-            action_reader=lambda _album, _evaluation: "s",
-            echo=lambda _line: None,
+            action_reader=Answer("s"),
+            echo=DiscardMessages(),
             log_path=tmp_path / "removed_albums_log.jsonl",
-            sleep=sleeps.append,
+            sleep=DelayList(sleeps),
             transient_retry_delay_seconds=7,
             transient_max_attempts=2,
         )
@@ -583,28 +636,19 @@ def test_review_stops_cleanly_after_transient_spotify_retries_are_exhausted(
 def test_retry_spotify_server_errors_retries_transport_failures(
     error: RequestsConnectionError | RequestsTimeout,
 ) -> None:
-    attempts = 0
+    """Retry spotify server errors retries transport failures.
+
+    Args:
+        error: Original error.
+    """
     output: list[str] = []
     sleeps: list[float] = []
-
-    def operation() -> str:
-        nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            raise error
-        return "connected"
-
-    result = review_album_limits.retry_spotify_server_errors(
-        operation,
-        "loading the Slow Listening playlist",
-        echo=output.append,
-        sleep=sleeps.append,
-        retry_delay_seconds=10,
-        max_attempts=3,
-    )
+    request = TransportRequest(error)
+    retry = SpotifyRetries(MessageList(output), DelayList(sleeps), 10, 3)
+    result = _send(retry, request)
 
     assert result == "connected"
-    assert attempts == 2
+    assert request.calls == 2
     assert sleeps == [10]
     assert len(output) == 1
     assert output[0].startswith(
@@ -614,24 +658,15 @@ def test_retry_spotify_server_errors_retries_transport_failures(
 
 
 def test_retry_spotify_server_errors_reports_exhausted_connection_retries() -> None:
-    attempts = 0
-
-    def operation() -> None:
-        nonlocal attempts
-        attempts += 1
-        raise RequestsConnectionError("Connection reset by peer")
-
+    """Retry spotify server errors reports exhausted connection retries."""
+    request = TransportRequest(
+        RequestsConnectionError("Connection reset by peer"), fail_always=True
+    )
+    retry = SpotifyRetries(DiscardMessages(), NoWait(), 10, 3)
     with pytest.raises(review_album_limits.SpotifyTransientServerError) as exc:
-        review_album_limits.retry_spotify_server_errors(
-            operation,
-            "loading the Slow Listening playlist",
-            echo=lambda _line: None,
-            sleep=lambda _seconds: None,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
+        _send(retry, request)
 
-    assert attempts == 3
+    assert request.calls == 3
     assert exc.value.http_status is None
     assert exc.value.attempts == 3
     assert review_album_limits.format_transient_spotify_failure(exc.value) == (
@@ -641,13 +676,22 @@ def test_retry_spotify_server_errors_reports_exhausted_connection_retries() -> N
 
 
 def test_review_records_followed_artist_and_updates_stats_history(
-    monkeypatch, tmp_path, artist_persistence_store
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    artist_persistence_store: ArtistPublicationObservations,
 ) -> None:
+    """Review records followed artist and updates stats history.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+        artist_persistence_store: Original artist publication and cache observations.
+    """
     albums = [_album()]
     sp = FakeSpotify()
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -655,7 +699,9 @@ def test_review_records_followed_artist_and_updates_stats_history(
         review_album_limits.load_total_albums_new_file,
     )
     monkeypatch.setattr(
-        review_album_limits, "load_your_library_file", lambda: _library(True)
+        review_album_limits,
+        "load_your_library_file",
+        Mock(return_value=_library(True)),
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -665,8 +711,8 @@ def test_review_records_followed_artist_and_updates_stats_history(
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "s",
-        echo=lambda _line: None,
+        action_reader=Answer("s"),
+        echo=DiscardMessages(),
         log_path=tmp_path / "removed_albums_log.jsonl",
     )
 
@@ -685,13 +731,21 @@ def test_review_records_followed_artist_and_updates_stats_history(
     assert report.avg_liked_tracks_per_artists == 4
 
 
-def test_enter_defaults_to_remove_for_remove_candidate(monkeypatch, tmp_path) -> None:
+def test_enter_defaults_to_remove_for_remove_candidate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Enter defaults to remove for remove candidate.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     sp = FakeSpotify(saved_tracks={"t1"})
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -707,13 +761,13 @@ def test_enter_defaults_to_remove_for_remove_candidate(monkeypatch, tmp_path) ->
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "",
-        echo=lambda _line: None,
+        action_reader=Answer(""),
+        echo=DiscardMessages(),
         log_path=tmp_path / "removed_albums_log.jsonl",
     )
 
@@ -722,14 +776,20 @@ def test_enter_defaults_to_remove_for_remove_candidate(monkeypatch, tmp_path) ->
 
 
 def test_review_reports_progress_after_each_completed_album(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review reports progress after each completed album.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     progress_updates: list[tuple[int, int]] = []
     sp = FakeSpotify()
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -737,7 +797,9 @@ def test_review_reports_progress_after_each_completed_album(
         review_album_limits.load_total_albums_new_file,
     )
     monkeypatch.setattr(
-        review_album_limits, "load_your_library_file", lambda: _library(True)
+        review_album_limits,
+        "load_your_library_file",
+        Mock(return_value=_library(True)),
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -747,18 +809,24 @@ def test_review_reports_progress_after_each_completed_album(
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "s",
-        echo=lambda _line: None,
+        action_reader=Answer("s"),
+        echo=DiscardMessages(),
         log_path=tmp_path / "removed_albums_log.jsonl",
-        progress_callback=lambda position, total: progress_updates.append(
-            (position, total)
-        ),
+        progress_callback=CountEvents(progress_updates),
     )
 
     assert progress_updates == [(1, 1)]
 
 
-def test_review_skip_is_only_for_current_run(monkeypatch, tmp_path) -> None:
+def test_review_skip_is_only_for_current_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Review skip is only for current run.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     output: list[str] = []
@@ -766,7 +834,7 @@ def test_review_skip_is_only_for_current_run(monkeypatch, tmp_path) -> None:
     sp = FakeSpotify(saved_tracks={"t1"})
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -782,13 +850,13 @@ def test_review_skip_is_only_for_current_run(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "s",
-        echo=output.append,
+        action_reader=Answer("s"),
+        echo=MessageList(output),
         log_path=log_path,
     )
 
@@ -800,17 +868,19 @@ def test_review_skip_is_only_for_current_run(monkeypatch, tmp_path) -> None:
 
 
 def test_review_follows_artist_for_kept_album_without_prompt(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review follows artist for kept album without prompt.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     output: list[str] = []
     sp = FakeSpotify()
-
-    def fail_action_reader(_album, _evaluation):
-        raise AssertionError("kept albums should not prompt for removal")
-
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -818,68 +888,39 @@ def test_review_follows_artist_for_kept_album_without_prompt(
         review_album_limits.load_total_albums_new_file,
     )
     monkeypatch.setattr(
-        review_album_limits, "load_your_library_file", lambda: _library(True)
+        review_album_limits, "load_your_library_file", Mock(return_value=_library(True))
     )
     monkeypatch.setattr(
         file_boundaries,
         "load_your_library_file",
         review_album_limits.load_your_library_file,
     )
-
+    scenario = ReviewFollowsArtistForKeptAlbumWithoutPromptScenario()
     review_album_limits.review_album_limits(
         sp,
-        action_reader=fail_action_reader,
-        echo=output.append,
+        action_reader=scenario,
+        echo=MessageList(output),
         log_path=tmp_path / "removed_albums_log.jsonl",
     )
-
     assert sp.deleted == []
     assert sp.followed == [["art1"]]
     assert any("keep: OK Computer - Radiohead" in line for line in output)
 
 
 def test_review_does_not_refollow_artist_already_followed(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review does not refollow artist already followed.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     sp = FakeSpotify(followed_artists={"art1"})
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
-    )
-    monkeypatch.setattr(
-        file_boundaries,
-        "load_total_albums_new_file",
-        review_album_limits.load_total_albums_new_file,
-    )
-    monkeypatch.setattr(
-        review_album_limits, "load_your_library_file", lambda: _library(True)
-    )
-    monkeypatch.setattr(
-        file_boundaries,
-        "load_your_library_file",
-        review_album_limits.load_your_library_file,
-    )
-
-    review_album_limits.review_album_limits(
-        sp,
-        action_reader=lambda _album, _evaluation: "s",
-        echo=lambda _line: None,
-        log_path=tmp_path / "removed_albums_log.jsonl",
-    )
-
-    assert sp.follow_checks == [["art1"]]
-    assert sp.followed == []
-
-
-def test_review_resolves_unfollowed_artist_from_album_metadata(
-    monkeypatch, tmp_path
-) -> None:
-    albums = [_album()]
-    sp = FakeSpotify()
-
-    monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -889,7 +930,7 @@ def test_review_resolves_unfollowed_artist_from_album_metadata(
     monkeypatch.setattr(
         review_album_limits,
         "load_your_library_file",
-        lambda: _library(True, include_artist=False),
+        Mock(return_value=_library(True)),
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -899,8 +940,50 @@ def test_review_resolves_unfollowed_artist_from_album_metadata(
 
     review_album_limits.review_album_limits(
         sp,
-        action_reader=lambda _album, _evaluation: "s",
-        echo=lambda _line: None,
+        action_reader=Answer("s"),
+        echo=DiscardMessages(),
+        log_path=tmp_path / "removed_albums_log.jsonl",
+    )
+
+    assert sp.follow_checks == [["art1"]]
+    assert sp.followed == []
+
+
+def test_review_resolves_unfollowed_artist_from_album_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Review resolves unfollowed artist from album metadata.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
+    albums = [_album()]
+    sp = FakeSpotify()
+
+    monkeypatch.setattr(
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_total_albums_new_file",
+        review_album_limits.load_total_albums_new_file,
+    )
+    monkeypatch.setattr(
+        review_album_limits,
+        "load_your_library_file",
+        Mock(return_value=_library(True, include_artist=False)),
+    )
+    monkeypatch.setattr(
+        file_boundaries,
+        "load_your_library_file",
+        review_album_limits.load_your_library_file,
+    )
+
+    review_album_limits.review_album_limits(
+        sp,
+        action_reader=Answer("s"),
+        echo=DiscardMessages(),
         log_path=tmp_path / "removed_albums_log.jsonl",
     )
 
@@ -910,15 +993,21 @@ def test_review_resolves_unfollowed_artist_from_album_metadata(
 
 
 def test_review_exits_cleanly_on_album_metadata_rate_limit(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review exits cleanly on album metadata rate limit.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     log_path = tmp_path / "removed_albums_log.jsonl"
     sp = FakeSpotify(rate_limit_on_album_metadata=True)
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -928,7 +1017,7 @@ def test_review_exits_cleanly_on_album_metadata_rate_limit(
     monkeypatch.setattr(
         review_album_limits,
         "load_your_library_file",
-        lambda: _library(True, include_artist=False),
+        Mock(return_value=_library(True, include_artist=False)),
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -938,14 +1027,14 @@ def test_review_exits_cleanly_on_album_metadata_rate_limit(
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
 
     with pytest.raises(SpotifyRateLimitError) as exc:
         review_album_limits.review_album_limits(
             sp,
-            action_reader=lambda _album, _evaluation: "r",
-            echo=lambda _line: None,
+            action_reader=Answer("r"),
+            echo=DiscardMessages(),
             log_path=log_path,
         )
 
@@ -956,15 +1045,21 @@ def test_review_exits_cleanly_on_album_metadata_rate_limit(
 
 
 def test_review_exits_cleanly_on_rate_limit_without_saving(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review exits cleanly on rate limit without saving.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     log_path = tmp_path / "removed_albums_log.jsonl"
     sp = FakeSpotify(rate_limit_on_delete=True)
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -980,14 +1075,14 @@ def test_review_exits_cleanly_on_rate_limit_without_saving(
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
 
     with pytest.raises(SpotifyRateLimitError) as exc:
         review_album_limits.review_album_limits(
             sp,
-            action_reader=lambda _album, _evaluation: "r",
-            echo=lambda _line: None,
+            action_reader=Answer("r"),
+            echo=DiscardMessages(),
             log_path=log_path,
         )
 
@@ -997,15 +1092,21 @@ def test_review_exits_cleanly_on_rate_limit_without_saving(
 
 
 def test_review_exits_cleanly_on_live_liked_track_rate_limit(
-    monkeypatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Review exits cleanly on live liked track rate limit.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     log_path = tmp_path / "removed_albums_log.jsonl"
     sp = FakeSpotify(rate_limit_on_saved_track_check=True)
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -1021,14 +1122,14 @@ def test_review_exits_cleanly_on_live_liked_track_rate_limit(
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
 
     with pytest.raises(SpotifyRateLimitError) as exc:
         review_album_limits.review_album_limits(
             sp,
-            action_reader=lambda _album, _evaluation: "r",
-            echo=lambda _line: None,
+            action_reader=Answer("r"),
+            echo=DiscardMessages(),
             log_path=log_path,
         )
 
@@ -1038,14 +1139,22 @@ def test_review_exits_cleanly_on_live_liked_track_rate_limit(
     assert not log_path.exists()
 
 
-def test_review_exits_cleanly_on_follow_rate_limit(monkeypatch, tmp_path) -> None:
+def test_review_exits_cleanly_on_follow_rate_limit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Review exits cleanly on follow rate limit.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     albums = [_album()]
     saved_albums: list[list[YourLibraryAlbum]] = []
     log_path = tmp_path / "removed_albums_log.jsonl"
     sp = FakeSpotify(rate_limit_on_follow_check=True)
 
     monkeypatch.setattr(
-        review_album_limits, "load_total_albums_new_file", lambda: albums
+        review_album_limits, "load_total_albums_new_file", Mock(return_value=albums)
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -1061,14 +1170,14 @@ def test_review_exits_cleanly_on_follow_rate_limit(monkeypatch, tmp_path) -> Non
     monkeypatch.setattr(
         review_album_limits,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
 
     with pytest.raises(SpotifyRateLimitError) as exc:
         review_album_limits.review_album_limits(
             sp,
-            action_reader=lambda _album, _evaluation: "r",
-            echo=lambda _line: None,
+            action_reader=Answer("r"),
+            echo=DiscardMessages(),
             log_path=log_path,
         )
 
@@ -1099,3 +1208,103 @@ def test_retry_after_seconds_parses_spotipy_retry_reason() -> None:
     )
 
     assert review_album_limits.get_retry_after_seconds(exc) == 20484
+
+
+@dataclass
+class TransportRequest:
+    """Keep original transient transport failures and accepted attempt counts.
+
+    Args:
+        error: Original connection or timeout failure.
+        fail_always: Whether the original request always fails.
+        calls: Original attempt count.
+    """
+
+    error: RequestsConnectionError | RequestsTimeout
+    fail_always: bool = False
+    calls: int = 0
+
+    def send(self) -> str:
+        """Execute the original scripted transport request.
+
+        Returns:
+            Original accepted connection result.
+
+        Raises:
+            RequestsConnectionError: Original scripted connection failure.
+            RequestsTimeout: Original scripted timeout.
+        """
+        self.calls += 1
+        if self.fail_always or self.calls == 1:
+            raise self.error
+        return "connected"
+
+
+def _send(retry: SpotifyRetries, request: TransportRequest) -> str:
+    for attempt in retry.attempts("loading the Slow Listening playlist"):
+        with attempt:
+            response = request.send()
+    return response
+
+
+@dataclass
+class ReviewAutoRemovesAlbumWithZeroLiveLikedTracksScenario:
+    """Retain the original review auto removes album with zero live liked tracks
+    fixture.
+    """
+
+    def choose_action(self, _album: Any, _evaluation: Any) -> Never:
+        """Execute the original fail action reader mock boundary.
+
+        Args:
+            _album: Original external mock argument.
+            _evaluation: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        raise AssertionError("zero-live-like albums should not prompt")
+
+
+@dataclass
+class KeepDecisionPersistsBetweenReviewRunsScenario:
+    """Retain the original keep decision persists between review runs fixture."""
+
+    def choose_action(self, _album: Any, _evaluation: Any) -> Never:
+        """Execute the original fail action reader mock boundary.
+
+        Args:
+            _album: Original external mock argument.
+            _evaluation: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        raise AssertionError("persisted keep decisions should not prompt again")
+
+
+@dataclass
+class ReviewFollowsArtistForKeptAlbumWithoutPromptScenario:
+    """Reject any unexpected prompt for a kept album."""
+
+    def choose_action(self, _album: Any, _evaluation: Any) -> Never:
+        """Execute the original fail action reader mock boundary.
+
+        Args:
+            _album: Original external mock argument.
+            _evaluation: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        raise AssertionError("kept albums should not prompt for removal")
+
+
+class ArtistPublicationObservations(TypedDict):
+    """Describe the original artist publication fixture's stored observations."""
+
+    artists: list[YourLibraryArtist]
+    stats_history: dict[str, StatsReport]
+    saved_artists: list[list[YourLibraryArtist]]
+    saved_stats_history: list[dict[str, StatsReport]]
+    stats_key: str

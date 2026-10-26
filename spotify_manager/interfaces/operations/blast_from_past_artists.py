@@ -11,12 +11,13 @@ from spotify_manager.application.dormant_values import (
 from spotify_manager.application.dormant_values import (
     DormantArtistSummary as DormantArtistSummary,
 )
-from spotify_manager.application.historical_resolution import direct_call as direct_call
+from spotify_manager.application.ports.runtime import NO_RETRY
 from spotify_manager.bootstrap.dormant_artists import dormant_recovery
 from spotify_manager.bootstrap.dormant_artists import dormant_tracks
 from spotify_manager.domain.dormant_artists import (
     DormantArtistResult as DormantArtistResult,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.routines import new_kids as new_kids
 from spotify_manager.routines.blast_from_past_artists import (
     DEFAULT_COUNT as DEFAULT_COUNT,
@@ -59,9 +60,9 @@ def add_dormant_artists_to_blast_from_past(
     count: int = DEFAULT_COUNT,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = direct_call,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
     dry_run: bool = False,
 ) -> DormantArtistSummary:

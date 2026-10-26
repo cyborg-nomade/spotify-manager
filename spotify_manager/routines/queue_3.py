@@ -3,16 +3,23 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.checkpoints import Checkpoint
 from spotify_manager.application.checkpoints import NoCheckpoint
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.queue_3_composers import (
+    ComposerReader as ComposerPlaylistReader,
+)
+from spotify_manager.application.queue_3_planner import (
+    TransitionReader as ReleaseTransitionReader,
+)
 from spotify_manager.application.queue_3_values import (
     AnnualImportResult as AnnualImportResult,
 )
@@ -41,6 +48,7 @@ from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import release_candidate
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.routine_state_codecs import Queue3StateCodec
 from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
 from spotify_manager.interfaces.requests.queue_3 import Queue3Options
@@ -50,6 +58,15 @@ from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening
+
+
+type ProgressCallback = ReviewProgress
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -62,21 +79,46 @@ PLAYLIST_MUTATION_BATCH_SIZE = 100
 CHOICE_ADVANCE = "advance"
 CHOICE_QUIT = "quit"
 
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[int, int, str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-ReleaseTransitionReader = Callable[
-    [
-        new_wine.PlaylistTrack,
-        slow_listening.DiscographyRelease,
-        slow_listening.DiscographyRelease,
-    ],
-    str,
-]
-ComposerPlaylistReader = Callable[[str, tuple["OwnedPlaylist", ...]], str]
-
 
 OwnedPlaylist = composer_playlists.OwnedPlaylist
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+class NowClock:
+    """Observe the original now source directly."""
+
+    def timestamp(self) -> str:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _now()
+
+
+_NOW_RESOURCE = NowClock()
+
+
+def _datetime() -> datetime:
+    return datetime.now(UTC)
+
+
+class DatetimeClock:
+    """Observe the original datetime source directly."""
+
+    def now(self) -> datetime:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _datetime()
+
+
+_DATETIME_RESOURCE = DatetimeClock()
 
 
 def parse_playlist_id(reference: str | None) -> str:
@@ -304,14 +346,7 @@ def _add_playlist_tracks(
     """Append playlist tracks in Spotify-sized batches."""
     for start in range(0, len(tracks), PLAYLIST_MUTATION_BATCH_SIZE):
         batch = tracks[start : start + PLAYLIST_MUTATION_BATCH_SIZE]
-        retry_call(
-            partial(
-                sp._post,
-                f"playlists/{playlist_id}/items",
-                payload={"uris": [track.uri for track in batch]},
-            ),
-            f"{description} ({start + 1}-{start + len(batch)})",
-        )
+        _append_track_batch(retry_call, description, start, sp, batch, playlist_id)
 
 
 def _remove_playlist_uris(
@@ -325,14 +360,7 @@ def _remove_playlist_uris(
     unique_uris = list(dict.fromkeys(uris))
     for start in range(0, len(unique_uris), PLAYLIST_MUTATION_BATCH_SIZE):
         batch = unique_uris[start : start + PLAYLIST_MUTATION_BATCH_SIZE]
-        retry_call(
-            partial(
-                sp._delete,
-                f"playlists/{playlist_id}/items",
-                payload={"items": [{"uri": uri} for uri in batch]},
-            ),
-            f"{description} ({start + 1}-{start + len(batch)})",
-        )
+        _remove_uri_batch(retry_call, description, start, sp, batch, playlist_id)
 
 
 def _annual_import(
@@ -366,7 +394,7 @@ def import_previous_year_discoveries(
     *,
     active_year: int | None = None,
     dry_run: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
@@ -417,9 +445,8 @@ def _new_run(
     state: dict[str, object],
 ) -> dict[str, object]:
     from spotify_manager.application.queue_3_state import new_run
-    from spotify_manager.bootstrap.queue_3 import _datetime
 
-    return new_run(playlist_id, tracks, state, _datetime, DAILY_ARTIST_LIMIT)
+    return new_run(playlist_id, tracks, state, _DATETIME_RESOURCE, DAILY_ARTIST_LIMIT)
 
 
 def _source_from_record(raw: object) -> new_wine.PlaylistTrack:
@@ -548,7 +575,6 @@ def _resolve_composer_playlist(
     composer_playlist_reader: ComposerPlaylistReader | None,
 ) -> tuple[OwnedPlaylist | None, bool]:
     from spotify_manager.application.queue_3_composers import resolve_composer_route
-    from spotify_manager.bootstrap.queue_3 import _now
 
     return resolve_composer_route(
         artist_id,
@@ -558,7 +584,7 @@ def _resolve_composer_playlist(
         owned_playlists,
         state,
         composer_playlist_reader,
-        _now,
+        _NOW_RESOURCE,
     )
 
 
@@ -607,3 +633,39 @@ def flush_queue_3(
     from spotify_manager.interfaces.operations.queue_3 import flush_queue_3 as operation
 
     return operation(sp, options, callbacks, resources)
+
+
+def _append_track_batch(
+    retry_call: RetryCall,
+    description: str,
+    start: int,
+    sp: Spotify,
+    batch: list[new_wine.PlaylistTrack],
+    playlist_id: str,
+) -> None:
+    for attempt in retry_call.attempts(
+        f"{description} ({start + 1}-{start + len(batch)})"
+    ):
+        with attempt:
+            sp._post(
+                f"playlists/{playlist_id}/items",
+                payload={"uris": [track.uri for track in batch]},
+            )
+
+
+def _remove_uri_batch(
+    retry_call: RetryCall,
+    description: str,
+    start: int,
+    sp: Spotify,
+    batch: list[str],
+    playlist_id: str,
+) -> None:
+    for attempt in retry_call.attempts(
+        f"{description} ({start + 1}-{start + len(batch)})"
+    ):
+        with attempt:
+            sp._delete(
+                f"playlists/{playlist_id}/items",
+                payload={"items": [{"uri": uri} for uri in batch]},
+            )

@@ -8,7 +8,7 @@ from spotipy import Spotify
 from spotify_manager.application.ports.listening import RetryCall
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.domain.discovery_history import AnnualScrobbleIndex
-from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
+from spotify_manager.interfaces.requests.discovery import DiscoveryInteraction
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.routines import new_kids as legacy
@@ -39,7 +39,7 @@ class ReviewInputs:
 def review_inputs(
     sp: Spotify,
     options: DiscoveryOptions,
-    callbacks: DiscoveryCallbacks,
+    interaction: DiscoveryInteraction,
     resources: DiscoveryResources,
 ) -> ReviewInputs:
     """Observe discovery history and state before starting a review.
@@ -47,7 +47,7 @@ def review_inputs(
     Args:
         sp: Caller-owned synchronous Spotify client.
         options: Configured destinations and execution mode.
-        callbacks: Operator decisions and notifications.
+        interaction: Operator decisions and notifications.
         resources: History, namespace, mirrors and audit files.
 
     Returns:
@@ -60,21 +60,19 @@ def review_inputs(
         refresh_release_history as _refresh_history,
     )
     from spotify_manager.routines.composer_playlists import load_owned_playlists
-    from spotify_manager.routines.new_kids import _direct_call
     from spotify_manager.routines.new_kids import _state_access
 
-    retry = callbacks.retry or _direct_call
+    retry = interaction
     active_year = options.year or legacy.datetime.now().year
     _refresh_history(
         resources.lastfm,
         resources.lastfm_username,
         "New Kids",
         resources.scrobbles_path,
-        callbacks.echo,
-        callbacks.progress,
+        interaction,
+        interaction,
     )
-    if callbacks.progress:
-        callbacks.progress(0, 0, f"Loading {active_year} Last.fm release history")
+    interaction.progress(0, 0, f"Loading {active_year} Last.fm release history")
     annual_scrobbles = load_annual_scrobble_index(
         resources.scrobbles_path, year=active_year
     )

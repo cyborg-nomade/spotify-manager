@@ -1,10 +1,10 @@
 """Named matching, membership and track reads for Golden Oldies recipes."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.domain.golden_oldies import GoldenOldieArtist
@@ -12,7 +12,7 @@ from spotify_manager.domain.golden_oldies import LastFmTrackStat
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
 
 
-type RetryCall = Callable[[Callable[[], object], str], object]
+type RetryCall = Retry
 
 
 @dataclass(frozen=True)

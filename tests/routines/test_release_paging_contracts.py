@@ -10,6 +10,7 @@ import pytest
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import release_check as legacy
 from tests.support.release_run import ARTIST
 from tests.support.release_run import release
@@ -121,11 +122,11 @@ def _load(kind: str, pages: Pages) -> object:
             legacy.RankedArtist("artist", "Artist", 100, 1),
             ARTIST,
             date(2026, 1, 1),
-            _retry,
+            NoRetry(),
         )
     if kind == "track":
-        return legacy.load_release_tracks(spotify, release(), _retry)
-    return legacy._playlist_snapshot(spotify, "playlist", _retry)
+        return legacy.load_release_tracks(spotify, release(), NoRetry())
+    return legacy._playlist_snapshot(spotify, "playlist", NoRetry())
 
 
 @pytest.mark.parametrize("kind", ["release", "track", "playlist"])
@@ -188,7 +189,7 @@ def test_original_first_only_tracks_do_not_follow_even_an_empty_continuation() -
     pages = Pages([{"items": [], "next": "next"}])
     assert (
         legacy.load_release_tracks(
-            cast(Spotify, pages), release(), _retry, first_only=True
+            cast(Spotify, pages), release(), NoRetry(), first_only=True
         )
         == ()
     )

@@ -5,7 +5,6 @@ from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
-from functools import partial
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
@@ -18,6 +17,7 @@ from spotify_manager.routines import review_artists as legacy
 from tests.support.artist_review_run import artist
 from tests.support.artist_review_run import clone
 from tests.support.artist_review_run import release
+from tests.support.runtime_resources import RecordedRequests
 
 
 FIXTURE = (
@@ -306,7 +306,7 @@ def _observe(edge: CatalogObservations, kind: str, results: list[object]) -> Non
 
 
 def _invoke(edge: CatalogObservations, kind: str) -> object:
-    retry = partial(_retry, edge)
+    retry = RecordedRequests(edge)
     spotify = cast(Spotify, edge)
     if kind == "members":
         membership = legacy.playlist_membership(spotify, "one", retry)

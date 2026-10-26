@@ -1,5 +1,6 @@
 """Coverage for still-registered legacy library commands."""
 
+from functools import partial
 from unittest.mock import Mock
 
 from pytest import MonkeyPatch
@@ -9,6 +10,7 @@ from spotify_manager import loaders_savers as files
 from spotify_manager.application import legacy_library_control as control_stages
 from spotify_manager.application import legacy_library_conversion as conversion_stages
 from spotify_manager.application import legacy_library_refresh as playlist_stages
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.artists import SimplifiedArtist
 from spotify_manager.models.file_items import ControlFileItem
@@ -22,6 +24,7 @@ from spotify_manager.routines import convert_library_file
 from spotify_manager.routines import count_items
 from spotify_manager.routines import monthly_routine
 from spotify_manager.utils import comparison
+from tests.support.framework_stubs import snapshot_items
 
 
 def album(spotify_id: str, name: str) -> SimplifiedAlbum:
@@ -126,7 +129,7 @@ def test_compare_library_workflow_persists_generated_diff(
 
     assert saved == [{"add": ["exported"], "remove": ["stored"]}]
     comparison_stage.assert_called_once_with(
-        ["exported"], ["stored"], mocker.ANY, print
+        ["exported"], ["stored"], mocker.ANY, STANDARD_OUTPUT
     )
 
 
@@ -153,9 +156,15 @@ def test_analyse_comparison_checks_both_live_statuses(monkeypatch, mocker) -> No
 
 
 def test_convert_library_applies_confirmed_additions_and_removals(
-    monkeypatch,
-    mocker,
+    monkeypatch: MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
+    """Verify convert library applies confirmed additions and removals.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        mocker: Scoped external SDK doubles.
+    """
     spotify = mocker.Mock()
     spotify.current_user_saved_albums_contains.side_effect = [
         [False],
@@ -166,20 +175,22 @@ def test_convert_library_applies_confirmed_additions_and_removals(
     stored = [album("remove", "Zeta"), album("keep", "Beta")]
     added = album("add", "Alpha")
     saved: list[list[SimplifiedAlbum]] = []
-    monkeypatch.setattr(files, "load_total_albums_file", lambda: stored)
+    monkeypatch.setattr(files, "load_total_albums_file", Mock(return_value=stored))
     monkeypatch.setattr(
         files,
         "load_comparison_file",
-        lambda: {
-            "remove": [{"id": "remove"}, {"id": "keep"}],
-            "add": [{"id": "add"}, {"id": "skip"}],
-        },
+        Mock(
+            return_value={
+                "remove": [{"id": "remove"}, {"id": "keep"}],
+                "add": [{"id": "add"}, {"id": "skip"}],
+            }
+        ),
     )
-    monkeypatch.setattr(control_processors, "enrich_album", lambda *_args: added)
+    monkeypatch.setattr(control_processors, "enrich_album", Mock(return_value=added))
     monkeypatch.setattr(
         files,
         "save_total_albums_file",
-        lambda items: saved.append(list(items)),
+        partial(snapshot_items, saved),
     )
 
     convert_library_file.convert_your_library_file(spotify)

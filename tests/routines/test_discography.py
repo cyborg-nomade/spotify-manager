@@ -1,11 +1,15 @@
 """Tests for the round-week discography planner."""
 
 import json
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partial
 from functools import partialmethod
 from pathlib import Path
+from typing import Any
+from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -14,11 +18,14 @@ from spotify_manager.application.discography_catalog import DiscographyCatalog
 from spotify_manager.application.discography_history import DiscographyArtistMapping
 from spotify_manager.application.discography_history import DiscographyHistory
 from spotify_manager.application.discography_queues import DiscographyQueues
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import discography
 from spotify_manager.routines import new_wine
 from tests.support.direct_dependencies import catalog
 from tests.support.direct_dependencies import historical_artist
 from tests.support.direct_dependencies import resolve_artist
+from tests.support.runtime_resources import MessageList
+from tests.support.runtime_resources import UnexpectedCall
 
 
 BERLIN = ZoneInfo("Europe/Berlin")
@@ -170,7 +177,7 @@ def test_release_catalog_uses_studio_defaults_and_offers_non_studio() -> None:
     releases = discography.load_release_catalog(
         spotify,  # type: ignore[arg-type]
         "artist",
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     by_id = {release.spotify_id: release for release in releases}
@@ -250,18 +257,10 @@ def test_historical_artist_uses_palace_date_seconds_rule(tmp_path: Path) -> None
         )
     )
 
-    def random_indexes(population_size: int, count: int):
-        assert population_size == 2
-        assert count == 1
-        return discography.blast_from_past.RandomIndexSet(
-            indexes=(0,),
-            generated_at=datetime(2026, 8, 24, 12, 0, 4, tzinfo=UTC),
-        )
-
     selection = discography.select_historical_artist(
         path=history_path,
         today=date(2026, 8, 24),
-        random_index_reader=random_indexes,
+        random_index_reader=HistoricalIndexes(),
     )
 
     assert selection.cutoff_date == date(2025, 12, 31)
@@ -284,9 +283,7 @@ def test_historical_artist_requires_an_eligible_date(tmp_path: Path) -> None:
         discography.select_historical_artist(
             path=history_path,
             today=date(2026, 8, 24),
-            random_index_reader=lambda *_args: pytest.fail(
-                "Random.org should not be reached"
-            ),
+            random_index_reader=UnexpectedCall("Random.org should not be reached"),
         )
 
 
@@ -307,13 +304,15 @@ def test_historical_artist_resolution_becomes_memory_lane_candidate(
     monkeypatch.setattr(
         discography.something_old,
         "resolve_spotify_artist",
-        lambda *_args: discography.something_old.SpotifyArtistCandidate(
-            spotify_id="spotify-id",
-            name="History Artist",
-            uri="spotify:artist:spotify-id",
-            popularity=40,
-            followers=100,
-            search_rank=1,
+        Mock(
+            return_value=discography.something_old.SpotifyArtistCandidate(
+                spotify_id="spotify-id",
+                name="History Artist",
+                uri="spotify:artist:spotify-id",
+                popularity=40,
+                followers=100,
+                search_rank=1,
+            )
         ),
     )
 
@@ -321,7 +320,7 @@ def test_historical_artist_resolution_becomes_memory_lane_candidate(
         object(),  # type: ignore[arg-type]
         selection,
         None,
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     assert candidate == discography.QueueArtist(
@@ -341,13 +340,15 @@ def test_unused_empty_memory_lane_does_not_request_random_artist(
         "memory_lane": (),
         "requeue": (),
     }
-    monkeypatch.setattr(DiscographyQueues, "run", lambda *_args: (queues, {}))
+    monkeypatch.setattr(DiscographyQueues, "run", Mock(return_value=(queues, {})))
     monkeypatch.setattr(
         DiscographyCatalog,
         "run",
         partialmethod(
             catalog,
-            lambda *_args: tuple(catalog_release(str(index)) for index in range(10)),
+            Mock(
+                return_value=tuple(catalog_release(str(index)) for index in range(10))
+            ),
         ),
     )
 
@@ -356,11 +357,9 @@ def test_unused_empty_memory_lane_does_not_request_random_artist(
     plan = discography.build_discography_plan(
         object(),  # type: ignore[arg-type]
         {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
-        lambda _artist, releases: tuple(item.spotify_id for item in releases),
+        AllReleases(),
         state_path=state_path,
-        random_index_reader=lambda *_args: pytest.fail(
-            "Random.org should not be reached"
-        ),
+        random_index_reader=UnexpectedCall("Random.org should not be reached"),
     )
 
     assert [artist.spotify_id for artist in plan.artists] == ["artist"]
@@ -382,26 +381,30 @@ def test_empty_memory_lane_supplies_random_historical_artist(
         position=3,
         artist=discography.HistoricalArtist("History Artist", 4),
     )
-    monkeypatch.setattr(DiscographyQueues, "run", lambda *_args: (queues, {}))
+    monkeypatch.setattr(DiscographyQueues, "run", Mock(return_value=(queues, {})))
     monkeypatch.setattr(
         DiscographyHistory,
         "run",
-        partialmethod(historical_artist, lambda **_kwargs: selection),
+        partialmethod(historical_artist, Mock(return_value=selection)),
     )
     monkeypatch.setattr(
         DiscographyArtistMapping,
         "resolve",
         partialmethod(
             resolve_artist,
-            lambda *_args: discography.QueueArtist(
-                "history-id", "History Artist", "memory_lane"
+            Mock(
+                return_value=discography.QueueArtist(
+                    "history-id", "History Artist", "memory_lane"
+                )
             ),
         ),
     )
     monkeypatch.setattr(
         DiscographyCatalog,
         "run",
-        partialmethod(catalog, lambda *_args: (catalog_release("history-release"),)),
+        partialmethod(
+            catalog, Mock(return_value=(catalog_release("history-release"),))
+        ),
     )
 
     state_path = tmp_path / "state.json"
@@ -410,9 +413,9 @@ def test_empty_memory_lane_supplies_random_historical_artist(
     plan = discography.build_discography_plan(
         object(),  # type: ignore[arg-type]
         {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
-        lambda _artist, releases: tuple(item.spotify_id for item in releases),
+        AllReleases(),
         state_path=state_path,
-        progress_callback=logs.append,
+        progress_callback=MessageList(logs),
     )
 
     assert plan.artists[0].spotify_id == "history-id"
@@ -424,6 +427,11 @@ def test_empty_memory_lane_supplies_random_historical_artist(
 def test_artist_queues_keep_first_seen_order_and_all_unique_markers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Artist queues keep first seen order and all unique markers.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     playlists = {
         "nf": [
             playlist_track("a-1", "a", "Artist A"),
@@ -441,13 +449,13 @@ def test_artist_queues_keep_first_seen_order_and_all_unique_markers(
     monkeypatch.setattr(
         discography.new_wine,
         "load_playlist_tracks",
-        lambda _spotify, playlist_id, _retry: playlists[playlist_id],
+        partial(_fixture_playlist, playlists),
     )
 
     queues, markers = discography._load_artist_queues(
         object(),  # type: ignore[arg-type]
         {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
-        lambda operation, _description: operation(),
+        NoRetry(),
         "q3",
     )
 
@@ -462,21 +470,23 @@ def test_artist_queues_keep_first_seen_order_and_all_unique_markers(
 
 @pytest.mark.parametrize("failing_playlist", ["nf", "q3"])
 def test_artist_queue_loading_translates_playlist_errors(
-    monkeypatch: pytest.MonkeyPatch,
-    failing_playlist: str,
+    monkeypatch: pytest.MonkeyPatch, failing_playlist: str
 ) -> None:
-    def load(_spotify, playlist_id, _retry):
-        if playlist_id == failing_playlist:
-            raise new_wine.NewWineError("playlist unavailable")
-        return ()
+    """Artist queue loading translates playlist errors.
 
-    monkeypatch.setattr(discography.new_wine, "load_playlist_tracks", load)
-
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        failing_playlist: Original failing playlist.
+    """
+    scenario = ArtistQueueLoadingTranslatesPlaylistErrorsScenario(
+        failing_playlist=failing_playlist
+    )
+    monkeypatch.setattr(discography.new_wine, "load_playlist_tracks", scenario.load)
     with pytest.raises(discography.DiscographyError, match="playlist unavailable"):
         discography._load_artist_queues(
-            object(),  # type: ignore[arg-type]
+            object(),
             {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
-            lambda operation, _description: operation(),
+            NoRetry(),
             "q3",
         )
 
@@ -525,28 +535,17 @@ def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
     )
     counts = {"a": 4, "b": 8, "c": 6, "d": 2}
     prompted: list[str] = []
-    monkeypatch.setattr(DiscographyQueues, "run", lambda *_args: (queues, marker_map))
+    monkeypatch.setattr(
+        DiscographyQueues, "run", Mock(return_value=(queues, marker_map))
+    )
     monkeypatch.setattr(
         DiscographyCatalog,
         "run",
-        partialmethod(
-            catalog,
-            lambda _spotify, artist_id, _retry: tuple(
-                catalog_release(f"{artist_id}-{index}")
-                for index in range(counts[artist_id])
-            ),
-        ),
+        partialmethod(_counted_catalog_stage, counts),
     )
 
     state_path = tmp_path / "state.json"
     discography.save_next_queue("newfoundland", state_path)
-
-    def select_defaults(
-        artist: discography.QueueArtist,
-        releases: tuple[discography.CatalogRelease, ...],
-    ) -> tuple[str, ...]:
-        prompted.append(artist.spotify_id)
-        return tuple(release.spotify_id for release in releases if release.default)
 
     plan = discography.build_discography_plan(
         object(),  # type: ignore[arg-type]
@@ -555,7 +554,7 @@ def test_plan_peruses_the_next_queue_for_an_artist_that_fits(
             "memory_lane": "ml",
             "requeue": "rq",
         },
-        select_defaults,
+        DefaultReleases(prompted),
         queue_3_playlist_id="q3",
         state_path=state_path,
     )
@@ -637,3 +636,117 @@ def test_apply_removes_all_markers_logs_and_advances_priority(tmp_path: Path) ->
     record = json.loads(log_path.read_text())
     assert record["artist_id"] == "artist"
     assert record["releases"][0]["spotify_id"] == "release"
+
+
+class HistoricalIndexes:
+    """Verify the original historical random population and requested count."""
+
+    def sample(
+        self, population_size: int, count: int
+    ) -> discography.blast_from_past.RandomIndexSet:
+        """Return the original selected historical date and seconds.
+
+        Args:
+            population_size: Original eligible date count.
+            count: Original requested date count.
+
+        Returns:
+            Original random index response.
+        """
+        assert population_size == 2
+        assert count == 1
+        return discography.blast_from_past.RandomIndexSet(
+            indexes=(0,),
+            generated_at=datetime(2026, 8, 24, 12, 0, 4, tzinfo=UTC),
+        )
+
+
+class AllReleases:
+    """Select every offered release in the original display order."""
+
+    def select_releases(
+        self,
+        artist: discography.ArtistSelection,
+        releases: tuple[discography.CatalogRelease, ...],
+    ) -> tuple[str, ...]:
+        """Return all original offered identities.
+
+        Args:
+            artist: Original selected artist.
+            releases: Original catalog editions.
+
+        Returns:
+            Original ordered release identities.
+        """
+        return tuple(item.spotify_id for item in releases)
+
+
+@dataclass(frozen=True)
+class DefaultReleases:
+    """Record original artist prompts and retain the default catalog editions.
+
+    Args:
+        prompted: Original prompted-artist observations.
+    """
+
+    prompted: list[str]
+
+    def select_releases(
+        self,
+        artist: discography.QueueArtist,
+        releases: tuple[discography.CatalogRelease, ...],
+    ) -> tuple[str, ...]:
+        """Return original default editions after recording their artist.
+
+        Args:
+            artist: Original selected queue artist.
+            releases: Original offered catalog.
+
+        Returns:
+            Original default-edition identities in display order.
+        """
+        self.prompted.append(artist.spotify_id)
+        return tuple(release.spotify_id for release in releases if release.default)
+
+
+@dataclass
+class ArtistQueueLoadingTranslatesPlaylistErrorsScenario:
+    """Retain the original artist queue loading translates playlist errors fixture.
+
+    Args:
+        failing_playlist: Original failing playlist observation or resource.
+    """
+
+    failing_playlist: str
+
+    def load(self, _spotify: Any, playlist_id: Any, _retry: Any) -> tuple[object, ...]:
+        """Execute the original load mock boundary.
+
+        Args:
+            _spotify: Original external mock argument.
+            playlist_id: Original external mock argument.
+            _retry: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        if playlist_id == self.failing_playlist:
+            raise new_wine.NewWineError("playlist unavailable")
+        return ()
+
+
+def _fixture_playlist(
+    playlists: dict[str, list[new_wine.PlaylistTrack]],
+    spotify: object,
+    playlist_id: str,
+    retry: object,
+) -> list[new_wine.PlaylistTrack]:
+    return playlists[playlist_id]
+
+
+def _counted_catalog_stage(
+    stage: DiscographyCatalog, counts: dict[str, int], artist_id: str
+) -> tuple[discography.CatalogRelease, ...]:
+    return tuple(
+        catalog_release(f"{artist_id}-{index}") for index in range(counts[artist_id])
+    )

@@ -9,8 +9,7 @@ from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.playlist_retry import PlaylistRetry
@@ -37,8 +36,9 @@ class DailyMindRadioWorker:
         dry_run: Whether to preview without durable writes.
         connection_failure: Connection failure supplied by the caller.
         job: Mutable job record owned by this worker.
-        spotify_event_setter: SDK event subscription hook.
-        previous_spotify_event_callback: Original SDK event observer restored on exit.
+
+    Attributes:
+        events: SDK event subscription retaining the original setter binding.
     """
 
     context: PlaylistContext
@@ -48,8 +48,7 @@ class DailyMindRadioWorker:
     dry_run: bool
     connection_failure: str
     job: _BlastJob = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute one Daily Mind Radio web job and retain its complete trace."""
@@ -94,18 +93,16 @@ class DailyMindRadioWorker:
                 "Daily Mind Radio started"
                 + (" in dry-run mode." if self.dry_run else "."),
             )
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
 
     def _execute(self) -> daily_mind_radio.DailyMindRadioSpotifySummary:
         summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
             self.spotify,
             self.playlist_id,
-            progress_callback=self.echo,
-            retry_call=PlaylistRetry(self.job, self.echo).call,
-            cancel_check=self.job.cancel_event.is_set,
+            progress_callback=self,
+            retry_call=PlaylistRetry(self.job, self),
+            cancel_check=self.job.cancel_event,
             dry_run=self.dry_run,
         )
         return summary
@@ -151,8 +148,7 @@ class DailyMindRadioWorker:
             self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 

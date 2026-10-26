@@ -1,8 +1,8 @@
 """Public Slow Listening results and workflow errors, retaining legacy aliases."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
+from typing import Protocol
 
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
@@ -10,13 +10,62 @@ from spotify_manager.domain.catalog import ReleaseTrack
 
 
 type FlushAction = Literal["advance", "complete", "skip"]
-type ReleaseOrderReader = Callable[
-    [str, tuple[DiscographyRelease, ...]], tuple[str, ...]
-]
-type TrackActionReader = Callable[
-    [PlaylistTrack, ReleaseTrack, DiscographyRelease], str
-]
-type CompletionNotifier = Callable[[PlaylistTrack], None]
+
+
+class ReleaseOrderReader(Protocol):
+    """Own the operator interaction for order releases."""
+
+    def order_releases(
+        self, date: str, releases: tuple[DiscographyRelease, ...], /
+    ) -> tuple[str, ...]:
+        """Read or report the original operator interaction.
+
+        Args:
+            date: Original interaction value.
+            releases: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
+
+
+class TrackActionReader(Protocol):
+    """Own the operator interaction for choose track."""
+
+    def choose_track(
+        self,
+        source: PlaylistTrack,
+        target: ReleaseTrack,
+        release: DiscographyRelease,
+        /,
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            source: Original interaction value.
+            target: Original interaction value.
+            release: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
+
+
+class CompletionNotifier(Protocol):
+    """Own the operator interaction for complete."""
+
+    def complete(self, source: PlaylistTrack, /) -> None:
+        """Read or report the original operator interaction.
+
+        Args:
+            source: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 class SlowListeningError(RuntimeError):

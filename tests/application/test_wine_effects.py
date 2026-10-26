@@ -24,7 +24,7 @@ from tests.support.new_wine_memory import dependencies
 
 
 def _saved_plan(memory: MemoryWine, plan: dict[str, object]) -> dict[str, object]:
-    run = new_run(OPTIONS, (SOURCE,), memory.clock)
+    run = new_run(OPTIONS, (SOURCE,), memory)
     entries = cast(list[dict[str, object]], run["entries"])
     entries[0]["plan"] = plan
     memory.stored["active_run"] = run

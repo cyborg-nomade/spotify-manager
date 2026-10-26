@@ -156,9 +156,25 @@ class GatherMemory:
         self._step("progress")
         self.messages.append(message)
 
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
 
 def _workflow(memory: GatherMemory) -> CandidateGathering:
-    return CandidateGathering(memory, memory.clock, memory, memory.progress)
+    return CandidateGathering(memory, memory, memory, memory)
 
 
 def test_each_fetch_is_checkpointed_before_aggregation_and_next_seed() -> None:

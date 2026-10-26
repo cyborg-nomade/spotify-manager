@@ -7,10 +7,10 @@ from pathlib import Path
 
 from spotify_manager.application.historical_values import RandomIndexSet
 from spotify_manager.domain.history import Scrobble
+from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
-from spotify_manager.routines.blast_from_past import fetch_random_indexes
-from spotify_manager.routines.blast_from_past import fetch_random_timestamp
+from spotify_manager.routines.blast_from_past import FETCH_RANDOM_TIMESTAMP_RESOURCE
 
 
 @dataclass(frozen=True)
@@ -26,8 +26,8 @@ class LegacyHistoricalInputs:
 
     path: Path
     date_override: date | None
-    index_reader: blast.RandomIndexReader = fetch_random_indexes
-    timestamp_reader: radio.RandomTimestampReader = fetch_random_timestamp
+    index_reader: blast.RandomIndexReader = RANDOM_INDEXES
+    timestamp_reader: radio.RandomTimestampReader = FETCH_RANDOM_TIMESTAMP_RESOURCE
 
     @property
     def first_date(self) -> date:
@@ -97,7 +97,7 @@ class LegacyHistoricalInputs:
         Returns:
             Original unmodified random response.
         """
-        return self.index_reader(population, count)
+        return self.index_reader.sample(population, count)
 
     def timestamp(self) -> datetime:
         """Read one external timestamp for the complete anniversary selection.
@@ -105,4 +105,4 @@ class LegacyHistoricalInputs:
         Returns:
             Original shared external selection timestamp.
         """
-        return self.timestamp_reader()
+        return self.timestamp_reader.now()

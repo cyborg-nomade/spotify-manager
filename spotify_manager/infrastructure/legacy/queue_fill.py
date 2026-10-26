@@ -1,16 +1,16 @@
 """Bind Queue fill stages to the original synchronous SDK and persistence seams."""
 
-from collections.abc import Callable
 from collections.abc import Sequence
 from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from functools import partial
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.runtime import ReviewProgressMessages
 from spotify_manager.application.queue_fill_values import FillResult
 from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.application.queue_values import QueueStateError
@@ -24,10 +24,6 @@ from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
 from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
 from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
 from spotify_manager.routines import the_queue as legacy
-
-
-def _immediate(operation: Callable[[], object], description: str) -> object:
-    return operation()
 
 
 @dataclass
@@ -48,11 +44,11 @@ class LegacyQueueFill:
     options: QueueFillOptions
     callbacks: QueueFillCallbacks
     resources: QueueFillResources
-    retry: legacy.RetryCall = _immediate
+    retry: legacy.RetryCall = NoRetry()
 
     def configure(self) -> None:
         """Resolve original falsey retry behavior after request validation."""
-        self.retry = self.callbacks.retry_call or _immediate
+        self.retry = self.callbacks.retry_call or NoRetry()
 
     def clock(self) -> datetime:
         """Resolve the original effective timestamp.
@@ -87,7 +83,7 @@ class LegacyQueueFill:
             QueueStateError: Original history refresh failed.
         """
         progress = (
-            self._history_progress
+            ReviewProgressMessages(self)
             if self.callbacks.progress_callback is not None
             else None
         )
@@ -234,7 +230,7 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.the_queue import _persist_followed_artist
 
-        _persist_followed_artist(artist, self.callbacks.echo)
+        _persist_followed_artist(artist, self.callbacks.output)
 
     def append(self, artist: SpotifyArtistCandidate, track: CatalogTrack) -> None:
         """Accept the original Queue marker append.
@@ -245,12 +241,9 @@ class LegacyQueueFill:
         """
         from spotify_manager.routines.review_artists import add_playlist_item
 
-        self.retry(
-            partial(
-                add_playlist_item, self.spotify, self.options.playlists.queue, track.uri
-            ),
-            f"adding {artist.name} to The Queue",
-        )
+        for attempt in self.retry.attempts(f"adding {artist.name} to The Queue"):
+            with attempt:
+                add_playlist_item(self.spotify, self.options.playlists.queue, track.uri)
 
     def audit(self, result: FillResult, preview: bool, selected: bool) -> None:
         """Preserve original rejection and selected-addition audit fields.
@@ -286,7 +279,7 @@ class LegacyQueueFill:
             preview: Original preview behavior.
         """
         assert result.spotify_artist is not None and result.track is not None
-        self.callbacks.echo(
+        self.callbacks.output.echo(
             f"{('Would add' if preview else 'Added')} {result.spotify_artist.name}"
             f" - {result.track.name} to The Queue."
         )
@@ -300,4 +293,4 @@ class LegacyQueueFill:
             message: Original status text.
         """
         if self.callbacks.progress_callback is not None:
-            self.callbacks.progress_callback(done, total, message)
+            self.callbacks.progress_callback.progress(done, total, message)

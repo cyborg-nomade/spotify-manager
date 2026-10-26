@@ -15,15 +15,15 @@ def run(files: LegacyFiles, actions: MonthlyActions, echo: Echo) -> None:
         actions: Original independent public stages.
         echo: Original presenter.
     """
-    echo("Running monthly routines...")
+    echo.echo("Running monthly routines...")
     control = files.control()
     albums = files.albums()
     control_stages.check(control, albums, actions.catalog, files, echo)
     control_stages.update_statistics(control, albums, files, echo)
     index = control_stages.starting_index(control, albums, echo)
-    echo(f"Starting index: {index}")
+    echo.echo(f"Starting index: {index}")
     playlist_stages.add_monthly(actions.playlist, control, albums, index, echo)
-    echo("Monthly routine complete.")
+    echo.echo("Monthly routine complete.")
 
 
 def count_artists(files: LegacyFiles) -> int:

@@ -35,7 +35,7 @@ def _case(
         "queue_2_active_run",
         fill,
         preview,
-        effects.clock,
+        effects,
     )
     return lifecycle, effects, playlists
 

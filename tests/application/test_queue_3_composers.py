@@ -63,6 +63,28 @@ class RoutingMemory:
         self._record("clock")
         return "accepted-at"
 
+    def choose_composer(
+        self, artist: str, candidates: tuple[OwnedPlaylist, ...]
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            artist: Original fixture observation.
+            candidates: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(artist, candidates)
+
+    def timestamp(self) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.now()
+
 
 def _resolve(
     memory: RoutingMemory,
@@ -76,8 +98,8 @@ def _resolve(
         "queue",
         owned,
         {"composer_routes": routes},
-        memory.choose,
-        memory.now,
+        memory,
+        memory,
     )
 
 
@@ -144,7 +166,7 @@ def test_missing_reader_rejects_ambiguity_after_discarding_stale_route() -> None
             (WORKS, OTHER),
             {"composer_routes": routes},
             None,
-            memory.now,
+            memory,
         )
     assert (
         str(error.value)

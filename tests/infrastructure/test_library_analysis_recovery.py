@@ -74,6 +74,15 @@ class RetryScript:
         self.delays.append(delay)
 
 
+def _read(
+    retry: LibraryRetry, script: RetryScript, maximum: int | None = None
+) -> object:
+    for attempt in retry.attempts("reading facts", max_attempts=maximum):
+        with attempt:
+            response = script.call()
+    return response
+
+
 def _error(status: int | None) -> SpotifyException:
     return SpotifyException(status, -1, "original failure")
 
@@ -96,15 +105,15 @@ def test_nontransient_failures_keep_original_type_cause_and_skip_retry(
         session.paths,
         session.checkpoint,
         session.files,
-        memory.echo,
-        script.wait,
-        script.sleep,
+        memory,
+        script,
+        script,
         10,
         100,
     )
     expected = SpotifyRateLimitError if status == 429 else LibrarySyncError
     with pytest.raises(expected) as observed:
-        retry.call(script.call, "reading facts")
+        _read(retry, script)
     assert observed.value.__cause__ is failure
     assert script.notices == []
     assert memory.effects == []
@@ -126,16 +135,16 @@ def test_server_attempt_limit_keeps_original_last_failure_and_accepted_retry_pre
         session.paths,
         session.checkpoint,
         session.files,
-        memory.echo,
-        script.wait,
-        script.sleep,
+        memory,
+        script,
+        script,
         10,
         100,
     )
     with pytest.raises(
         LibrarySyncError, match="HTTP 503 persisted for 2 attempts"
     ) as observed:
-        retry.call(script.call, "reading facts", max_attempts=2)
+        _read(retry, script, 2)
     assert observed.value.__cause__ is failures[-1]
     assert script.notices == [RetryNotice(500, "reading facts", 1, 10)]
     assert script.delays == []
@@ -160,16 +169,16 @@ def test_transport_attempt_limit_does_not_retry_after_its_bound(
         session.paths,
         session.checkpoint,
         session.files,
-        memory.echo,
-        script.wait,
-        script.sleep,
+        memory,
+        script,
+        script,
         10,
         100,
     )
     with pytest.raises(
         LibrarySyncError, match="connection remained unavailable for 1 attempts"
     ) as observed:
-        retry.call(script.call, "reading facts", max_attempts=1)
+        _read(retry, script, 1)
     assert observed.value.__cause__ is failure
     assert memory.effects == []
 
@@ -191,13 +200,13 @@ def test_default_retry_wait_observes_zero_sleep_and_shared_failure_attempts(
         session.paths,
         session.checkpoint,
         session.files,
-        memory.echo,
+        memory,
         None,
-        script.sleep,
+        script,
         0,
         100,
     )
-    assert retry.call(script.call, "reading facts") == "accepted"
+    assert _read(retry, script) == "accepted"
     assert script.delays == [0, 0]
     assert [name for name, _value in memory.effects] == [
         "server_retry_scheduled",
@@ -224,16 +233,16 @@ def test_retry_wait_cancellation_retains_original_error_cause(
         session.paths,
         session.checkpoint,
         session.files,
-        memory.echo,
-        script.wait,
-        script.sleep,
+        memory,
+        script,
+        script,
         10,
         100,
     )
     with pytest.raises(
         LibraryAnalysisCancelledError, match="paused during a Spotify retry wait"
     ) as observed:
-        retry.call(script.call, "reading facts")
+        _read(retry, script)
     assert observed.value.__cause__ is failure
     assert len(script.notices) == 1
 

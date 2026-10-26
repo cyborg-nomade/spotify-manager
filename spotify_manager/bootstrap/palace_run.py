@@ -3,6 +3,7 @@
 from spotipy import Spotify
 
 from spotify_manager.application.palace_run import Palace
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.bootstrap.palace_history import palace_history
 from spotify_manager.bootstrap.palace_mirror import saved_mirror
 from spotify_manager.infrastructure.legacy.palace_run import LegacyPalace
@@ -29,9 +30,7 @@ def palace(
     Returns:
         The configured application workflow.
     """
-    from spotify_manager.routines.palace_of_memory import _direct_retry
-
-    retry = callbacks.retry_call or _direct_retry
+    retry = callbacks.retry_call or NoRetry()
     edge = LegacyPalace(spotify, options, callbacks, resources, retry)
     mirror = saved_mirror(
         spotify,

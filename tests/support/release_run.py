@@ -484,6 +484,28 @@ class Effects:
         self._event("add:" + destination, track.spotify_id, preview)
         return "would add" if preview else "added"
 
+    def choose_release(
+        self,
+        artist: RankedArtist,
+        candidate: ReleaseCandidate,
+        track: ReleaseTrack,
+        destinations: tuple[str, ...],
+        unattached: bool,
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            artist: Original fixture observation.
+            candidate: Original fixture observation.
+            track: Original fixture observation.
+            destinations: Original fixture observation.
+            unattached: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choice(artist, candidate, track, destinations, unattached)
+
 
 @dataclass(frozen=True)
 class ScriptedMapping:

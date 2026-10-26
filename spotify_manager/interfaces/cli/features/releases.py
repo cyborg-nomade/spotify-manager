@@ -212,7 +212,7 @@ class ReleasesCLI:
         ) as exc:
             self._report_check_new_releases_configuration_failure(exc)
         lastfm_client = create_lastfm_client(
-            LastFmCredentials(api_key, username), self._check_new_releases_log
+            LastFmCredentials(api_key, username), CheckNewReleasesDiagnostics(self)
         )
         try:
             with self.progress_display.create_progress(
@@ -239,9 +239,9 @@ class ReleasesCLI:
                         playlists=playlists, expected_username=username, dry_run=dry_run
                     ),
                     ReleaseCheckCallbacks(
-                        artist_choice_reader=self._check_new_releases_ask_release_check_artist,
-                        release_choice_reader=self._check_new_releases_choose_release,
-                        progress_callback=self._check_new_releases_update_progress,
+                        artist_choice_reader=CheckNewReleasesInteraction(self),
+                        release_choice_reader=CheckNewReleasesInteraction(self),
+                        progress_callback=CheckNewReleasesInteraction(self),
                     ),
                     ReleaseCheckResources(),
                 )
@@ -522,3 +522,85 @@ class ReleasesCLI:
             if search_text:
                 return f"{release_check.CHOICE_SEARCH_PREFIX}{search_text}"
             console.print("Search text cannot be empty.", style="bold yellow")
+
+
+@dataclass(frozen=True)
+class CheckNewReleasesDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: ReleasesCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            message: Original message.
+        """
+        self.owner._check_new_releases_log(message)
+
+
+@dataclass(frozen=True)
+class CheckNewReleasesInteraction:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: ReleasesCLI
+
+    def progress(self, completed: int, total: int, status: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            completed: Original completed.
+            total: Original total.
+            status: Original status.
+        """
+        self.owner._check_new_releases_update_progress(completed, total, status)
+
+    def choose_artist(
+        self,
+        artist: release_check.RankedArtist,
+        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
+    ) -> str:
+        """Use this command's fixed choose artist prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._check_new_releases_ask_release_check_artist(
+            artist, candidates
+        )
+
+    def choose_release(
+        self,
+        artist: release_check.RankedArtist,
+        release: release_check.ReleaseCandidate,
+        track: release_check.ReleaseTrack,
+        destinations: tuple[str, ...],
+        unattached: bool,
+    ) -> str:
+        """Use this command's fixed choose release prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            release: Original operator prompt value.
+            track: Original operator prompt value.
+            destinations: Original operator prompt value.
+            unattached: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._check_new_releases_choose_release(
+            artist, release, track, destinations, unattached
+        )

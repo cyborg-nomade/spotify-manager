@@ -1,6 +1,7 @@
 """Explicit slow listening CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -9,6 +10,8 @@ from rich.console import Console
 from rich.progress import Progress
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
@@ -35,7 +38,7 @@ class SlowListeningCLI:
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    sleep: Callable[[float], None]
+    sleep: Wait
 
     def _prompt_slow_listening_release_order(
         self,
@@ -175,13 +178,13 @@ class SlowListeningCLI:
                 summary = slow_listening.flush_slow_listening(
                     self.runtime.review_client(),
                     playlist_id,
-                    order_reader=self._flush_slow_listening_ask_slow_listening_release_order,
-                    completion_notifier=self._flush_slow_listening_acknowledge_slow_listening_completion,
-                    action_reader=self._flush_slow_listening_ask_slow_listening_action,
+                    order_reader=FlushSlowListeningInteraction(self),
+                    completion_notifier=FlushSlowListeningInteraction(self),
+                    action_reader=FlushSlowListeningInteraction(self),
                     dry_run=dry_run,
-                    echo=self._flush_slow_listening_echo,
-                    progress_callback=self._flush_slow_listening_update_progress,
-                    retry_call=self._flush_slow_listening_retry_call,
+                    echo=FlushSlowListeningInteraction(self),
+                    progress_callback=FlushSlowListeningInteraction(self),
+                    retry_call=FlushSlowListeningInteraction(self),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_slow_listening_rate_limit(exc)
@@ -215,18 +218,6 @@ class SlowListeningCLI:
         elif line.startswith("Source already removed"):
             style = "cyan"
         self._flush_slow_listening_console.print(line, style=style, markup=False)
-
-    def _flush_slow_listening_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._flush_slow_listening_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
 
     def _flush_slow_listening_update_progress(
         self, completed: int, total: int, status: str
@@ -454,3 +445,94 @@ class SlowListeningCLI:
             console.print(
                 "Enter every release number exactly once.", style="bold yellow"
             )
+
+
+@dataclass(frozen=True)
+class FlushSlowListeningInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: SlowListeningCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._flush_slow_listening_echo(message)
+
+    def progress(self, completed: int, total: int, status: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            completed: Original completed.
+            total: Original total.
+            status: Original status.
+        """
+        self.owner._flush_slow_listening_update_progress(completed, total, status)
+
+    def order_releases(
+        self,
+        release_date: str,
+        candidates: tuple[slow_listening.DiscographyRelease, ...],
+    ) -> tuple[str, ...]:
+        """Use this command's fixed order releases prompt.
+
+        Args:
+            release_date: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._flush_slow_listening_ask_slow_listening_release_order(
+            release_date, candidates
+        )
+
+    def complete(self, source: new_wine.PlaylistTrack) -> None:
+        """Use this command's fixed complete prompt.
+
+        Args:
+            source: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._flush_slow_listening_acknowledge_slow_listening_completion(
+            source
+        )
+
+    def choose_track(
+        self,
+        source: new_wine.PlaylistTrack,
+        target: new_wine.ReleaseTrack,
+        target_release: slow_listening.DiscographyRelease,
+    ) -> str:
+        """Use this command's fixed choose track prompt.
+
+        Args:
+            source: Original operator prompt value.
+            target: Original operator prompt value.
+            target_release: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._flush_slow_listening_ask_slow_listening_action(
+            source, target, target_release
+        )

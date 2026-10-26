@@ -240,7 +240,7 @@ class Queue3Review:
             self.owned,
             self.session.state,
             self.choose_composer,
-            self.session.timestamp,
+            self.session,
         )
         if paused:
             return None

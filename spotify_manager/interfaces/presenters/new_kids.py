@@ -1,8 +1,8 @@
 """Original discovery-review messages at application-selected boundaries."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.models.lookups import AlbumEvaluation
 
@@ -12,10 +12,10 @@ class NewKidsPresenter:
     """Render unchanged review messages through the caller-owned sink.
 
     Args:
-        echo: Existing CLI or job message sink.
+        output: Existing CLI or job message sink.
     """
 
-    echo: Callable[[str], None]
+    output: Messages
 
     def release_progress(self, artist: str, completed: int, year: int) -> None:
         """Show the historical completion observation before its audit record.
@@ -25,7 +25,7 @@ class NewKidsPresenter:
             completed: Number of completed catalog entries.
             year: Existing invocation year.
         """
-        self.echo(
+        self.output.echo(
             f"{artist}: {completed} release(s) completed from {year} Last.fm scrobbles."
         )
 
@@ -44,7 +44,7 @@ class NewKidsPresenter:
             action: Original persisted or preview outcome.
             dry_run: Whether to use preview wording.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would reconcile' if dry_run else 'Reconciled'} {release.name}: "
             f"{evaluation.liked_tracks}/{evaluation.total_tracks} liked, {action}."
         )
@@ -56,7 +56,7 @@ class NewKidsPresenter:
             name: Replacement track name.
             dry_run: Whether to use preview wording.
         """
-        self.echo(f"{'Would add' if dry_run else 'Added'}: {name}")
+        self.output.echo(f"{'Would add' if dry_run else 'Added'}: {name}")
 
     def marker_removed(self, name: str, dry_run: bool) -> None:
         """Show removal of an existing review marker.
@@ -65,7 +65,7 @@ class NewKidsPresenter:
             name: Original track name.
             dry_run: Whether to use preview wording.
         """
-        self.echo(f"{'Would remove' if dry_run else 'Removed'}: {name}")
+        self.output.echo(f"{'Would remove' if dry_run else 'Removed'}: {name}")
 
     def artist_added(self, name: str, label: str, dry_run: bool) -> None:
         """Show an artist marker added to an existing destination.
@@ -75,7 +75,7 @@ class NewKidsPresenter:
             label: Destination display label.
             dry_run: Whether to use preview wording.
         """
-        self.echo(f"{'Would add' if dry_run else 'Added'} {name} to {label}.")
+        self.output.echo(f"{'Would add' if dry_run else 'Added'} {name} to {label}.")
 
     def future_artist_added(self, name: str, label: str, track: str) -> None:
         """Preview an artist marker for a destination awaiting creation.
@@ -85,7 +85,7 @@ class NewKidsPresenter:
             label: Future destination label.
             track: Selected promotion marker name.
         """
-        self.echo(f"Would add {name} to {label}: {track}")
+        self.output.echo(f"Would add {name} to {label}: {track}")
 
     def artist_unfollowed(self, name: str, dry_run: bool) -> None:
         """Show unfollowing after any required mirror removal succeeds.
@@ -94,7 +94,7 @@ class NewKidsPresenter:
             name: Logical artist display name.
             dry_run: Whether to use preview wording.
         """
-        self.echo(f"{'Would unfollow' if dry_run else 'Unfollowed'} {name}.")
+        self.output.echo(f"{'Would unfollow' if dry_run else 'Unfollowed'} {name}.")
 
     def preview_creation(self, year: int) -> None:
         """Explain destination creation during previews.
@@ -102,7 +102,7 @@ class NewKidsPresenter:
         Args:
             year: Original review year.
         """
-        self.echo(
+        self.output.echo(
             f"Would create Great Discoveries {year}. Spotify's API cannot place "
             "it in a playlist folder."
         )
@@ -113,7 +113,7 @@ class NewKidsPresenter:
         Args:
             year: Original review year.
         """
-        self.echo(
+        self.output.echo(
             f"Created Great Discoveries {year}. Move it into the intended folder "
             "manually; Spotify's API does not expose playlist folders."
         )
@@ -125,7 +125,7 @@ class NewKidsPresenter:
             artist: Logical artist display name.
             dry_run: Whether to use preview wording.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would move' if dry_run else 'Moved'} {artist} from Queue 2 to New Kids."
         )
 
@@ -135,7 +135,7 @@ class NewKidsPresenter:
         Args:
             artist: Logical artist display name.
         """
-        self.echo(f"Discarded a stale composer-playlist plan for {artist}.")
+        self.output.echo(f"Discarded a stale composer-playlist plan for {artist}.")
 
     def skipped(self, artist: str) -> None:
         """Show a composer skip after its checkpoint.
@@ -143,4 +143,4 @@ class NewKidsPresenter:
         Args:
             artist: Logical artist display name.
         """
-        self.echo(f"Skipped {artist} for this run.")
+        self.output.echo(f"Skipped {artist} for this run.")

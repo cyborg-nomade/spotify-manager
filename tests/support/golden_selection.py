@@ -8,6 +8,7 @@ from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import something_old as legacy
 from tests.support.something_old_run import ARTIST
 
@@ -67,6 +68,20 @@ class CatalogResponse:
         """
         assert name and candidates
         return self.choice
+
+    def choose_artist(
+        self, name: str, candidates: tuple[legacy.SpotifyArtistCandidate, ...]
+    ) -> str:
+        """Use the original scripted artist prompt.
+
+        Args:
+            name: Original artist label.
+            candidates: Original ordered candidates.
+
+        Returns:
+            Original scripted response.
+        """
+        return self.choose(name, candidates)
 
 
 def artist_row(identity: object, name: object = "Artist") -> dict[str, object]:
@@ -189,14 +204,12 @@ def original_outcome(case: dict[str, object]) -> object:
 
 def _selection(edge: CatalogResponse, kind: str) -> object:
     if kind == "artist":
-        chooser = None if edge.choice == "absent" else edge.choose
+        chooser = None if edge.choice == "absent" else edge
         artist = legacy.resolve_spotify_artist(
-            cast(Spotify, edge), "Artist", chooser, legacy._direct_retry
+            cast(Spotify, edge), "Artist", chooser, NoRetry()
         )
         return asdict(artist) if artist is not None else None
-    tracks = legacy.select_spotify_top_tracks(
-        cast(Spotify, edge), ARTIST, legacy._direct_retry
-    )
+    tracks = legacy.select_spotify_top_tracks(cast(Spotify, edge), ARTIST, NoRetry())
     return [asdict(track) for track in tracks]
 
 

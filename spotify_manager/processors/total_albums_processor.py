@@ -16,6 +16,7 @@ from spotify_manager.infrastructure.legacy_library_resources import SpotifyPlayl
 from spotify_manager.infrastructure.legacy_library_resources import (
     SpotifyPlaylistWrites,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.loaders_savers import (
     load_total_albums_file as load_total_albums_file,
 )
@@ -72,7 +73,7 @@ def create_playlist(sp: Spotify) -> str:
     Returns:
         Original accepted playlist identity.
     """
-    return workflow.playlist(SpotifyPlaylistClock(sp), print)
+    return workflow.playlist(SpotifyPlaylistClock(sp), STANDARD_OUTPUT)
 
 
 def get_ordered_tracks(sp: Spotify, album: SimplifiedAlbum) -> list[SimplifiedTrack]:
@@ -85,7 +86,7 @@ def get_ordered_tracks(sp: Spotify, album: SimplifiedAlbum) -> list[SimplifiedTr
     Returns:
         Original ordered simplified tracks.
     """
-    return workflow.tracks(composition.track_read(sp), album, print)
+    return workflow.tracks(composition.track_read(sp), album, STANDARD_OUTPUT)
 
 
 def append_to_playlist(
@@ -102,7 +103,7 @@ def append_to_playlist(
         ordered_tracks,
         playlist_id,
         SpotifyPlaylistWrites(sp),
-        print,
+        STANDARD_OUTPUT,
     )
 
 
@@ -128,7 +129,7 @@ def add_monthly_albums(
         control_file,
         total_album_list,
         starting_index,
-        print,
+        STANDARD_OUTPUT,
     )
 
 

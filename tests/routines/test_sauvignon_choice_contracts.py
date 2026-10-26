@@ -49,6 +49,22 @@ class ChoiceSteps:
             raise OSError("choice failed")
         return self.response
 
+    def choose_album(
+        self,
+        item: sauvignon.AlbumRecommendation,
+        options: tuple[sauvignon.SpotifyAlbumOption, ...],
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            item: Original fixture observation.
+            options: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(item, options)
+
 
 def _ambiguous() -> sauvignon.AlbumRecommendation:
     options = (
@@ -76,7 +92,7 @@ def test_original_ambiguous_choice_results(response: str, expected: str) -> None
     """
     item = _ambiguous()
     steps = ChoiceSteps(response)
-    result = sauvignon.choose_album_option(item, steps.choose)
+    result = sauvignon.choose_album_option(item, steps)
     assert (
         result.spotify_id
         if isinstance(result, sauvignon.SpotifyAlbumOption)
@@ -90,10 +106,8 @@ def test_original_empty_and_equivalent_options_never_prompt() -> None:
     steps = ChoiceSteps(failure=True)
     first = album_option(spotify_id="first")
     item = recommendation(options=(first, replace(first, spotify_id="second")))
-    assert sauvignon.choose_album_option(item, steps.choose) is first
-    assert (
-        sauvignon.choose_album_option(replace(item, options=()), steps.choose) == "skip"
-    )
+    assert sauvignon.choose_album_option(item, steps) is first
+    assert sauvignon.choose_album_option(replace(item, options=()), steps) == "skip"
     assert steps.calls == []
 
 
@@ -107,12 +121,12 @@ def test_original_duplicate_edition_identity_selects_first_matching_option() -> 
     item = _ambiguous()
     options = tuple(replace(option, spotify_id="same") for option in item.options)
     item = replace(item, options=options)
-    assert sauvignon.choose_album_option(item, ChoiceSteps("same").choose) is options[0]
+    assert sauvignon.choose_album_option(item, ChoiceSteps("same")) is options[0]
 
 
 def test_original_choice_exception_propagates_without_retry_or_translation() -> None:
     """An interrupted interaction is observed once and keeps its original exception."""
     steps = ChoiceSteps(failure=True)
     with pytest.raises(OSError, match="choice failed"):
-        sauvignon.choose_album_option(_ambiguous(), steps.choose)
+        sauvignon.choose_album_option(_ambiguous(), steps)
     assert len(steps.calls) == 1

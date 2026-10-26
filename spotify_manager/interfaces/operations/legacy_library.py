@@ -17,6 +17,7 @@ from spotify_manager.infrastructure.legacy_library_resources import (
 from spotify_manager.infrastructure.legacy_library_resources import (
     SpotifyComparisonMembership,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.loaders_savers import (
     load_your_library_file as load_your_library_file,
 )
@@ -32,12 +33,12 @@ def run_monthly_routines(sp: Spotify) -> None:
     Args:
         sp: Original caller-owned synchronous client.
     """
-    run(monthly_files(), monthly_actions(sp), print)
+    run(monthly_files(), monthly_actions(sp), STANDARD_OUTPUT)
 
 
 def compare_your_library_and_all_albums() -> None:
     """Publish the original comparison after export and legacy file reads."""
-    workflow.compare(conversion_files(), LegacyComparisonMetadata(), print)
+    workflow.compare(conversion_files(), LegacyComparisonMetadata(), STANDARD_OUTPUT)
 
 
 def analyse_comparison(sp: Spotify) -> None:
@@ -49,7 +50,7 @@ def analyse_comparison(sp: Spotify) -> None:
     workflow.analyse(
         conversion_files(),
         SpotifyComparisonMembership(sp),
-        print,
+        STANDARD_OUTPUT,
     )
 
 
@@ -59,7 +60,7 @@ def convert_your_library_file(sp: Spotify) -> None:
     Args:
         sp: Original caller-owned synchronous client.
     """
-    workflow.convert(conversion_files(), conversion_catalog(sp), print)
+    workflow.convert(conversion_files(), conversion_catalog(sp), STANDARD_OUTPUT)
 
 
 def restore_your_library_from_file(sp: Spotify) -> None:
@@ -68,7 +69,7 @@ def restore_your_library_from_file(sp: Spotify) -> None:
     Args:
         sp: Original caller-owned synchronous client.
     """
-    workflow.restore(conversion_files(), conversion_catalog(sp), print)
+    workflow.restore(conversion_files(), conversion_catalog(sp), STANDARD_OUTPUT)
 
 
 def count_artists_in_library() -> int:
@@ -90,4 +91,4 @@ def update_total_album_list(sp: Spotify, just_update: bool) -> list[SimplifiedAl
     Returns:
         Published albums or the original partially modified fallback authority.
     """
-    return refresh(album_refresh(sp), just_update, print)
+    return refresh(album_refresh(sp), just_update, STANDARD_OUTPUT)

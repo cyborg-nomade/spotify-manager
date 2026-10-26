@@ -1,6 +1,9 @@
 """Tests for the New Wine CLI command."""
 
+from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from rich.console import Console
@@ -201,90 +204,29 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
 
 
 def test_flush_new_wine_renders_detailed_results_and_refill(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Flush new wine renders detailed results and refill.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        capsys: Original capsys.
+    """
     monkeypatch.setattr(
         main,
         "Settings",
-        lambda: SimpleNamespace(
-            new_wine_from_old_bottles_playlist="new",
-            sauvignon_terre_neuve_playlist="sauvignon",
-            wine_cellar_playlist="cellar",
+        Mock(
+            return_value=SimpleNamespace(
+                new_wine_from_old_bottles_playlist="new",
+                sauvignon_terre_neuve_playlist="sauvignon",
+                wine_cellar_playlist="cellar",
+            )
         ),
     )
-    monkeypatch.setattr(main, "review_client", lambda: object())
-
-    def flush(*_args, **kwargs):
-        for message in (
-            "Added track",
-            "Moved track",
-            "Removed track",
-            "Would add track",
-            "No eligible track",
-            "Source already removed",
-            "Skipping duplicate",
-        ):
-            kwargs["echo"](message)
-        kwargs["progress_callback"](1, 1, "Complete")
-        return main.new_wine.FlushSummary(
-            run_id="run",
-            total=1,
-            processed=1,
-            advanced=0,
-            dropped=1,
-            sent_to_sauvignon=0,
-            completed_singles=0,
-            skipped=0,
-            albums_unsaved=1,
-            paused=True,
-            dry_run=False,
-            resumed=True,
-            results=(
-                main.new_wine.FlushResult(
-                    source_track="Current",
-                    artist="Artist",
-                    release="Album",
-                    release_type="Album",
-                    current_liked=False,
-                    consecutive_unliked=3,
-                    action="drop",
-                    album_unsaved=True,
-                    advance_reason="next_liked_track",
-                    drop_reason="manual_selection",
-                    continuation_release="Next Album",
-                    continuation_track="Next Track",
-                ),
-            ),
-            refill=main.new_wine.CellarRefillSummary(
-                target_size=10,
-                before=8,
-                after=9,
-                added=1,
-                removed_from_cellar=1,
-                ineligible=1,
-                no_discovery=True,
-                results=(
-                    main.new_wine.CellarRefillResult(
-                        source_track="Cellar Track",
-                        artist="Cellar Artist",
-                        action="moved",
-                        liked_tracks=18,
-                        saved_albums=3,
-                    ),
-                    main.new_wine.CellarRefillResult(
-                        source_track="Hidden",
-                        artist="Hidden Artist",
-                        action="ineligible",
-                    ),
-                ),
-            ),
-        )
-
-    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(flush))
-
+    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    scenario = FlushNewWineRendersDetailedResultsAndRefillScenario()
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(scenario))
     main.flush_new_wine_command(dry_run=False, no_discovery=True)
-
     output = capsys.readouterr().out
     assert "chosen" in output
     assert "Wine Cellar (no-discovery)" in output
@@ -363,3 +305,83 @@ def test_flush_new_wine_reports_missing_configuration(
 
     assert exc.value.exit_code == 1
     assert "not configured" in capsys.readouterr().out
+
+
+@dataclass
+class FlushNewWineRendersDetailedResultsAndRefillScenario:
+    """Supply detailed flush results and refill observations."""
+
+    def __call__(self, *_args: Any, **kwargs: Any) -> main.new_wine.FlushSummary:
+        """Execute the original flush mock boundary.
+
+        Args:
+            _args: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        for message in (
+            "Added track",
+            "Moved track",
+            "Removed track",
+            "Would add track",
+            "No eligible track",
+            "Source already removed",
+            "Skipping duplicate",
+        ):
+            kwargs["echo"].echo(message)
+        kwargs["progress_callback"].progress(1, 1, "Complete")
+        return main.new_wine.FlushSummary(
+            run_id="run",
+            total=1,
+            processed=1,
+            advanced=0,
+            dropped=1,
+            sent_to_sauvignon=0,
+            completed_singles=0,
+            skipped=0,
+            albums_unsaved=1,
+            paused=True,
+            dry_run=False,
+            resumed=True,
+            results=(
+                main.new_wine.FlushResult(
+                    source_track="Current",
+                    artist="Artist",
+                    release="Album",
+                    release_type="Album",
+                    current_liked=False,
+                    consecutive_unliked=3,
+                    action="drop",
+                    album_unsaved=True,
+                    advance_reason="next_liked_track",
+                    drop_reason="manual_selection",
+                    continuation_release="Next Album",
+                    continuation_track="Next Track",
+                ),
+            ),
+            refill=main.new_wine.CellarRefillSummary(
+                target_size=10,
+                before=8,
+                after=9,
+                added=1,
+                removed_from_cellar=1,
+                ineligible=1,
+                no_discovery=True,
+                results=(
+                    main.new_wine.CellarRefillResult(
+                        source_track="Cellar Track",
+                        artist="Cellar Artist",
+                        action="moved",
+                        liked_tracks=18,
+                        saved_albums=3,
+                    ),
+                    main.new_wine.CellarRefillResult(
+                        source_track="Hidden",
+                        artist="Hidden Artist",
+                        action="ineligible",
+                    ),
+                ),
+            ),
+        )

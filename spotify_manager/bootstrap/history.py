@@ -1,11 +1,13 @@
 """Compose canonical history refresh with its existing external boundaries."""
 
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotify_manager.application.history_refresh import HistoryRefresh
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryReader
 from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryStorage
 from spotify_manager.routines import scrobble_history as legacy
@@ -13,11 +15,6 @@ from spotify_manager.routines import scrobble_history as legacy
 
 def _checked_at(now: datetime | None) -> datetime:
     return (now or datetime.now(UTC)).astimezone(UTC)
-
-
-def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
 
 
 def history_refresh(
@@ -45,14 +42,52 @@ def history_refresh(
     Returns:
         The configured application dependencies or workflow.
     """
-    from spotify_manager.routines.scrobble_history import check_cancel
-
     storage = LegacyHistoryStorage(export_path, legacy_delta_path, backup_dir, log_path)
     workflow = HistoryRefresh(
         storage,
         LegacyHistoryReader(lastfm),
-        partial(_checked_at, now),
-        partial(check_cancel, cancel_check),
-        partial(_progress, progress_callback),
+        CheckedAtClock(now),
+        HistoryCancellation(cancel_check),
+        OptionalMessages(progress_callback),
     )
     return workflow
+
+
+@dataclass(frozen=True)
+class CheckedAtClock:
+    """Retain the optional effective calendar value.
+
+    Args:
+        override: Original caller-selected date or instant.
+    """
+
+    override: datetime | None
+
+    def now(self) -> datetime:
+        """Observe the original effective date at its existing boundary.
+
+        Returns:
+            Original normalized date or instant.
+        """
+        return _checked_at(self.override)
+
+
+@dataclass(frozen=True)
+class HistoryCancellation:
+    """Check the original feature cancellation state.
+
+    Args:
+        state: Original optional cancellation resource.
+    """
+
+    state: CancellationState | None
+
+    def check(self) -> None:
+        """Raise the original feature cancellation error when requested.
+
+        Raises:
+            RuntimeError: The feature cancellation state is set.
+        """
+        from spotify_manager.routines.scrobble_history import check_cancel
+
+        check_cancel(self.state)

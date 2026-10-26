@@ -1,6 +1,7 @@
 """Explicit callbacks and wire presentation for ReleaseCheckWorker."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -18,8 +19,8 @@ from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.core.state.models import StateError
 from spotify_manager.core.state.runtime import get_state_service
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.releases import ReleaseCheckArtistOption
 from spotify_manager.interfaces.http.models.releases import ReleaseCheckPendingChoice
@@ -51,6 +52,11 @@ class ReleaseCheckWorker:
         job_id: Caller-owned job id.
         spotify: Caller-owned spotify.
         RELEASE_CHECK_STATE_PATH: Caller-owned RELEASE CHECK STATE PATH.
+
+    Attributes:
+        job: Resolved reconnectable job state.
+        lastfm: Invocation-owned Last.fm reader created at the original boundary.
+        events: SDK event subscription retaining the original setter binding.
     """
 
     credentials: LastFmCredentials
@@ -61,8 +67,7 @@ class ReleaseCheckWorker:
     RELEASE_CHECK_STATE_PATH: Path
     job: _BlastJob = field(init=False)
     lastfm: LastFmClient = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute one reconnectable, interactive new-release check."""
@@ -123,11 +128,9 @@ class ReleaseCheckWorker:
             self.job.result.status = "waiting"
             self.job.result.detail = detail
             self.context.append(self.job, detail)
-        return await_submission(
-            self.job.choice_event, self._consume_wait_for_submission
-        )
+        return await_submission(self.job.choice_event, self)
 
-    def artist_choice_reader(
+    def choose_artist(
         self,
         artist: release_check.RankedArtist,
         candidates: tuple[release_check.SpotifyArtistCandidate, ...],
@@ -152,7 +155,7 @@ class ReleaseCheckWorker:
             f"Choose the Spotify artist for #{artist.rank} {artist.name}.",
         )
 
-    def release_choice_reader(
+    def choose_release(
         self,
         artist: release_check.RankedArtist,
         release: release_check.ReleaseCandidate,
@@ -192,7 +195,7 @@ class ReleaseCheckWorker:
             ),
         )
 
-    def update_progress(self, completed: int, total: int, detail: str) -> None:
+    def progress(self, completed: int, total: int, detail: str) -> None:
         """Publish original release-check counters and display detail.
 
         Args:
@@ -206,7 +209,7 @@ class ReleaseCheckWorker:
             self.job.result.detail = detail
             self.context.append(self.job, detail)
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -215,24 +218,16 @@ class ReleaseCheckWorker:
         if self.job.cancel_event.wait(seconds):
             raise _ReleaseCheckJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self.echo,
-            sleep=self.interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
+        return SpotifyRetries(self, self, 10, 3).attempts(description)
 
     def _start(self) -> None:
         self.job = self.context.lookup(self.job_id, command="check_new_releases")
@@ -247,13 +242,11 @@ class ReleaseCheckWorker:
                     f"{(' in dry-run mode' if self.options.dry_run else '')}."
                 ),
             )
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
         self.lastfm = lastfm_client(
             LastFmCredentials(self.credentials.api_key, self.credentials.username),
-            self.echo,
+            self,
         )
 
     def _execute(self) -> release_check.ReleaseCheckSummary:
@@ -266,10 +259,10 @@ class ReleaseCheckWorker:
                 dry_run=self.options.dry_run,
             ),
             ReleaseCheckCallbacks(
-                artist_choice_reader=self.artist_choice_reader,
-                release_choice_reader=self.release_choice_reader,
-                progress_callback=self.update_progress,
-                retry_call=self.retry_call,
+                artist_choice_reader=self,
+                release_choice_reader=self,
+                progress_callback=self,
+                retry_call=self,
             ),
             ReleaseCheckResources(
                 state_path=self.RELEASE_CHECK_STATE_PATH,
@@ -324,8 +317,7 @@ class ReleaseCheckWorker:
             self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.release_check_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
@@ -390,7 +382,15 @@ class ReleaseCheckWorker:
             self.job.result.detail = f"Unexpected new-release check error: {exc}"
             self.context.append(self.job, self.job.result.detail)
 
-    def _consume_wait_for_submission(self) -> str | None:
+    def consume(self) -> str | None:
+        """Consume an accepted submission while holding the job lock.
+
+        Returns:
+            Original submitted value, or none while the job is waiting.
+
+        Raises:
+            RuntimeError: The job's original cancellation boundary stops execution.
+        """
         with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _ReleaseCheckJobCancelledError

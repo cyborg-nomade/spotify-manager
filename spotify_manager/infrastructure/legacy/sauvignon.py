@@ -2,11 +2,11 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.sauvignon_values import SauvignonSummary
 from spotify_manager.domain.album_recommendations import AlbumKey
 from spotify_manager.domain.album_recommendations import FirstTrack
@@ -35,6 +35,7 @@ class LegacySauvignon:
         cache_path: Neighborhood cache location.
         log_path: Original audit destination.
         progress: Original progress callback.
+        requested_retry: Optional caller retry, resolved after request validation.
     """
 
     spotify: Spotify
@@ -47,6 +48,12 @@ class LegacySauvignon:
     cache_path: Path
     log_path: Path
     progress: legacy.ProgressCallback | None
+
+    requested_retry: legacy.RetryCall | None = None
+
+    def prepare(self) -> None:
+        """Resolve retry truthiness at the original post-validation boundary."""
+        self.retry = self.requested_retry or NoRetry()
 
     def refresh(
         self, generated_at: datetime, dry_run: bool
@@ -127,15 +134,11 @@ class LegacySauvignon:
         """
         from spotify_manager.routines.sauvignon import _append_recommendation_albums
 
-        self.retry(
-            partial(
-                _append_recommendation_albums,
-                self.spotify,
-                self.playlist_id,
-                additions,
-            ),
-            f"adding {len(additions)} albums to Sauvignon Terre-Neuve",
-        )
+        for attempt in self.retry.attempts(
+            f"adding {len(additions)} albums to Sauvignon Terre-Neuve"
+        ):
+            with attempt:
+                _append_recommendation_albums(self.spotify, self.playlist_id, additions)
 
     def audit(self, summary: SauvignonSummary) -> None:
         """Append the original outcome to the configured log.

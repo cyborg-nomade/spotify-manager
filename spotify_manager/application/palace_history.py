@@ -1,6 +1,5 @@
 """Gather Palace history before the original cutoff and Random.org observations."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
@@ -11,6 +10,7 @@ from spotify_manager.application.historical_values import RandomIndexSet
 from spotify_manager.application.historical_values import RandomOrgError
 from spotify_manager.application.palace_values import PalaceOfMemoryDataError
 from spotify_manager.application.palace_values import PalaceOfMemoryError
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.palace_history import dated_rankings
 from spotify_manager.domain.palace_history import selected_albums
@@ -28,7 +28,7 @@ class PalaceHistory:
     """
 
     source: DatedHistory
-    progress: Callable[[str], None]
+    progress: Messages
     first: date
 
     def run(
@@ -47,7 +47,7 @@ class PalaceHistory:
             PalaceOfMemoryError: The original random reader rejects its request.
             IndexError: The original custom reader returns an out-of-range index.
         """
-        self.progress("Loading Last.fm album history")
+        self.progress.echo("Loading Last.fm album history")
         history = self._history()
         cutoff = self.source.cutoff()
         rankings = dated_rankings(history, self.first, cutoff)
@@ -56,7 +56,7 @@ class PalaceHistory:
                 f"Only {len(rankings)} album-bearing dates are available "
                 f"through {cutoff.isoformat()}."
             )
-        self.progress("Requesting five unique date indexes from Random.org")
+        self.progress.echo("Requesting five unique date indexes from Random.org")
         indexes = self._random(len(rankings), count)
         selected = selected_albums(rankings, indexes.indexes, indexes.generated_at)
         return indexes.generated_at, cutoff, len(rankings), selected

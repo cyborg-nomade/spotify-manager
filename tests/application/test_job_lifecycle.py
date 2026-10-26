@@ -63,7 +63,7 @@ def cancelled_submission() -> str | None:
 def test_submission_waits_before_each_consumption_and_accepts_empty_text() -> None:
     """Keep timeout polling, consumption order and empty submission acceptance."""
     probe = SubmissionProbe((None, ""))
-    assert await_submission(probe, probe.consume) == ""
+    assert await_submission(probe, probe) == ""
     assert probe.observations == ["wait:0.5", "consume", "wait:0.5", "consume"]
 
 
@@ -71,7 +71,7 @@ def test_submission_propagates_cancellation_after_the_original_wait() -> None:
     """Leave cancellation and pending-view cleanup with the owning adapter."""
     probe = SubmissionProbe(())
     with pytest.raises(RuntimeError, match="cancelled"):
-        await_submission(probe, cancelled_submission)
+        await_submission(probe, CancelledSubmissionResource())
     assert probe.observations == ["wait:0.5"]
 
 
@@ -266,3 +266,15 @@ def test_retention_keeps_original_order_and_boundaries(
     retain_logs(entries, maximum)
     assert entries is original
     assert entries == expected
+
+
+class CancelledSubmissionResource:
+    """Own the original fixed fixture observation."""
+
+    def consume(self) -> str | None:
+        """Observe the original fixture boundary.
+
+        Returns:
+            Original fixture response.
+        """
+        return cancelled_submission()

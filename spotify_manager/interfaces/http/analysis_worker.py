@@ -1,36 +1,19 @@
 """Feature-owned analysis callbacks and presentation for threaded execution."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
 from threading import Lock
 from typing import Protocol
-from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.interfaces.http.job_records import AnalysisJob
 from spotify_manager.interfaces.operations import analyse_library as analysis
 
 
-type EventCallback = Callable[[str], None]
-type EventSetter = Callable[[EventCallback | None], EventCallback | None]
-
-
-def spotify_event_setter(spotify: Spotify | None) -> EventSetter | None:
-    """Observe the optional original SDK event hook at its external boundary.
-
-    Args:
-        spotify: Existing caller-owned SDK client, or none for export analysis.
-
-    Returns:
-        The original callable hook, without acquiring or rebuilding a client.
-    """
-    setter = getattr(spotify, "set_event_callback", None)
-    if not callable(setter):
-        return None
-    return cast(EventSetter, setter)
+type EventCallback = Messages
 
 
 class AnalysisEnvironment(Protocol):
@@ -152,7 +135,7 @@ class AnalysisWorker:
             if self.job.result.status not in {"waiting", "cancelling"}:
                 self.job.result.detail = line
 
-    def retry_wait(self, notice: analysis.RetryNotice) -> bool:
+    def wait(self, notice: analysis.RetryNotice) -> bool:
         """Wait on this job's original cancellation signal and present retries.
 
         Args:
@@ -206,9 +189,9 @@ class AnalysisWorker:
         """
         if self.mode == "async":
             return analysis.analyse_library_async_routine(
-                echo=self.echo,
-                progress_callback=self.progress,
-                cancel_check=self.job.cancel_event.is_set,
+                echo=self,
+                progress_callback=self,
+                cancel_check=self.job.cancel_event,
             )
         spotify = self._require_spotify()
         if self.mode == "sync":
@@ -228,19 +211,19 @@ class AnalysisWorker:
     def _analyse_live(self, spotify: Spotify) -> analysis.LibrarySyncSummary:
         return analysis.analyse_library_sync_routine(
             spotify,
-            echo=self.echo,
-            progress_callback=self.progress,
-            retry_wait=self.retry_wait,
-            cancel_check=self.job.cancel_event.is_set,
+            echo=self,
+            progress_callback=self,
+            retry_wait=self,
+            cancel_check=self.job.cancel_event,
         )
 
     def _refresh_mirrors(self, spotify: Spotify) -> analysis.LibrarySyncSummary:
         return analysis.refresh_live_library_mirrors_routine(
             spotify,
-            echo=self.echo,
-            progress_callback=self.progress,
-            retry_wait=self.retry_wait,
-            cancel_check=self.job.cancel_event.is_set,
+            echo=self,
+            progress_callback=self,
+            retry_wait=self,
+            cancel_check=self.job.cancel_event,
             full_rebuild=self.full_rebuild,
         )
 
@@ -250,10 +233,10 @@ class AnalysisWorker:
         return analysis.refresh_live_library_resource_routine(
             spotify,
             resource,
-            echo=self.echo,
-            progress_callback=self.progress,
-            retry_wait=self.retry_wait,
-            cancel_check=self.job.cancel_event.is_set,
+            echo=self,
+            progress_callback=self,
+            retry_wait=self,
+            cancel_check=self.job.cancel_event,
             full_rebuild=self.full_rebuild,
         )
 

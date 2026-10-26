@@ -9,6 +9,7 @@ from spotify_manager.infrastructure.legacy_library_records import album as parse
 from spotify_manager.infrastructure.legacy_library_resources import (
     SpotifyControlMembership,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.loaders_savers import save_control_file as save_control_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
@@ -40,7 +41,7 @@ def get_unevaluated_albums(
     Returns:
         Original suffix, including the all-evaluated zero fallback.
     """
-    return workflow.unevaluated(control_file, print)
+    return workflow.unevaluated(control_file, STANDARD_OUTPUT)
 
 
 def get_album_results_from_library(
@@ -55,7 +56,9 @@ def get_album_results_from_library(
     Returns:
         The same selected list.
     """
-    return workflow.evaluate(unevaluated_albums, SpotifyControlMembership(sp), print)
+    return workflow.evaluate(
+        unevaluated_albums, SpotifyControlMembership(sp), STANDARD_OUTPUT
+    )
 
 
 def check_album_results(
@@ -109,7 +112,7 @@ def get_starting_index(
     Raises:
         IndexError: Original control authority is empty.
     """
-    return workflow.starting_index(control_file, total_album_list, print)
+    return workflow.starting_index(control_file, total_album_list, STANDARD_OUTPUT)
 
 
 def enrich_album(spotify_id: str, sp: Spotify) -> SimplifiedAlbum:

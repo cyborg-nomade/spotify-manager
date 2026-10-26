@@ -28,6 +28,7 @@ from tests.characterization.scenarios import _review_files
 from tests.characterization.test_recovery_traces import _files
 from tests.routines.test_recover_removed_albums import FakeSpotify as RecoverySpotify
 from tests.routines.test_review_album_limits import FakeSpotify as ReviewSpotify
+from tests.support.runtime_resources import MessageList
 
 
 def _today(_value: date | None) -> date:
@@ -55,6 +56,20 @@ class Choices:
             Next unnormalized action.
         """
         return self.values.popleft()
+
+    def choose_action(
+        self, album: YourLibraryAlbum, evaluation: AlbumEvaluation
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            album: Original fixture observation.
+            evaluation: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.read(album, evaluation)
 
 
 def test_review_cli_executes_follow_prompt_removal_and_publication(
@@ -132,7 +147,7 @@ def test_original_action_normalization(raw: str, decision: str, expected: str) -
     choices = Choices(deque([raw]))
     messages: list[str] = []
     assert (
-        read_action(_album(), _evaluation(decision), choices.read, messages.append)
+        read_action(_album(), _evaluation(decision), choices, MessageList(messages))
         == expected
     )
     assert messages == []
@@ -142,7 +157,7 @@ def test_details_and_invalid_actions_repeat_original_prompt() -> None:
     """Details preserve track order and malformed actions re-prompt without a choice."""
     choices = Choices(deque(["d", "invalid", "keep"]))
     messages: list[str] = []
-    result = read_action(_album(), _evaluation(), choices.read, messages.append)
+    result = read_action(_album(), _evaluation(), choices, MessageList(messages))
     assert result == "keep"
     assert messages == [
         "  01. [not liked] Track",
@@ -153,7 +168,7 @@ def test_details_and_invalid_actions_repeat_original_prompt() -> None:
 def test_missing_track_ids_present_original_confirmation_message() -> None:
     """Unknown live membership retains its explicit confirmation prompt."""
     messages: list[str] = []
-    presenter = AlbumReviewPresenter(Choices(deque()).read, messages.append, None)
+    presenter = AlbumReviewPresenter(Choices(deque()), MessageList(messages), None)
     presenter.show_live_likes(None)
     assert messages == ["Live liked tracks: unavailable; asking for confirmation."]
 
@@ -185,7 +200,7 @@ def test_artist_publication_messages_match_completed_effects(
     outcome = ArtistFollowOutcome(
         "followed", AlbumArtist("artist", "Artist"), persistence
     )
-    present_artist_follow(outcome, _album(), messages.append)
+    present_artist_follow(outcome, _album(), MessageList(messages))
     assert messages == expected
 
 
@@ -193,6 +208,6 @@ def test_unresolved_artist_message_uses_original_album_credit() -> None:
     """Failed identity resolution remains visible without a false follow message."""
     messages: list[str] = []
     present_artist_follow(
-        ArtistFollowOutcome("unresolved", None), _album(), messages.append
+        ArtistFollowOutcome("unresolved", None), _album(), MessageList(messages)
     )
     assert messages == ["Could not resolve artist id for: Artist"]

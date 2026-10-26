@@ -1,6 +1,7 @@
 """Explicit sauvignon CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Never
@@ -10,10 +11,12 @@ from rich.console import Console
 from rich.progress import Progress
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
@@ -43,7 +46,7 @@ class SauvignonCLI:
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    sleep: Callable[[float], None]
+    sleep: Wait
 
     def _render_sauvignon_table(
         self, console: Console, results: tuple[sauvignon.SauvignonResult, ...]
@@ -195,7 +198,8 @@ class SauvignonCLI:
             else max_playlist_length
         )
         lastfm_client = create_lastfm_client(
-            LastFmCredentials(api_key, username), self._fill_sauvignon_from_lastfm_log
+            LastFmCredentials(api_key, username),
+            FillSauvignonFromLastfmDiagnostics(self),
         )
         summary = self._execute_fill_sauvignon_from_lastfm(
             count, dry_run, effective_maximum, lastfm_client, playlist_id, seed_count
@@ -205,18 +209,6 @@ class SauvignonCLI:
     def _fill_sauvignon_from_lastfm_echo(self, line: str = "") -> None:
         style = "bold green" if line.startswith("Added") else None
         self._fill_sauvignon_from_lastfm_console.print(line, style=style, markup=False)
-
-    def _fill_sauvignon_from_lastfm_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._fill_sauvignon_from_lastfm_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
 
     def _fill_sauvignon_from_lastfm_update_progress(self, status: str) -> None:
         self._fill_sauvignon_from_lastfm_progress.update(
@@ -379,10 +371,10 @@ class SauvignonCLI:
                         dry_run=dry_run,
                     ),
                     SauvignonCallbacks(
-                        choice_reader=self._fill_sauvignon_from_lastfm_ask_sauvignon_album,
-                        echo=self._fill_sauvignon_from_lastfm_echo,
-                        progress_callback=self._fill_sauvignon_from_lastfm_update_progress,
-                        retry_call=self._fill_sauvignon_from_lastfm_retry_call,
+                        choice_reader=FillSauvignonFromLastfmInteraction(self),
+                        output=FillSauvignonFromLastfmInteraction(self),
+                        progress_callback=FillSauvignonFromLastfmInteraction(self),
+                        retry_call=FillSauvignonFromLastfmInteraction(self),
                     ),
                     SauvignonResources(),
                 )
@@ -400,3 +392,78 @@ class SauvignonCLI:
             if progress_ref is not None:
                 progress_ref.stop()
         return summary
+
+
+@dataclass(frozen=True)
+class FillSauvignonFromLastfmInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: SauvignonCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._fill_sauvignon_from_lastfm_echo(message)
+
+    def progress(self, status: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            status: Original status.
+        """
+        self.owner._fill_sauvignon_from_lastfm_update_progress(status)
+
+    def choose_album(
+        self,
+        recommendation: sauvignon.AlbumRecommendation,
+        options: tuple[sauvignon.SpotifyAlbumOption, ...],
+    ) -> str:
+        """Use this command's fixed choose album prompt.
+
+        Args:
+            recommendation: Original operator prompt value.
+            options: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._fill_sauvignon_from_lastfm_ask_sauvignon_album(
+            recommendation, options
+        )
+
+
+@dataclass(frozen=True)
+class FillSauvignonFromLastfmDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: SauvignonCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            message: Original message.
+        """
+        self.owner._fill_sauvignon_from_lastfm_log(message)

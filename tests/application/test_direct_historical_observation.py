@@ -4,7 +4,7 @@ from typing import Never
 
 import pytest
 
-from spotify_manager.application.historical_resolution import direct_call
+from spotify_manager.application.ports.runtime import NoRetry
 
 
 def observation() -> object:
@@ -27,6 +27,14 @@ def interrupted() -> Never:
 
 def test_direct_observation_retains_result_and_failure() -> None:
     """Keep the description passive and propagate the original observation failure."""
-    assert direct_call(observation, "reading") == "observed"
+    for attempt in NoRetry().attempts("reading"):
+        with attempt:
+            assert observation() == "observed"
     with pytest.raises(RuntimeError, match="interrupted"):
-        direct_call(interrupted, "reading")
+        _interrupted_without_retry()
+
+
+def _interrupted_without_retry() -> None:
+    for attempt in NoRetry().attempts("reading"):
+        with attempt:
+            interrupted()

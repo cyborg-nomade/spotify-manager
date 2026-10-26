@@ -1,6 +1,7 @@
 """Explicit callbacks and wire presentation for NewKidsWorker."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -16,13 +17,14 @@ from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.discovery import NewKidsPendingChoice
 from spotify_manager.interfaces.http.models.discovery import NewKidsReleaseOption
 from spotify_manager.interfaces.http.models.discovery import NewKidsTrackResult
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.playlist_retry import RateLimitRetries
 from spotify_manager.interfaces.http.presenters.discovery import (
     new_kids_fill_result as _new_kids_fill_result,
 )
@@ -37,7 +39,6 @@ from spotify_manager.interfaces.operations import (
     review_album_limits as review_album_limits,
 )
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
-from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.routines import composer_playlists
@@ -58,8 +59,9 @@ class NewKidsWorker:
         job: Mutable job record owned by this worker.
         label: Visible command label.
         lastfm: Caller-owned Last.fm client.
-        spotify_event_setter: SDK event subscription hook.
-        previous_spotify_event_callback: Original SDK event observer restored on exit.
+
+    Attributes:
+        events: SDK event subscription retaining the original setter binding.
     """
 
     options: DiscoveryOptions
@@ -72,8 +74,7 @@ class NewKidsWorker:
     job: _BlastJob = field(init=False)
     label: str = field(init=False)
     lastfm: LastFmClient = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute one interactive album-discovery flush as a reconnectable job."""
@@ -113,9 +114,7 @@ class NewKidsWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def progress_callback(
-        self, completed: int, total: int, progress_status: str
-    ) -> None:
+    def progress(self, completed: int, total: int, progress_status: str) -> None:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
@@ -130,7 +129,7 @@ class NewKidsWorker:
             self.job.result.total = total
             self.job.result.detail = progress_status
 
-    def choice_reader(
+    def choose(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
         """Present feature options and wait for this job's accepted choice.
@@ -153,9 +152,9 @@ class NewKidsWorker:
             self.job.result.status = "waiting"
             self.job.result.detail = f"Choose the next release for {artist}"
             self.context.append(self.job, self.job.result.detail)
-        return await_submission(self.job.choice_event, self._consume_choice_reader)
+        return await_submission(self.job.choice_event, self)
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -164,32 +163,18 @@ class NewKidsWorker:
         if self.job.cancel_event.wait(seconds):
             raise _NewKidsJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        while True:
-            try:
-                result = review_album_limits.retry_spotify_server_errors(
-                    operation,
-                    description,
-                    echo=self.echo,
-                    sleep=self.interruptible_sleep,
-                    retry_delay_seconds=10,
-                    max_attempts=3,
-                )
-            except review_album_limits.SpotifyRateLimitError as exc:
-                self._wait_for_rate_limit(exc, description)
-                continue
-            with self.context.lock:
-                self.job.result.retry_at = None
-            return result
+        return RateLimitRetries(SpotifyRetries(self, self, 10, 3), self).attempts(
+            description
+        )
 
     def _start(self) -> None:
         self.label = "Queue 2" if self.command == "flush_queue_2" else "New Kids"
@@ -205,10 +190,8 @@ class NewKidsWorker:
                     f"{(' in dry-run mode' if self.options.dry_run else '')}."
                 ),
             )
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
 
     def _execute(self) -> new_kids.FlushSummary | new_kids.Queue2Summary:
         configuration = self.context.settings.load()
@@ -216,23 +199,21 @@ class NewKidsWorker:
             configuration.lastfm_api_key, configuration.lastfm_username
         )
         self.lastfm = lastfm_client(
-            LastFmCredentials(lastfm_api_key, lastfm_username), self.echo
+            LastFmCredentials(lastfm_api_key, lastfm_username), self
         )
         options = self.options
-        callbacks = DiscoveryCallbacks(
-            self.choice_reader, self.echo, self.progress_callback, self.retry_call
-        )
+        interaction = self
         if self.command == "flush_queue_2":
             resources = DiscoveryResources(
                 log_path=new_kids.DEFAULT_QUEUE_2_LOG_PATH,
                 lastfm=self.lastfm,
                 lastfm_username=lastfm_username,
             )
-            return new_kids.flush_queue_2(self.spotify, options, callbacks, resources)
+            return new_kids.flush_queue_2(self.spotify, options, interaction, resources)
         resources = DiscoveryResources(
             lastfm=self.lastfm, lastfm_username=lastfm_username
         )
-        return new_kids.flush_new_kids(self.spotify, options, callbacks, resources)
+        return new_kids.flush_new_kids(self.spotify, options, interaction, resources)
 
     def _completed(
         self, summary: new_kids.FlushSummary | new_kids.Queue2Summary
@@ -253,8 +234,7 @@ class NewKidsWorker:
             self._present_completion_detail(summary)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.new_kids_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
@@ -329,7 +309,15 @@ class NewKidsWorker:
             self.job.result.detail = f"Unexpected {self.label} error: {exc}"
             self.context.append(self.job, self.job.result.detail)
 
-    def _consume_choice_reader(self) -> str | None:
+    def consume(self) -> str | None:
+        """Consume an accepted submission while holding the job lock.
+
+        Returns:
+            Original submitted value, or none while the job is waiting.
+
+        Raises:
+            RuntimeError: The job's original cancellation boundary stops execution.
+        """
         with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _NewKidsJobCancelledError
@@ -415,9 +403,15 @@ class NewKidsWorker:
             )
         self.context.append(self.job, self.job.result.detail)
 
-    def _wait_for_rate_limit(
+    def wait_for_rate_limit(
         self, exc: review_album_limits.SpotifyRateLimitError, description: str
     ) -> None:
+        """Wait at the job's original rate-limit boundary.
+
+        Args:
+            exc: Original operation context.
+            description: Original operation context.
+        """
         delay = max(1, exc.retry_after_seconds or self.rate_limit_delay)
         retry_at = self.context.clock.now(UTC) + timedelta(seconds=delay)
         message = (
@@ -430,7 +424,7 @@ class NewKidsWorker:
             self.job.result.retry_at = retry_at.isoformat()
             self.job.result.detail = message
             self.context.append(self.job, message)
-        self.interruptible_sleep(delay)
+        self.sleep(delay)
         with self.context.lock:
             self.job.result.retry_at = None
             self.job.result.detail = f"Retrying {description}."
@@ -443,3 +437,8 @@ class NewKidsWorker:
         for result in results:
             count += result.action in actions
         return count
+
+    def retry_accepted(self) -> None:
+        """Clear the original retry timestamp after a successful operation."""
+        with self.context.lock:
+            self.job.result.retry_at = None

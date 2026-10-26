@@ -27,7 +27,9 @@ def prepare_export_resource[T: LibraryModel](
     if state["status"] == "complete":
         completed = session.files.models(session.paths.stage(resource), model_type)
         if session.progress:
-            session.progress(resource, len(completed), len(completed), "Complete")
+            session.progress.progress(
+                resource, len(completed), len(completed), "Complete"
+            )
         return completed
     total = len(models)
     session.notify(resource, 0, total, "Reading YourLibrary.json")
@@ -74,5 +76,7 @@ def _read_export[T: LibraryModel](
             session.check_cancel()
         by_id[model.spotify_id] = model
         if session.progress and (index == total or index % update_every == 0):
-            session.progress(resource, index, total, "Reading YourLibrary.json")
+            session.progress.progress(
+                resource, index, total, "Reading YourLibrary.json"
+            )
     return by_id

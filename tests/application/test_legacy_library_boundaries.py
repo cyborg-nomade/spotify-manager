@@ -98,7 +98,7 @@ def test_original_application_batches(size: int, expected: list[int]) -> None:
         tracks.append(
             SimplifiedTrack(disc_number=1, track_number=index, uri=str(index))
         )
-    append_tracks(tracks, "playlist", effects, effects.echo)
+    append_tracks(tracks, "playlist", effects, effects)
     assert [len(uris) for _, uris in effects.additions] == expected
     assert effects.output == [("Appending tracks to playlist...",), ("Done!",)]
 
@@ -123,7 +123,7 @@ def test_original_independent_playlist_clocks(
             datetime(2026, selected, 1),
         ]
     )
-    assert playlist(effects, effects.echo) == "playlist"
+    assert playlist(effects, effects) == "playlist"
     assert effects.output == [
         ("Creating playlist...",),
         (f"Playlist name: {expected}",),
@@ -136,6 +136,6 @@ def test_original_independent_playlist_clocks(
 def test_failure_scope_preserves_process_control() -> None:
     """Propagate process control without translating it to a legacy fallback."""
     effects = Effects()
-    with pytest.raises(SystemExit), LegacyFailure(effects.echo):
+    with pytest.raises(SystemExit), LegacyFailure(effects):
         raise SystemExit(1)
     assert effects.output == []

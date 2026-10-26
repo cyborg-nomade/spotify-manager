@@ -6,7 +6,6 @@ Songs status directly from the API.
 """
 
 import re
-from collections.abc import Callable
 from typing import Literal
 
 from spotipy import Spotify
@@ -42,6 +41,9 @@ from spotify_manager.domain.lookup_values import (
 from spotify_manager.infrastructure import lookup_catalog
 from spotify_manager.infrastructure import lookup_records
 from spotify_manager.infrastructure import lookup_reference
+from spotify_manager.infrastructure.lookup_resources import (
+    ClientFactory as ClientFactory,
+)
 from spotify_manager.infrastructure.lookup_resources import LiveLikedTracks
 from spotify_manager.infrastructure.lookup_resources import SpotifyLookupPages
 from spotify_manager.loaders_savers import (
@@ -58,7 +60,6 @@ from spotify_manager.models.lookups import ArtistLibraryStats
 from spotify_manager.models.your_library import YourLibraryFile
 
 
-ClientFactory = Callable[[], Spotify]
 SPOTIFY_SEARCH_LIMIT = 10
 SPOTIFY_ARTIST_ALBUM_PAGE_SIZE = 50
 SPOTIFY_ALBUM_BATCH_SIZE = 20

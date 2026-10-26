@@ -1,7 +1,8 @@
 """Typed memory boundaries for unusual durable analysis states and malformed facts."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
 from collections.abc import Sequence
+from contextlib import AbstractContextManager
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -15,6 +16,7 @@ from spotify_manager.application.library_analysis_effects import AnalysisSession
 from spotify_manager.application.library_analysis_effects import OffsetRead
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import LibraryModel
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
@@ -363,23 +365,19 @@ def _artist_items(raw: object) -> tuple[list[object], dict[str, object]]:
 class ImmediateRequests:
     """Execute memory requests without transport retries."""
 
-    def call[T](
-        self,
-        operation: Callable[[], T],
-        description: str,
-        max_attempts: int | None = None,
-    ) -> T:
-        """Observe one request.
+    def attempts(
+        self, description: str, max_attempts: int | None = None
+    ) -> Iterator[AbstractContextManager[None]]:
+        """Provide one direct memory request scope.
 
         Args:
-            operation: Complete request.
-            description: Visible label.
-            max_attempts: Optional attempt bound.
+            description: Original request description.
+            max_attempts: Original optional attempt limit, unused without failures.
 
         Returns:
-            Response.
+            One direct scope.
         """
-        return operation()
+        return NoRetry().attempts(description)
 
 
 @dataclass(frozen=True)
@@ -428,7 +426,7 @@ def memory_session(
         files,
         catalog,
         ImmediateRequests(),
-        memory.echo,
-        memory.progress if progress else None,
+        memory,
+        memory if progress else None,
         None,
     )

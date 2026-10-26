@@ -5,9 +5,13 @@ from dataclasses import dataclass
 from dataclasses import fields
 from dataclasses import is_dataclass
 
+from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
+from spotify_manager.interfaces.requests.discovery import DiscoveryResources
+
 
 ALIASES = {
     "choose": "choice_reader",
+    "output": "echo",
     "progress": "progress_callback",
     "retry": "retry_call",
     "scrobbles": "scrobbles_path",
@@ -50,6 +54,8 @@ class FeatureInvocation[T]:
         Raises:
             RuntimeError: The scripted failure occurs at its original boundary.
         """
+        if len(inputs) >= 3 and isinstance(inputs[1], DiscoveryOptions):
+            return self._discovery(inputs, overrides)
         positional: list[object] = []
         values: dict[str, object] = {}
         for value in inputs:
@@ -61,6 +67,25 @@ class FeatureInvocation[T]:
             values.update(_fixture_values(value))
         for value in overrides.values():
             values.update(_fixture_values(value))
+        for name in self.positional_fields:
+            positional.append(values.pop(name))
+        return self.operation(*positional, **values)
+
+    def _discovery(self, inputs: tuple[object, ...], overrides: dict[str, object]) -> T:
+        values = _fixture_values(inputs[1])
+        interaction = inputs[2]
+        values.update(
+            choice_reader=interaction,
+            echo=interaction,
+            progress_callback=interaction,
+            retry_call=interaction,
+        )
+        for value in inputs[3:]:
+            values.update(_fixture_values(value))
+        for value in overrides.values():
+            if isinstance(value, DiscoveryResources):
+                values.update(_fixture_values(value))
+        positional = [inputs[0]]
         for name in self.positional_fields:
             positional.append(values.pop(name))
         return self.operation(*positional, **values)

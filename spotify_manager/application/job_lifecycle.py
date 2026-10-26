@@ -1,6 +1,5 @@
 """Share original job identity, conflict selection and accepted log boundaries."""
 
-from collections.abc import Callable
 from collections.abc import Iterable
 from typing import Protocol
 
@@ -54,12 +53,24 @@ class WaitSignal(Protocol):
         ...
 
 
-def await_submission[T](signal: WaitSignal, consume: Callable[[], T | None]) -> T:
+class Submission[T](Protocol):
+    """Consume a job-owned submission at its original locked safe boundary."""
+
+    def consume(self) -> T | None:
+        """Read one accepted value or continue waiting.
+
+        Returns:
+            Submitted value, including empty values, or none while waiting.
+        """
+        ...
+
+
+def await_submission[T](signal: WaitSignal, submission_owner: Submission[T]) -> T:
     """Poll and consume an interaction at the original locked safe boundary.
 
     Args:
         signal: Existing job-owned event, including its original clearing semantics.
-        consume: Adapter callback acquiring its lock and checking cancellation.
+        submission_owner: Named consumer acquiring its lock and checking cancellation.
 
     Returns:
         First accepted submission, including an empty string or empty tuple.
@@ -69,7 +80,7 @@ def await_submission[T](signal: WaitSignal, consume: Callable[[], T | None]) -> 
     """
     while True:
         signal.wait(0.5)
-        submission = consume()
+        submission = submission_owner.consume()
         if submission is not None:
             return submission
 

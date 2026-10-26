@@ -15,6 +15,7 @@ from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistoryCancelledError
 from spotify_manager.application.history_values import ScrobbleHistoryError
 from spotify_manager.application.history_values import ScrobbleHistorySummary
+from tests.support.runtime_resources import MessageList
 
 
 def _record(title: str = "Song", timestamp: int = 1000) -> HistoryRecord:
@@ -170,11 +171,21 @@ class HistoryMemory:
         if self.checks == self.cancel_at:
             raise ScrobbleHistoryCancelledError("cancelled")
 
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
+    def check(self) -> None:
+        """Observe the same fixture boundary through its named resource method."""
+        self.cancel()
+
 
 def _workflow(memory: HistoryMemory) -> HistoryRefresh:
-    return HistoryRefresh(
-        memory, memory, memory.clock, memory.cancel, memory.messages.append
-    )
+    return HistoryRefresh(memory, memory, memory, memory, MessageList(memory.messages))
 
 
 @pytest.mark.parametrize("dry_run", [False, True])

@@ -14,6 +14,7 @@ from spotipy import Spotify
 
 from spotify_manager.application import queue_flush_planning as queue_planning
 from spotify_manager.application.new_kids_values import ArtistAssessment
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.infrastructure.legacy.artist_assessment import (
@@ -228,7 +229,7 @@ def original_outcome(case: dict[str, object]) -> object:
         patch.object(new_kids, "load_release_tracks", edge.release_tracks),
     ):
         plan = legacy._plan_flush_entry(
-            cast(Spotify, edge), SOURCE, [SOURCE.uri], _immediate
+            cast(Spotify, edge), SOURCE, [SOURCE.uri], NoRetry()
         )
     return json.loads(json.dumps({"plan": plan, "trace": edge.trace}))
 

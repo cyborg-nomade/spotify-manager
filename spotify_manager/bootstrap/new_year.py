@@ -1,8 +1,5 @@
 """Compose original synchronous annual clients, state, cancellation and presenters."""
 
-from collections.abc import Callable
-from functools import partial
-
 from spotipy import Spotify
 
 from spotify_manager.application.new_year_charts import AnnualCharts
@@ -14,6 +11,8 @@ from spotify_manager.application.new_year_planning import AnnualPlanning
 from spotify_manager.application.new_year_resolution import AnnualResolution
 from spotify_manager.application.new_year_retry import AnnualRetry
 from spotify_manager.application.new_year_run import NewYear
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.annual_catalog import LegacyAnnualCatalog
@@ -58,8 +57,8 @@ def compose(
     lastfm: scrobble_history.LastFmReader,
     configuration: Settings,
     service: StateService | None,
-    echo: Callable[[str], None],
-    cancel_check: Callable[[], bool] | None,
+    echo: Messages,
+    cancel_check: CancellationState | None,
     caller_retry: RetryCall | None,
 ) -> NewYear:
     """Bind original caller resources without performing preflight or external effects.
@@ -76,10 +75,10 @@ def compose(
     Returns:
         Original complete synchronous annual retrospective use case.
     """
-    from spotify_manager.routines.scrobble_history import check_cancel
+    from spotify_manager.bootstrap.history import HistoryCancellation
 
-    cancel = partial(check_cancel, cancel_check)
-    retry = AnnualRetry(caller_retry, cancel).run
+    cancel = HistoryCancellation(cancel_check)
+    retry = AnnualRetry(caller_retry, cancel)
     resources = AnnualResources(
         sp, lastfm, configuration, service, echo, cancel_check, retry
     )

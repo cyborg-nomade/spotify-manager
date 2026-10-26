@@ -7,6 +7,7 @@ import pytest
 from spotipy import Spotify
 
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.requeue_result import RequeueForADreamError
 from spotify_manager.application.slow_listening_values import SlowListeningError
 from spotify_manager.domain.catalog import DiscographyRelease
@@ -34,10 +35,10 @@ def _failed_tracks(
 def _reader(consumer: str) -> Callable[[DiscographyRelease], tuple[ReleaseTrack, ...]]:
     client = cast(Spotify, object())
     if consumer == "shared":
-        return StudioCatalogAccess(client, _retry).tracks
+        return StudioCatalogAccess(client, NoRetry()).tracks
     if consumer == "queue3":
-        return LegacyQueue3Catalog(client, _retry, {}).tracks
-    return SpotifyRequeueCatalog(client, _retry).release_tracks
+        return LegacyQueue3Catalog(client, NoRetry(), {}).tracks
+    return SpotifyRequeueCatalog(client, NoRetry()).release_tracks
 
 
 @pytest.mark.parametrize(

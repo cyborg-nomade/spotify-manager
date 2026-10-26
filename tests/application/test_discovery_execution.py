@@ -95,7 +95,7 @@ def _case(preview: bool = False) -> ExecutionCase:
         "review",
         "New Kids",
         preview,
-        memory.clock,
+        memory,
     )
     return ExecutionCase(memory, execution, progress, entry)
 

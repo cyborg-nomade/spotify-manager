@@ -34,7 +34,7 @@ def queue_recommendations(
     edge = LegacyQueueNeighborhoods(reader, cache_path, log_path, now, progress)
     return QueueRecommendations(
         edge,
-        edge.clock,
+        edge,
         BerlinCalendar(),
-        edge.progress,
+        edge,
     )

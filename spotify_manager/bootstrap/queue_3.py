@@ -1,16 +1,14 @@
 """Compose Queue 3 business workflows with existing external boundaries."""
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC
-from datetime import datetime
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.checkpoints import Checkpoint
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.application.queue_3_execution import Queue3Execution
 from spotify_manager.application.queue_3_import import AnnualDiscoveryImport
@@ -28,8 +26,8 @@ from spotify_manager.interfaces.presenters.queue_3 import Queue3Presenter
 from spotify_manager.routines import queue_3 as legacy
 
 
-def _now() -> str:
-    return legacy.datetime.now(UTC).isoformat()
+_NOW_RESOURCE = legacy._NOW_RESOURCE
+_DATETIME_RESOURCE = legacy._DATETIME_RESOURCE
 
 
 def annual_import(
@@ -37,7 +35,7 @@ def annual_import(
     retry: RetryCall,
     log_path: Path,
     state_access: RoutineState,
-    echo: Callable[[str], None],
+    echo: Messages,
 ) -> AnnualDiscoveryImport:
     """Bind annual import to the caller's original request and checkpoint context.
 
@@ -56,13 +54,9 @@ def annual_import(
     return AnnualDiscoveryImport(
         access,
         state_access,
-        presentation.imported,
-        _now,
+        presentation,
+        _NOW_RESOURCE,
     )
-
-
-def _direct_call(operation: Callable[[], object], _description: str) -> object:
-    return operation()
 
 
 def review_planner(
@@ -93,17 +87,13 @@ def review_planner(
     return Queue3Planner(catalog, tracks, ordering, choose)
 
 
-def _datetime() -> datetime:
-    return legacy.datetime.now(UTC)
-
-
 def review_execution(
     client: Spotify,
     retry: RetryCall,
     albums_path: Path,
     removed_path: Path,
     log_path: Path,
-    echo: Callable[[str], None],
+    echo: Messages,
     dry_run: bool,
 ) -> Queue3Execution:
     """Bind saved-plan execution to original playlist and library boundaries.
@@ -156,7 +146,7 @@ def annual_inputs(
     state_path: Path,
     state_service: StateService | None,
     log_path: Path,
-    echo: Callable[[str], None],
+    echo: Messages,
 ) -> AnnualInputs:
     """Observe playlist and state inputs in the original annual import order.
 

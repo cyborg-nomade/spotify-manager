@@ -1,9 +1,7 @@
 """Compose ordinary discovery review decisions with caller-owned integrations."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
-from datetime import datetime
 from pathlib import Path
 
 from spotipy import Spotify
@@ -14,11 +12,13 @@ from spotify_manager.application.discovery_library import DiscoveryLibraryReconc
 from spotify_manager.application.discovery_observations import DiscoveryObservations
 from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
 from spotify_manager.application.discovery_review import DiscoveryReview
-from spotify_manager.application.discovery_review import ProgressCallback
 from spotify_manager.application.discovery_run import DiscoveryRun
 from spotify_manager.application.new_kids_execution import NewKidsExecution
 from spotify_manager.application.new_kids_planner import NewKidsPlanner
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
@@ -38,7 +38,7 @@ from spotify_manager.infrastructure.legacy.discovery_execution import (
 )
 from spotify_manager.interfaces.operations.discovery_inputs import ReviewInputs
 from spotify_manager.interfaces.presenters.new_kids import NewKidsPresenter
-from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
+from spotify_manager.interfaces.requests.discovery import DiscoveryInteraction
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.interfaces.requests.discovery import DiscoveryReviewMode
@@ -66,7 +66,7 @@ def review_planner(
     client: Spotify,
     inputs: ReviewInputs,
     options: DiscoveryOptions,
-    callbacks: DiscoveryCallbacks,
+    interaction: DiscoveryInteraction,
     resources: DiscoveryResources,
     caches: ReviewCaches,
 ) -> NewKidsPlanner:
@@ -76,7 +76,7 @@ def review_planner(
         client: Caller-owned synchronous Spotify client.
         inputs: History, state and retry observations accepted for this run.
         options: Configured destinations and execution mode.
-        callbacks: Operator decisions and notifications.
+        interaction: Operator decisions and notifications.
         resources: History, namespace, mirrors and audit files.
         caches: Invocation-owned accepted catalog and membership caches.
 
@@ -96,9 +96,9 @@ def review_planner(
     )
     return NewKidsPlanner(
         observations,
-        callbacks.choose,
+        interaction,
         LegacyDiscoveryAudit(resources.log_path),
-        NewKidsPresenter(callbacks.echo),
+        NewKidsPresenter(interaction),
         inputs.active_year,
         options.dry_run,
     )
@@ -110,7 +110,7 @@ def library_reconciliation(
     albums_path: Path,
     removed_path: Path,
     log_path: Path,
-    echo: Callable[[str], None],
+    echo: Messages,
     dry_run: bool,
 ) -> DiscoveryLibraryReconciliation:
     """Compose release-boundary reconciliation with existing integrations.
@@ -142,8 +142,8 @@ def review_execution(
     resources: DiscoveryResources,
     live_ids: set[str],
     label: str,
-    echo: Callable[[str], None],
-    clock: Callable[[], datetime],
+    echo: Messages,
+    clock: Clock,
 ) -> NewKidsExecution:
     """Compose review effects with the original invocation-owned state and paths.
 
@@ -205,7 +205,7 @@ def great_discoveries(
     client: Spotify,
     retry: RetryCall,
     state_access: RoutineState,
-    echo: Callable[[str], None],
+    echo: Messages,
 ) -> GreatDiscoveries:
     """Compose yearly playlist creation with original observations and state writes.
 
@@ -231,7 +231,7 @@ def queue_transfer(
     capacity: int,
     dry_run: bool,
     log_path: Path,
-    echo: Callable[[str], None],
+    echo: Messages,
 ) -> DiscoveryQueueTransfer:
     """Compose queue transfers over the original observation and audit boundaries.
 
@@ -264,10 +264,10 @@ def entry_review(
     execution: NewKidsExecution,
     owned: tuple[OwnedPlaylist, ...],
     excluded: frozenset[str],
-    clock: Callable[[], datetime],
+    clock: Clock,
     composer_limit: int,
-    progress_callback: ProgressCallback | None,
-    echo: Callable[[str], None],
+    progress_callback: ReviewProgress | None,
+    echo: Messages,
 ) -> DiscoveryReview:
     """Compose entry review over the already accepted run-owned services.
 
@@ -304,8 +304,8 @@ def review_run(
     options: DiscoveryOptions,
     resources: DiscoveryResources,
     mode: DiscoveryReviewMode,
-    echo: Callable[[str], None],
-    clock: Callable[[], datetime],
+    echo: Messages,
+    clock: Clock,
 ) -> DiscoveryRun:
     """Compose original run preparation and finalization over existing boundaries.
 

@@ -185,6 +185,14 @@ class MemoryEffects(MemoryLibrary):
         """
         self._record("progress", (done, total, message))
 
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
 
 @dataclass
 class MemoryQueue(MemoryLibrary):

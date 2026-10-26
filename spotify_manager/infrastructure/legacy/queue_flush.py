@@ -1,23 +1,20 @@
 """Bind restartable Queue flush to original synchronous SDK and storage seams."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import asdict
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.queue_flush_values import FlushResult
 from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.routines import the_queue as legacy
-
-
-def _immediate(operation: Callable[[], object], description: str) -> object:
-    return operation()
 
 
 @dataclass
@@ -27,7 +24,7 @@ class LegacyQueueFlush:
     Args:
         spotify: Original caller-owned client.
         playlists: Original configured destination identities.
-        echo: Original text presenter.
+        output: Original text presenter.
         callback: Original optional status presenter.
         configured_retry: Original optional retry boundary.
         state_path: Original state location.
@@ -35,36 +32,34 @@ class LegacyQueueFlush:
         log_path: Original audit location.
         artists_path: Original artist mirror location.
         retry: Original effective retry resolved before state authority.
+        requests: Caller-owned request retry policy.
     """
 
     spotify: Spotify
     playlists: legacy.QueuePlaylists
-    echo: legacy.Echo
+    output: legacy.Echo
     callback: legacy.ProgressCallback | None
     configured_retry: legacy.RetryCall | None
     state_path: Path
     state_service: StateService | None
     log_path: Path
     artists_path: Path
-    retry: legacy.RetryCall = _immediate
+    requests: legacy.RetryCall = NoRetry()
 
     def configure(self) -> None:
         """Resolve the original falsey retry boundary before state authority."""
-        self.retry = self.configured_retry or _immediate
+        self.requests = self.configured_retry or NoRetry()
 
-    def retry_operation(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        """Use the effective retry chosen at the original preflight boundary.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original concrete external request.
-            description: Original retry context.
+            description: Original request description.
 
         Returns:
-            Accepted original response.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        return self.retry(operation, description)
+        return self.requests.attempts(description)
 
     def state(self) -> QueueStateAccess:
         """Resolve original state authority even during preview.
@@ -102,7 +97,7 @@ class LegacyQueueFlush:
         """
         from spotify_manager.routines.new_wine import load_playlist_tracks
 
-        return load_playlist_tracks(self.spotify, self.playlists.queue, self.retry)
+        return load_playlist_tracks(self.spotify, self.playlists.queue, self.requests)
 
     def new_run(self, tracks: tuple[PlaylistTrack, ...]) -> dict[str, object]:
         """Retain the original daily snapshot seam and distinct clock reads.
@@ -125,7 +120,9 @@ class LegacyQueueFlush:
         """
         from spotify_manager.routines.new_wine import load_playlist_tracks
 
-        tracks = load_playlist_tracks(self.spotify, self.playlists.queue_2, self.retry)
+        tracks = load_playlist_tracks(
+            self.spotify, self.playlists.queue_2, self.requests
+        )
         return {track.primary_artist_id for track in tracks}
 
     def unlucky(self) -> set[str]:
@@ -137,7 +134,7 @@ class LegacyQueueFlush:
         from spotify_manager.routines.new_wine import load_playlist_tracks
 
         tracks = load_playlist_tracks(
-            self.spotify, self.playlists.unlucky_ones, self.retry
+            self.spotify, self.playlists.unlucky_ones, self.requests
         )
         return {track.primary_artist_id for track in tracks}
 
@@ -180,10 +177,9 @@ class LegacyQueueFlush:
         from spotify_manager.routines.review_artists import add_playlist_item
 
         playlist, description = self._destination(destination, source)
-        self.retry(
-            partial(add_playlist_item, self.spotify, playlist, target.uri),
-            description,
-        )
+        for attempt in self.requests.attempts(description):
+            with attempt:
+                add_playlist_item(self.spotify, playlist, target.uri)
 
     def _destination(self, destination: str, source: PlaylistTrack) -> tuple[str, str]:
         if destination == "queue":
@@ -212,7 +208,7 @@ class LegacyQueueFlush:
         """
         from spotify_manager.routines.the_queue import _flush_following
 
-        return _flush_following(self.spotify, source, self.retry)
+        return _flush_following(self.spotify, source, self.requests)
 
     def unfollow(self, source: PlaylistTrack) -> None:
         """Accept original artist removal before local mirror removal.
@@ -222,14 +218,13 @@ class LegacyQueueFlush:
         """
         from spotify_manager.routines.review_artists import remove_library_artists
 
-        self.retry(
-            partial(
-                remove_library_artists,
-                self.spotify,
-                [f"spotify:artist:{source.primary_artist_id}"],
-            ),
-            f"unfollowing {source.primary_artist_name}",
-        )
+        for attempt in self.requests.attempts(
+            f"unfollowing {source.primary_artist_name}"
+        ):
+            with attempt:
+                remove_library_artists(
+                    self.spotify, [f"spotify:artist:{source.primary_artist_id}"]
+                )
 
     def remove_local(self, source: PlaylistTrack) -> None:
         """Retain original mirror removal after accepted unfollow.
@@ -250,10 +245,11 @@ class LegacyQueueFlush:
         """
         from spotify_manager.routines.review_artists import remove_playlist_items
 
-        self.retry(
-            partial(remove_playlist_items, self.spotify, self.playlists.queue, uris),
-            f"removing the previous Queue marker for {source.primary_artist_name}",
-        )
+        for attempt in self.requests.attempts(
+            f"removing the previous Queue marker for {source.primary_artist_name}"
+        ):
+            with attempt:
+                remove_playlist_items(self.spotify, self.playlists.queue, uris)
 
     def result(
         self, source: PlaylistTrack, plan: dict[str, object], preview: bool
@@ -307,7 +303,7 @@ class LegacyQueueFlush:
             target: Original optional target marker.
             preview: Original preview behavior.
         """
-        self.echo(_action_message(action, source, target, preview))
+        self.output.echo(_action_message(action, source, target, preview))
 
     def progress(self, done: int, total: int, message: str) -> None:
         """Preserve original optional planning and completion progress.
@@ -318,7 +314,7 @@ class LegacyQueueFlush:
             message: Original stage text.
         """
         if self.callback is not None:
-            self.callback(done, total, message)
+            self.callback.progress(done, total, message)
 
 
 def _action_message(

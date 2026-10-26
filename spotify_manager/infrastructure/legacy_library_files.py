@@ -108,10 +108,10 @@ def load_control_file(path: Path, echo: Echo) -> list[ControlFileItem]:
     Returns:
         Original result with unchanged native boundary errors.
     """
-    echo("Loading control file...")
+    echo.echo("Loading control file...")
     with open(path) as control_file:
         result_dict = json.load(control_file)
-        echo("OK!")
+        echo.echo("OK!")
         return [ControlFileItem.model_validate(s) for s in result_dict]
 
 
@@ -126,9 +126,9 @@ def load_total_albums_file(path: Path, echo: Echo) -> list[SimplifiedAlbum]:
         Original result with unchanged native boundary errors.
     """
     with open(path) as main_file:
-        echo("Loading Total Albums file")
+        echo.echo("Loading Total Albums file")
         result_dict = json.load(main_file)
-        echo("Done.")
+        echo.echo("Done.")
         return [SimplifiedAlbum.model_validate(s) for s in result_dict]
 
 
@@ -143,9 +143,9 @@ def load_total_albums_new_file(path: Path, echo: Echo) -> list[YourLibraryAlbum]
         Original result with unchanged native boundary errors.
     """
     with open(path) as main_file:
-        echo("Loading Total Albums file")
+        echo.echo("Loading Total Albums file")
         result_dict = json.load(main_file)
-        echo("Done.")
+        echo.echo("Done.")
         return [YourLibraryAlbum.model_validate(s) for s in result_dict]
 
 
@@ -160,9 +160,9 @@ def load_your_library_file(path: Path, echo: Echo) -> YourLibraryFile:
         Original result with unchanged native boundary errors.
     """
     with open(path) as main_file:
-        echo("Loading Your Library file..")
+        echo.echo("Loading Your Library file..")
         result_dict = json.load(main_file)
-        echo("Done.")
+        echo.echo("Done.")
         return YourLibraryFile.model_validate(result_dict)
 
 
@@ -191,9 +191,9 @@ def load_total_artists_file(path: Path, echo: Echo) -> list[YourLibraryArtist]:
         Original result with unchanged native boundary errors.
     """
     with open(path) as main_file:
-        echo("Loading total artists file..")
+        echo.echo("Loading total artists file..")
         result_dict = json.load(main_file)
-        echo("Done.")
+        echo.echo("Done.")
         return [YourLibraryArtist.model_validate(a) for a in result_dict]
 
 
@@ -208,9 +208,9 @@ def load_stats_history_file(path: Path, echo: Echo) -> dict[str, StatsReport]:
         Original result with unchanged native boundary errors.
     """
     with open(path) as main_file:
-        echo("Loading liked tracks file..")
+        echo.echo("Loading liked tracks file..")
         result_dict: dict[str, object] = json.load(main_file)
-        echo("Done.")
+        echo.echo("Done.")
         parsed_dict = validate_history(result_dict)
         return parsed_dict
 
@@ -229,12 +229,12 @@ def save_total_albums_file(
         echo: Original visible presenter.
         files: Serializer observed after opening the target.
     """
-    echo("Saving total albums file...")
+    echo.echo("Saving total albums file...")
     with open(path, "w") as main_file:
         json.dump(
             files.serialize(total_albums_file_items), main_file, ensure_ascii=False
         )
-        echo("OK!")
+        echo.echo("OK!")
 
 
 def save_total_albums_new_file(
@@ -251,7 +251,7 @@ def save_total_albums_new_file(
         echo: Original visible presenter.
         files: Serialization and subsequent managed publication owner.
     """
-    echo("Saving total albums file...")
+    echo.echo("Saving total albums file...")
     temporary = path.with_suffix(".json.tmp")
     with temporary.open("w") as main_file:
         json.dump(
@@ -259,7 +259,7 @@ def save_total_albums_new_file(
         )
     temporary.replace(path)
     files.publish(path, source="library routine")
-    echo("OK!")
+    echo.echo("OK!")
 
 
 def save_total_artists_file(
@@ -276,7 +276,7 @@ def save_total_artists_file(
         echo: Original visible presenter.
         files: Serialization and subsequent managed publication owner.
     """
-    echo("Saving total artists file...")
+    echo.echo("Saving total artists file...")
     temporary = path.with_suffix(".json.tmp")
     with temporary.open("w") as main_file:
         json.dump(
@@ -286,7 +286,7 @@ def save_total_artists_file(
         )
     temporary.replace(path)
     files.publish(path, source="library routine")
-    echo("OK!")
+    echo.echo("OK!")
 
 
 def save_control_file(
@@ -303,10 +303,10 @@ def save_control_file(
         echo: Original visible presenter.
         files: Serializer observed after opening the target.
     """
-    echo("Saving control file...")
+    echo.echo("Saving control file...")
     with open(path, "w") as main_file:
         json.dump(files.serialize(control_file_items), main_file, ensure_ascii=False)
-        echo("OK!")
+        echo.echo("OK!")
 
 
 def save_stats_file(stats_file_items: StatsFileItem, path: Path, echo: Echo) -> None:
@@ -317,10 +317,10 @@ def save_stats_file(stats_file_items: StatsFileItem, path: Path, echo: Echo) -> 
         path: Original file location; encoding and write timing remain unchanged.
         echo: Original visible presenter.
     """
-    echo("Saving stats file...")
+    echo.echo("Saving stats file...")
     with open(path, "w") as main_file:
         json.dump(stats_file_items.model_dump(), main_file, ensure_ascii=False)
-        echo("OK!")
+        echo.echo("OK!")
 
 
 def save_stats_history(
@@ -333,11 +333,11 @@ def save_stats_history(
         path: Original file location; encoding and write timing remain unchanged.
         echo: Original visible presenter.
     """
-    echo("Saving stats file...")
+    echo.echo("Saving stats file...")
     with open(path, "w") as main_file:
         serialized_dict = serialize_history(stats_history)
         json.dump(serialized_dict, main_file, ensure_ascii=False)
-        echo("OK!")
+        echo.echo("OK!")
 
 
 def save_comparison_file(comparison_dict: Comparison, path: Path, echo: Echo) -> None:
@@ -348,10 +348,10 @@ def save_comparison_file(comparison_dict: Comparison, path: Path, echo: Echo) ->
         path: Original file location; encoding and write timing remain unchanged.
         echo: Original visible presenter.
     """
-    echo("Saving comparison file...")
+    echo.echo("Saving comparison file...")
     with open(path, "w") as main_file:
         json.dump(comparison_dict, main_file, ensure_ascii=False)
-        echo("OK!")
+        echo.echo("OK!")
 
 
 def validate_history(payload: dict[str, object]) -> dict[str, StatsReport]:

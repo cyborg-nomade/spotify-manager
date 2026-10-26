@@ -87,10 +87,10 @@ def _case(
         "review",
         "New Kids",
         preview,
-        effects.clock,
+        effects,
     )
     planner = NewKidsPlanner(
-        DiscoveryObservations(facts, {}), facts.choose, effects, facts, 2026, preview
+        DiscoveryObservations(facts, {}), facts, effects, facts, 2026, preview
     )
     review = DiscoveryReview(
         planner,
@@ -100,9 +100,9 @@ def _case(
         effects,
         owned,
         frozenset({"review"}),
-        effects.clock,
+        effects,
         40,
-        effects.progress,
+        effects,
     )
     return ReviewCase(review, facts, effects, entry)
 

@@ -24,6 +24,7 @@ from spotify_manager.domain.discography_values import CatalogRelease as CatalogR
 from spotify_manager.domain.discography_values import DiscographyPlan as DiscographyPlan
 from spotify_manager.domain.discography_values import QueueArtist as QueueArtist
 from spotify_manager.domain.discography_values import QueueName as QueueName
+from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 from spotify_manager.routines import blast_from_past as blast_from_past
 from spotify_manager.routines.blast_from_past import (
     fetch_random_indexes as fetch_random_indexes,
@@ -66,7 +67,7 @@ def build_discography_plan(
     historical_artist_choice_reader: HistoricalArtistChoiceReader | None = None,
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     retry_call: RetryCall | None = None,
     progress_callback: ProgressCallback | None = None,
     state_path: Path = DEFAULT_STATE_PATH,

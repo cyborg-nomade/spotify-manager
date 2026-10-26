@@ -1,6 +1,5 @@
 """Coordinate lazy Discography reads, cached choices and round-week packing."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Protocol
@@ -11,6 +10,7 @@ from spotify_manager.application.discography_history import DiscographyArtistMap
 from spotify_manager.application.discography_history import DiscographyHistory
 from spotify_manager.application.discography_queues import DiscographyQueues
 from spotify_manager.application.discography_values import DiscographyError
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.discography_batches import next_queue
 from spotify_manager.domain.discography_batches import next_start_queue
 from spotify_manager.domain.discography_batches import queue_cycle
@@ -22,6 +22,24 @@ from spotify_manager.domain.discography_values import CatalogRelease
 from spotify_manager.domain.discography_values import DiscographyPlan
 from spotify_manager.domain.discography_values import QueueArtist
 from spotify_manager.domain.discography_values import QueueName
+
+
+class ReleaseSelector(Protocol):
+    """Own the operator interaction for select releases."""
+
+    def select_releases(
+        self, artist: QueueArtist, releases: tuple[CatalogRelease, ...], /
+    ) -> tuple[str, ...]:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            releases: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 class PriorityState(Protocol):
@@ -54,8 +72,8 @@ class DiscographyReads:
     history: DiscographyHistory
     mapping: DiscographyArtistMapping
     catalog: DiscographyCatalog
-    choose: Callable[[QueueArtist, tuple[CatalogRelease, ...]], tuple[str, ...]]
-    progress: Callable[[str], None]
+    choose: ReleaseSelector
+    progress: Messages
 
 
 @dataclass
@@ -94,7 +112,7 @@ class DiscographyPlanning:
             DiscographyError: An original fact or interactive choice is invalid.
         """
         start = cast(QueueName, self.reads.state.load()["next_queue"])
-        self.reads.progress("Loading discography artist queues")
+        self.reads.progress.echo("Loading discography artist queues")
         self.queues, self.markers = self.reads.queues.run()
         self.memory_loaded = bool(self.queues["memory_lane"])
         first = self._find(start, None)
@@ -154,7 +172,7 @@ class DiscographyPlanning:
         if queue != "memory_lane" or self.memory_loaded:
             return self.queues[queue]
         selection = self.reads.history.run()
-        self.reads.progress(
+        self.reads.progress.echo(
             f"Random.org selected {selection.selected_date.isoformat()}; "
             f"second {selection.generated_at.second} chose "
             f"{selection.artist.name} ({selection.position} of "
@@ -169,7 +187,7 @@ class DiscographyPlanning:
         cached = self.catalogs.get(candidate.spotify_id)
         if cached is not None:
             return cached
-        self.reads.progress(f"Loading {candidate.name}'s release catalog")
+        self.reads.progress.echo(f"Loading {candidate.name}'s release catalog")
         catalog = self.reads.catalog.run(candidate.spotify_id)
         self.catalogs[candidate.spotify_id] = catalog
         return catalog
@@ -179,7 +197,7 @@ class DiscographyPlanning:
         if cached is not None:
             return cached
         catalog = self._catalog(candidate)
-        identities = self.reads.choose(candidate, catalog)
+        identities = self.reads.choose.select_releases(candidate, catalog)
         releases = selected_releases(catalog, identities)
         if releases is None:
             raise DiscographyError(

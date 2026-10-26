@@ -49,7 +49,7 @@ class LegacyFailure:
         """
         if not isinstance(error, Exception):
             return False
-        self.echo(error)
+        self.echo.echo(error)
         self.failed = True
         self.error = error
         return True

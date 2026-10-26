@@ -1,6 +1,7 @@
 """Explicit palace CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -8,8 +9,11 @@ import typer
 from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.domain.palace_values import PalaceAlbumResult
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import palace_of_memory as palace_of_memory
 from spotify_manager.interfaces.operations import (
@@ -33,7 +37,7 @@ class PalaceCLI:
     runtime: CliResources
 
     display: ConsoleDisplay
-    sleep: Callable[[float], None]
+    sleep: Wait
 
     def _run_fill_palace_of_memory(
         self,
@@ -78,18 +82,6 @@ class PalaceCLI:
     def _fill_palace_of_memory_echo(self, line: str = "") -> None:
         style = "bold green" if line.startswith("Added") else "cyan"
         self._fill_palace_of_memory_console.print(line, style=style, markup=False)
-
-    def _fill_palace_of_memory_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._fill_palace_of_memory_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
 
     def _report_fill_palace_of_memory_rate_limit(
         self, exc: review_album_limits.SpotifyRateLimitError
@@ -256,8 +248,8 @@ class PalaceCLI:
             return palace_of_memory.set_alphabetical_cursor(
                 self.runtime.review_client(),
                 position,
-                progress_callback=status.update,
-                retry_call=self._fill_palace_of_memory_retry_call,
+                progress_callback=StatusOutput(status),
+                retry_call=FillPalaceOfMemoryInteraction(self),
             )
 
     def _execute_palace_fill(
@@ -278,9 +270,39 @@ class PalaceCLI:
                     alphabetical_start=alphabetical_start,
                 ),
                 PalaceCallbacks(
-                    retry_call=self._fill_palace_of_memory_retry_call,
-                    progress_callback=status.update,
-                    echo=self._fill_palace_of_memory_echo,
+                    retry_call=FillPalaceOfMemoryInteraction(self),
+                    progress_callback=StatusOutput(status),
+                    output=FillPalaceOfMemoryInteraction(self),
                 ),
                 PalaceResources(),
             )
+
+
+@dataclass(frozen=True)
+class FillPalaceOfMemoryInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: PalaceCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._fill_palace_of_memory_echo(message)

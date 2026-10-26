@@ -1,11 +1,11 @@
 """Refresh recommendation history through the injected history application workflow."""
 
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
 from spotify_manager.application.found_art_values import FoundArtStateError
 from spotify_manager.application.history_values import ScrobbleHistoryError
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.routines.found_art import LastFmReader
 
@@ -17,7 +17,7 @@ def refresh_history(
     recent_path: Path,
     dry_run: bool,
     now: datetime | None,
-    progress_callback: Callable[[str], None] | None,
+    progress_callback: Messages | None,
 ) -> tuple[list[Scrobble], int]:
     """Read canonical history and retain recommendation-specific error translation.
 

@@ -1,6 +1,6 @@
 """Bind original file seams and synchronous Spotify reads for library analysis."""
 
-from time import sleep as default_sleep
+import time
 
 from spotipy import Spotify
 
@@ -20,6 +20,7 @@ from spotify_manager.infrastructure.library_analysis_catalog import (
 from spotify_manager.infrastructure.library_analysis_publication import AnalysisBackups
 from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
 from spotify_manager.infrastructure.library_analysis_storage import AnalysisStorage
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 
 
 def analysis_files() -> AnalysisFiles:
@@ -44,11 +45,11 @@ def analysis_session(
     paths: LibraryAnalysisPaths,
     checkpoint: Checkpoint,
     spotify: Spotify | None = None,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     retry_base_seconds: int = 10,
     retry_max_seconds: int = 1800,
 ) -> AnalysisSession:

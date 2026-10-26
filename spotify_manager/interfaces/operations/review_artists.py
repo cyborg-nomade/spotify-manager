@@ -1,11 +1,10 @@
 """Invoke review artists use cases for CLI and HTTP features."""
 
-from collections.abc import Callable as Callable
-from dataclasses import dataclass
-from time import sleep as default_sleep
+import time
 
 from spotipy import Spotify as Spotify
 
+from spotify_manager.application.artist_review_membership import MembershipAccess
 from spotify_manager.application.artist_review_recovery import (
     flush_moves as flush_moves,
 )
@@ -40,6 +39,7 @@ from spotify_manager.domain.artist_review_values import (
     ReleaseCandidate as ReleaseCandidate,
 )
 from spotify_manager.domain.artist_review_values import TrackCandidate as TrackCandidate
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.spotify.retry import (
     TRANSIENT_MAX_ATTEMPTS as TRANSIENT_MAX_ATTEMPTS,
 )
@@ -111,7 +111,7 @@ def flush_pending_queue_moves(
     paths: ArtistReviewPaths,
     run_id: str,
     retry_call: RetryCall,
-    get_membership: Callable[[str], PlaylistMembership],
+    memberships: MembershipAccess,
     echo: Echo,
 ) -> None:
     """Finish journaled queue-one to queue-two moves idempotently.
@@ -124,13 +124,13 @@ def flush_pending_queue_moves(
         paths: Original complete file locations.
         run_id: Original sortable invocation identity.
         retry_call: Original caller-owned synchronous retry wrapper.
-        get_membership: Original caller-owned queue membership authority.
         echo: Original visible progress and action presenter.
+        memberships: Named live liked-track membership reader.
     """
     session = composition.recovery_session(
         sp, artists, state, counts, paths, run_id, retry_call, echo
     )
-    flush_moves(session, _CompatibilityMembership(get_membership))
+    flush_moves(session, memberships)
 
 
 def review_artists(
@@ -139,11 +139,11 @@ def review_artists(
     track_choice_reader: TrackChoiceReader | None = None,
     release_choice_reader: ReleaseChoiceReader | None = None,
     paths: ArtistReviewPaths = DEFAULT_PATHS,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     refresh_cache: bool = False,
     limit: int | None = None,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
     state_service: StateService | None = None,
@@ -184,21 +184,3 @@ def review_artists(
         transient_max_attempts,
         state_service,
     ).run(refresh_cache, limit)
-
-
-@dataclass(frozen=True)
-class _CompatibilityMembership:
-    """Adapt the retained external Python membership hook at the interface edge."""
-
-    read: Callable[[str], PlaylistMembership]
-
-    def membership(self, identity: str) -> PlaylistMembership:
-        """Observe the retained external Python membership hook.
-
-        Args:
-            identity: Requested queue.
-
-        Returns:
-            Original complete membership.
-        """
-        return self.read(identity)

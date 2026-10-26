@@ -1,12 +1,13 @@
 """Invoke new year use cases for CLI and HTTP features."""
 
-from collections.abc import Callable as Callable
-
 from spotipy import Spotify as Spotify
 
 from spotify_manager.application.new_year_membership import RetryCall as RetryCall
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.bootstrap import new_year as composition
 from spotify_manager.core.state.service import StateService as StateService
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.routines import scrobble_history as scrobble_history
 from spotify_manager.routines.new_year import validate_state as validate_state
 from spotify_manager.settings import Settings as Settings
@@ -20,8 +21,8 @@ def run_new_year(
     year: int | None = None,
     dry_run: bool = True,
     state_service: StateService | None = None,
-    echo: Callable[[str], None] = print,
-    cancel_check: Callable[[], bool] | None = None,
+    echo: Messages = STANDARD_OUTPUT,
+    cancel_check: CancellationState | None = None,
     retry_call: RetryCall | None = None,
 ) -> dict[str, object]:
     """Plan all annual markers, then preview or execute the five checkpointed stages.

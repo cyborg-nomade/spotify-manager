@@ -7,6 +7,7 @@ from pathlib import Path as Path
 from spotipy import Spotify as Spotify
 
 from spotify_manager.application.ports.listening import RetryCall as RetryCall
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.queue_3_execution import (
     Queue3LiveQueue as Queue3LiveQueue,
 )
@@ -32,8 +33,7 @@ from spotify_manager.application.queue_3_values import (
     Queue3ConfigError as Queue3ConfigError,
 )
 from spotify_manager.application.queue_3_values import Queue3Error as Queue3Error
-from spotify_manager.bootstrap.queue_3 import _datetime
-from spotify_manager.bootstrap.queue_3 import _direct_call
+from spotify_manager.bootstrap.queue_3 import _DATETIME_RESOURCE
 from spotify_manager.bootstrap.queue_3 import annual_import
 from spotify_manager.bootstrap.queue_3 import annual_inputs
 from spotify_manager.bootstrap.queue_3 import review_execution
@@ -48,6 +48,7 @@ from spotify_manager.infrastructure.legacy.queue_3 import (
 from spotify_manager.infrastructure.library_records import (
     REMOVED_ALBUMS_LOG_PATH as REMOVED_ALBUMS_LOG_PATH,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.interfaces.presenters.queue_3 import (
     Queue3Presenter as Queue3Presenter,
 )
@@ -95,7 +96,7 @@ def flush_queue_3(
         RuntimeError: Observations, selections or persistence cannot complete.
     """
     resources = resources or Queue3Resources()
-    retry = callbacks.retry_call or _direct_call
+    retry = callbacks.retry_call or NoRetry()
     year = options.active_year or legacy.datetime.now(UTC).year
     inputs = annual_inputs(
         sp,
@@ -105,7 +106,7 @@ def flush_queue_3(
         resources.state_path,
         resources.state_service,
         resources.log_path,
-        callbacks.echo,
+        callbacks.output,
     )
     current, annual = inputs.importer.run(
         options.playlist_id,
@@ -121,7 +122,7 @@ def flush_queue_3(
     session = Queue3Run(
         inputs.state,
         inputs.state_access,
-        _datetime,
+        _DATETIME_RESOURCE,
         options.dry_run,
         legacy.DAILY_ARTIST_LIMIT,
     )
@@ -136,7 +137,7 @@ def flush_queue_3(
         resources.albums_path,
         resources.removed_albums_log_path,
         resources.log_path,
-        callbacks.echo,
+        callbacks.output,
         options.dry_run,
     )
     catalog = LegacyQueue3Catalog(sp, retry, liked)
@@ -151,7 +152,7 @@ def flush_queue_3(
         inputs.owned,
         callbacks.composer_playlist_reader,
         inputs.access,
-        Queue3Presenter(callbacks.echo, callbacks.progress_callback),
+        Queue3Presenter(callbacks.output, callbacks.progress_callback),
     )
     results, paused = review.run()
     session.finish(snapshot, paused)
@@ -164,7 +165,7 @@ def import_previous_year_discoveries(
     *,
     active_year: int | None = None,
     dry_run: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
@@ -194,7 +195,7 @@ def import_previous_year_discoveries(
     from spotify_manager.routines.queue_3 import _state_access
     from spotify_manager.routines.queue_3 import load_owned_playlists
 
-    retry = retry_call or _direct_call
+    retry = retry_call or NoRetry()
     year = active_year or legacy.datetime.now(UTC).year
     presentation = Queue3Presenter(echo, progress_callback)
     presentation.loading(year - 1)

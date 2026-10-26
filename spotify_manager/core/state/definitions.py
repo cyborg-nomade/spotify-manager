@@ -1,13 +1,10 @@
 """Named namespace definitions and the retained external Python hook adapter."""
 
-from collections.abc import Callable
+import copy
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 from typing import Protocol
-
-
-type StateFactory = Callable[[], dict[str, Any]]
-type StateValidator = Callable[[object], dict[str, Any]]
 
 
 class StateDefinition(Protocol):
@@ -34,66 +31,38 @@ class StateDefinition(Protocol):
 
 
 @dataclass(frozen=True)
-class CompatibilityDefinition:
-    """Adapt retained caller-provided Python hooks once at the service edge.
+class ObjectDefinition:
+    """Own a plain JSON namespace whose domain validation happens in its routine.
 
     Args:
-        factory: Existing external missing-namespace hook.
-        validator: Existing external validation hook.
+        initial: Default namespace data, copied for each missing value.
     """
 
-    factory: StateFactory
-    validator: StateValidator
+    initial: dict[str, Any] = field(default_factory=dict)
 
     def default(self) -> dict[str, Any]:
-        """Construct the external caller's original default.
+        """Construct a detached default value.
 
         Returns:
-            Original default value.
+            Independent copy of the original default data.
         """
-        return self.factory()
+        return copy.deepcopy(self.initial)
 
     def validate(self, raw: object) -> dict[str, Any]:
-        """Apply the external caller's original validation hook.
+        """Validate the original JSON object shape.
 
         Args:
-            raw: Untrusted value.
+            raw: Untrusted namespace value.
 
         Returns:
-            Original normalized value.
+            Detached validated namespace.
+
+        Raises:
+            StateDocumentError: The original value is not a JSON object.
         """
-        return self.validator(raw)
+        from spotify_manager.core.state.service import object_validator
+
+        return object_validator(raw)
 
 
-def state_definition(
-    source: StateFactory | StateDefinition, validator: StateValidator
-) -> StateDefinition:
-    """Normalize the retained Python hook API at the outer service boundary.
-
-    Args:
-        source: Named definition or existing external default hook.
-        validator: Existing external validation hook, used only with a factory.
-
-    Returns:
-        Named schema used by every internal state operation.
-    """
-    if callable(source):
-        return CompatibilityDefinition(source, validator)
-    return source
-
-
-def validate_definition(
-    source: StateValidator | StateDefinition, raw: object
-) -> dict[str, Any]:
-    """Adapt the retained manual-edit hook at the service edge.
-
-    Args:
-        source: Named schema or external Python validation hook.
-        raw: Untrusted edited namespace.
-
-    Returns:
-        Complete normalized namespace.
-    """
-    if callable(source):
-        return source(raw)
-    return source.validate(raw)
+OBJECT_DEFINITION = ObjectDefinition()

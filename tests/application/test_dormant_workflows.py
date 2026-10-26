@@ -131,15 +131,19 @@ class Effects:
         """
         self._record(message)
 
+    def check(self) -> None:
+        """Observe the same fixture boundary through its named resource method."""
+        self.cancel()
+
 
 def _workflow(effects: Effects) -> DormantRecovery:
     return DormantRecovery(
         effects,
         cast(DormantLikedTrack, effects),
-        _clock,
-        effects.cancel,
-        effects.progress,
-        effects.echo,
+        ClockResource(),
+        effects,
+        effects,
+        effects,
     )
 
 
@@ -334,3 +338,15 @@ def test_dormant_no_liked_catalog_prevents_popularity_read() -> None:
     observations = LikedObservations()
     assert _liked_workflow(observations).run("artist") is None
     assert observations.events == ["top", "liked", "catalog", "liked"]
+
+
+class ClockResource:
+    """Own the original fixed fixture observation."""
+
+    def today(self) -> date:
+        """Observe the original fixture boundary.
+
+        Returns:
+            Original fixture response.
+        """
+        return _clock()

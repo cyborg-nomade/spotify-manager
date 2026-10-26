@@ -54,8 +54,8 @@ def queue_flush(
         artists_path,
     )
     planning = QueuePlanning(
-        LegacyQueuePlanning(spotify, edge.retry_operation),
-        LegacyAssessmentCatalog(spotify, edge.retry_operation),
+        LegacyQueuePlanning(spotify, edge),
+        LegacyAssessmentCatalog(spotify, edge),
         legacy.TOP_TRACK_LIMIT,
     )
     return QueueFlush(edge, planning)

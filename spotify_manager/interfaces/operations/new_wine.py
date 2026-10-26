@@ -26,6 +26,8 @@ from spotify_manager.domain.catalog import ReleaseCandidate as ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack as ReleaseTrack
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
 from spotify_manager.interfaces.requests.new_wine import NewWineStorage
+from spotify_manager.routines.new_wine import _CLOCK_RESOURCE
+from spotify_manager.routines.new_wine import _LOCAL_YEAR_RESOURCE
 from spotify_manager.routines.new_wine import CHOICE_CONTINUE as CHOICE_CONTINUE
 from spotify_manager.routines.new_wine import CHOICE_CUTOFF as CHOICE_CUTOFF
 from spotify_manager.routines.new_wine import CHOICE_DROP as CHOICE_DROP
@@ -78,6 +80,12 @@ def flush_new_wine(
         NewWineError: Observations, choices or durable records are invalid.
     """
     dependencies = new_wine_dependencies(
-        sp, options, callbacks, storage or NewWineStorage(), year, _clock, _local_year
+        sp,
+        options,
+        callbacks,
+        storage or NewWineStorage(),
+        year,
+        _CLOCK_RESOURCE,
+        _LOCAL_YEAR_RESOURCE,
     )
     return execute_flush_new_wine(options, dependencies)

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+
 
 if TYPE_CHECKING:
     from spotify_manager.application.ports.listening import RetryCall
@@ -40,14 +42,14 @@ class Queue3Callbacks:
     Args:
         transition_reader: Transition reader.
         composer_playlist_reader: Composer playlist reader.
-        echo: Echo.
+        output: Echo.
         progress_callback: Progress callback.
         retry_call: Retry call.
     """
 
     transition_reader: ReleaseTransitionReader
     composer_playlist_reader: ComposerPlaylistReader | None = None
-    echo: Echo = print
+    output: Echo = STANDARD_OUTPUT
     progress_callback: ProgressCallback | None = None
     retry_call: RetryCall | None = None
 

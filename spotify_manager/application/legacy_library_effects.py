@@ -20,7 +20,7 @@ from spotify_manager.models.your_library import YourLibraryTrack
 class Echo(Protocol):
     """Present original positional print arguments."""
 
-    def __call__(self, *values: object) -> None:
+    def echo(self, *values: object) -> None:
         """Deliver original visible values.
 
         Args:

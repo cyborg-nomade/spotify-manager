@@ -1,16 +1,16 @@
 """Named synchronous release and playlist transport readers."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.domain.release_check_values import ReleaseCandidate
 
 
-type RetryCall = Callable[[Callable[[], object], str], object]
+type RetryCall = Retry
 
 
 @dataclass(frozen=True)

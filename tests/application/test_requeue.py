@@ -18,6 +18,7 @@ from spotify_manager.domain.catalog import ReleaseTrack
 from tests.support.listening_values import playlist_track
 from tests.support.listening_values import release_track
 from tests.support.listening_values import studio_release
+from tests.support.runtime_resources import ProgressMessages
 
 
 FIRST = studio_release("first", "First")
@@ -191,11 +192,19 @@ class MemoryRequeue:
         return RequeueDependencies(
             self,
             self,
-            self.echo,
-            self.progress if progress else None,
             self,
-            self.clock,
+            ProgressMessages(self) if progress else None,
+            self,
+            self,
         )
+
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
 
 
 @pytest.mark.parametrize("dry_run", [False, True])

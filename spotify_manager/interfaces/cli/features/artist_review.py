@@ -154,10 +154,10 @@ class ArtistReviewCLI:
                 summary = artist_review.review_artists(
                     self.runtime.review_client(),
                     playlists,
-                    track_choice_reader=self._review_artists_ask_artist_track_choice,
-                    release_choice_reader=self._review_artists_ask_artist_release_choice,
-                    echo=self._review_artists_echo,
-                    progress_callback=self._review_artists_update_progress,
+                    track_choice_reader=ReviewArtistsInteraction(self),
+                    release_choice_reader=ReviewArtistsInteraction(self),
+                    echo=ReviewArtistsInteraction(self),
+                    progress_callback=ReviewArtistsInteraction(self),
                     refresh_cache=refresh_cache,
                     limit=limit,
                 )
@@ -413,3 +413,66 @@ class ArtistReviewCLI:
             )
         console.print(table)
         return eligible_indexes
+
+
+@dataclass(frozen=True)
+class ReviewArtistsInteraction:
+    """Own command-specific terminal interaction.
+
+    Args:
+        owner: Command instance owning this display and its progress state.
+    """
+
+    owner: ArtistReviewCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._review_artists_echo(message)
+
+    def progress(self, position: int, total: int, artist_name: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            position: Original position.
+            total: Original total.
+            artist_name: Original artist name.
+        """
+        self.owner._review_artists_update_progress(position, total, artist_name)
+
+    def choose_track(
+        self, artist: object, candidates: tuple[artist_review.TrackCandidate, ...]
+    ) -> str:
+        """Use this command's fixed choose track prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._review_artists_ask_artist_track_choice(artist, candidates)
+
+    def choose_release(
+        self,
+        artist: object,
+        candidates: tuple[artist_review.ReleaseCandidate, ...],
+        allow_decline: bool,
+    ) -> str:
+        """Use this command's fixed choose release prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            candidates: Original operator prompt value.
+            allow_decline: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._review_artists_ask_artist_release_choice(
+            artist, candidates, allow_decline
+        )

@@ -1,9 +1,9 @@
 """Bind original artist-review files, catalog seams and synchronous Spotify retries."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -17,6 +17,9 @@ from spotify_manager.application.artist_review_membership import MembershipPage
 from spotify_manager.application.artist_review_membership import MembershipPages
 from spotify_manager.application.artist_review_values import ArtistReviewPaths
 from spotify_manager.application.artist_review_values import ArtistReviewState
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
@@ -24,11 +27,12 @@ from spotify_manager.domain.artist_review_values import TrackCandidate
 from spotify_manager.infrastructure.legacy.artist_review_catalog import (
     LegacyCatalogCache,
 )
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
 
 
-type RetryCall = Callable[[Callable[[], object], str], object]
+type RetryCall = Retry
 
 
 @dataclass
@@ -38,7 +42,7 @@ class ReviewResources:
     Args:
         spotify: Original caller-owned Spotify client.
         paths: Original complete file locations.
-        echo: Original presenter.
+        output: Original presenter.
         sleep: Original blocking retry wait.
         retry_delay: Original transient delay.
         retry_attempts: Original transient attempt count.
@@ -48,8 +52,8 @@ class ReviewResources:
 
     spotify: Spotify
     paths: ArtistReviewPaths
-    echo: Callable[[str], None]
-    sleep: Callable[[float], None]
+    output: Messages
+    sleep: Wait
     retry_delay: int
     retry_attempts: int
     state_service: StateService | None
@@ -79,28 +83,18 @@ class ReviewResources:
 
         self.cache = load_cache(self.paths.cache, refresh=refresh)
 
-    def retry(self, operation: Callable[[], object], description: str) -> object:
-        """Retain original narrowed synchronous transient retry behavior.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original complete effect.
-            description: Original visible operation description.
+            description: Original request description.
 
         Returns:
-            Original accepted response.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        from spotify_manager.infrastructure.spotify.retry import (
-            retry_spotify_server_errors,
-        )
-
-        return retry_spotify_server_errors(
-            operation,
-            description,
-            self.echo,
-            self.sleep,
-            self.retry_delay,
-            self.retry_attempts,
-        )
+        return SpotifyRetries(
+            self.output, self.sleep, self.retry_delay, self.retry_attempts
+        ).attempts(description)
 
     def cache_for(self, artist: YourLibraryArtist) -> CatalogCache:
         """Resolve an artist-specific view of the invocation metadata.
@@ -127,7 +121,7 @@ class ReviewResources:
         Returns:
             Named catalog reads using the invocation retry policy.
         """
-        return SpotifyArtistReads(self.spotify, artist, self.retry)
+        return SpotifyArtistReads(self.spotify, artist, self)
 
 
 @dataclass(frozen=True)
@@ -298,9 +292,10 @@ class ReviewSpotifyAccess:
         """
         from spotify_manager.routines.review_artists import add_playlist_item
 
-        return self.retry(
-            partial(add_playlist_item, self.spotify, identity, uri), description
-        )
+        for attempt in self.retry.attempts(description):
+            with attempt:
+                response = add_playlist_item(self.spotify, identity, uri)
+        return response
 
     def remove(self, identity: str, uris: list[str], description: str) -> object:
         """Accept one ordered removal batch through the original retry boundary.
@@ -315,9 +310,10 @@ class ReviewSpotifyAccess:
         """
         from spotify_manager.routines.review_artists import remove_playlist_items
 
-        return self.retry(
-            partial(remove_playlist_items, self.spotify, identity, uris), description
-        )
+        for attempt in self.retry.attempts(description):
+            with attempt:
+                response = remove_playlist_items(self.spotify, identity, uris)
+        return response
 
     def unfollow(self, uris: list[str], description: str) -> object:
         """Accept an artist unfollow batch through the original retry boundary.
@@ -331,9 +327,10 @@ class ReviewSpotifyAccess:
         """
         from spotify_manager.routines.review_artists import remove_library_artists
 
-        return self.retry(
-            partial(remove_library_artists, self.spotify, uris), description
-        )
+        for attempt in self.retry.attempts(description):
+            with attempt:
+                response = remove_library_artists(self.spotify, uris)
+        return response
 
 
 @dataclass(frozen=True)

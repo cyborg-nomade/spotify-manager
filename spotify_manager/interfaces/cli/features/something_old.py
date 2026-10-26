@@ -17,6 +17,7 @@ from spotify_manager.domain.golden_selection import SelectedTrack
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.formatting import scrobble_date
 from spotify_manager.interfaces.cli.history import present_history_summary
+from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
@@ -40,7 +41,7 @@ class SomethingOldCLI:
 
     display: ConsoleDisplay
 
-    def _prompt_something_old_artist(
+    def ask_artist(
         self,
         console: Console,
         artist_name: str,
@@ -262,7 +263,7 @@ class SomethingOldCLI:
         ) as exc:
             self._report_something_old_configuration_failure(exc)
         lastfm_client = create_lastfm_client(
-            LastFmCredentials(api_key, username), self._something_old_log
+            LastFmCredentials(api_key, username), SomethingOldDiagnostics(self)
         )
         try:
             with self._something_old_console.status(
@@ -277,10 +278,10 @@ class SomethingOldCLI:
                         dry_run=dry_run,
                     ),
                     SomethingOldCallbacks(
-                        mode_reader=self._something_old_ask_something_old_mode,
-                        album_choice_reader=self._something_old_ask_something_old_album,
-                        artist_choice_reader=self._something_old_ask_something_old_artist,
-                        progress_callback=self._something_old_status.update,
+                        mode_reader=SomethingOldInteraction(self),
+                        album_choice_reader=SomethingOldInteraction(self),
+                        artist_choice_reader=SomethingOldInteraction(self),
+                        progress_callback=StatusOutput(self._something_old_status),
                     ),
                     SomethingOldResources(),
                 )
@@ -302,7 +303,7 @@ class SomethingOldCLI:
         artist: something_old.GoldenOldieArtist,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
     ) -> str:
-        return self._prompt_something_old_artist(
+        return self.ask_artist(
             self._something_old_console,
             artist.artist,
             candidates,
@@ -414,3 +415,81 @@ class SomethingOldCLI:
         for index, track in enumerate(summary.tracks, start=1):
             self._row_print_something_old_summary_track(index, selection, track)
         console.print(selection)
+
+
+@dataclass(frozen=True)
+class SomethingOldDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: SomethingOldCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            message: Original message.
+        """
+        self.owner._something_old_log(message)
+
+
+@dataclass(frozen=True)
+class SomethingOldInteraction:
+    """Own the command's terminal interaction state.
+
+    Args:
+        owner: Command owning the active console and progress display.
+    """
+
+    owner: SomethingOldCLI
+
+    def choose_mode(
+        self,
+        artist: something_old.GoldenOldieArtist,
+        spotify_artist: something_old.SpotifyArtistCandidate,
+    ) -> str:
+        """Use this command's fixed choose mode prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            spotify_artist: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._something_old_ask_something_old_mode(artist, spotify_artist)
+
+    def choose_album(
+        self,
+        artist: something_old.GoldenOldieArtist,
+        releases: tuple[slow_listening.DiscographyRelease, ...],
+    ) -> str:
+        """Use this command's fixed choose album prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            releases: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._something_old_ask_something_old_album(artist, releases)
+
+    def choose_artist(
+        self,
+        artist: something_old.GoldenOldieArtist,
+        candidates: tuple[something_old.SpotifyArtistCandidate, ...],
+    ) -> str:
+        """Use this command's fixed choose artist prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._something_old_ask_something_old_artist(artist, candidates)

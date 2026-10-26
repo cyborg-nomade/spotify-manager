@@ -1,7 +1,11 @@
 """Tests for the New Kids CLI command."""
 
+from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import Mock
 
+import pytest
 from rich.console import Console
 from typer.testing import CliRunner
 
@@ -62,22 +66,149 @@ def test_new_kids_release_prompt_accepts_owned_composer_playlist(monkeypatch) ->
     assert choice == "bach-works"
 
 
-def test_flush_new_kids_dry_run_uses_all_configured_playlists(monkeypatch) -> None:
+def test_flush_new_kids_dry_run_uses_all_configured_playlists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The CLI should parse and pass all five destination/source settings."""
     received: dict[str, object] = {}
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        Mock(
+            return_value=SimpleNamespace(
+                new_kids_on_the_block_playlist="spotify:playlist:new",
+                the_queue_2_playlist="spotify:playlist:queue",
+                great_discoveries_2026_playlist="spotify:playlist:great",
+                unlucky_ones_playlist="spotify:playlist:unlucky",
+                discography_newfoundland_playlist="spotify:playlist:newfoundland",
+                lastfm_api_key="lastfm-key",
+                lastfm_username="lastfm-user",
+            )
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    scenario = FlushNewKidsDryRunUsesAllConfiguredPlaylistsScenario(received=received)
+    monkeypatch.setattr(
+        main.new_kids,
+        "flush_new_kids",
+        FeatureInvocation(
+            scenario,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
+    result = CliRunner().invoke(main.app, ["flush-new-kids", "--dry-run"])
+    assert result.exit_code == 0
+    assert received == {
+        "new_playlist": "new",
+        "queue_playlist": "queue",
+        "great_playlist": "great",
+        "unlucky_playlist": "unlucky",
+        "newfoundland_playlist": "newfoundland",
+        "dry_run": True,
+    }
+    assert "Current" in result.output
+    assert "Next" in result.output
+    assert "Queue Artist" in result.output
+    assert "Dry run: New Kids 9 -> 10" in result.output
 
-    def run(
-        _spotify,
-        new_playlist,
-        queue_playlist,
-        great_playlist,
-        unlucky_playlist,
-        newfoundland_playlist,
-        choice_reader,
-        **kwargs,
-    ):
-        assert callable(choice_reader)
-        received.update(
+
+def test_flush_queue_2_dry_run_reports_both_playlist_transitions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Queue 2 CLI should pass configuration and render both list counts."""
+    received: dict[str, object] = {}
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        Mock(
+            return_value=SimpleNamespace(
+                new_kids_on_the_block_playlist="spotify:playlist:new",
+                the_queue_2_playlist="spotify:playlist:queue",
+                great_discoveries_2026_playlist="spotify:playlist:great",
+                unlucky_ones_playlist="spotify:playlist:unlucky",
+                discography_newfoundland_playlist="spotify:playlist:newfoundland",
+                lastfm_api_key="lastfm-key",
+                lastfm_username="lastfm-user",
+            )
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    scenario = FlushQueue2DryRunReportsBothPlaylistTransitionsScenario(
+        received=received
+    )
+    monkeypatch.setattr(
+        main.new_kids,
+        "flush_queue_2",
+        FeatureInvocation(
+            scenario,
+            (
+                "new_kids_playlist_id",
+                "queue_2_playlist_id",
+                "great_discoveries_playlist_id",
+                "unlucky_ones_playlist_id",
+                "newfoundland_playlist_id",
+            ),
+        ),
+    )
+    result = CliRunner().invoke(main.app, ["flush-queue-2", "--dry-run"])
+    assert result.exit_code == 0
+    assert received == {
+        "new_playlist": "new",
+        "queue_playlist": "queue",
+        "great_playlist": "great",
+        "unlucky_playlist": "unlucky",
+        "newfoundland_playlist": "newfoundland",
+        "dry_run": True,
+    }
+    assert "Queue Artist" in result.output
+    assert "First Artist" in result.output
+    assert "Dry run: New Kids 9 -> 10; Queue 2 20 -> 19" in result.output
+
+
+@dataclass
+class FlushNewKidsDryRunUsesAllConfiguredPlaylistsScenario:
+    """Retain the original flush new kids dry run uses all configured playlists fixture.
+
+    Args:
+        received: Original received observation or resource.
+    """
+
+    received: dict[str, object]
+
+    def __call__(
+        self,
+        _spotify: Any,
+        new_playlist: Any,
+        queue_playlist: Any,
+        great_playlist: Any,
+        unlucky_playlist: Any,
+        newfoundland_playlist: Any,
+        choice_reader: Any,
+        **kwargs: Any,
+    ) -> main.new_kids.FlushSummary:
+        """Execute the original run mock boundary.
+
+        Args:
+            _spotify: Original external mock argument.
+            new_playlist: Original external mock argument.
+            queue_playlist: Original external mock argument.
+            great_playlist: Original external mock argument.
+            unlucky_playlist: Original external mock argument.
+            newfoundland_playlist: Original external mock argument.
+            choice_reader: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        assert callable(getattr(choice_reader, "choose", None))
+        self.received.update(
             new_playlist=new_playlist,
             queue_playlist=queue_playlist,
             great_playlist=great_playlist,
@@ -108,68 +239,46 @@ def test_flush_new_kids_dry_run_uses_all_configured_playlists(monkeypatch) -> No
             dry_run=True,
         )
 
-    monkeypatch.setattr(
-        main,
-        "Settings",
-        lambda: SimpleNamespace(
-            new_kids_on_the_block_playlist="spotify:playlist:new",
-            the_queue_2_playlist="spotify:playlist:queue",
-            great_discoveries_2026_playlist="spotify:playlist:great",
-            unlucky_ones_playlist="spotify:playlist:unlucky",
-            discography_newfoundland_playlist="spotify:playlist:newfoundland",
-            lastfm_api_key="lastfm-key",
-            lastfm_username="lastfm-user",
-        ),
-    )
-    monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(
-        main.new_kids,
-        "flush_new_kids",
-        FeatureInvocation(
-            run,
-            (
-                "new_kids_playlist_id",
-                "queue_2_playlist_id",
-                "great_discoveries_playlist_id",
-                "unlucky_ones_playlist_id",
-                "newfoundland_playlist_id",
-            ),
-        ),
-    )
 
-    result = CliRunner().invoke(main.app, ["flush-new-kids", "--dry-run"])
+@dataclass
+class FlushQueue2DryRunReportsBothPlaylistTransitionsScenario:
+    """Retain the original flush queue 2 dry run reports both playlist transitions
+    fixture.
 
-    assert result.exit_code == 0
-    assert received == {
-        "new_playlist": "new",
-        "queue_playlist": "queue",
-        "great_playlist": "great",
-        "unlucky_playlist": "unlucky",
-        "newfoundland_playlist": "newfoundland",
-        "dry_run": True,
-    }
-    assert "Current" in result.output
-    assert "Next" in result.output
-    assert "Queue Artist" in result.output
-    assert "Dry run: New Kids 9 -> 10" in result.output
+    Args:
+        received: Original received observation or resource.
+    """
 
+    received: dict[str, object]
 
-def test_flush_queue_2_dry_run_reports_both_playlist_transitions(monkeypatch) -> None:
-    """The Queue 2 CLI should pass configuration and render both list counts."""
-    received: dict[str, object] = {}
+    def __call__(
+        self,
+        _spotify: Any,
+        new_playlist: Any,
+        queue_playlist: Any,
+        great_playlist: Any,
+        unlucky_playlist: Any,
+        newfoundland_playlist: Any,
+        choice_reader: Any,
+        **kwargs: Any,
+    ) -> main.new_kids.Queue2Summary:
+        """Execute the original run mock boundary.
 
-    def run(
-        _spotify,
-        new_playlist,
-        queue_playlist,
-        great_playlist,
-        unlucky_playlist,
-        newfoundland_playlist,
-        choice_reader,
-        **kwargs,
-    ):
-        assert callable(choice_reader)
-        received.update(
+        Args:
+            _spotify: Original external mock argument.
+            new_playlist: Original external mock argument.
+            queue_playlist: Original external mock argument.
+            great_playlist: Original external mock argument.
+            unlucky_playlist: Original external mock argument.
+            newfoundland_playlist: Original external mock argument.
+            choice_reader: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        assert callable(getattr(choice_reader, "choose", None))
+        self.received.update(
             new_playlist=new_playlist,
             queue_playlist=queue_playlist,
             great_playlist=great_playlist,
@@ -200,47 +309,3 @@ def test_flush_queue_2_dry_run_reports_both_playlist_transitions(monkeypatch) ->
             resumed=False,
             dry_run=True,
         )
-
-    monkeypatch.setattr(
-        main,
-        "Settings",
-        lambda: SimpleNamespace(
-            new_kids_on_the_block_playlist="spotify:playlist:new",
-            the_queue_2_playlist="spotify:playlist:queue",
-            great_discoveries_2026_playlist="spotify:playlist:great",
-            unlucky_ones_playlist="spotify:playlist:unlucky",
-            discography_newfoundland_playlist="spotify:playlist:newfoundland",
-            lastfm_api_key="lastfm-key",
-            lastfm_username="lastfm-user",
-        ),
-    )
-    monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(
-        main.new_kids,
-        "flush_queue_2",
-        FeatureInvocation(
-            run,
-            (
-                "new_kids_playlist_id",
-                "queue_2_playlist_id",
-                "great_discoveries_playlist_id",
-                "unlucky_ones_playlist_id",
-                "newfoundland_playlist_id",
-            ),
-        ),
-    )
-
-    result = CliRunner().invoke(main.app, ["flush-queue-2", "--dry-run"])
-
-    assert result.exit_code == 0
-    assert received == {
-        "new_playlist": "new",
-        "queue_playlist": "queue",
-        "great_playlist": "great",
-        "unlucky_playlist": "unlucky",
-        "newfoundland_playlist": "newfoundland",
-        "dry_run": True,
-    }
-    assert "Queue Artist" in result.output
-    assert "First Artist" in result.output
-    assert "Dry run: New Kids 9 -> 10; Queue 2 20 -> 19" in result.output

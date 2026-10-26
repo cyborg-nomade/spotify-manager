@@ -6,11 +6,8 @@ import copy
 from pathlib import Path
 from typing import Any
 
+from spotify_manager.core.state.definitions import OBJECT_DEFINITION
 from spotify_manager.core.state.definitions import StateDefinition
-from spotify_manager.core.state.definitions import StateFactory as StateFactory
-from spotify_manager.core.state.definitions import StateValidator as StateValidator
-from spotify_manager.core.state.definitions import state_definition
-from spotify_manager.core.state.definitions import validate_definition
 from spotify_manager.core.state.models import StateConflictError
 from spotify_manager.core.state.models import StateDocumentError
 from spotify_manager.core.state.models import StateError
@@ -50,20 +47,18 @@ class StateService:
     def namespace(
         self,
         name: str,
-        default_factory: StateFactory | StateDefinition,
-        validator: StateValidator = object_validator,
+        definition: StateDefinition,
     ) -> StateNamespace:
         """Construct the supported interface for one routine namespace.
 
         Args:
             name: Persisted namespace identity.
-            default_factory: Named schema or retained external Python default hook.
-            validator: Retained external validator, used only with a default hook.
+            definition: Schema owning namespace defaults and validation.
 
         Returns:
             Namespace handle owning its validation and conflict baseline.
         """
-        return StateNamespace(self, name, state_definition(default_factory, validator))
+        return StateNamespace(self, name, definition)
 
     def replace(
         self,
@@ -99,7 +94,7 @@ class StateService:
         value: dict[str, Any],
         *,
         expected_revision: str,
-        validator: StateValidator | StateDefinition = object_validator,
+        validator: StateDefinition = OBJECT_DEFINITION,
         message: str | None = None,
     ) -> StateSnapshot:
         """Validate and replace one namespace against the viewed revision.
@@ -124,7 +119,7 @@ class StateService:
                 "Shared state changed elsewhere. Reload it before saving."
             )
         try:
-            validated = validate_definition(validator, value)
+            validated = validator.validate(value)
         except StateError:
             raise
         except Exception as exc:
@@ -160,13 +155,18 @@ class StateNamespace:
         self,
         service: StateService,
         name: str,
-        default_factory: StateFactory | StateDefinition,
-        validator: StateValidator = object_validator,
+        definition: StateDefinition,
     ) -> None:
-        """Track one namespace and its last-loaded conflict baseline."""
+        """Track one namespace and its last-loaded conflict baseline.
+
+        Args:
+            service: Shared-state persistence and revision owner.
+            name: Persisted namespace identity.
+            definition: Schema owning namespace defaults and validation.
+        """
         self._service = service
         self.name = name
-        self._definition = state_definition(default_factory, validator)
+        self._definition = definition
         self._baseline: dict[str, Any] | None = None
 
     def load(self) -> dict[str, Any]:

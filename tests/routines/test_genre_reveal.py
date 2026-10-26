@@ -1,6 +1,7 @@
 """Tests for file-backed Genre Reveal progress."""
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,30 @@ def page_reader(url: str) -> str:
     if "open.spotify.com/embed/playlist" in url:
         return " ".join((*TRACK_URIS, TRACK_URIS[0]))
     raise AssertionError(f"Unexpected URL: {url}")
+
+
+@dataclass(frozen=True)
+class FixturePages:
+    """Supply the original public genre pages, optionally with too few tracks.
+
+    Args:
+        short: Whether the embed contains the original incomplete track list.
+    """
+
+    short: bool = False
+
+    def read(self, url: str) -> str:
+        """Read the original fixture page for the requested URL.
+
+        Args:
+            url: Original Every Noise or Spotify embed URL.
+
+        Returns:
+            Original fixture HTML.
+        """
+        if self.short and "everynoise.com" not in url:
+            return " ".join(TRACK_URIS[:9])
+        return page_reader(url)
 
 
 def test_missing_state_file_returns_empty_progress(tmp_path: Path) -> None:
@@ -155,10 +180,11 @@ def test_preserved_route_can_select_first_incomplete_genre() -> None:
 
 
 def test_discovers_primary_playlist_instead_of_intro_or_pulse() -> None:
+    """Discovers primary playlist instead of intro or pulse."""
     preview = genre_reveal.discover_genre_source(
         "kerkkoor",
         "kerkkoor",
-        page_reader,
+        FixturePages(),
     )
 
     assert preview.source_playlist_id == SOURCE_PLAYLIST_ID
@@ -167,11 +193,7 @@ def test_discovers_primary_playlist_instead_of_intro_or_pulse() -> None:
 
 
 def test_source_requires_ten_public_embed_tracks() -> None:
-    def short_page_reader(url: str) -> str:
-        if "everynoise.com" in url:
-            return PRIMARY_PAGE
-        return " ".join(TRACK_URIS[:9])
-
+    """Source requires ten public embed tracks."""
     with pytest.raises(
         genre_reveal.GenreRevealSourceError,
         match="did not expose the first 10 tracks",
@@ -179,13 +201,18 @@ def test_source_requires_ten_public_embed_tracks() -> None:
         genre_reveal.load_genre_playlist_source(
             "kerkkoor",
             "kerkkoor",
-            short_page_reader,
+            FixturePages(short=True),
         )
 
 
 def test_process_saves_source_adds_only_missing_tracks_and_logs(
     tmp_path: Path,
 ) -> None:
+    """Process saves source adds only missing tracks and logs.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     existing_id = TRACK_URIS[1].rsplit(":", maxsplit=1)[-1]
     spotify = FakeSpotify(existing_track_ids=(existing_id,))
     log_path = tmp_path / "genre-reveal.jsonl"
@@ -196,7 +223,7 @@ def test_process_saves_source_adds_only_missing_tracks_and_logs(
         "kerkkoor",
         "destination",
         log_path=log_path,
-        page_reader=page_reader,
+        page_reader=FixturePages(),
     )
 
     assert result.source_track_uris == list(TRACK_URIS[:10])

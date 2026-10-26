@@ -1,6 +1,5 @@
 """Plan automatic track advances and prompted chronological release transitions."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Protocol
@@ -18,9 +17,27 @@ from spotify_manager.domain.slow_listening import track_index
 from spotify_manager.models.lookups import AlbumEvaluation
 
 
-type TransitionReader = Callable[
-    [PlaylistTrack, DiscographyRelease, DiscographyRelease], str
-]
+class TransitionReader(Protocol):
+    """Own the operator interaction for choose transition."""
+
+    def choose_transition(
+        self,
+        source: PlaylistTrack,
+        current: DiscographyRelease,
+        following: DiscographyRelease,
+        /,
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            source: Original interaction value.
+            current: Original interaction value.
+            following: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 class Queue3Catalog(Protocol):
@@ -151,7 +168,7 @@ class Queue3Planner:
         Raises:
             Queue3Error: Choice is invalid or the accepted successor has no tracks.
         """
-        choice = self.choose(source, current, following)
+        choice = self.choose.choose_transition(source, current, following)
         if choice == "quit":
             return None
         if choice != "advance":

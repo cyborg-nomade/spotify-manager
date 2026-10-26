@@ -1,7 +1,12 @@
 """Tests for removed-album artist auditing and future-release recovery."""
 
 import json
+from dataclasses import dataclass
 from datetime import date
+from functools import partial
+from pathlib import Path
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
@@ -10,8 +15,11 @@ from spotify_manager.models.stats import AlbumsStats
 from spotify_manager.models.stats import ArtistsStats
 from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.stats import TracksStats
+from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.routines import recover_removed_albums
+from tests.support.framework_stubs import snapshot_items
+from tests.support.runtime_resources import MessageList
 
 
 @pytest.mark.parametrize(
@@ -128,9 +136,14 @@ def _stats_report() -> StatsReport:
 
 
 def test_recovery_follows_all_artists_and_restores_future_album(
-    monkeypatch,
-    tmp_path,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Recovery follows all artists and restores future album.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     removal_log_path = tmp_path / "removed.jsonl"
     recovery_log_path = tmp_path / "recovery.jsonl"
     removal_log_path.write_text(
@@ -143,22 +156,15 @@ def test_recovery_follows_all_artists_and_restores_future_album(
         )
         + "\n"
     )
-
-    artists = [
-        YourLibraryArtist(
-            name="Primary Artist",
-            uri="spotify:artist:primary",
-        )
-    ]
+    artists = [YourLibraryArtist(name="Primary Artist", uri="spotify:artist:primary")]
     albums = []
     stats_history = {"2026.07.14": _stats_report()}
-    saved_artists: list[list] = []
-    saved_albums: list[list] = []
-
+    saved_artists: list[list[YourLibraryArtist]] = []
+    saved_albums: list[list[YourLibraryAlbum]] = []
     monkeypatch.setattr(
         recover_removed_albums,
         "load_total_artists_file",
-        lambda: list(artists),
+        Mock(return_value=list(artists)),
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -168,12 +174,12 @@ def test_recovery_follows_all_artists_and_restores_future_album(
     monkeypatch.setattr(
         recover_removed_albums,
         "save_total_artists_file",
-        lambda items: saved_artists.append(list(items)),
+        partial(snapshot_items, saved_artists),
     )
     monkeypatch.setattr(
         recover_removed_albums,
         "load_total_albums_new_file",
-        lambda: list(albums),
+        Mock(return_value=list(albums)),
     )
     monkeypatch.setattr(
         file_boundaries,
@@ -183,61 +189,46 @@ def test_recovery_follows_all_artists_and_restores_future_album(
     monkeypatch.setattr(
         recover_removed_albums,
         "save_total_albums_new_file",
-        lambda items: saved_albums.append(list(items)),
+        partial(snapshot_items, saved_albums),
     )
     monkeypatch.setattr(
         recover_removed_albums,
         "load_stats_history_file",
-        lambda: dict(stats_history),
+        Mock(return_value=dict(stats_history)),
     )
-
-    def save_stats(items) -> None:
-        stats_history.clear()
-        stats_history.update(items)
-
-    monkeypatch.setattr(recover_removed_albums, "save_stats_history", save_stats)
+    scenario = RecoveryFollowsAllArtistsAndRestoresFutureAlbumScenario(
+        stats_history=stats_history
+    )
+    monkeypatch.setattr(
+        recover_removed_albums, "save_stats_history", scenario.save_stats
+    )
     monkeypatch.setattr(
         recover_removed_albums,
         "current_stats_history_key",
-        lambda: "2026.07.14",
+        Mock(return_value="2026.07.14"),
     )
-
     sp = FakeSpotify()
     messages: list[str] = []
     summary = recover_removed_albums.recover_removed_albums(
         sp,
-        echo=messages.append,
+        echo=MessageList(messages),
         removal_log_path=removal_log_path,
         recovery_log_path=recovery_log_path,
         today=date(2026, 7, 14),
         transient_retry_delay_seconds=0,
     )
-
-    assert sp.album_calls == [["future"]]
-    assert sp.followed_batches == [["guest"]]
-    assert sp.saved_album_batches == [["future"]]
-    assert {artist.spotify_id for artist in saved_artists[-1]} == {
-        "primary",
-        "guest",
-    }
-    assert [album.spotify_id for album in saved_albums[-1]] == ["future"]
-    assert stats_history["2026.07.14"].artists_stats.total_followed_artists == 2
-    assert stats_history["2026.07.14"].albums_stats.total_saved_albums == 1
-    assert summary.multi_artist_albums == 1
-    assert summary.artists_followed == 1
-    assert summary.future_releases == 1
-    assert summary.albums_restored == 1
-    assert any(message.startswith("Multiple credited artists") for message in messages)
-
-    events = [json.loads(line) for line in recovery_log_path.read_text().splitlines()]
-    assert {event["event"] for event in events} == {
-        "artist_checked",
-        "album_processed",
-    }
-
+    _assert_future_album_recovery(
+        sp,
+        saved_artists,
+        saved_albums,
+        stats_history,
+        summary,
+        messages,
+        recovery_log_path,
+    )
     recover_removed_albums.recover_removed_albums(
         sp,
-        echo=messages.append,
+        echo=MessageList(messages),
         removal_log_path=removal_log_path,
         recovery_log_path=recovery_log_path,
         today=date(2026, 7, 14),
@@ -290,3 +281,49 @@ def test_dry_run_does_not_mutate_spotify_or_write_recovery_state(
     assert sp.followed_batches == []
     assert sp.saved_album_batches == []
     assert not recovery_log_path.exists()
+
+
+@dataclass
+class RecoveryFollowsAllArtistsAndRestoresFutureAlbumScenario:
+    """Retain the original recovery follows all artists and restores future album
+    fixture.
+
+    Args:
+        stats_history: Original stats history observation or resource.
+    """
+
+    stats_history: dict[str, Any]
+
+    def save_stats(self, items: Any) -> None:
+        """Execute the original save stats mock boundary.
+
+        Args:
+            items: Original external mock argument.
+        """
+        self.stats_history.clear()
+        self.stats_history.update(items)
+
+
+def _assert_future_album_recovery(
+    sp: FakeSpotify,
+    saved_artists: list[list[YourLibraryArtist]],
+    saved_albums: list[list[YourLibraryAlbum]],
+    stats_history: dict[str, StatsReport],
+    summary: recover_removed_albums.RecoverySummary,
+    messages: list[str],
+    recovery_log_path: Path,
+) -> None:
+    assert sp.album_calls == [["future"]]
+    assert sp.followed_batches == [["guest"]]
+    assert sp.saved_album_batches == [["future"]]
+    assert {artist.spotify_id for artist in saved_artists[-1]} == {"primary", "guest"}
+    assert [album.spotify_id for album in saved_albums[-1]] == ["future"]
+    assert stats_history["2026.07.14"].artists_stats.total_followed_artists == 2
+    assert stats_history["2026.07.14"].albums_stats.total_saved_albums == 1
+    assert summary.multi_artist_albums == 1
+    assert summary.artists_followed == 1
+    assert summary.future_releases == 1
+    assert summary.albums_restored == 1
+    assert any(message.startswith("Multiple credited artists") for message in messages)
+    events = [json.loads(line) for line in recovery_log_path.read_text().splitlines()]
+    assert {event["event"] for event in events} == {"artist_checked", "album_processed"}

@@ -1,6 +1,7 @@
 """Explicit callbacks and wire presentation for PalaceOfMemoryWorker."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -10,8 +11,9 @@ from typing import cast
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.application.retry_attempts import CheckedAttempts
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.palace import PalaceAlbumRefreshResult
 from spotify_manager.interfaces.http.models.palace import PalaceAlbumSelectionResult
@@ -38,6 +40,11 @@ class PalaceOfMemoryWorker:
         job_id: Caller-owned job id.
         spotify: Caller-owned spotify.
         cursor_position: Caller-owned cursor position.
+
+    Attributes:
+        cursor_update: Whether this invocation updates the manual cursor.
+        job: Resolved reconnectable job state.
+        events: SDK event subscription retaining the original setter binding.
     """
 
     options: PalaceOptions
@@ -47,8 +54,7 @@ class PalaceOfMemoryWorker:
     cursor_position: int | None
     cursor_update: palace_of_memory.AlphabeticalCursorUpdate | None = field(init=False)
     job: _BlastJob = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute one reconnectable Palace fill or cursor adjustment."""
@@ -84,7 +90,7 @@ class PalaceOfMemoryWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -93,29 +99,18 @@ class PalaceOfMemoryWorker:
         if self.job.cancel_event.wait(seconds):
             raise _PalaceOfMemoryJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        if self.job.cancel_event.is_set():
-            raise _PalaceOfMemoryJobCancelledError
-        result = review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self.echo,
-            sleep=self.interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-        if self.job.cancel_event.is_set():
-            raise _PalaceOfMemoryJobCancelledError
-        return result
+        self.check()
+        scopes = SpotifyRetries(self, self, 10, 3).attempts(description)
+        return CheckedAttempts(scopes, self)
 
     def _start(self) -> None:
         self.job = self.context.lookup(self.job_id, command="fill_palace_of_memory")
@@ -128,10 +123,8 @@ class PalaceOfMemoryWorker:
                 else "Palace of Memory started"
             )
             self.context.append(self.job, self.job.result.detail)
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
         self.cursor_update = None
 
     def _execute(self) -> palace_of_memory.PalaceOfMemorySummary | None:
@@ -140,8 +133,8 @@ class PalaceOfMemoryWorker:
             self.cursor_update = palace_of_memory.set_alphabetical_cursor(
                 self.spotify,
                 self.cursor_position,
-                progress_callback=self.echo,
-                retry_call=self.retry_call,
+                progress_callback=self,
+                retry_call=self,
             )
         else:
             if self.options.playlist_id is None:
@@ -152,9 +145,9 @@ class PalaceOfMemoryWorker:
                 self.spotify,
                 self.options,
                 PalaceCallbacks(
-                    retry_call=self.retry_call,
-                    progress_callback=self.echo,
-                    echo=self.echo,
+                    retry_call=self,
+                    progress_callback=self,
+                    output=self,
                 ),
                 PalaceResources(),
             )
@@ -183,8 +176,7 @@ class PalaceOfMemoryWorker:
             self.context.append(self.job, cast(str, self.job.result.detail))
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
@@ -326,3 +318,12 @@ class PalaceOfMemoryWorker:
                 ),
             )
         return refresh
+
+    def check(self) -> None:
+        """Observe the original retry cancellation boundary.
+
+        Raises:
+            RuntimeError: This job was cancelled.
+        """
+        if self.job.cancel_event.is_set():
+            raise _PalaceOfMemoryJobCancelledError

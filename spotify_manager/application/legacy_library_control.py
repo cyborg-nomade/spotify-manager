@@ -25,9 +25,9 @@ def unevaluated(control: list[ControlFileItem], echo: Echo) -> list[ControlFileI
     Returns:
         The original suffix with shared entry identity.
     """
-    echo("Getting unevaluated albums...")
+    echo.echo("Getting unevaluated albums...")
     index = first_index(control_results(control), "")
-    echo(f"First unevaluated album index: {index}")
+    echo.echo(f"First unevaluated album index: {index}")
     return control[index:]
 
 
@@ -44,10 +44,10 @@ def evaluate(
     Returns:
         The same control list.
     """
-    echo("Checking against library...")
+    echo.echo("Checking against library...")
     for item in control:
         item.result = "keep" if catalog.contains(item.album.spotify_id) else "remove"
-        echo(f"album:{item.album.name}: result: {item.result}")
+        echo.echo(f"album:{item.album.name}: result: {item.result}")
     return control
 
 
@@ -93,12 +93,12 @@ def check(
     Returns:
         True after the original complete sequence.
     """
-    echo("Checking album results...")
+    echo.echo("Checking album results...")
     selected = unevaluated(control, echo)
     evaluate(selected, catalog, echo)
     reconcile(albums, selected, files)
     files.save_control(control)
-    echo("Results checked!")
+    echo.echo("Results checked!")
     return True
 
 
@@ -118,9 +118,9 @@ def starting_index(
     Raises:
         IndexError: Original control authority is empty.
     """
-    echo("Getting starting index...")
+    echo.echo("Getting starting index...")
     index = last_kept_index(control_results(control))
-    echo("last_kept_album_item_index: ", index)
+    echo.echo("last_kept_album_item_index: ", index)
     identifier = control[index].album.spotify_id
     return first_index(album_ids(albums), identifier) + 1
 
@@ -141,7 +141,7 @@ def calculate(
     Raises:
         ZeroDivisionError: An original denominator is zero.
     """
-    echo("Calculating stats...")
+    echo.echo("Calculating stats...")
     saved = len(albums)
     listened = len(control)
     removed = 0
@@ -169,11 +169,11 @@ def update_statistics(
     Returns:
         True after accepted publication.
     """
-    echo("Updating stats...")
+    echo.echo("Updating stats...")
     stats = calculate(control, albums, echo)
-    echo(f"These are your current stats: \n{stats.model_dump()}")
+    echo.echo(f"These are your current stats: \n{stats.model_dump()}")
     files.save_stats(stats)
-    echo("Stats updated!")
+    echo.echo("Stats updated!")
     return True
 
 

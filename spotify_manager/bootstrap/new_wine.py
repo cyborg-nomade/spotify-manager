@@ -1,25 +1,20 @@
 """Compose one complete synchronous New Wine invocation."""
 
-from collections.abc import Callable
-from datetime import datetime
-from functools import partial
-
 from spotipy import Spotify
 
 from spotify_manager.application.new_wine import NewWineDependencies
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_observations import WineObservations
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.runtime import YearClock
 from spotify_manager.application.wine_cellar import CellarWorkflow
 from spotify_manager.infrastructure.legacy.new_wine import LegacyNewWine
 from spotify_manager.infrastructure.legacy.wine_cellar import WineCellarAccess
 from spotify_manager.interfaces.presenters.new_wine import NewWinePresenter
-from spotify_manager.interfaces.presenters.wine_cellar import present_transfer
+from spotify_manager.interfaces.presenters.wine_cellar import CellarPresenter
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
 from spotify_manager.interfaces.requests.new_wine import NewWineStorage
-
-
-def _direct(operation: Callable[[], object], description: str) -> object:
-    return operation()
 
 
 def new_wine_dependencies(
@@ -28,8 +23,8 @@ def new_wine_dependencies(
     callbacks: NewWineCallbacks,
     storage: NewWineStorage,
     year: int | None,
-    clock: Callable[[], datetime],
-    local_year: Callable[[], int],
+    clock: Clock,
+    local_year: YearClock,
 ) -> NewWineDependencies:
     """Bind the run-owned interactions and storage without executing a workflow.
 
@@ -45,10 +40,10 @@ def new_wine_dependencies(
     Returns:
         Dependencies for the named New Wine application use case.
     """
-    active_year = year or local_year()
+    active_year = year or local_year.year()
     access = LegacyNewWine(
         client,
-        callbacks.retry or _direct,
+        callbacks.retry or NoRetry(),
         storage.state_path,
         storage.state_service,
         storage.log_path,
@@ -65,7 +60,7 @@ def new_wine_dependencies(
             storage.liked_tracks_path,
             storage.albums_path,
         ),
-        partial(present_transfer, callbacks.echo),
+        CellarPresenter(callbacks.output),
     )
     return NewWineDependencies(
         access,
@@ -73,7 +68,7 @@ def new_wine_dependencies(
         cellar,
         callbacks.choose,
         callbacks.endpoint,
-        NewWinePresenter(callbacks.echo),
+        NewWinePresenter(callbacks.output),
         clock,
         callbacks.progress,
     )

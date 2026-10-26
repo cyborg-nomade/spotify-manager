@@ -6,6 +6,7 @@ from rich.console import Console
 
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
+from spotify_manager.interfaces.cli.output import ConsoleOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import new_year as new_year
@@ -38,9 +39,11 @@ class NewYearCLI:
         )
         new_year.run_new_year(
             self.runtime.client(),
-            create_lastfm_client(LastFmCredentials(key, username), console.print),
+            create_lastfm_client(
+                LastFmCredentials(key, username), ConsoleOutput(console)
+            ),
             configuration,
             year=year,
             dry_run=dry_run,
-            echo=console.print,
+            echo=ConsoleOutput(console),
         )

@@ -3,7 +3,6 @@
 import logging
 import os
 from collections.abc import AsyncIterator as AsyncIterator
-from collections.abc import Callable as Callable
 from collections.abc import Iterator as Iterator
 from contextlib import asynccontextmanager as asynccontextmanager
 from datetime import UTC as UTC
@@ -40,6 +39,7 @@ from spotify_manager.application.job_lifecycle import (
 )
 from spotify_manager.application.job_lifecycle import retain_logs as retain_logs
 from spotify_manager.application.new_wine import NewWineOptions
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.startup import (
     hydrate_library_data as hydrate_runtime_library_data,
@@ -65,8 +65,6 @@ from spotify_manager.core.state.models import StateError as StateError
 from spotify_manager.core.state.models import canonical_json as canonical_json
 from spotify_manager.core.state.models import namespace_value as namespace_value
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
-from spotify_manager.core.state.service import StateFactory as StateFactory
-from spotify_manager.core.state.service import StateValidator as StateValidator
 from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import GenreRevealStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import NewKidsStateCodec
@@ -84,13 +82,11 @@ from spotify_manager.infrastructure.routine_state_codecs import (
 from spotify_manager.infrastructure.routine_state_codecs import ReviewArtistsStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import SlowListeningStateCodec
 from spotify_manager.infrastructure.routine_state_codecs import TheQueueStateCodec
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.http.analysis_context import AnalysisContext
 from spotify_manager.interfaces.http.analysis_worker import (
     AnalysisWorker as AnalysisWorker,
-)
-from spotify_manager.interfaces.http.analysis_worker import (
-    spotify_event_setter as spotify_event_setter,
 )
 from spotify_manager.interfaces.http.job_queries import (
     active_analysis_snapshots as active_analysis_snapshots,
@@ -742,10 +738,8 @@ def _run_analysis_job(
     """Execute one analysis worker and translate outcomes into job state."""
     worker = _analysis_worker(job_id, mode, spotify, full_rebuild, mirror_resource)
     worker.start()
-    setter = spotify_event_setter(spotify)
-    previous_callback = None
-    if setter is not None:
-        previous_callback = setter(worker.echo)
+    events = SpotifyEvents(spotify)
+    events.subscribe(worker)
     try:
         summary = worker.execute()
     except library_analysis.LibraryAnalysisCancelledError as exc:
@@ -760,8 +754,7 @@ def _run_analysis_job(
     else:
         worker.completed(summary)
     finally:
-        if setter is not None:
-            setter(previous_callback)
+        events.restore()
         worker.finish()
 
 
@@ -844,11 +837,9 @@ def start_analysis_job(
     return snapshot
 
 
-def _playlist_job_retry(
-    job: _BlastJob, echo: Callable[[str], None]
-) -> blast_from_past.RetryCall:
+def _playlist_job_retry(job: _BlastJob, echo: Messages) -> blast_from_past.RetryCall:
     """Build a bounded Spotify retry policy with interruptible waits."""
-    return PlaylistRetry(job, echo).call
+    return PlaylistRetry(job, echo)
 
 
 class JobConfiguration:

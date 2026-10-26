@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 
 from spotipy import Spotify
 
@@ -17,6 +16,7 @@ from spotify_manager.interfaces.requests.something_old import SomethingOldCallba
 from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
 from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import something_old as legacy
+from spotify_manager.routines.something_old import ArtistChoiceReader
 
 
 @dataclass(frozen=True)
@@ -52,7 +52,7 @@ class LegacySomethingOld:
             message: Original stage text.
         """
         if self.callbacks.progress_callback is not None:
-            self.callbacks.progress_callback(message)
+            self.callbacks.progress_callback.echo(message)
 
     def playlist_length(self, recheck: bool) -> int:
         """Read original destination authority with unchanged retry descriptions.
@@ -99,13 +99,10 @@ class LegacySomethingOld:
         Returns:
             Original accepted mapping or cancellation.
         """
-        from spotify_manager.routines.something_old import _read_golden_artist_choice
         from spotify_manager.routines.something_old import resolve_spotify_artist
 
         reader = (
-            partial(
-                _read_golden_artist_choice, self.callbacks.artist_choice_reader, artist
-            )
+            GoldenArtistChoice(self.callbacks.artist_choice_reader, artist)
             if self.callbacks.artist_choice_reader is not None
             else None
         )
@@ -123,7 +120,7 @@ class LegacySomethingOld:
         Returns:
             Original mode or cancellation text.
         """
-        return self.callbacks.mode_reader(artist, mapped)
+        return self.callbacks.mode_reader.choose_mode(artist, mapped)
 
     def lastfm_tracks(self, artist: GoldenOldieArtist) -> tuple[SelectedTrack, ...]:
         """Retain original strict Last.fm title resolution.
@@ -196,3 +193,30 @@ class LegacySomethingOld:
         from spotify_manager.routines.something_old import _append_log
 
         _append_log(summary, self.resources.log_path)
+
+
+@dataclass(frozen=True)
+class GoldenArtistChoice:
+    """Keep the Golden Oldies evidence in an artist-search prompt.
+
+    Args:
+        reader: Original operator interaction.
+        artist: Original selected historical artist.
+    """
+
+    reader: ArtistChoiceReader
+    artist: GoldenOldieArtist
+
+    def choose_artist(
+        self, name: str, candidates: tuple[SpotifyArtistCandidate, ...], /
+    ) -> str:
+        """Read the original artist prompt using its complete historical context.
+
+        Args:
+            name: Search label; historical evidence retains the original name.
+            candidates: Original ordered search candidates.
+
+        Returns:
+            Original operator response.
+        """
+        return self.reader.choose_artist(self.artist, candidates)

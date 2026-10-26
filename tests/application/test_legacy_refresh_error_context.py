@@ -26,7 +26,7 @@ class BrokenProgress:
     error: RuntimeError
     output: list[object] = field(default_factory=list)
 
-    def __call__(self, *values: object) -> None:
+    def echo(self, *values: object) -> None:
         """Raise the original progress failure and accept its subsequent report.
 
         Args:

@@ -24,6 +24,7 @@ from spotify_manager.routines import found_art
 from tests.routines.test_found_art import FakeLastFm
 from tests.routines.test_found_art import candidate
 from tests.routines.test_found_art import seed
+from tests.support.runtime_resources import MessageList
 
 
 STAMP = datetime(2026, 7, 22, tzinfo=UTC)
@@ -259,7 +260,7 @@ def test_preview_retains_history_gathering_resolution_and_audit(
     steps = RunSteps()
     _install(steps, monkeypatch)
     messages: list[str] = []
-    summary = _run(dry_run=dry_run, progress=messages.append)
+    summary = _run(dry_run=dry_run, progress=MessageList(messages))
     assert steps.events == ["history", "playlist", "seeds", "gather", "resolve"] + (
         [] if dry_run else ["append"]
     ) + ["audit"]

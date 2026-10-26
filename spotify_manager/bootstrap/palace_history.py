@@ -1,18 +1,13 @@
 """Compose Palace history with original export, clock and random-reader seams."""
 
 from datetime import date
-from functools import partial
 from pathlib import Path
 
 from spotify_manager.application.palace_history import PalaceHistory
+from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.infrastructure.legacy.dated_history import LegacyDatedHistory
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory as legacy
-
-
-def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
 
 
 def palace_history(
@@ -34,6 +29,6 @@ def palace_history(
     """
     return PalaceHistory(
         LegacyDatedHistory(path, today, random),
-        partial(_progress, progress),
+        OptionalMessages(progress),
         blast_from_past.FIRST_ELIGIBLE_DATE,
     )

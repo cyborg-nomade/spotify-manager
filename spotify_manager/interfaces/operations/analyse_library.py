@@ -1,6 +1,6 @@
 """Invoke analyse library use cases for CLI and HTTP features."""
 
-from time import sleep as default_sleep
+import time
 from typing import cast as cast
 
 from spotipy import Spotify as Spotify
@@ -45,6 +45,7 @@ from spotify_manager.infrastructure import library_analysis_restore as analysis_
 from spotify_manager.infrastructure.library_analysis_errors import (
     AnalysisFailure as AnalysisFailure,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.spotify.retry import (
     SpotifyRateLimitError as SpotifyRateLimitError,
 )
@@ -78,7 +79,7 @@ from spotify_manager.routines.analyse_library import Sleep as Sleep
 
 
 def analyse_library_async_routine(
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_ASYNC_PATHS,
@@ -115,12 +116,12 @@ def analyse_library_async_routine(
 
 def analyse_library_sync_routine(
     sp: Spotify,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_SYNC_PATHS,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
 ) -> LibrarySyncSummary:
@@ -166,12 +167,12 @@ def analyse_library_sync_routine(
 
 def refresh_live_library_mirrors_routine(
     sp: Spotify,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,
@@ -223,12 +224,12 @@ def refresh_live_library_mirrors_routine(
 def refresh_live_library_resource_routine(
     sp: Spotify,
     resource: ResourceName,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,

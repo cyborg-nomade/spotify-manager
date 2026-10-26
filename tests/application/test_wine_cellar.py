@@ -36,7 +36,7 @@ def _run(
     options = CellarOptions(
         "new", "cellar", no_discovery, dry_run, target_size, projected
     )
-    return CellarWorkflow(memory, memory.moved).run(options, state, run)
+    return CellarWorkflow(memory, memory).run(options, state, run)
 
 
 def _pending(memory: MemoryCellar, liked: object = None, albums: object = None) -> None:

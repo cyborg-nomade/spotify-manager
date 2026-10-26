@@ -1,6 +1,7 @@
 """Explicit discography CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -10,8 +11,12 @@ from rich.status import Status
 from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.domain.discography_values import CatalogRelease
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.features.something_old import SomethingOldCLI
+from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import discography as discography
 from spotify_manager.interfaces.operations import (
@@ -29,13 +34,14 @@ class DiscographyCLI:
         display: Rich console, table and live-status constructors.
         ask_something_old_artist: Operator prompt for historical artist resolution.
         sleep: Bounded retry wait supplied by the interface.
+        historical_artists: Named historical artist selection stage.
     """
 
     runtime: CliResources
 
     display: ConsoleDisplay
-    ask_something_old_artist: Callable[..., str]
-    sleep: Callable[[float], None]
+    historical_artists: SomethingOldCLI
+    sleep: Wait
 
     def _prompt_discography_release_selection(
         self,
@@ -147,18 +153,6 @@ class DiscographyCLI:
     def _plan_discographies_echo(self, line: str = "") -> None:
         self._plan_discographies_console.print(line, style="cyan", markup=False)
 
-    def _plan_discographies_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._plan_discographies_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
     def _plan_discographies_ask_discography_release_selection(
         self,
         artist: discography.QueueArtist,
@@ -176,7 +170,7 @@ class DiscographyCLI:
         artist_name: str,
         candidates: tuple[something_old.SpotifyArtistCandidate, ...],
     ) -> str:
-        return self.ask_something_old_artist(
+        return self.historical_artists.ask_artist(
             self._plan_discographies_console,
             artist_name,
             candidates,
@@ -354,11 +348,11 @@ class DiscographyCLI:
             plan = discography.build_discography_plan(
                 self.runtime.review_client(),
                 playlist_ids,
-                self._plan_discographies_ask_discography_release_selection,
+                PlanDiscographiesInteraction(self),
                 queue_3_playlist_id=queue_3_playlist_id,
-                historical_artist_choice_reader=self._plan_discographies_ask_something_old_artist,
-                retry_call=self._plan_discographies_retry_call,
-                progress_callback=self._plan_discographies_status.update,
+                historical_artist_choice_reader=PlanDiscographiesInteraction(self),
+                retry_call=PlanDiscographiesInteraction(self),
+                progress_callback=StatusOutput(self._plan_discographies_status),
             )
         self._render_discography_plan(self._plan_discographies_console, plan)
         if not self._confirm_plan(plan, dry_run):
@@ -369,8 +363,8 @@ class DiscographyCLI:
             return discography.apply_discography_plan(
                 self.runtime.review_client(),
                 plan,
-                retry_call=self._plan_discographies_retry_call,
-                progress_callback=self._plan_discographies_status.update,
+                retry_call=PlanDiscographiesInteraction(self),
+                progress_callback=StatusOutput(self._plan_discographies_status),
             )
 
     def _confirm_plan(self, plan: discography.DiscographyPlan, dry_run: bool) -> bool:
@@ -402,3 +396,69 @@ class DiscographyCLI:
             )
             return False
         return True
+
+
+@dataclass(frozen=True)
+class PlanDiscographiesInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: DiscographyCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._plan_discographies_echo(message)
+
+    def select_releases(
+        self,
+        artist: discography.QueueArtist,
+        candidates: tuple[discography.CatalogRelease, ...],
+    ) -> tuple[str, ...]:
+        """Use this command's fixed select releases prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._plan_discographies_ask_discography_release_selection(
+            artist, candidates
+        )
+
+    def choose_artist(
+        self,
+        artist_name: str,
+        candidates: tuple[something_old.SpotifyArtistCandidate, ...],
+    ) -> str:
+        """Use this command's fixed choose artist prompt.
+
+        Args:
+            artist_name: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._plan_discographies_ask_something_old_artist(
+            artist_name, candidates
+        )

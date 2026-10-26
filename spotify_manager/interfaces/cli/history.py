@@ -10,6 +10,7 @@ from rich.table import Table
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.operations import found_art as found_art
 from spotify_manager.interfaces.operations import scrobble_history as history
 from spotify_manager.settings import Settings
@@ -45,7 +46,7 @@ class HistoryCommand:
                     expected_username=username,
                     dry_run=dry_run,
                     full_rebuild=full_rebuild,
-                    progress_callback=status.update,
+                    progress_callback=StatusOutput(status),
                 )
         except (history.ScrobbleHistoryError, LastFmError) as error:
             self._fail(error)
@@ -67,7 +68,7 @@ class HistoryCommand:
             )
         except found_art.FoundArtConfigError as error:
             self._fail(error)
-        return lastfm_client(LastFmCredentials(key, username), self.echo), username
+        return lastfm_client(LastFmCredentials(key, username), self), username
 
     def _fail(
         self,

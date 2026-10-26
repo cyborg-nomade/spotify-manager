@@ -8,6 +8,10 @@ from typing import Self
 from typing import TypedDict
 from typing import cast
 
+from spotify_manager.application.ports.runtime import AnalysisProgress
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.domain.library_analysis_values import AnalysisMode
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -18,16 +22,20 @@ from spotify_manager.utils.sorting import artist_sort_key
 from spotify_manager.utils.sorting import track_sort_key
 
 
+type CancelCheck = CancellationState
+type Sleep = Wait
+
+
+type ProgressCallback = AnalysisProgress
+
+
+type Echo = Messages
+
+
 type ResourceConfig = tuple[
     Path, type[LibraryModel], Callable[[LibraryModel], tuple[int, ...]]
 ]
 type LibraryModel = YourLibraryAlbum | YourLibraryTrack | YourLibraryArtist
-
-
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[ResourceName, int, int | None, str], None]
-CancelCheck = Callable[[], bool]
-Sleep = Callable[[float], None]
 
 
 class ResourceState(TypedDict, total=False):

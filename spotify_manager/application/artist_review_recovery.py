@@ -93,7 +93,7 @@ def _complete_unfollow(session: ReviewSession, artist: YourLibraryArtist) -> Non
         reason=plan.get("reason"),
         ranked_tracks=plan.get("ranked_tracks", []),
     )
-    session.interaction.echo(f"Auto-unfollowed: {artist.name}")
+    session.interaction.output.echo(f"Auto-unfollowed: {artist.name}")
 
 
 def flush_moves(
@@ -215,4 +215,4 @@ def _complete_move(
         },
         release=move.raw.get("release"),
     )
-    session.interaction.echo(f"Moved: {item.name} from queue 1 to queue 2")
+    session.interaction.output.echo(f"Moved: {item.name} from queue 1 to queue 2")

@@ -1,7 +1,6 @@
 """Monotonic saved-resource scans and bounded recent-addition reconciliation."""
 
 from dataclasses import dataclass
-from functools import partial
 from typing import Literal
 from typing import cast
 
@@ -148,10 +147,12 @@ def _save_initial_page(
 ) -> tuple[dict[str, object], list[object]]:
     session.check_cancel()
     offset = int(state["offset"])
-    page = session.request.call(
-        partial(scan.pages.read, limit=scan.limit, offset=offset),
-        f"reading saved {scan.resource} at offset {offset}",
-    )
+    for attempt in session.request.attempts(
+        f"reading saved {scan.resource} at offset {offset}"
+    ):
+        with attempt:
+            response = scan.pages.read(limit=scan.limit, offset=offset)
+    page = response
     rows = session.catalog.items(page, scan.resource)
     converted = converted_items(rows, session.catalog, scan.resource)
     session.files.append(session.paths.stage(scan.resource), converted)
@@ -220,10 +221,11 @@ def _reconcile_page(
     offset: int,
 ) -> tuple[list[object], dict[str, object], int]:
     session.check_cancel()
-    page = session.request.call(
-        partial(scan.pages.read, limit=scan.limit, offset=offset),
-        f"reconciling saved {scan.resource} at offset {offset}",
-    )
+    for attempt in session.request.attempts(
+        f"reconciling saved {scan.resource} at offset {offset}"
+    ):
+        with attempt:
+            page = scan.pages.read(limit=scan.limit, offset=offset)
     rows = session.catalog.items(page, scan.resource)
     unseen = unseen_items(converted_items(rows, session.catalog, scan.resource), known)
     session.files.append(session.paths.stage(scan.resource), unseen)
@@ -313,7 +315,7 @@ def seed_incremental(session: AnalysisSession, resource: OffsetResource) -> None
     state["stable_passes"] = 0
     session.save()
     session.event(f"incremental_{resource}_seeded", count=len(existing))
-    session.echo(
+    session.output.echo(
         f"{resource.title()}: checking recent additions against "
         f"{len(existing)} stored entries. {retained_label} remain until a full rebuild."
     )

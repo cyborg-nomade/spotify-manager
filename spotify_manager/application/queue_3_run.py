@@ -1,10 +1,9 @@
 """Prepare, acknowledge and finish Queue 3 runs using the original restart rules."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
 from typing import cast
 
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.application.queue_3_execution import Queue3LiveQueue
 from spotify_manager.application.queue_3_state import new_run
@@ -50,7 +49,7 @@ class Queue3Run:
 
     state: dict[str, object]
     access: RoutineState
-    clock: Callable[[], datetime]
+    clock: Clock
     dry_run: bool
     limit: int = 10
 
@@ -93,7 +92,7 @@ class Queue3Run:
         Returns:
             Original UTC clock value serialized with ISO formatting.
         """
-        return self.clock().isoformat()
+        return self.clock.now().isoformat()
 
     def acknowledge(
         self,

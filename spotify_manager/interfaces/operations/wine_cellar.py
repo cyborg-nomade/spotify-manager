@@ -1,7 +1,5 @@
 """Compose synchronous refill and library-affinity boundaries."""
 
-from collections.abc import Callable
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -9,12 +7,13 @@ from spotipy import Spotify
 from spotify_manager.application.library_affinity import library_affinity
 from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.wine_cellar import CellarOptions
 from spotify_manager.application.wine_cellar import refill_cellar
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.infrastructure.legacy.wine_cellar import ArtistLibraryMembership
 from spotify_manager.infrastructure.legacy.wine_cellar import WineCellarAccess
-from spotify_manager.interfaces.presenters.wine_cellar import present_transfer
+from spotify_manager.interfaces.presenters.wine_cellar import CellarPresenter
 
 
 def run_cellar_refill(
@@ -27,7 +26,7 @@ def run_cellar_refill(
     log_path: Path,
     liked_path: Path,
     albums_path: Path,
-    echo: Callable[[str], None],
+    echo: Messages,
 ) -> CellarRefillSummary:
     """Bind the existing refill integrations without owning their lifetimes.
 
@@ -49,9 +48,7 @@ def run_cellar_refill(
     integration = WineCellarAccess(
         client, retry, access, log_path, liked_path, albums_path
     )
-    return refill_cellar(
-        integration, options, state, run, partial(present_transfer, echo)
-    )
+    return refill_cellar(integration, options, state, run, CellarPresenter(echo))
 
 
 def observe_library_affinity(

@@ -1,11 +1,11 @@
 """Read dated history, its local cutoff and caller-owned random observations."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
 from spotify_manager.application.historical_values import RandomIndexSet
+from spotify_manager.application.ports.runtime import RandomIndexes
 from spotify_manager.domain.history import Scrobble
 
 
@@ -21,7 +21,7 @@ class LegacyDatedHistory:
 
     path: Path
     date_override: date | None
-    index_reader: Callable[[int, int], RandomIndexSet]
+    index_reader: RandomIndexes
 
     def history(self) -> dict[date, list[Scrobble]]:
         """Read complete dated history through the original concrete file helper.
@@ -53,4 +53,4 @@ class LegacyDatedHistory:
         Returns:
             Original unmodified random response.
         """
-        return self.index_reader(population, count)
+        return self.index_reader.sample(population, count)

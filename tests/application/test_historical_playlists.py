@@ -25,6 +25,7 @@ from spotify_manager.application.historical_values import SpotifySelectionResult
 from spotify_manager.application.historical_values import SpotifyTrackMatch
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import ScrobbleSelection
+from tests.support.runtime_resources import MessageList
 
 
 def _selection() -> ScrobbleSelection:
@@ -155,6 +156,10 @@ class PlaylistMemory:
             None, (date(2020, 1, 1),), (), () if self.empty else (_selection(),)
         )
 
+    def check(self) -> None:
+        """Observe the same fixture boundary through its named resource method."""
+        self.cancel()
+
 
 @dataclass(frozen=True)
 class ScriptedBlast:
@@ -221,7 +226,7 @@ class ScriptedResolution:
 def _effects(memory: PlaylistMemory) -> HistoricalPlaylistEffects:
     resolution = cast(HistoricalResolution, ScriptedResolution(memory))
     return HistoricalPlaylistEffects(
-        memory, resolution, memory.cancel, memory.messages.append
+        memory, resolution, memory, MessageList(memory.messages)
     )
 
 

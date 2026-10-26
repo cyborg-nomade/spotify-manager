@@ -1,6 +1,7 @@
 """Reusable legacy fixtures; future use cases must satisfy the same recordings."""
 
 import json
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
@@ -14,10 +15,10 @@ import pytest
 
 from spotify_manager import loaders_savers
 from spotify_manager.application.new_wine import NewWineOptions
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.bootstrap import library_analysis as analysis_composition
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.interfaces.operations import analyse_library as analysis_operations
-from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
@@ -55,6 +56,9 @@ from tests.routines.test_upload_library_files import write_json
 from tests.support.analysis_dependencies import observed_analysis_files
 from tests.support.analysis_dependencies import observed_analysis_publication
 from tests.support.effects import Trace
+from tests.support.trace_resources import TraceChoices
+from tests.support.trace_resources import TraceRandomIndexes
+from tests.support.trace_resources import TraceReleaseOrder
 
 
 type PlaylistFake = (
@@ -207,7 +211,7 @@ def _run_requeue(
         "playlist",
         dry_run=dry_run,
         log_path=root / "log.jsonl",
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
     )
 
 
@@ -255,8 +259,8 @@ def _run_wine(
             endpoint_mode=False,
         ),
         NewWineCallbacks(
-            choose=trace.choices("choice"),
-            echo=partial(trace.record, "echo", "message"),
+            choose=TraceChoices(trace),
+            output=trace,
         ),
         storage=NewWineStorage(
             state_path=paths["state_path"],
@@ -296,10 +300,10 @@ def _run_slow(
     return slow_listening.flush_slow_listening(
         spotify,
         "slow",
-        trace.wrap("order", slow_fakes.default_order),
-        completion_notifier=trace.choices("completion", None),
+        TraceReleaseOrder(trace),
+        completion_notifier=TraceChoices(trace),
         dry_run=dry_run,
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
         state_path=paths["state_path"],
         log_path=paths["log_path"],
     )
@@ -342,10 +346,7 @@ def _run_kids(
             year=2026,
             dry_run=dry_run,
         ),
-        DiscoveryCallbacks(
-            choose=trace.choices("choice"),
-            echo=partial(trace.record, "echo", "message"),
-        ),
+        TraceDiscovery(trace),
         resources=DiscoveryResources(
             state_path=paths["state_path"],
             log_path=paths["log_path"],
@@ -400,7 +401,7 @@ def queue(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
         the_queue.flush_queue,
         spotify,
         queue_fakes.queue_playlists(),
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
         state_path=paths["state_path"],
         log_path=paths["log_path"],
         artists_path=paths["artists_path"],
@@ -532,8 +533,8 @@ def _run_palace(
         spotify,
         PalaceOptions("palace", dry_run=dry_run, today=date(2026, 8, 4)),
         PalaceCallbacks(
-            random_index_reader=trace.wrap("random", palace_fakes.fixed_random_indexes),
-            echo=partial(trace.record, "echo", "message"),
+            random_index_reader=TraceRandomIndexes(trace),
+            output=trace,
         ),
         PalaceResources(
             albums_path=root / "albums.json",
@@ -601,8 +602,8 @@ def analysis(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
         analyse_library.analyse_library_sync_routine,
         spotify,
         paths=analysis_fakes.paths_for(root, "sync"),
-        echo=partial(trace.record, "echo", "message"),
-        sleep=trace.choices("sleep"),
+        echo=trace,
+        sleep=TraceChoices(trace),
     )
     return Scenario(
         operation, partial(_analysis_remote, spotify), supports_dry_run=False
@@ -663,9 +664,9 @@ def review(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     operation = partial(
         review_album_limits.review_album_limits,
         spotify,
-        action_reader=trace.choices("prompt", "r", "r"),
+        action_reader=TraceChoices(trace, deque(["r", "r"])),
         use_cache=False,
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
         log_path=root / "removed.jsonl",
         decisions_path=root / "decisions.json",
     )
@@ -775,3 +776,45 @@ FACTORIES: dict[str, Callable[[pytest.MonkeyPatch, Path, Trace], Scenario]] = {
     "upload": upload,
     "release": release,
 }
+
+
+@dataclass(frozen=True)
+class TraceDiscovery(NoRetry):
+    """Keep the original discovery trace without executable dependencies.
+
+    Args:
+        trace: Existing trace and fault authority.
+    """
+
+    trace: Trace
+
+    def choose(
+        self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
+    ) -> str:
+        """Observe an unexpected interaction through the original trace harness.
+
+        Args:
+            artist: Original artist label.
+            candidates: Original ordered choices.
+
+        Returns:
+            The harness's scripted response.
+        """
+        return self.trace.choices("choice")(artist, candidates)
+
+    def echo(self, message: str) -> None:
+        """Record the original visible message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.trace.record("echo", "message", message)
+
+    def progress(self, completed: int, total: int, detail: str) -> None:
+        """Retain the original absence of a progress observer.
+
+        Args:
+            completed: Original completed count.
+            total: Original expected count.
+            detail: Original progress description.
+        """

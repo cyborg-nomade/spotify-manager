@@ -1,8 +1,8 @@
 """Original New Wine messages, separated from planning and ordered execution."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
@@ -14,10 +14,10 @@ class NewWinePresenter:
     """Render unchanged messages at application-selected observation/effect boundaries.
 
     Args:
-        echo: Caller-owned message sink.
+        output: Caller-owned message sink.
     """
 
-    echo: Callable[[str], None]
+    output: Messages
 
     def canonical(self, source: PlaylistTrack, count: int) -> None:
         """Show an accepted canonical endpoint.
@@ -26,7 +26,7 @@ class NewWinePresenter:
             source: Marker chosen as the endpoint.
             count: Canonical track count.
         """
-        self.echo(
+        self.output.echo(
             f"Using {source.name} as the canonical endpoint of "
             f"{source.release.name} ({count} tracks)."
         )
@@ -38,7 +38,7 @@ class NewWinePresenter:
             source: Original marker.
             year: Existing active year.
         """
-        self.echo(
+        self.output.echo(
             f"No {year} primary-artist releases found for "
             f"{source.primary_artist_name}; skipping this run."
         )
@@ -50,7 +50,7 @@ class NewWinePresenter:
             source: Only current-year single marker.
             year: Existing active year.
         """
-        self.echo(
+        self.output.echo(
             f"{source.release.name} is the only {year} release for "
             f"{source.primary_artist_name}; dropping it automatically."
         )
@@ -61,7 +61,7 @@ class NewWinePresenter:
         Args:
             release: Selection with no playable tracks.
         """
-        self.echo(f"{release.name} has no available tracks; skipping.")
+        self.output.echo(f"{release.name} has no available tracks; skipping.")
 
     def empty_continuation(self, release: ReleaseCandidate) -> None:
         """Show why a selected follow-up was omitted.
@@ -69,7 +69,7 @@ class NewWinePresenter:
         Args:
             release: Follow-up with no playable tracks.
         """
-        self.echo(
+        self.output.echo(
             f"{release.name} has no available tracks; "
             "finishing without a follow-up release."
         )
@@ -81,7 +81,7 @@ class NewWinePresenter:
             release: Completed release.
             evaluation: Observed live keep decision.
         """
-        self.echo(
+        self.output.echo(
             f"Left {release.name} unsaved: {evaluation.liked_tracks}/"
             f"{evaluation.total_tracks} liked."
         )
@@ -108,7 +108,7 @@ class NewWinePresenter:
             if not saved
             else "Kept saved"
         )
-        self.echo(
+        self.output.echo(
             f"{action} {release.name}: {evaluation.liked_tracks}/"
             f"{evaluation.total_tracks} liked."
         )
@@ -119,7 +119,9 @@ class NewWinePresenter:
         Args:
             source: Original saved marker.
         """
-        self.echo(f"Source already removed; completing saved plan for {source.name}.")
+        self.output.echo(
+            f"Source already removed; completing saved plan for {source.name}."
+        )
 
     def advanced(self, target: ReleaseTrack, dry_run: bool) -> None:
         """Show an accepted or previewed replacement marker.
@@ -128,7 +130,9 @@ class NewWinePresenter:
             target: Selected replacement.
             dry_run: Whether to use preview wording.
         """
-        self.echo(f"{'Would add' if dry_run else 'Added'} next track: {target.name}")
+        self.output.echo(
+            f"{'Would add' if dry_run else 'Added'} next track: {target.name}"
+        )
 
     def sauvignon(self, release: ReleaseCandidate, dry_run: bool) -> None:
         """Show a marker added to Sauvignon.
@@ -137,7 +141,7 @@ class NewWinePresenter:
             release: Completed release routed to Sauvignon.
             dry_run: Whether to use preview wording.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would add' if dry_run else 'Added'} to Sauvignon "
             f"Terre-Neuve: {release.name}"
         )
@@ -158,13 +162,13 @@ class NewWinePresenter:
             dry_run: Whether to use preview wording.
         """
         if not saved:
-            self.echo(
+            self.output.echo(
                 f"{release.name} is already absent from saved albums; "
                 "no library removal needed."
             )
             return
         action = "Would unsave" if dry_run else "Unsave check complete for"
-        self.echo(
+        self.output.echo(
             f"{action} {release.name}: {evaluation.liked_tracks}/"
             f"{evaluation.total_tracks} liked."
         )
@@ -179,7 +183,7 @@ class NewWinePresenter:
             target: First playable follow-up track.
             dry_run: Whether to use preview wording.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would start' if dry_run else 'Started'} follow-up release: "
             f"{release.name} - {target.name}"
         )
@@ -191,6 +195,6 @@ class NewWinePresenter:
             source: Original marker.
             dry_run: Whether to use preview wording.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would remove' if dry_run else 'Removed'} previous track: {source.name}"
         )

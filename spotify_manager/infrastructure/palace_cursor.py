@@ -1,7 +1,6 @@
 """Parse Palace manual positions and tolerant durable cursor records."""
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import cast
 from spotify_manager.application.palace_effects import PalaceStateAccess
 from spotify_manager.application.palace_values import PalaceOfMemoryConfigError
 from spotify_manager.application.palace_values import PalaceOfMemoryStateError
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.palace_albums import AlbumFacts
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -197,7 +197,7 @@ class PalaceCursorAccess:
 
     path: Path
     service: StateService | None
-    callback: Callable[[str], None] | None
+    callback: Messages | None
 
     def progress(self, message: str) -> None:
         """Present the current stage.
@@ -206,7 +206,7 @@ class PalaceCursorAccess:
             message: Complete stage text.
         """
         if self.callback is not None:
-            self.callback(message)
+            self.callback.echo(message)
 
     def state_access(self) -> PalaceStateAccess:
         """Resolve durable cursor access after mirror refresh.

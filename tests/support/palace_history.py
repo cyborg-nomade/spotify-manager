@@ -109,6 +109,26 @@ class HistoryReads:
         """
         self.trace.append(["progress", message])
 
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
+    def sample(self, population: int, count: int) -> blast_from_past.RandomIndexSet:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            population: Original fixture observation.
+            count: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.random(population, count)
+
 
 def _indexes(profile: str, count: int, population: int) -> tuple[int, ...]:
     if profile == "out-of-range":
@@ -150,8 +170,8 @@ def _run(edge: HistoryReads, count: int) -> object:
             count=count,
             path=Path("history"),
             today=date(2026, 8, 8),
-            random_index_reader=edge.random,
-            progress_callback=edge.progress,
+            random_index_reader=edge,
+            progress_callback=edge,
         )
     return {
         "generated": generated,

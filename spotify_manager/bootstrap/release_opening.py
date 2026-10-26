@@ -1,15 +1,14 @@
 """Compose original release startup with caller-owned history and durable state."""
 
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
+from spotify_manager.application.ports.runtime import ReviewProgressMessages
 from spotify_manager.application.release_opening import ReleaseRunOpening
 from spotify_manager.bootstrap.history import history_refresh
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.release_clock import ReleaseClock
 from spotify_manager.infrastructure.legacy.release_opening import LegacyReleaseOpening
-from spotify_manager.infrastructure.legacy.release_opening import _history_progress
 from spotify_manager.routines import release_check as legacy
 
 
@@ -56,9 +55,7 @@ def release_opening(
         history_log_path,
         progress,
     )
-    history_progress = (
-        None if progress is None else partial(_history_progress, progress)
-    )
+    history_progress = None if progress is None else ReviewProgressMessages(progress)
     history = history_refresh(
         lastfm,
         export_path,

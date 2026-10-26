@@ -1,6 +1,5 @@
 """Observe and checkpoint recommendation neighborhoods before pure aggregation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
@@ -8,6 +7,8 @@ from typing import Protocol
 
 from spotify_manager.application.found_art_values import FoundArtConfigError
 from spotify_manager.application.ports.calendar import ListeningCalendar
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_candidates import LastFmSimilarTrack
 from spotify_manager.domain.recommendation_candidates import RecommendationCandidates
@@ -87,9 +88,9 @@ class CandidateGathering:
     """
 
     cache: NeighborhoodCache
-    clock: Callable[[], datetime]
+    clock: Clock
     calendar: ListeningCalendar
-    progress: Callable[[str], None]
+    progress: Messages
 
     def run(
         self,
@@ -118,7 +119,7 @@ class CandidateGathering:
         """
         if pool_size < 1:
             raise FoundArtConfigError("Candidate pool size must be at least 1.")
-        generated_at = now or self.clock()
+        generated_at = now or self.clock.now()
         active_week = week or listening_week_start(
             self.calendar.local_date(generated_at)
         )
@@ -128,7 +129,9 @@ class CandidateGathering:
             raise AssertionError("validated cache entries changed type")
         candidates = RecommendationCandidates(heard | self.cache.previous())
         for index, seed in enumerate(seeds, start=1):
-            self.progress(f"Getting Last.fm neighbors for seed {index}/{len(seeds)}")
+            self.progress.echo(
+                f"Getting Last.fm neighbors for seed {index}/{len(seeds)}"
+            )
             similar = self._neighbors(cache, entries, seed, generated_at, active_week)
             candidates.observe(seed, similar)
         return candidates.ranked(active_week, pool_size)

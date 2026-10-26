@@ -12,6 +12,7 @@ from functools import partial
 from io import BytesIO
 from pathlib import Path
 from types import TracebackType
+from unittest.mock import Mock
 from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.parse import parse_qs
@@ -24,6 +25,8 @@ from spotify_manager.bootstrap import historical_playlists as historical_composi
 from spotify_manager.interfaces.operations import blast_from_past as blast_execution
 from spotify_manager.routines import blast_from_past
 from tests.support.direct_dependencies import ObservedBlastSelection
+from tests.support.runtime_resources import CancellationFlag
+from tests.support.runtime_resources import FixedIndexes
 
 
 def make_scrobble(number: int) -> blast_from_past.Scrobble:
@@ -179,15 +182,12 @@ def test_playlist_state_rejects_a_repeated_next_page() -> None:
 
 
 def test_playlist_state_honors_cancellation_before_spotify_call() -> None:
-    class UnexpectedSpotify(FakeSpotify):
-        def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
-            pytest.fail("Spotify should not be called after cancellation")
-
+    """Playlist state honors cancellation before spotify call."""
     with pytest.raises(blast_from_past.BlastFromPastCancelledError):
         blast_from_past.load_playlist_state(
             UnexpectedSpotify(),  # type: ignore[arg-type]
             "blast",
-            cancel_check=lambda: True,
+            cancel_check=CancellationFlag(True),
         )
 
 
@@ -379,6 +379,11 @@ def test_fetch_random_indexes_validates_requested_set(
 def test_fetch_random_indexes_translates_http_and_connection_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Verify fetch random indexes translates http and connection errors.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     error = HTTPError(
         "https://random.org",
         503,
@@ -389,7 +394,7 @@ def test_fetch_random_indexes_translates_http_and_connection_errors(
     monkeypatch.setattr(
         blast_from_past,
         "urlopen",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
+        Mock(side_effect=error),
     )
     with pytest.raises(blast_from_past.RandomOrgError, match="quota exhausted"):
         blast_from_past.fetch_random_indexes(2, 1)
@@ -397,7 +402,7 @@ def test_fetch_random_indexes_translates_http_and_connection_errors(
     monkeypatch.setattr(
         blast_from_past,
         "urlopen",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(URLError("offline")),
+        Mock(side_effect=URLError("offline")),
     )
     with pytest.raises(blast_from_past.RandomOrgError, match="Could not reach"):
         blast_from_past.fetch_random_indexes(2, 1)
@@ -550,6 +555,11 @@ def test_select_scrobble_can_count_from_bottom() -> None:
 def test_select_batch_uses_one_timestamp_for_unique_date_indexes(
     tmp_path: Path,
 ) -> None:
+    """Select batch uses one timestamp for unique date indexes.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(
         json.dumps(
@@ -574,8 +584,8 @@ def test_select_batch_uses_one_timestamp_for_unique_date_indexes(
         count=2,
         path=export_path,
         today=date(2026, 7, 22),
-        random_index_reader=lambda population, count: blast_from_past.RandomIndexSet(
-            (2, 0), generated_at
+        random_index_reader=FixedIndexes(
+            blast_from_past.RandomIndexSet((2, 0), generated_at)
         ),
     )
 
@@ -928,3 +938,10 @@ class RandomHeaderResponse:
             Raw response bytes.
         """
         return b"0\n"
+
+
+class UnexpectedSpotify(FakeSpotify):
+    """Retain the original unexpected spotify boundary fixture."""
+
+    def _get(self, path: str, limit: int, offset: int) -> dict[str, object]:
+        pytest.fail("Spotify should not be called after cancellation")

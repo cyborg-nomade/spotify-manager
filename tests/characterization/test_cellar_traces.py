@@ -23,6 +23,7 @@ from tests.support.effects import Fault
 from tests.support.effects import Phase
 from tests.support.effects import Trace
 from tests.support.effects import TraceAssertion
+from tests.support.trace_resources import TraceChoices
 
 
 BOUNDARIES = [
@@ -99,8 +100,8 @@ def _run_cellar(
         spotify,
         NewWineOptions("new", "sauv", "cellar", True, False, dry_run),
         NewWineCallbacks(
-            choose=trace.choices("choice"),
-            echo=partial(trace.record, "echo", "message"),
+            choose=TraceChoices(trace),
+            output=trace,
         ),
         NewWineStorage(
             state_path=root / "state.json",

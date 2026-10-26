@@ -120,7 +120,15 @@ class MemoryCredits:
         Returns:
             Explicit integration, clock, and presentation dependencies.
         """
-        return CreditedArtistDependencies(self, self.clock, self.announce)
+        return CreditedArtistDependencies(self, self, self)
+
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
 
 
 def test_credits_keep_last_duplicate_name_first_position_and_forty_id_batches() -> None:

@@ -170,7 +170,7 @@ def test_snapshot_uses_last_valid_route_and_separate_clock_reads() -> None:
     }
     state: dict[str, object] = {"composer_routes": routes}
     other = replace(SOURCE, spotify_id="other", primary_artist_id="other")
-    run = new_run("queue", [SOURCE, SOURCE, other], state, clock.now, 10)
+    run = new_run("queue", [SOURCE, SOURCE, other], state, clock, 10)
     entries = cast(list[dict[str, object]], run["entries"])
     assert [entry["artist_id"] for entry in entries] == ["", "other"]
     assert entries[0]["artist_name"] == "Last" and entries[0]["source"] == asdict(
@@ -189,7 +189,7 @@ def test_snapshot_cap_counts_unique_logical_artists_in_original_order() -> None:
     for index in range(12):
         marker = replace(SOURCE, spotify_id=str(index), primary_artist_id=str(index))
         tracks.extend([marker, marker])
-    run = new_run("queue", tracks, {"composer_routes": {}}, SnapshotClock().now, 10)
+    run = new_run("queue", tracks, {"composer_routes": {}}, SnapshotClock(), 10)
     entries = cast(list[dict[str, object]], run["entries"])
     expected = []
     for index in range(10):
@@ -200,6 +200,6 @@ def test_snapshot_cap_counts_unique_logical_artists_in_original_order() -> None:
 def test_empty_snapshot_still_reads_both_original_timestamps() -> None:
     """An empty queue creates an empty active run without suppressing clock reads."""
     clock = SnapshotClock()
-    run = new_run("queue", [], {"composer_routes": {}}, clock.now, 10)
+    run = new_run("queue", [], {"composer_routes": {}}, clock, 10)
     assert run["entries"] == [] and run["status"] == "active"
     assert len(clock.reads) == 2

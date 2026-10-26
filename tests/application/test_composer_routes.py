@@ -53,6 +53,14 @@ class Interaction:
         self.events.append(("clock", None))
         return NOW
 
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
 
 def _resolve(
     state: dict[str, object],
@@ -67,8 +75,8 @@ def _resolve(
         "source",
         playlists,
         excluded,
-        interaction.choose,
-        interaction.clock,
+        interaction,
+        interaction,
     )
 
 

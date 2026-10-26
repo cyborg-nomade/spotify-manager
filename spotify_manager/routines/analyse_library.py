@@ -4,14 +4,15 @@ The legacy checkpoint dictionaries remain permissive external boundaries. Inner
 stages use typed progress views without changing validation or persisted bytes.
 """
 
+import time
 from collections.abc import Callable
 from collections.abc import Sequence
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-from time import sleep as default_sleep
 from typing import Any
 from typing import Literal
+from typing import Protocol
 from typing import cast
 
 from pydantic import BaseModel
@@ -22,7 +23,6 @@ from spotify_manager.application import library_analysis_artists as analysis_art
 from spotify_manager.application import (
     library_analysis_checkpoint as analysis_checkpoints,
 )
-from spotify_manager.application import library_analysis_export as analysis_export
 from spotify_manager.application import library_analysis_offsets as analysis_offsets
 from spotify_manager.application import (
     library_analysis_publication as analysis_publication_owner,
@@ -33,6 +33,10 @@ from spotify_manager.application.library_analysis_values import Checkpoint
 from spotify_manager.application.library_analysis_values import (
     LibraryAnalysisPaths as LibraryAnalysisPaths,
 )
+from spotify_manager.application.ports.runtime import AnalysisProgress
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap.library_analysis import (
     analysis_files as analysis_storage,
 )
@@ -88,16 +92,26 @@ from spotify_manager.domain.library_analysis_values import (
 from spotify_manager.domain.library_analysis_values import RetryNotice as RetryNotice
 from spotify_manager.infrastructure import library_analysis_backups as analysis_backups
 from spotify_manager.infrastructure import library_analysis_files as analysis_files
-from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
 from spotify_manager.infrastructure.library_records import (
     current_stats_history_key as current_stats_history_key,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
 from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.models.your_library import YourLibraryTrack
+
+
+type CancelCheck = CancellationState
+type Sleep = Wait
+
+
+type ProgressCallback = AnalysisProgress
+
+
+type Echo = Messages
 
 
 TRANSIENT_RETRY_BASE_SECONDS = 10
@@ -110,14 +124,24 @@ _FollowedArtistsEndpointUnavailableError = (
 AnalysisMode = Literal["async", "sync", "mirrors"]
 ResourceName = Literal["albums", "tracks", "artists"]
 MirrorRefreshMode = Literal["incremental", "full"]
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[ResourceName, int, int | None, str], None]
-CancelCheck = Callable[[], bool]
-Sleep = Callable[[float], None]
+
+
 LibraryModel = YourLibraryAlbum | YourLibraryTrack | YourLibraryArtist
 
 
-RetryWait = Callable[[RetryNotice], bool]
+class RetryWait(Protocol):
+    """Own an operator's wait or pause decision after a scheduled retry."""
+
+    def wait(self, notice: RetryNotice) -> bool:
+        """Wait or request a clean pause using the original notice.
+
+        Args:
+            notice: Original retry status, attempt and delay.
+
+        Returns:
+            Whether the original request should continue.
+        """
+        ...
 
 
 # Backwards-compatible type name for callers that supplied custom paths.
@@ -650,53 +674,8 @@ def load_or_create_checkpoint(
     )
 
 
-def prepare_export_resource[T: LibraryModel](
-    resource: ResourceName,
-    models: list[T],
-    paths: LibraryAnalysisPaths,
-    checkpoint: dict[str, Any],
-    model_type: type[T],
-    sort_key: Callable[[T], tuple[int, ...]],
-    progress_callback: ProgressCallback | None,
-    cancel_check: CancelCheck | None,
-) -> list[T]:
-    """Prepare and stage one export resource, with resumable boundaries.
-
-    Args:
-        resource: Original active library resource identity.
-        models: Original complete ordered model values.
-        paths: Original independent output family.
-        checkpoint: Original durable progress, preserving unknown fields.
-        model_type: Original tolerant resource model constructor.
-        sort_key: Original resource-specific output ordering rule.
-        progress_callback: Original optional resource-level progress callback.
-        cancel_check: Original optional durable cancellation observation.
-
-
-    Returns:
-        Original complete result with unchanged source and recovery semantics.
-    """
-    session = analysis_session(
-        paths,
-        cast(Checkpoint, checkpoint),
-        progress=progress_callback,
-        cancel_check=cancel_check,
-    )
-    state = session.checkpoint["resources"][resource]
-    if state["status"] == "complete":
-        completed = session.files.models(paths.stage(resource), model_type)
-        session.notify(resource, len(completed), len(completed), "Complete")
-        return completed
-    total = len(models)
-    session.notify(resource, 0, total, "Reading YourLibrary.json")
-    by_id = analysis_export._read_export(session, resource, models, total)
-    prepared = sorted(by_id.values(), key=sort_key)
-    analysis_export.publish_export_resource(session, resource, prepared, total)
-    return prepared
-
-
 def analyse_library_async_routine(
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_ASYNC_PATHS,
@@ -735,52 +714,9 @@ def retry_delay(base: int, maximum: int, attempt: int) -> int:
     return analysis_policy.retry_delay(base, maximum, attempt)
 
 
-def spotify_call[T](
-    operation: Callable[[], T],
-    description: str,
-    paths: LibraryAnalysisPaths,
-    checkpoint: dict[str, Any],
-    echo: Echo,
-    retry_wait: RetryWait | None,
-    sleep: Sleep,
-    retry_base_seconds: int,
-    retry_max_seconds: int,
-    max_attempts: int | None = None,
-) -> T:
-    """Call Spotify, retrying 5xx and transport failures with backoff.
-
-    Args:
-        operation: Original complete caller-supplied live request.
-        description: Original visible operation label.
-        paths: Original independent output family.
-        checkpoint: Original durable progress, preserving unknown fields.
-        echo: Original visible output callback.
-        retry_wait: Original optional interactive retry decision.
-        sleep: Original caller-supplied blocking retry wait.
-        retry_base_seconds: Original initial transient retry delay.
-        retry_max_seconds: Original capped transient retry delay.
-        max_attempts: Original optional maximum request attempts.
-
-
-    Returns:
-        Original complete result with unchanged source and recovery semantics.
-    """
-    retry = LibraryRetry(
-        paths,
-        cast(Checkpoint, checkpoint),
-        analysis_storage(),
-        echo,
-        retry_wait,
-        sleep,
-        retry_base_seconds,
-        retry_max_seconds,
-    )
-    return retry.call(operation, description, max_attempts)
-
-
 def _default_retry_wait(delay: int, sleep: Sleep) -> bool:
     """Wait for a retry when no interactive callback was supplied."""
-    sleep(delay)
+    sleep.sleep(delay)
     return True
 
 
@@ -790,7 +726,7 @@ def check_cancel(cancel_check: CancelCheck | None) -> None:
     Args:
         cancel_check: Original optional durable cancellation observation.
     """
-    if cancel_check is not None and cancel_check():
+    if cancel_check is not None and cancel_check.is_set():
         raise LibraryAnalysisCancelledError("Live analysis paused by request.")
 
 
@@ -1130,12 +1066,12 @@ def reconcile_artists(
 
 def analyse_library_sync_routine(
     sp: Spotify,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_SYNC_PATHS,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
 ) -> LibrarySyncSummary:
@@ -1175,12 +1111,12 @@ def analyse_library_sync_routine(
 
 def refresh_live_library_mirrors_routine(
     sp: Spotify,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,
@@ -1224,12 +1160,12 @@ def refresh_live_library_mirrors_routine(
 def refresh_live_library_resource_routine(
     sp: Spotify,
     resource: ResourceName,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_wait: RetryWait | None = None,
     cancel_check: CancelCheck | None = None,
     paths: LibraryAnalysisPaths = DEFAULT_LIVE_MIRROR_PATHS,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     retry_base_seconds: int = TRANSIENT_RETRY_BASE_SECONDS,
     retry_max_seconds: int = TRANSIENT_RETRY_MAX_SECONDS,
     full_rebuild: bool = False,

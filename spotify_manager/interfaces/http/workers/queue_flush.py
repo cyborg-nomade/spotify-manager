@@ -1,6 +1,7 @@
 """Explicit callbacks and wire presentation for QueueFlushWorker."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -10,8 +11,8 @@ from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.queue import QueueFlushResultEntry
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
@@ -36,6 +37,11 @@ class QueueFlushWorker:
         playlists: Invocation-owned playlists.
         dry_run: Invocation-owned dry run.
         connection_failure: Invocation-owned connection failure.
+
+    Attributes:
+        job: Resolved reconnectable job state.
+        last_progress: Most recently accepted progress description.
+        events: SDK event subscription retaining the original setter binding.
     """
 
     context: PlaylistContext
@@ -46,8 +52,7 @@ class QueueFlushWorker:
     connection_failure: str
     job: _BlastJob = field(init=False)
     last_progress: str | None = field(init=False, default=None)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Run the first-ten-artist Queue flush as a reconnectable web job."""
@@ -81,9 +86,7 @@ class QueueFlushWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def progress_callback(
-        self, completed: int, total: int, progress_status: str
-    ) -> None:
+    def progress(self, completed: int, total: int, progress_status: str) -> None:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
@@ -101,7 +104,7 @@ class QueueFlushWorker:
                 self.context.append(self.job, progress_status)
                 self.last_progress = progress_status
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -110,24 +113,16 @@ class QueueFlushWorker:
         if self.job.cancel_event.wait(seconds):
             raise _QueueJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self.echo,
-            sleep=self.interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
+        return SpotifyRetries(self, self, 10, 3).attempts(description)
 
     def _start(self) -> None:
         self.job = self.context.lookup(self.job_id, command="flush_queue")
@@ -140,19 +135,17 @@ class QueueFlushWorker:
                 f"Queue flush started{(' in dry-run mode' if self.dry_run else '')}.",
             )
         self.last_progress: str | None = None
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
 
     def _execute(self) -> the_queue.FlushSummary:
         summary = the_queue.flush_queue(
             self.spotify,
             self.playlists,
             dry_run=self.dry_run,
-            echo=self.echo,
-            progress_callback=self.progress_callback,
-            retry_call=self.retry_call,
+            echo=self,
+            progress_callback=self,
+            retry_call=self,
         )
         return summary
 
@@ -177,8 +170,7 @@ class QueueFlushWorker:
             self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 

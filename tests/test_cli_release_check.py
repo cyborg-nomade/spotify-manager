@@ -1,5 +1,7 @@
+from dataclasses import dataclass
 from datetime import date
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from typer.testing import CliRunner
@@ -11,25 +13,18 @@ from tests.support.feature_invocation import FeatureInvocation
 def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Check new releases prompts for mapping and prints dry run.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     artist = main.release_check.RankedArtist("artist", "Artist", 100, 10)
     candidates = (
         main.release_check.SpotifyArtistCandidate(
-            "first",
-            "Artist One",
-            "spotify:artist:first",
-            40,
-            100,
-            1,
-            False,
+            "first", "Artist One", "spotify:artist:first", 40, 100, 1, False
         ),
         main.release_check.SpotifyArtistCandidate(
-            "second",
-            "Artist Two",
-            "spotify:artist:second",
-            50,
-            200,
-            2,
-            False,
+            "second", "Artist Two", "spotify:artist:second", 50, 200, 2, False
         ),
     )
     result = main.release_check.ReleaseCheckResult(
@@ -70,59 +65,35 @@ def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
         track_number=1,
     )
     received: dict[str, object] = {}
-
-    def run(*_args: object, **kwargs: object):
-        received["dry_run"] = kwargs["dry_run"]
-        received["search_choice"] = kwargs["artist_choice_reader"](
-            artist,
-            candidates,
-        )
-        received["artist_choice"] = kwargs["artist_choice_reader"](
-            artist,
-            (candidates[1],),
-        )
-        received["release_choice"] = kwargs["release_choice_reader"](
-            artist,
-            release,
-            track,
-            ("Wine Cellar", "New Vintage"),
-            False,
-        )
-        return main.release_check.ReleaseCheckSummary(
-            run_id="run",
-            checked_from=date(2026, 1, 1),
-            checked_through=date(2026, 8, 6),
-            artists_total=1,
-            artists_processed=1,
-            dry_run=True,
-            resumed=False,
-            paused=False,
-            wine_cellar_duplicates_removed=0,
-            history_refresh=None,
-            results=(result,),
-        )
-
     monkeypatch.setattr(
         main,
         "Settings",
-        lambda: SimpleNamespace(
-            wine_cellar_playlist="spotify:playlist:wine",
-            new_vintage_playlist="spotify:playlist:vintage",
-            lastfm_api_key="key",
-            lastfm_username="man-et-arms",
+        Mock(
+            return_value=SimpleNamespace(
+                wine_cellar_playlist="spotify:playlist:wine",
+                new_vintage_playlist="spotify:playlist:vintage",
+                lastfm_api_key="key",
+                lastfm_username="man-et-arms",
+            )
         ),
     )
-    monkeypatch.setattr(main, "client", lambda: object())
+    monkeypatch.setattr(main, "client", Mock(return_value=object()))
+    scenario = CheckNewReleasesPromptsForMappingAndPrintsDryRunScenario(
+        artist=artist,
+        candidates=candidates,
+        received=received,
+        release=release,
+        result=result,
+        track=track,
+    )
     monkeypatch.setattr(
-        main.release_check, "run_release_check", FeatureInvocation(run, ("playlists",))
+        main.release_check,
+        "run_release_check",
+        FeatureInvocation(scenario, ("playlists",)),
     )
-
     cli_result = CliRunner().invoke(
-        main.app,
-        ["check-new-releases", "--dry-run"],
-        input="n\nArtist Two\n1\na\n",
+        main.app, ["check-new-releases", "--dry-run"], input="n\nArtist Two\n1\na\n"
     )
-
     assert cli_result.exit_code == 0
     assert received == {
         "dry_run": True,
@@ -138,3 +109,63 @@ def test_check_new_releases_prompts_for_mapping_and_prints_dry_run(
     assert "would add" in cli_result.output
     assert "Last.fm history" in cli_result.output
     assert "permanent artist skips were persisted" in cli_result.output
+
+
+@dataclass
+class CheckNewReleasesPromptsForMappingAndPrintsDryRunScenario:
+    """Retain the original check new releases prompts for mapping and prints dry run
+    fixture.
+
+    Args:
+        artist: Original artist observation or resource.
+        candidates: Original candidates observation or resource.
+        received: Original received observation or resource.
+        release: Original release observation or resource.
+        result: Original result observation or resource.
+        track: Original track observation or resource.
+    """
+
+    artist: main.release_check.RankedArtist
+    candidates: tuple[main.release_check.SpotifyArtistCandidate, ...]
+    received: dict[str, object]
+    release: main.release_check.ReleaseCandidate
+    result: main.release_check.ReleaseCheckResult
+    track: main.release_check.ReleaseTrack
+
+    def __call__(
+        self, *_args: object, **kwargs: object
+    ) -> main.release_check.ReleaseCheckSummary:
+        """Execute the original run mock boundary.
+
+        Args:
+            _args: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.received["dry_run"] = kwargs["dry_run"]
+        self.received["search_choice"] = kwargs["artist_choice_reader"].choose_artist(
+            self.artist, self.candidates
+        )
+        self.received["artist_choice"] = kwargs["artist_choice_reader"].choose_artist(
+            self.artist, (self.candidates[1],)
+        )
+        self.received["release_choice"] = kwargs[
+            "release_choice_reader"
+        ].choose_release(
+            self.artist, self.release, self.track, ("Wine Cellar", "New Vintage"), False
+        )
+        return main.release_check.ReleaseCheckSummary(
+            run_id="run",
+            checked_from=date(2026, 1, 1),
+            checked_through=date(2026, 8, 6),
+            artists_total=1,
+            artists_processed=1,
+            dry_run=True,
+            resumed=False,
+            paused=False,
+            wine_cellar_duplicates_removed=0,
+            history_refresh=None,
+            results=(self.result,),
+        )

@@ -50,6 +50,22 @@ class ChoiceMemory:
             raise OSError("choice interrupted")
         return self.response
 
+    def choose_album(
+        self,
+        recommendation: AlbumRecommendation,
+        options: tuple[SpotifyAlbumOption, ...],
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            recommendation: Original fixture observation.
+            options: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.read(recommendation, options)
+
 
 def _recommendation(ambiguous: bool = True) -> AlbumRecommendation:
     option = read_case("duplicates").observations["Same"][0]
@@ -67,7 +83,7 @@ def _choose(
     item: AlbumRecommendation, memory: ChoiceMemory | None
 ) -> SpotifyAlbumOption | str:
     return AlbumEditionChoice(
-        memory.read if memory is not None else None, "skip-marker", "quit-marker"
+        memory if memory is not None else None, "skip-marker", "quit-marker"
     ).choose(item)
 
 

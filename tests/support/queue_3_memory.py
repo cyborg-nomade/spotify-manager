@@ -281,3 +281,21 @@ class CoordinationMemory(ExecutionMemory):
             artist: Logical artist name.
         """
         self._record("stale", artist)
+
+    def choose_transition(
+        self,
+        source: PlaylistTrack,
+        current: DiscographyRelease,
+        following: DiscographyRelease,
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            current: Original fixture observation.
+            following: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(source, current, following)

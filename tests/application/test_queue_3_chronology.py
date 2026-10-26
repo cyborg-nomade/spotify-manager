@@ -95,10 +95,28 @@ class PlannerMemory:
         """Observe an accepted same-date ordering checkpoint."""
         self._record("checkpoint", None)
 
+    def choose_transition(
+        self,
+        source: PlaylistTrack,
+        current: DiscographyRelease,
+        following: DiscographyRelease,
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            current: Original fixture observation.
+            following: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(source, current, following)
+
 
 def _planner(memory: PlannerMemory) -> Queue3Planner:
     ordering = ReleaseOrdering(None, {}, memory)
-    return Queue3Planner(memory, {}, ordering, memory.choose)
+    return Queue3Planner(memory, {}, ordering, memory)
 
 
 @pytest.mark.parametrize("cached", [False, True])

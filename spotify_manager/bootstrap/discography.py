@@ -1,8 +1,6 @@
 """Compose original synchronous Discography facades with typed application owners."""
 
-from collections.abc import Callable
 from datetime import date
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -14,6 +12,8 @@ from spotify_manager.application.discography_history import DiscographyHistory
 from spotify_manager.application.discography_planning import DiscographyPlanning
 from spotify_manager.application.discography_planning import DiscographyReads
 from spotify_manager.application.discography_queues import DiscographyQueues
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.discography_values import QueueName
 from spotify_manager.infrastructure.discography_observations import (
@@ -24,15 +24,6 @@ from spotify_manager.infrastructure.discography_observations import DiscographyS
 from spotify_manager.infrastructure.discography_observations import DiscographyWrites
 from spotify_manager.infrastructure.legacy.dated_history import LegacyDatedHistory
 from spotify_manager.routines import discography as legacy
-
-
-def _direct(operation: Callable[[], object], description: str) -> object:
-    return operation()
-
-
-def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
 
 
 def history_stage(
@@ -54,7 +45,7 @@ def history_stage(
     """
     return DiscographyHistory(
         LegacyDatedHistory(path, today, random),
-        partial(_progress, progress),
+        OptionalMessages(progress),
         legacy.blast_from_past.FIRST_ELIGIBLE_DATE,
     )
 
@@ -145,7 +136,7 @@ def planning(
     Returns:
         Original complete synchronous planning use case.
     """
-    caller_retry = retry or _direct
+    caller_retry = retry or NoRetry()
     reads = DiscographyReads(
         DiscographyPriority(state_path, service),
         queue_stage(spotify, playlists, caller_retry, extra),
@@ -153,7 +144,7 @@ def planning(
         historical_mapping(spotify, choice, caller_retry),
         catalog_stage(spotify, caller_retry),
         selector,
-        partial(_progress, progress),
+        OptionalMessages(progress),
     )
     return DiscographyPlanning(reads, legacy.WEEK_RELEASES)
 
@@ -179,7 +170,7 @@ def execution(
     Returns:
         Original complete synchronous execution use case.
     """
-    caller_retry = retry or _direct
+    caller_retry = retry or NoRetry()
     effects = DiscographyWrites(
         spotify, caller_retry, state_path, service, audit_path, progress
     )

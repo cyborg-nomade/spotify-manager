@@ -146,7 +146,9 @@ class WinePlanner:
 
     def _choose_endpoint(self, facts: SourceObservations) -> str:
         assert self.endpoint_reader is not None and facts.index is not None
-        choice = self.endpoint_reader(facts.source, facts.tracks, facts.index)
+        choice = self.endpoint_reader.choose_endpoint(
+            facts.source, facts.tracks, facts.index
+        )
         if choice == "quit" or choice == "skip":
             return choice
         if choice not in {"cutoff", "continue"}:
@@ -229,7 +231,7 @@ class WinePlanner:
         ):
             self.presentation.only_single(facts.source, self.observations.year)
             return "drop", "only_current_year_single"
-        return self.choose(facts.source, candidates), "manual_selection"
+        return self.choose.choose_release(facts.source, candidates), "manual_selection"
 
     def _selected_plan(
         self,
@@ -258,7 +260,7 @@ class WinePlanner:
         candidates = _other_releases(releases, facts.source.release.spotify_id)
         if not candidates:
             return plan
-        choice = self.choose(facts.source, candidates)
+        choice = self.choose.choose_release(facts.source, candidates)
         if choice == "quit":
             return None
         if choice == "skip":

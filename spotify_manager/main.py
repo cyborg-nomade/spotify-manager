@@ -4,8 +4,8 @@ import json as json
 import select as select
 import sys as sys
 import termios as termios
+import time
 import tty as tty
-from collections.abc import Callable as Callable
 from collections.abc import Iterable as Iterable
 from datetime import datetime as datetime
 from datetime import timedelta as timedelta
@@ -110,6 +110,7 @@ from spotify_manager.interfaces.cli.history import HistoryCommand as HistoryComm
 from spotify_manager.interfaces.cli.history import (
     present_history_summary as present_history_summary,
 )
+from spotify_manager.interfaces.cli.output import TYPER_OUTPUT
 from spotify_manager.interfaces.lookup_operations import (
     get_live_artist_library_stats as get_live_artist_library_stats,
 )
@@ -288,7 +289,7 @@ def _artist_review_cli() -> ArtistReviewCLI:
 def _wine_cli() -> WineCLI:
     return WineCLI(
         runtime=CommandResources(),
-        sleep=sleep,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -306,7 +307,7 @@ def _wine_cli() -> WineCLI:
 def _discovery_cli() -> DiscoveryCLI:
     return DiscoveryCLI(
         runtime=CommandResources(),
-        sleep=sleep,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -324,7 +325,7 @@ def _discovery_cli() -> DiscoveryCLI:
 def _slow_listening_cli() -> SlowListeningCLI:
     return SlowListeningCLI(
         runtime=CommandResources(),
-        sleep=sleep,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -342,7 +343,7 @@ def _slow_listening_cli() -> SlowListeningCLI:
 def _queue_3_cli() -> Queue3CLI:
     return Queue3CLI(
         runtime=CommandResources(),
-        sleep=sleep,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -360,8 +361,8 @@ def _queue_3_cli() -> Queue3CLI:
 def _discography_cli() -> DiscographyCLI:
     return DiscographyCLI(
         runtime=CommandResources(),
-        ask_something_old_artist=ask_something_old_artist,
-        sleep=sleep,
+        historical_artists=_something_old_cli(),
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -392,7 +393,7 @@ def _found_art_cli() -> FoundArtCLI:
 def _sauvignon_cli() -> SauvignonCLI:
     return SauvignonCLI(
         runtime=CommandResources(),
-        sleep=sleep,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -409,7 +410,7 @@ def _sauvignon_cli() -> SauvignonCLI:
 def _queue_cli() -> QueueCLI:
     return QueueCLI(
         runtime=CommandResources(),
-        sleep=sleep,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
         ),
@@ -427,7 +428,7 @@ def _queue_cli() -> QueueCLI:
 def _historical_cli() -> HistoricalCLI:
     return HistoricalCLI(
         runtime=CommandResources(),
-        sleep=sleep,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
         ),
@@ -469,14 +470,14 @@ def _requeue_cli() -> RequeueCLI:
         runtime=CommandResources(),
         create_console=Console,
         create_table=Table,
-        sleep=sleep,
+        sleep=time,
     )
 
 
 def _palace_cli() -> PalaceCLI:
     return PalaceCLI(
         runtime=CommandResources(),
-        sleep=sleep,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
         ),
@@ -493,8 +494,8 @@ def _analysis_cli() -> AnalysisCLI:
     return AnalysisCLI(
         runtime=CommandResources(),
         create_live=Live,
-        monotonic=monotonic,
-        sleep=sleep,
+        monotonic=time,
+        sleep=time,
         display=ConsoleDisplay(
             create_console=Console, create_table=Table, create_text=Text
         ),
@@ -546,11 +547,15 @@ def selected_artifacts(values: Iterable[str]) -> tuple[ArtifactName, ...]:
 
 
 def client() -> Spotify:
-    """Build the Spotify client lazily, so files-only commands never touch it."""
+    """Build the Spotify client lazily, so files-only commands never touch it.
+
+    Returns:
+        Invocation-owned Spotify client.
+    """
     global _client
     if _client is None:
         try:
-            _client = get_spotipy_client(event_callback=typer.echo)
+            _client = get_spotipy_client(event_callback=TYPER_OUTPUT)
         except (SpotifyRedirectURIError, SpotifyClientConfigurationError) as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
@@ -558,7 +563,11 @@ def client() -> Spotify:
 
 
 def review_client() -> Spotify:
-    """Build a no-retry client for interactive review operations."""
+    """Build a no-retry client for interactive review operations.
+
+    Returns:
+        Invocation-owned Spotify client.
+    """
     global _review_client
     if _review_client is None:
         try:
@@ -566,7 +575,7 @@ def review_client() -> Spotify:
                 retries=0,
                 status_retries=0,
                 status_forcelist=DISABLED_SPOTIFY_STATUS_FORCELIST,
-                event_callback=typer.echo,
+                event_callback=TYPER_OUTPUT,
             )
         except (SpotifyRedirectURIError, SpotifyClientConfigurationError) as exc:
             typer.echo(str(exc), err=True)
@@ -942,10 +951,18 @@ def ask_something_old_artist(
     candidates: tuple[something_old.SpotifyArtistCandidate, ...],
     status: Status,
 ) -> str:
-    """Prompt when Spotify has several exact-name artist matches."""
-    return _something_old_cli()._prompt_something_old_artist(
-        console, artist_name, candidates, status
-    )
+    """Prompt when Spotify has several exact-name artist matches.
+
+    Args:
+        console: Original command-owned terminal console.
+        artist_name: Original history artist display name.
+        candidates: Original eligible Spotify artist mappings.
+        status: Original active terminal status display.
+
+    Returns:
+        Selected artist control or identity.
+    """
+    return _something_old_cli().ask_artist(console, artist_name, candidates, status)
 
 
 def ask_release_check_artist(

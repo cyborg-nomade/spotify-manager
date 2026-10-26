@@ -2,12 +2,14 @@
 
 from collections.abc import Callable
 from datetime import datetime
-from functools import partial
 from typing import cast
 
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
+from spotify_manager.application.ports.runtime import OptionalMessages
+from spotify_manager.application.ports.runtime import ReviewProgressMessages
+from spotify_manager.bootstrap.history import HistoryCancellation
 from spotify_manager.bootstrap.new_year import AnnualResources
 from spotify_manager.core.library_data.service import LibraryDataService
 from spotify_manager.domain.history import Scrobble
@@ -41,8 +43,8 @@ def annual_history(
         expected_username=username,
         full_rebuild=rebuild,
         dry_run=preview,
-        progress_callback=cast(partial[None], workflow.progress).args[0],
-        cancel_check=cast(partial[None], workflow.check_cancel).args[0],
+        progress_callback=cast(OptionalMessages, workflow.progress).output,
+        cancel_check=cast(HistoryCancellation, workflow.check_cancel).state,
     )
 
 
@@ -70,7 +72,7 @@ def annual_discoveries(
         active_year=active_year,
         state_service=resources.selected_service,
         retry_call=resources.retry,
-        echo=resources.echo,
+        echo=resources.output,
         **options,
     )
 
@@ -102,7 +104,7 @@ def release_history(
     """
     storage = cast(LegacyHistoryStorage, workflow.storage)
     reader = cast(LegacyHistoryReader, workflow.reader)
-    progress = cast(partial[None], workflow.progress).args[0]
+    progress = cast(OptionalMessages, workflow.progress).output
     return observe(
         reader.client,
         expected_username=username,
@@ -137,7 +139,7 @@ def queue_history(
         The original ordered plays and live addition count.
     """
     progress = (
-        resources._history_progress
+        ReviewProgressMessages(resources)
         if resources.callbacks.progress_callback is not None
         else None
     )

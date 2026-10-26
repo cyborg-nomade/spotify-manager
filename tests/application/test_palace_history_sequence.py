@@ -22,7 +22,7 @@ def _cutoff() -> date:
 def _run(edge: HistoryReads, count: int) -> object:
     workflow = PalaceHistory(
         HistoryInputs(edge, Path("history"), _cutoff()),
-        edge.progress,
+        edge,
         date(2007, 11, 27),
     )
     generated, cutoff, available, selected = workflow.run(count)

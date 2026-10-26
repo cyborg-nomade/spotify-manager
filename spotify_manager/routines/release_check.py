@@ -2,13 +2,11 @@
 
 import hashlib
 import json
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import Any
 from typing import Protocol
@@ -16,6 +14,11 @@ from typing import Protocol
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.artist_mapping import (
+    ArtistChoiceReader as ArtistChoiceReader,
+)
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.release_check_values import (
     ReleaseCheckConfigError as ReleaseCheckConfigError,
 )
@@ -30,6 +33,9 @@ from spotify_manager.application.release_check_values import (
 )
 from spotify_manager.application.release_check_values import (
     ReleaseCheckSummary as ReleaseCheckSummary,
+)
+from spotify_manager.application.release_review import (
+    ReleaseChoiceReader as ReleaseChoiceReader,
 )
 
 # UFI
@@ -76,6 +82,12 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 
 
+type ProgressCallback = ReviewProgress
+
+
+type RetryCall = Retry
+
+
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_STATE_PATH = FILES_DIR / "release_check_state.json"
 DEFAULT_STATE_BACKUP_DIR = FILES_DIR / "release_check_state_backups"
@@ -96,9 +108,6 @@ CHOICE_SKIP = "skip"
 CHOICE_SKIP_ARTIST = "skip-artist"
 CHOICE_QUIT = "quit"
 CHOICE_SEARCH_PREFIX = "search:"
-
-ProgressCallback = Callable[[int, int, str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
 
 
 class LastFmReader(scrobble_history.LastFmReader, Protocol):
@@ -132,21 +141,6 @@ class ReleaseCheckPlaylists:
             )
         except blast_from_past.BlastFromPastConfigError as exc:
             raise ReleaseCheckConfigError(str(exc)) from exc
-
-
-ArtistChoiceReader = Callable[
-    [RankedArtist, tuple[SpotifyArtistCandidate, ...]],
-    str,
-]
-ReleaseChoiceReader = Callable[
-    [RankedArtist, ReleaseCandidate, ReleaseTrack, tuple[str, ...], bool],
-    str,
-]
-
-
-def _direct_retry(operation: Callable[[], object], _description: str) -> object:
-    """Call Spotify directly when no outer retry policy is supplied."""
-    return operation()
 
 
 def rank_lastfm_artists(
@@ -213,16 +207,11 @@ def search_spotify_artists(
         if search_text is not None
         else f'artist:"{artist.name.replace(chr(34), " ")}"'
     )
-    response = retry_call(
-        partial(
-            sp.search,
-            q=query,
-            type="artist",
-            limit=ARTIST_SEARCH_LIMIT,
-            offset=0,
-        ),
-        f"searching Spotify artists with {query}",
-    )
+    for attempt in retry_call.attempts(f"searching Spotify artists with {query}"):
+        with attempt:
+            response = sp.search(
+                q=query, type="artist", limit=ARTIST_SEARCH_LIMIT, offset=0
+            )
     from spotify_manager.infrastructure.release_check_catalog import parse_artist_search
 
     return parse_artist_search(response, artist.name)
@@ -331,16 +320,17 @@ def _read_catalog_page(
     retry_call: RetryCall,
     offset: int,
 ) -> object:
-    return retry_call(
-        partial(
-            sp.artist_albums,
-            spotify_artist.spotify_id,
-            include_groups="album,single",
-            limit=ARTIST_RELEASE_PAGE_LIMIT,
-            offset=offset,
-        ),
-        f"loading releases for {artist.name} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading releases for {artist.name} at offset {offset}"
+    ):
+        with attempt:
+            response = sp.artist_albums(
+                spotify_artist.spotify_id,
+                include_groups="album,single",
+                limit=ARTIST_RELEASE_PAGE_LIMIT,
+                offset=offset,
+            )
+    return response
 
 
 def _track_candidate(raw: object, fallback_position: int) -> ReleaseTrack | None:
@@ -388,15 +378,8 @@ def _read_track_page(
     from spotify_manager.infrastructure.release_pages import MissingReleaseTracksError
 
     try:
-        return retry_call(
-            partial(
-                sp.album_tracks,
-                release.spotify_id,
-                limit=limit,
-                offset=offset,
-            ),
-            f"loading tracks from {release.name} at offset {offset}",
-        )
+        response = _request_track_page(retry_call, offset, release, sp, limit)
+        return response
     except SpotifyException as exc:
         if exc.http_status != 404:
             raise
@@ -677,24 +660,15 @@ def _replace_playlist_entries(
 ) -> None:
     """Replace a playlist in bounded batches while preserving item order."""
     first_batch = entries[:PLAYLIST_WRITE_LIMIT]
-    retry_call(
-        partial(
-            sp._put,
-            f"playlists/{playlist_id}/items",
-            payload={"uris": [entry.uri for entry in first_batch]},
-        ),
-        f"deduplicating playlist {playlist_id}",
-    )
+    for attempt in retry_call.attempts(f"deduplicating playlist {playlist_id}"):
+        with attempt:
+            sp._put(
+                f"playlists/{playlist_id}/items",
+                payload={"uris": [entry.uri for entry in first_batch]},
+            )
     for offset in range(PLAYLIST_WRITE_LIMIT, len(entries), PLAYLIST_WRITE_LIMIT):
         batch = entries[offset : offset + PLAYLIST_WRITE_LIMIT]
-        retry_call(
-            partial(
-                sp._post,
-                f"playlists/{playlist_id}/items",
-                payload={"uris": [entry.uri for entry in batch]},
-            ),
-            f"restoring playlist {playlist_id} at offset {offset}",
-        )
+        _append_replacement_batch(retry_call, playlist_id, offset, sp, batch)
 
 
 def _deduplicate_wine_cellar(
@@ -750,14 +724,11 @@ def _add_to_playlist(
         membership.track_keys.add(key)
         membership.primary_artist_ids.add(track.primary_artist_id)
         return "would add"
-    retry_call(
-        partial(
-            sp._post,
-            f"playlists/{playlist_id}/items",
-            payload={"uris": [track.uri]},
-        ),
-        f"adding {track.name} to playlist {playlist_id}",
-    )
+    for attempt in retry_call.attempts(
+        f"adding {track.name} to playlist {playlist_id}"
+    ):
+        with attempt:
+            sp._post(f"playlists/{playlist_id}/items", payload={"uris": [track.uri]})
     membership.track_ids.add(track.spotify_id)
     membership.track_keys.add(key)
     membership.primary_artist_ids.add(track.primary_artist_id)
@@ -950,15 +921,16 @@ def _read_playlist_page(
     retry_call: RetryCall,
     offset: int,
 ) -> object:
-    return retry_call(
-        partial(
-            sp._get,
-            f"playlists/{playlist_id}/items",
-            limit=PLAYLIST_PAGE_LIMIT,
-            offset=offset,
-        ),
-        f"loading playlist {playlist_id} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading playlist {playlist_id} at offset {offset}"
+    ):
+        with attempt:
+            response = sp._get(
+                f"playlists/{playlist_id}/items",
+                limit=PLAYLIST_PAGE_LIMIT,
+                offset=offset,
+            )
+    return response
 
 
 __all__ = [
@@ -983,3 +955,35 @@ __all__ = [
     "release_tags",
     "run_release_check",
 ]
+
+
+def _request_track_page(
+    retry_call: RetryCall,
+    offset: int,
+    release: ReleaseCandidate,
+    sp: Spotify,
+    limit: int,
+) -> object:
+    for attempt in retry_call.attempts(
+        f"loading tracks from {release.name} at offset {offset}"
+    ):
+        with attempt:
+            return sp.album_tracks(release.spotify_id, limit=limit, offset=offset)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _append_replacement_batch(
+    retry_call: RetryCall,
+    playlist_id: str,
+    offset: int,
+    sp: Spotify,
+    batch: tuple[PlaylistEntry, ...],
+) -> None:
+    for attempt in retry_call.attempts(
+        f"restoring playlist {playlist_id} at offset {offset}"
+    ):
+        with attempt:
+            sp._post(
+                f"playlists/{playlist_id}/items",
+                payload={"uris": [entry.uri for entry in batch]},
+            )

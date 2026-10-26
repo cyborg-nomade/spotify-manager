@@ -30,7 +30,7 @@ def _outcome(profile: str, second: int) -> object:
     edge = HistoryReads(profile, second)
     owner = DiscographyHistory(
         HistoryInputs(edge, FIXTURE.with_name("history"), _cutoff()),
-        edge.progress,
+        edge,
         date(2007, 11, 27),
     )
     result: dict[str, object] = {}

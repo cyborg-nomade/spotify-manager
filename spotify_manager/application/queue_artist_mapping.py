@@ -1,8 +1,7 @@
 """Adapt Queue operator choices to the named artist-mapping application stage."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from functools import partial
+from typing import Protocol
 
 from spotify_manager.application.artist_mapping import ArtistMapping
 from spotify_manager.application.artist_mapping import ArtistSearch
@@ -11,18 +10,52 @@ from spotify_manager.domain.queue_values import ArtistRecommendation
 from spotify_manager.domain.release_check_values import RankedArtist
 
 
-type QueueArtistChoice = Callable[
-    [ArtistRecommendation, tuple[SpotifyArtistCandidate, ...]], str
-]
+class QueueArtistChoice(Protocol):
+    """Own the operator interaction for choose artist."""
+
+    def choose_artist(
+        self,
+        artist: ArtistRecommendation,
+        candidates: tuple[SpotifyArtistCandidate, ...],
+        /,
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            candidates: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
-def _read_choice(
-    reader: QueueArtistChoice,
-    recommendation: ArtistRecommendation,
-    _artist: RankedArtist,
-    candidates: tuple[SpotifyArtistCandidate, ...],
-) -> str:
-    return reader(recommendation, candidates)
+@dataclass(frozen=True)
+class QueueMappingChoice:
+    """Retain the original Queue recommendation in an artist-search prompt.
+
+    Args:
+        reader: Queue operator owning the prompt.
+        recommendation: Original ranked recommendation.
+    """
+
+    reader: QueueArtistChoice
+    recommendation: ArtistRecommendation
+
+    def choose_artist(
+        self, artist: RankedArtist, candidates: tuple[SpotifyArtistCandidate, ...], /
+    ) -> str:
+        """Read the Queue-specific prompt after the shared search.
+
+        Args:
+            artist: Search identity; the Queue recommendation retains its evidence.
+            candidates: Ordered mapped candidates.
+
+        Returns:
+            Original Queue operator response.
+        """
+        return self.reader.choose_artist(self.recommendation, candidates)
 
 
 @dataclass(frozen=True)
@@ -53,5 +86,5 @@ class QueueArtistMapping:
         )
         reader = None
         if self.reader is not None:
-            reader = partial(_read_choice, self.reader, recommendation)
+            reader = QueueMappingChoice(self.reader, recommendation)
         return ArtistMapping(self.catalog, reader).run(artist)

@@ -1,6 +1,7 @@
 """Explicit queue 3 CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -9,6 +10,8 @@ from rich.console import Console
 from rich.progress import Progress
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
@@ -39,7 +42,7 @@ class Queue3CLI:
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    sleep: Callable[[float], None]
+    sleep: Wait
 
     def _prompt_queue_3_release_transition(
         self,
@@ -201,9 +204,9 @@ class Queue3CLI:
                     self.runtime.review_client(),
                     playlist_id,
                     dry_run=dry_run,
-                    echo=self._import_queue_3_previous_year_echo,
-                    progress_callback=self._import_queue_3_previous_year_update_progress,
-                    retry_call=self._import_queue_3_previous_year_retry_call,
+                    echo=ImportQueue3PreviousYearInteraction(self),
+                    progress_callback=ImportQueue3PreviousYearInteraction(self),
+                    retry_call=ImportQueue3PreviousYearInteraction(self),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_import_queue_3_previous_year_rate_limit(exc)
@@ -219,18 +222,6 @@ class Queue3CLI:
         style = "yellow" if line.startswith("Would") else "cyan"
         self._import_queue_3_previous_year_console.print(
             line, style=style, markup=False
-        )
-
-    def _import_queue_3_previous_year_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._import_queue_3_previous_year_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
         )
 
     def _import_queue_3_previous_year_update_progress(
@@ -277,11 +268,11 @@ class Queue3CLI:
                     self.runtime.review_client(),
                     Queue3Options(playlist_id=playlist_id, dry_run=dry_run),
                     Queue3Callbacks(
-                        transition_reader=self._flush_queue_3_ask_queue_3_release_transition,
-                        composer_playlist_reader=self._flush_queue_3_ask_queue_3_composer_playlist,
-                        echo=self._flush_queue_3_echo,
-                        progress_callback=self._flush_queue_3_update_progress,
-                        retry_call=self._flush_queue_3_retry_call,
+                        transition_reader=FlushQueue3Interaction(self),
+                        composer_playlist_reader=FlushQueue3Interaction(self),
+                        output=FlushQueue3Interaction(self),
+                        progress_callback=FlushQueue3Interaction(self),
+                        retry_call=FlushQueue3Interaction(self),
                     ),
                     Queue3Resources(),
                 )
@@ -317,18 +308,6 @@ class Queue3CLI:
         elif line.startswith("Skipped"):
             style = "dim yellow"
         self._flush_queue_3_console.print(line, style=style, markup=False)
-
-    def _flush_queue_3_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._flush_queue_3_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
 
     def _flush_queue_3_update_progress(
         self, completed: int, total: int, status: str
@@ -564,3 +543,121 @@ class Queue3CLI:
                 "Queue 3 flush paused; run the command again to resume.",
                 style="bold yellow",
             )
+
+
+@dataclass(frozen=True)
+class ImportQueue3PreviousYearInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: Queue3CLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._import_queue_3_previous_year_echo(message)
+
+    def progress(self, completed: int, total: int, status: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            completed: Original completed.
+            total: Original total.
+            status: Original status.
+        """
+        self.owner._import_queue_3_previous_year_update_progress(
+            completed, total, status
+        )
+
+
+@dataclass(frozen=True)
+class FlushQueue3Interaction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: Queue3CLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._flush_queue_3_echo(message)
+
+    def progress(self, completed: int, total: int, status: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            completed: Original completed.
+            total: Original total.
+            status: Original status.
+        """
+        self.owner._flush_queue_3_update_progress(completed, total, status)
+
+    def choose_transition(
+        self,
+        source: new_wine.PlaylistTrack,
+        current: slow_listening.DiscographyRelease,
+        following: slow_listening.DiscographyRelease,
+    ) -> str:
+        """Use this command's fixed choose transition prompt.
+
+        Args:
+            source: Original operator prompt value.
+            current: Original operator prompt value.
+            following: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._flush_queue_3_ask_queue_3_release_transition(
+            source, current, following
+        )
+
+    def choose_composer(
+        self, artist: str, candidates: tuple[queue_3.OwnedPlaylist, ...]
+    ) -> str:
+        """Use this command's fixed choose composer prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._flush_queue_3_ask_queue_3_composer_playlist(
+            artist, candidates
+        )

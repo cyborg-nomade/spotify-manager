@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -692,32 +693,17 @@ def test_new_wine_retries_rate_limited_operation_automatically(
     spec = next(spec for spec in RUNNERS if spec.name == "new-wine")
     job = _job(spec)
     cancel_event = ImmediateEvent()
-    job.cancel_event = cancel_event  # type: ignore[assignment]
+    job.cancel_event = cancel_event
     attempts = 0
-
-    def flush(*_args, retry_call, **_kwargs):
-        def operation() -> object:
-            nonlocal attempts
-            attempts += 1
-            if attempts == 1:
-                raise api.SpotifyException(
-                    429,
-                    -1,
-                    "rate limited",
-                    headers={"Retry-After": "1"},
-                )
-            return object()
-
-        retry_call(operation, "refilling New Wine from Wine Cellar")
-        return _success_result(spec)
-
-    monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(flush))
+    scenario = NewWineRetriesRateLimitedOperationAutomaticallyScenario(
+        attempts=attempts, spec=spec
+    )
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(scenario))
     try:
         spec.run(job.result.job_id, CallbackSpotify())
     finally:
         _remove_job(job)
-
-    assert attempts == 2
+    assert scenario.attempts == 2
     assert cancel_event.waits == [1]
     assert job.result.status == "completed"
     assert job.result.retry_at is None
@@ -731,30 +717,16 @@ def test_new_kids_retries_rate_limited_operation_automatically(
     spec = next(spec for spec in RUNNERS if spec.name == "new-kids")
     job = _job(spec)
     cancel_event = ImmediateEvent()
-    job.cancel_event = cancel_event  # type: ignore[assignment]
+    job.cancel_event = cancel_event
     attempts = 0
-
-    def flush(*_args, retry_call, **_kwargs):
-        def operation() -> object:
-            nonlocal attempts
-            attempts += 1
-            if attempts == 1:
-                raise api.SpotifyException(
-                    429,
-                    -1,
-                    "rate limited",
-                    headers={"Retry-After": "1"},
-                )
-            return object()
-
-        retry_call(operation, "loading releases for New Kids")
-        return _success_result(spec)
-
+    scenario = NewKidsRetriesRateLimitedOperationAutomaticallyScenario(
+        attempts=attempts, spec=spec
+    )
     monkeypatch.setattr(
         api.new_kids,
         "flush_new_kids",
         FeatureInvocation(
-            flush,
+            scenario,
             (
                 "new_kids_playlist_id",
                 "queue_2_playlist_id",
@@ -768,8 +740,7 @@ def test_new_kids_retries_rate_limited_operation_automatically(
         spec.run(job.result.job_id, CallbackSpotify())
     finally:
         _remove_job(job)
-
-    assert attempts == 2
+    assert scenario.attempts == 2
     assert cancel_event.waits == [1]
     assert job.result.status == "completed"
     assert job.result.retry_at is None
@@ -783,30 +754,15 @@ def test_new_wine_rate_limit_wait_can_be_cancelled(
     spec = next(spec for spec in RUNNERS if spec.name == "new-wine")
     job = _job(spec)
     cancel_event = ImmediateEvent(cancel_on_wait=True)
-    job.cancel_event = cancel_event  # type: ignore[assignment]
+    job.cancel_event = cancel_event
     attempts = 0
-
-    def flush(*_args, retry_call, **_kwargs):
-        def operation() -> object:
-            nonlocal attempts
-            attempts += 1
-            raise api.SpotifyException(
-                429,
-                -1,
-                "rate limited",
-                headers={"Retry-After": "30"},
-            )
-
-        retry_call(operation, "refilling New Wine from Wine Cellar")
-        return _success_result(spec)
-
-    monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(flush))
+    scenario = NewWineRateLimitWaitCanBeCancelledScenario(attempts=attempts, spec=spec)
+    monkeypatch.setattr(api.new_wine, "flush_new_wine", WineInvocation(scenario))
     try:
         spec.run(job.result.job_id, CallbackSpotify())
     finally:
         _remove_job(job)
-
-    assert attempts == 1
+    assert scenario.attempts == 1
     assert cancel_event.waits == [30]
     assert job.result.status == "cancelled"
     assert job.result.retry_at is None
@@ -819,28 +775,14 @@ def test_new_kids_rate_limit_wait_can_be_cancelled(
     spec = next(spec for spec in RUNNERS if spec.name == "new-kids")
     job = _job(spec)
     cancel_event = ImmediateEvent(cancel_on_wait=True)
-    job.cancel_event = cancel_event  # type: ignore[assignment]
+    job.cancel_event = cancel_event
     attempts = 0
-
-    def flush(*_args, retry_call, **_kwargs):
-        def operation() -> object:
-            nonlocal attempts
-            attempts += 1
-            raise api.SpotifyException(
-                429,
-                -1,
-                "rate limited",
-                headers={"Retry-After": "30"},
-            )
-
-        retry_call(operation, "loading releases for New Kids")
-        return _success_result(spec)
-
+    scenario = NewKidsRateLimitWaitCanBeCancelledScenario(attempts=attempts, spec=spec)
     monkeypatch.setattr(
         api.new_kids,
         "flush_new_kids",
         FeatureInvocation(
-            flush,
+            scenario,
             (
                 "new_kids_playlist_id",
                 "queue_2_playlist_id",
@@ -854,8 +796,7 @@ def test_new_kids_rate_limit_wait_can_be_cancelled(
         spec.run(job.result.job_id, CallbackSpotify())
     finally:
         _remove_job(job)
-
-    assert attempts == 1
+    assert scenario.attempts == 1
     assert cancel_event.waits == [30]
     assert job.result.status == "cancelled"
     assert job.result.retry_at is None
@@ -922,3 +863,169 @@ def test_interactive_job_runners_record_clean_cancellation(
     assert job.result.status == "cancelled"
     assert job.result.completed_at is not None
     assert job.result.logs
+
+
+@dataclass
+class NewWineRetriesRateLimitedOperationAutomaticallyScenario:
+    """Retain the original new wine retries rate limited operation automatically
+    fixture.
+
+    Args:
+        attempts: Original attempts observation or resource.
+        spec: Original spec observation or resource.
+    """
+
+    attempts: int
+    spec: Any
+
+    def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
+        """Execute the original flush mock boundary.
+
+        Args:
+            retry_call: Original external mock argument.
+            _args: Original external mock argument.
+            _kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        for attempt in retry_call.attempts("refilling New Wine from Wine Cellar"):
+            with attempt:
+                self.operation()
+        return _success_result(self.spec)
+
+    def operation(self) -> object:
+        """Execute the original operation mock boundary.
+
+        Returns:
+            Original fixture result.
+        """
+        self.attempts += 1
+        if self.attempts == 1:
+            raise api.SpotifyException(
+                429, -1, "rate limited", headers={"Retry-After": "1"}
+            )
+        return object()
+
+
+@dataclass
+class NewKidsRetriesRateLimitedOperationAutomaticallyScenario:
+    """Retain the original new kids retries rate limited operation automatically
+    fixture.
+
+    Args:
+        attempts: Original attempts observation or resource.
+        spec: Original spec observation or resource.
+    """
+
+    attempts: int
+    spec: Any
+
+    def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
+        """Execute the original flush mock boundary.
+
+        Args:
+            retry_call: Original external mock argument.
+            _args: Original external mock argument.
+            _kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        for attempt in retry_call.attempts("loading releases for New Kids"):
+            with attempt:
+                self.operation()
+        return _success_result(self.spec)
+
+    def operation(self) -> object:
+        """Execute the original operation mock boundary.
+
+        Returns:
+            Original fixture result.
+        """
+        self.attempts += 1
+        if self.attempts == 1:
+            raise api.SpotifyException(
+                429, -1, "rate limited", headers={"Retry-After": "1"}
+            )
+        return object()
+
+
+@dataclass
+class NewWineRateLimitWaitCanBeCancelledScenario:
+    """Retain the original new wine rate limit wait can be cancelled fixture.
+
+    Args:
+        attempts: Original attempts observation or resource.
+        spec: Original spec observation or resource.
+    """
+
+    attempts: int
+    spec: Any
+
+    def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
+        """Execute the original flush mock boundary.
+
+        Args:
+            retry_call: Original external mock argument.
+            _args: Original external mock argument.
+            _kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        for attempt in retry_call.attempts("refilling New Wine from Wine Cellar"):
+            with attempt:
+                self.operation()
+        return _success_result(self.spec)
+
+    def operation(self) -> object:
+        """Execute the original operation mock boundary.
+
+        Returns:
+            Original fixture result.
+        """
+        self.attempts += 1
+        raise api.SpotifyException(
+            429, -1, "rate limited", headers={"Retry-After": "30"}
+        )
+
+
+@dataclass
+class NewKidsRateLimitWaitCanBeCancelledScenario:
+    """Retain the original new kids rate limit wait can be cancelled fixture.
+
+    Args:
+        attempts: Original attempts observation or resource.
+        spec: Original spec observation or resource.
+    """
+
+    attempts: int
+    spec: Any
+
+    def __call__(self, *_args: Any, retry_call: Any, **_kwargs: Any) -> object:
+        """Execute the original flush mock boundary.
+
+        Args:
+            retry_call: Original external mock argument.
+            _args: Original external mock argument.
+            _kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        for attempt in retry_call.attempts("loading releases for New Kids"):
+            with attempt:
+                self.operation()
+        return _success_result(self.spec)
+
+    def operation(self) -> object:
+        """Execute the original operation mock boundary.
+
+        Returns:
+            Original fixture result.
+        """
+        self.attempts += 1
+        raise api.SpotifyException(
+            429, -1, "rate limited", headers={"Retry-After": "30"}
+        )

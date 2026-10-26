@@ -1,6 +1,5 @@
 """Protect CLI client-event ownership and the original constructor error boundary."""
 
-from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 from unittest.mock import Mock
@@ -8,6 +7,7 @@ from unittest.mock import Mock
 import pytest
 
 from spotify_manager import main
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.bootstrap import clients
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.interfaces.operations import scrobble_history
@@ -24,7 +24,7 @@ class EmittingClient(LastFmClient):
     """
 
     def __init__(
-        self, api_key: str, username: str, *, event_callback: Callable[[str], None]
+        self, api_key: str, username: str, *, event_callback: Messages
     ) -> None:
         """Initialize the original reader and observe its bound message sink.
 
@@ -34,7 +34,7 @@ class EmittingClient(LastFmClient):
             event_callback: Explicit command-owned terminal sink.
         """
         super().__init__(api_key, username, event_callback=event_callback)
-        event_callback("Fixture client event")
+        event_callback.echo("Fixture client event")
 
 
 class FailingClient(LastFmClient):
@@ -47,7 +47,7 @@ class FailingClient(LastFmClient):
     """
 
     def __init__(
-        self, api_key: str, username: str, *, event_callback: Callable[[str], None]
+        self, api_key: str, username: str, *, event_callback: Messages
     ) -> None:
         """Reject construction without running a refresh.
 

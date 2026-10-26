@@ -1,6 +1,5 @@
 """Own synchronous annual history, state and discovery observations."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
@@ -10,6 +9,8 @@ from spotipy import Spotify
 from spotify_manager.application.new_year_discoveries import AnnualDiscoveryInputs
 from spotify_manager.application.new_year_effects import AnnualStateAccess
 from spotify_manager.application.new_year_membership import RetryCall
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.infrastructure.legacy.new_year_state import LegacyAnnualState
@@ -37,14 +38,15 @@ class AnnualResources:
         retry: Original annual cancellation/retry boundary.
         selected_service: Original late-resolved shared state service.
         playlists: Original late-parsed destination identities.
+        output: Invocation-owned message output.
     """
 
     sp: Spotify
     lastfm: scrobble_history.LastFmReader
     configuration: Settings
     supplied_service: StateService | None
-    echo: Callable[[str], None]
-    cancel_check: Callable[[], bool] | None
+    output: Messages
+    cancel_check: CancellationState | None
     retry: RetryCall
     selected_service: StateService | None = None
     playlists: dict[str, str] = field(default_factory=dict)
@@ -71,6 +73,14 @@ class AnnualResources:
             ),
         }
         return self.playlists
+
+    def echo(self, message: str) -> None:
+        """Present an annual observation through the invocation's output.
+
+        Args:
+            message: Original complete observation.
+        """
+        self.output.echo(message)
 
     def state(self) -> AnnualStateAccess:
         """Resolve original caller/runtime annual authority after destination parsing.
@@ -131,7 +141,7 @@ class AnnualResources:
             queue_3.DEFAULT_STATE_PATH,
             self.selected_service,
             queue_3.DEFAULT_LOG_PATH,
-            self.echo,
+            self,
         )
         return AnnualDiscoveryInputs(
             playlist, inputs.current, inputs.state, inputs.owned, inputs.importer

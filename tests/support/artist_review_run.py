@@ -528,6 +528,38 @@ class ReviewObservations:
         self.accepted(f"delete:{name}")
         return None
 
+    def choose_track(
+        self, item: YourLibraryArtist, choices: tuple[legacy.TrackCandidate, ...]
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            item: Original fixture observation.
+            choices: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.track_choice(item, choices)
+
+    def choose_release(
+        self,
+        item: YourLibraryArtist,
+        choices: tuple[legacy.ReleaseCandidate, ...],
+        decline: bool,
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            item: Original fixture observation.
+            choices: Original fixture observation.
+            decline: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.release_choice(item, choices, decline)
+
 
 def _alter_release(item: legacy.ReleaseCandidate, profile: str) -> None:
     if profile == "wrong-first":
@@ -635,11 +667,11 @@ def invoke(edge: ReviewObservations) -> legacy.ArtistReviewSummary:
         return legacy.review_artists(
             cast(Spotify, edge),
             PLAYLISTS,
-            None if edge.profile == "low-auto-tie" else edge.track_choice,
-            None if edge.profile == "release-auto" else edge.release_choice,
+            None if edge.profile == "low-auto-tie" else edge,
+            None if edge.profile == "release-auto" else edge,
             PATHS,
-            edge.echo,
-            None if edge.profile == "no-progress" else edge.progress,
+            edge,
+            None if edge.profile == "no-progress" else edge,
             edge.profile == "cache-refresh",
             limit,
         )

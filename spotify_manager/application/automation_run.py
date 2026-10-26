@@ -1,6 +1,5 @@
 """Original serial nightly refresh, reconnect, poll and safe connection checks."""
 
-from collections.abc import Callable
 from datetime import datetime
 from datetime import timedelta
 from datetime import tzinfo
@@ -17,6 +16,8 @@ from spotify_manager.application.automation_values import ApiError
 from spotify_manager.application.automation_values import AutomationError
 from spotify_manager.application.automation_values import JobLostError
 from spotify_manager.application.automation_values import JobSpec
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.automation_calendar import artifacts_are_fresh
 
 
@@ -90,7 +91,7 @@ def conflict_detail(error: ApiError) -> dict[str, object]:
     return detail if isinstance(detail, dict) else {}
 
 
-def start_job(client: SpaceAccess, spec: JobSpec, emit: Callable[[str], None]) -> str:
+def start_job(client: SpaceAccess, spec: JobSpec, emit: Messages) -> str:
     """Start or reconnect in original order, waiting out incompatible active jobs.
 
     Args:
@@ -112,9 +113,7 @@ def start_job(client: SpaceAccess, spec: JobSpec, emit: Callable[[str], None]) -
         client.sleep(BLOCKED_RETRY_SECONDS)
 
 
-def _start_attempt(
-    client: SpaceAccess, spec: JobSpec, emit: Callable[[str], None]
-) -> str:
+def _start_attempt(client: SpaceAccess, spec: JobSpec, emit: Messages) -> str:
     try:
         payload = client.request("POST", spec.start_path, retry_transient=True)
     except ApiError as error:
@@ -124,21 +123,21 @@ def _start_attempt(
     if not isinstance(payload, dict) or not payload.get("job_id"):
         raise AutomationError(f"{spec.label} returned no job id.")
     identity = str(payload["job_id"])
-    emit(f"Started {spec.label} as {identity}.")
+    emit.echo(f"Started {spec.label} as {identity}.")
     return identity
 
 
 def _reconnect(
-    client: SpaceAccess, spec: JobSpec, error: ApiError, emit: Callable[[str], None]
+    client: SpaceAccess, spec: JobSpec, error: ApiError, emit: Messages
 ) -> str:
     detail = conflict_detail(error)
     job_id = str(detail.get("job_id") or "")
     blocker = str(detail.get("command") or "")
     compatible = _compatible_job(client, spec, job_id, blocker)
     if job_id and compatible and (not blocker or blocker == spec.command):
-        emit(f"Reconnected to existing {spec.label} job {job_id}.")
+        emit.echo(f"Reconnected to existing {spec.label} job {job_id}.")
         return job_id
-    emit(f"{spec.label} is blocked by {blocker or 'another active job'}; waiting.")
+    emit.echo(f"{spec.label} is blocked by {blocker or 'another active job'}; waiting.")
     return ""
 
 
@@ -163,8 +162,8 @@ def cancel_job(
     client: SpaceAccess,
     spec: JobSpec,
     job_id: str,
-    now: Callable[[], datetime],
-    emit: Callable[[str], None],
+    now: Clock,
+    emit: Messages,
 ) -> None:
     """Request the original cancellation with a separate three-minute grace period.
 
@@ -178,8 +177,8 @@ def cancel_job(
     Raises:
         ApiError: Original cancellation fails outside accepted 404/409 statuses.
     """
-    emit(f"Cancelling {spec.label} at the maintenance deadline.")
-    grace = now() + timedelta(minutes=3)
+    emit.echo(f"Cancelling {spec.label} at the maintenance deadline.")
+    grace = now.now() + timedelta(minutes=3)
     try:
         client.request(
             "POST",
@@ -196,8 +195,8 @@ def poll_job(
     client: SpaceAccess,
     spec: JobSpec,
     job_id: str,
-    now: Callable[[], datetime],
-    emit: Callable[[str], None],
+    now: Clock,
+    emit: Messages,
 ) -> str:
     """Retain polling, changed-status output and original completion boundaries.
 
@@ -222,7 +221,7 @@ def poll_job(
             return "deadline"
         current = _read_status(client, spec, job_id)
         if current != previous:
-            emit(f"{spec.label}: {current[0]} - {current[1]}")
+            emit.echo(f"{spec.label}: {current[0]} - {current[1]}")
             previous = current
         outcome = _status_outcome(spec, *current)
         if outcome is not None:
@@ -257,8 +256,8 @@ def _status_outcome(spec: JobSpec, status: str, detail: str) -> str | None:
 def run_job(
     client: SpaceAccess,
     spec: JobSpec,
-    now: Callable[[], datetime],
-    emit: Callable[[str], None],
+    now: Clock,
+    emit: Messages,
 ) -> str:
     """Resume the original durable workflow after a lost in-memory handle.
 
@@ -282,13 +281,13 @@ def _poll_started_job(
     client: SpaceAccess,
     spec: JobSpec,
     job_id: str,
-    now: Callable[[], datetime],
-    emit: Callable[[str], None],
+    now: Clock,
+    emit: Messages,
 ) -> str | None:
     try:
         return poll_job(client, spec, job_id, now, emit)
     except JobLostError:
-        emit(f"{spec.label} handle was lost; resuming from its checkpoint.")
+        emit.echo(f"{spec.label} handle was lost; resuming from its checkpoint.")
         return None
 
 
@@ -297,8 +296,8 @@ def nightly_refresh(
     jobs: tuple[JobSpec, ...],
     threshold: datetime | None,
     timezone: tzinfo,
-    now: Callable[[], datetime],
-    emit: Callable[[str], None],
+    now: Clock,
+    emit: Messages,
 ) -> int:
     """Run original serial refreshes after health and optional duplicate detection.
 
@@ -313,39 +312,41 @@ def nightly_refresh(
     Returns:
         Original successful exit for completion, safe pause or deadline.
     """
-    emit(
+    emit.echo(
         "Nightly refresh deadline: "
         + f"{client.deadline.astimezone(timezone).isoformat()} (Europe/Berlin)"
     )
     client.request("GET", "/health")
-    emit("Space is awake and healthy.")
+    emit.echo("Space is awake and healthy.")
     if threshold is not None and durable_artifacts_are_fresh(client, threshold):
-        emit(
+        emit.echo(
             "All four durable artifacts were already refreshed during this "
             "maintenance window; skipping the duplicate trigger."
         )
         return 0
     mode = "full rebuild" if jobs == FULL_REBUILD_JOBS else "incremental"
-    emit(f"Refresh mode: {mode}.")
+    emit.echo(f"Refresh mode: {mode}.")
     return _run_jobs(client, jobs, now, emit)
 
 
 def _run_jobs(
     client: SpaceAccess,
     jobs: tuple[JobSpec, ...],
-    now: Callable[[], datetime],
-    emit: Callable[[str], None],
+    now: Clock,
+    emit: Messages,
 ) -> int:
     for index, spec in enumerate(jobs):
         outcome = run_job(client, spec, now, emit)
         if outcome == "paused":
-            emit(f"{spec.label} paused cleanly; remaining jobs will resume tomorrow.")
+            emit.echo(
+                f"{spec.label} paused cleanly; remaining jobs will resume tomorrow."
+            )
             return 0
         if outcome == "deadline":
-            emit("Maintenance window closed; progress was saved.")
+            emit.echo("Maintenance window closed; progress was saved.")
             return 0
-        emit(f"Completed {spec.label} ({index + 1}/{len(jobs)}).")
-    emit("All nightly library refreshes completed.")
+        emit.echo(f"Completed {spec.label} ({index + 1}/{len(jobs)}).")
+    emit.echo("All nightly library refreshes completed.")
     return 0
 
 
@@ -368,7 +369,7 @@ def durable_artifacts_are_fresh(
     )
 
 
-def connection_check(client: SpaceAccess, emit: Callable[[str], None]) -> int:
+def connection_check(client: SpaceAccess, emit: Messages) -> int:
     """Check original auth, durable state and active jobs without starting routines.
 
     Args:
@@ -391,8 +392,10 @@ def connection_check(client: SpaceAccess, emit: Callable[[str], None]) -> int:
         raise AutomationError("The shared state dataset is unavailable.")
     paths = _job_paths(client.request("GET", "/openapi.json"))
     _check_active_jobs(client, paths)
-    emit("Automation authentication, shared state, and all four artifacts are healthy.")
-    emit(f"No active jobs across {len(paths)} routine endpoints.")
+    emit.echo(
+        "Automation authentication, shared state, and all four artifacts are healthy."
+    )
+    emit.echo(f"No active jobs across {len(paths)} routine endpoints.")
     return 0
 
 

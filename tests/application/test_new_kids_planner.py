@@ -34,7 +34,7 @@ def _memory() -> MemoryDiscovery:
 
 def _planner(memory: MemoryDiscovery, *, preview: bool = False) -> NewKidsPlanner:
     observations = DiscoveryObservations(memory, {})
-    return NewKidsPlanner(observations, memory.choose, memory, memory, 2026, preview)
+    return NewKidsPlanner(observations, memory, memory, memory, 2026, preview)
 
 
 def _context(
@@ -297,7 +297,7 @@ def test_selected_release_without_primary_tracks_retains_original_error() -> Non
     memory = _memory()
     planner = _planner(memory)
     changed = ChangedTracks(planner.observations)
-    planner = replace(planner, choose=changed.choose)
+    planner = replace(planner, choose=changed)
     with pytest.raises(NewKidsError, match="no primary-artist tracks"):
         planner.plan(_context(planner))
 

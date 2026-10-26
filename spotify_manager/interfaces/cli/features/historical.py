@@ -1,6 +1,7 @@
 """Explicit historical CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import date
 from typing import Never
@@ -9,8 +10,11 @@ import typer
 from rich.console import Console
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.formatting import scrobble_date
+from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
 from spotify_manager.interfaces.operations import (
@@ -36,7 +40,7 @@ class HistoricalCLI:
     runtime: CliResources
 
     display: ConsoleDisplay
-    sleep: Callable[[float], None]
+    sleep: Wait
 
     def _scrobble_date(self, timestamp_ms: int) -> str:
         """Format one Last.fm timestamp in the listening timezone.
@@ -82,7 +86,7 @@ class HistoricalCLI:
                     playlist_id,
                     count=effective_count,
                     max_playlist_length=max_playlist_length,
-                    progress_callback=status.update,
+                    progress_callback=StatusOutput(status),
                     dry_run=dry_run,
                 )
         except blast_from_past.BlastFromPastError as exc:
@@ -149,9 +153,9 @@ class HistoricalCLI:
                         self.runtime.review_client(),
                         playlist_id,
                         count=count,
-                        echo=self._blast_from_the_past_artists_echo,
-                        progress_callback=self._blast_from_the_past_artists_log,
-                        retry_call=self._blast_from_the_past_artists_retry_call,
+                        echo=BlastFromThePastArtistsInteraction(self),
+                        progress_callback=BlastFromThePastArtistsDiagnostics(self),
+                        retry_call=BlastFromThePastArtistsInteraction(self),
                         dry_run=dry_run,
                     )
                 )
@@ -200,18 +204,6 @@ class HistoricalCLI:
             message, style="yellow", markup=False
         )
 
-    def _blast_from_the_past_artists_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._blast_from_the_past_artists_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
     def _blast_from_the_past_artists_log(
         self, _done: int, _total: int, message: str
     ) -> None:
@@ -237,7 +229,7 @@ class HistoricalCLI:
                 summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
                     self.runtime.client(),
                     playlist_id,
-                    progress_callback=status.update,
+                    progress_callback=StatusOutput(status),
                     dry_run=dry_run,
                 )
         except blast_from_past.BlastFromPastError as exc:
@@ -452,3 +444,54 @@ class HistoricalCLI:
                 ),
             )
         console.print(table)
+
+
+@dataclass(frozen=True)
+class BlastFromThePastArtistsInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: HistoricalCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._blast_from_the_past_artists_echo(message)
+
+
+@dataclass(frozen=True)
+class BlastFromThePastArtistsDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: HistoricalCLI
+
+    def progress(self, _done: int, _total: int, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            _done: Original  done.
+            _total: Original  total.
+            message: Original message.
+        """
+        self.owner._blast_from_the_past_artists_log(_done, _total, message)

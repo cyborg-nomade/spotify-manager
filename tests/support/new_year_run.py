@@ -19,6 +19,7 @@ from spotipy import Spotify
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
+from spotify_manager.application.retry_attempts import RetryAttempts
 from spotify_manager.core.state.definitions import StateDefinition
 from spotify_manager.core.state.service import StateNamespace
 from spotify_manager.core.state.service import StateService
@@ -532,6 +533,17 @@ class AnnualObservations:
         count = sum(row[0] == "cancel" for row in self.trace)
         return self.failure == f"cancel:{count}"
 
+    def attempts(self, description: str) -> RetryAttempts:
+        """Retain the original optional single RuntimeError retry.
+
+        Args:
+            description: Original operation label.
+
+        Returns:
+            Recorded original attempt scopes.
+        """
+        return RetryAttempts(AnnualAttemptPolicy(self, description))
+
     def retry(self, operation: Callable[[], object], description: str) -> object:
         """Apply the original caller's single retry after a failed response.
 
@@ -549,6 +561,14 @@ class AnnualObservations:
             if not self.automatic_retry:
                 raise
         return operation()
+
+    def is_set(self) -> bool:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.cancel()
 
 
 def _primary(uri: str) -> str:
@@ -641,9 +661,9 @@ def original_run(
             year=year,
             dry_run=preview,
             state_service=cast(StateService, edge),
-            echo=edge.echo,
-            cancel_check=edge.cancel,
-            retry_call=edge.retry,
+            echo=edge,
+            cancel_check=edge,
+            retry_call=edge,
         )
 
 
@@ -683,3 +703,43 @@ def outcome(
         result["resumed"] = run(edge, preview, year)
     result.update(trace=edge.trace, state=edge.state, contents=edge.contents)
     return json.loads(json.dumps(result))
+
+
+@dataclass
+class AnnualAttemptPolicy:
+    """Preserve the original fixture's single RuntimeError retry.
+
+    Args:
+        edge: Original response and acceptance authority.
+        description: Original retry label.
+        repeated: Whether the original retry has already been used.
+    """
+
+    edge: AnnualObservations
+    description: str
+    repeated: bool = False
+
+    def start(self) -> None:
+        """Record the original retry boundary before its first operation."""
+        self.edge.record("retry", self.description)
+
+    def accepted(self) -> None:
+        """Accept the original response without another observation."""
+
+    def failed(self, error: BaseException) -> bool:
+        """Permit only the original optional first RuntimeError retry.
+
+        Args:
+            error: Original request failure.
+
+        Returns:
+            Whether the original fixture permits a single repeat.
+        """
+        if (
+            not isinstance(error, RuntimeError)
+            or not self.edge.automatic_retry
+            or self.repeated
+        ):
+            return False
+        self.repeated = True
+        return True

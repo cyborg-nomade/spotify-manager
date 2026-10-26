@@ -1,6 +1,7 @@
 """Explicit requeue CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
@@ -9,6 +10,9 @@ from rich.console import Console
 from rich.table import Table
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import (
     requeue_for_a_dream as requeue_for_a_dream,
@@ -33,7 +37,7 @@ class RequeueCLI:
 
     create_console: type[Console]
     create_table: type[Table]
-    sleep: Callable[[float], None]
+    sleep: Wait
 
     def _run_flush_requeue_for_a_dream(self, dry_run: bool) -> None:
         """Advance the first Requeue for a Dream artist by one release.
@@ -57,9 +61,9 @@ class RequeueCLI:
                     self.runtime.review_client(),
                     playlist_id,
                     dry_run=dry_run,
-                    echo=self._flush_requeue_for_a_dream_echo,
-                    progress_callback=status.update,
-                    retry_call=self._flush_requeue_for_a_dream_retry_call,
+                    echo=FlushRequeueForADreamInteraction(self),
+                    progress_callback=StatusOutput(status),
+                    retry_call=FlushRequeueForADreamInteraction(self),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_requeue_for_a_dream_rate_limit(exc)
@@ -74,18 +78,6 @@ class RequeueCLI:
     def _flush_requeue_for_a_dream_echo(self, line: str = "") -> None:
         style = "bold green" if line.startswith(("Added", "Removed")) else "cyan"
         self._flush_requeue_for_a_dream_console.print(line, style=style, markup=False)
-
-    def _flush_requeue_for_a_dream_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._flush_requeue_for_a_dream_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
 
     def _report_flush_requeue_for_a_dream_configuration_failure(
         self, exc: requeue_for_a_dream.RequeueForADreamConfigError
@@ -176,3 +168,33 @@ class RequeueCLI:
             + (" (preview only)." if dry_run else "."),
             style="bold cyan" if dry_run else "bold green",
         )
+
+
+@dataclass(frozen=True)
+class FlushRequeueForADreamInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: RequeueCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._flush_requeue_for_a_dream_echo(message)

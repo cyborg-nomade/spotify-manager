@@ -1,18 +1,33 @@
 """Resolve and retain owned composer-playlist routes at the original choice boundary."""
 
-from collections.abc import Callable
-from datetime import datetime
+from typing import Protocol
 from typing import cast
 
 from spotify_manager.application.new_kids_values import NewKidsError
 from spotify_manager.application.new_kids_values import NewKidsStateError
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.composers import composer_playlist_candidates
 from spotify_manager.domain.discovery import RankedRelease
 
 
 type ChoiceCandidate = RankedRelease | OwnedPlaylist
-type ReleaseChoiceReader = Callable[[str, tuple[ChoiceCandidate, ...]], str]
+
+
+class ReleaseChoiceReader(Protocol):
+    """Read a release or composer-playlist decision from its interaction owner."""
+
+    def choose(self, artist: str, candidates: tuple[ChoiceCandidate, ...]) -> str:
+        """Read the original operator selection.
+
+        Args:
+            artist: Reviewed artist's display name.
+            candidates: Original ordered choices.
+
+        Returns:
+            Selected identity or original skip/quit value.
+        """
+        ...
 
 
 def resolve_composer_route(
@@ -23,7 +38,7 @@ def resolve_composer_route(
     owned_playlists: tuple[OwnedPlaylist, ...],
     excluded_playlist_ids: frozenset[str],
     choose: ReleaseChoiceReader,
-    clock: Callable[[], datetime],
+    clock: Clock,
 ) -> tuple[OwnedPlaylist | None, str | None]:
     """Reuse a valid route or remember the newly selected owned works playlist.
 
@@ -64,7 +79,7 @@ def resolve_composer_route(
         "playlist_id": selected.spotify_id,
         "playlist_name": selected.name,
         "current_track_id": source_track_id,
-        "updated_at": clock().isoformat(),
+        "updated_at": clock.now().isoformat(),
     }
     return selected, None
 
@@ -86,7 +101,7 @@ def _select(
 ) -> OwnedPlaylist | str:
     if len(candidates) == 1:
         return candidates[0]
-    choice = choose(artist_name, candidates)
+    choice = choose.choose(artist_name, candidates)
     if choice in {"__skip__", "__quit__"}:
         return choice
     selected = _matching(candidates, choice)

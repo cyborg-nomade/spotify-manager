@@ -139,25 +139,25 @@ flowchart LR
 ```
 
 Keep dependency construction at the scope the resource needs. Shared resources
-may be initialized at startup; a job's interaction state and callbacks are owned
+may be initialized at startup; a job's interaction state and observers are owned
 by that invocation. Do not turn synchronous resources into new global singletons
 or change when clocks, settings, source snapshots or credentials are observed.
 Async client/task ownership remains Items 8–9.
 
 ## Cohesive inputs and concrete resource owners
 
-Request values, interaction callbacks and persistence resources are separate
+Request values, named interaction owners and persistence resources are separate
 frozen models in `interfaces/requests/`. An invocation normally takes a client,
-options, callbacks and resources. No production function has more than 13
+options, interaction owners and resources. No production function has more than 13
 parameters; generated delivery/request constructors have the same ceiling.
 Grouping follows a shared purpose rather than wrapping an arbitrary dependency
 list. `NewWineOptions`, for example, describes selection/dry-run values,
-`NewWineCallbacks` describes decisions and notifications, and `NewWineStorage`
+`NewWineCallbacks` holds named decision and notification resources, and `NewWineStorage`
 describes state/mirror/audit locations.
 
 `PlaylistContext` owns the registry, lock, log formatter, clock and logger used
 by one worker. Workers call concrete presenters and `PlaylistRetry` methods
-directly. They retain their original signals and callback-restoration order.
+directly. They retain their original signals and observer-restoration order.
 `ConsoleDisplay` and `ProgressDisplay` group terminal rendering constructors;
 they do not select or execute business stages.
 
@@ -212,11 +212,11 @@ stages. Discography planning calls queue, history, mapping and catalog stages
 without an infrastructure detour. The annual execution sequence has five explicit
 calls and accepted checkpoints instead of a tuple of executable callbacks.
 
-Callbacks remain appropriate for operator choices, progress, cancellation,
-external time and retry operations. Checkpoint ownership is explicit through
-named stores. Fixed domain functions are called at their decision sites; a source
-guard rejects policy injection, including aliased imports, while allowing normal
-collection keys and real external clocks.
+Operator choices, progress, cancellation, clocks and retries now use named
+resources with explicit methods. Checkpoint ownership is explicit through named
+stores. Fixed domain functions are called at their decision sites; source guards
+reject policy injection and replaceable function-valued dependencies, including
+aliased imports. Only required external API function arguments remain.
 
 The original expected results, ordered effects and failure/restart traces are
 unchanged. Unit coordinators use typed child-stage doubles; the actual named
@@ -248,24 +248,27 @@ Genre discovery uses a `GenrePages.read` resource. Golden-track selection, relea
 pages, recommendation decoding, history export and queue decoding call their
 fixed transformations directly.
 
-The remaining executable hooks have specific reasons:
+The 2026-10-23 clarification removes the earlier operator/runtime and public
+Python callback exemptions. Choices, progress, SDK event output, retries,
+cancellation, time, randomness, waits, lazy clients, genre pages and membership
+reads all use named resources with explicit methods. State defaults, validators
+and legacy file formats belong to named schemas/codecs. The historical
+`*Callbacks` request containers now contain those resources, not functions.
 
-| Boundary | Why the hook remains |
+| Remaining function value | Why the external API requires it |
 | --- | --- |
-| Operator choices, progress and SDK events | Interfaces supply answers and receive notifications while a routine is running. |
-| Retry, cancellation, clock, random observations and bounded waits | The caller controls runtime conditions; the application retains its fixed business decisions and ordering. |
-| Starlette, Typer, Rich, urllib and SDK integration | Framework entry points and transport protocols require executable handlers. |
-| Public Python state hooks | Existing `StateService` and `routine_state` callers may supply custom defaults, validators or file handlers. Compatibility adapters normalize these once; internal routines use named codecs. |
-| Public cache, genre and artist-review helpers | Existing lazy client, page-reader and membership hooks remain accepted at those external APIs. Internal execution uses resource methods. |
-| Public export ordering helper | Its custom sort key is retained at the compatibility edge; application export ordering is fixed. |
-| Private offset-page SDK handle | Original endpoint selection time is observable. One adapter captures its handle privately; it is never a business-stage dependency. |
+| FastAPI/Starlette/Typer registrations and dependency providers | The framework invokes the registered function. |
+| Thread targets | `threading.Thread` invokes its required target. |
+| Dataclass factories, ordering keys and JSON fallback | These standard-library APIs require a factory/key/encoder function. Fixed key functions remain at their actual ordering call sites. |
+| `SpotifyOffsetPages._method` | Retain the endpoint selected once at the original scan boundary. |
+| `SpotifyEvents._setter` | Restore through the exact optional setter observed before subscribing. |
 
-`tests/bootstrap/test_callback_dependencies.py` scans the production package.
-Its helper resolves imported and reexported callable aliases and callable
-protocols. Unrecognized executable dependencies fail the check. Narrow retained
-hooks and their reasons are recorded in `tests/support/callback_policy.py`.
-The separate fixed-policy and facade guards continue to apply. None of these
-exceptions permits new callback-based business or ordinary I/O wiring.
+`tests/bootstrap/test_callback_dependencies.py` checks function-shaped fields and
+parameters, including imported/reexported aliases and callable protocols. A
+second scan checks actual named-function, lambda and bound-method arguments,
+including aliases and the standalone nightly script. Reasons are recorded in
+`tests/support/callback_policy.py`; ordinary execution injection has no exception.
+The separate fixed-policy and facade guards continue to apply.
 
 ## Acceptance and evidence
 
@@ -339,35 +342,39 @@ recordings were not changed. New tests reject execution-facade dependencies and
 mutable facade-function lookup, prove aliases/re-exports are detected, and cover
 fresh-process entry import orders.
 
-Final verification of the 2026-10-20 revision:
+Final verification of the 2026-10-26 revision:
 
-- **10,432 tests passed**, randomized seed `20261020`. The callback dependency
-  guard's 14 scenarios also pass independently. A final 22-test Genre replay
-  verifies its effect/failure boundaries after documentation line moves.
-- Package statement coverage: **96.17%** (32,206 / 33,487); branch coverage:
-  **92.45%** (5,434 / 5,878). Both exceed the approved 95% / 90% gates.
-- Domain/application statement and branch coverage is **100%**. Separate isolated
-  gates passed **1,201 domain** and **3,636 application** tests. The application
-  gate includes the named review catalog paths and legacy error reporting owner.
-- Ruff and formatting pass across **1,014 Python files**; package mypy passes
-  **632 source files**. Strict domain/application typing and the nine selected
-  dependency/fixture/guard modules pass.
-- The structural audit reports no local functions/classes, compound
-  comprehensions, missing annotations, functions above 25 executable statements,
-  or control nesting above two in changed/new production functions. Changed
-  tests also pass that audit. Ordinary `elif` clauses are measured at their
-  actual source indentation. Public signatures and generated constructors
-  retain the 13-parameter ceiling and cohesive typed inputs.
+- **10,454 tests passed**, randomized seed `20261026`. All original behavior
+  scenarios remain; the old guard permitting replaceable operator/runtime hooks
+  is replaced with rejection cases. Retry tests cover accepted writes with lost
+  responses, failure identity, cancellation and attempt ordering.
+- Package statement coverage: **96.19%** (32,941 / 34,244); branch coverage:
+  **92.67%** (5,566 / 6,006). Both exceed the approved 95% / 90% gates.
+  Combined coverage is **95.67%**, also passing the stronger final 95% gate.
+- Separate isolated gates passed **1,201 domain** and **3,645 application** tests
+  with **100% statement and branch coverage**. The application gate includes
+  direct retry attempt scopes and their cancellation/acceptance boundaries.
+- Ruff and formatting pass across **1,027 Python files**. Package and standalone
+  nightly-script mypy pass **638 source files**. Strict domain, application,
+  their tests and shared test support pass **449 source files**.
+- Changed/new production and test functions pass the structural audit: no local
+  functions/classes, compound comprehensions, incomplete annotations, functions
+  above 25 executable statements, or control nesting above two. The production
+  audit also checks multiline comprehensions, docstring arguments and generated
+  input-field counts. Public signatures and generated constructors retain the
+  13-parameter ceiling and cohesive typed inputs.
 - A fresh capture matches all **11 frozen public artifacts**. Baseline source
   locations may move; route metadata, SDK expressions/source ownership, schemas,
   defaults, imports and CLI contracts retain their approved comparison rules.
-  The capture tool now observes named namespace schemas and patches the actual
-  CLI dependency owners; canned output values and frozen expected bytes are
-  unchanged. Baseline files, frontend source and expected behavior fixtures are
+  The interface checker recognizes only the equivalent direct SDK expression
+  replacing a `partial` wrapper; arguments, payloads and call counts remain
+  checked. Baseline files, frontend source and expected behavior fixtures are
   unchanged.
 - Dependency checks reject inward execution through legacy facades, mutable
-  facade-function lookup, injected fixed domain rules and unrecognized callback
-  dependencies. Callable aliases, protocols and reexports are covered.
+  facade-function lookup, injected fixed domain rules and unrecognized function
+  dependencies. Function aliases, bound-method aliases, protocols and reexports
+  are covered, including the standalone nightly entry point. Only required
+  framework/standard-library uses and two exact SDK captures are retained.
 - Local review server: **http://127.0.0.1:8766/** on the revised branch. Local
   unlock uses any non-empty text. Read-only review smoke checks pass for health,
   source and shared-state loading, and all 20 job reconnect endpoints; no jobs
@@ -377,3 +384,29 @@ The four hydrated local runtime-data files are excluded from the implementation
 commit and retained for review. The previous Item 7 release stashes remain intact.
 This item keeps synchronous transport and the existing frontend source layout;
 Items 8–9 handle async transport and lifetime ownership after approval/release.
+
+
+## Owner clarification, 2026-10-23: function arguments
+
+Named operator interactions, notifications, clocks, cancellation, randomness,
+waiting and retries replace function-shaped dependencies too. A callback's role
+alone does not justify it. Readability takes precedence over convenience and
+configurability; use direct named calls or cohesive objects with explicit methods
+whenever they can preserve the same behavior. Compatibility APIs receive named
+schemas and resources rather than retaining unnecessary function arguments.
+
+Function arguments remain appropriate only where an external framework or a
+standard-library API actually requires them, such as registered routes, thread
+targets, dataclass default factories and sorting keys. The dependency guard permits
+only two private SDK method captures: the selected library page endpoint and the
+optional event setter restored after a job. They preserve the original lookup
+and binding time; they are not supplied business execution dependencies.
+
+Retry attempt scopes keep the concrete operation visible at its call site. Each
+scope preserves the original failure classification, attempt count, wait,
+cancellation and accepted-result boundary. Python wiring and test doubles may
+change; frozen HTTP/CLI results, SDK calls, errors and ordered effects do not.
+
+This clarification extends the existing Item 7a PR. The October 26 verification
+record above covers the tightened rule, including operator/runtime and public
+Python interfaces. Deployment and merge still require the owner's approval.

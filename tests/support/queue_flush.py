@@ -341,8 +341,8 @@ def _run(edge: FlushObservations, preview: bool) -> object:
             cast(Spotify, edge),
             legacy.QueuePlaylists("queue", "queue2", "new-kids", "queue3", "unlucky"),
             dry_run=preview,
-            echo=edge.echo,
-            progress_callback=edge.progress,
+            echo=edge,
+            progress_callback=edge,
         )
     return asdict(result)
 

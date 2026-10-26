@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -55,7 +54,7 @@ class LegacySavedMirror:
             message: Original visible page stage.
         """
         if self.callback is not None:
-            self.callback(message)
+            self.callback.echo(message)
 
     def page(self, offset: int) -> SavedAlbumPage:
         """Read original raw saved rows and retain exact raw offset accounting.
@@ -71,10 +70,11 @@ class LegacySavedMirror:
         """
         from spotify_manager.routines.palace_of_memory import _read_saved_album_page
 
-        response = self.retry(
-            partial(_read_saved_album_page, self.spotify, offset),
-            f"refreshing saved albums at offset {offset}",
-        )
+        for attempt in self.retry.attempts(
+            f"refreshing saved albums at offset {offset}"
+        ):
+            with attempt:
+                response = _read_saved_album_page(self.spotify, offset)
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):

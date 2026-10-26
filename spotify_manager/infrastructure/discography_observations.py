@@ -24,11 +24,6 @@ if TYPE_CHECKING:
     from spotify_manager.routines import discography as legacy
 
 
-def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
-
-
 def _playlist(
     spotify: Spotify, retry: legacy.RetryCall, playlist: str
 ) -> tuple[PlaylistTrack, ...]:
@@ -217,4 +212,4 @@ class DiscographyWrites:
             message: Original per-artist stage text.
         """
         if self.callback is not None:
-            self.callback(message)
+            self.callback.echo(message)

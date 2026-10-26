@@ -1,9 +1,7 @@
 """Execute a durable New Wine transition without changing effect order."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
-from datetime import datetime
 
 from spotify_manager.application.new_wine_observations import WineObservations
 from spotify_manager.application.new_wine_plans import record_evaluation
@@ -13,6 +11,7 @@ from spotify_manager.application.new_wine_state import track_from_record
 from spotify_manager.application.new_wine_values import FlushResult
 from spotify_manager.application.ports.new_wine import NewWineAccess
 from spotify_manager.application.ports.new_wine import NewWinePresentation
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
@@ -99,7 +98,7 @@ class WineExecution:
     progress: dict[str, object]
     dry_run: bool
     presentation: NewWinePresentation
-    clock: Callable[[], datetime]
+    clock: Clock
 
     def execute(
         self, source: PlaylistTrack, entry: dict[str, object], plan: dict[str, object]
@@ -267,5 +266,5 @@ class WineExecution:
         self.progress[target.spotify_id] = {
             "release": asdict(release),
             "prior_unliked_streak": streak,
-            "updated_at": self.clock().isoformat(),
+            "updated_at": self.clock.now().isoformat(),
         }

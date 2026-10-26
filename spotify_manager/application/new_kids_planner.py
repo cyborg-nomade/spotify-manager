@@ -206,7 +206,7 @@ class NewKidsPlanner:
         number: int,
     ) -> ReviewDecision:
         context = facts.context
-        choice = self.choose(context.artist_name, options)
+        choice = self.choose.choose(context.artist_name, options)
         if choice == "__quit__":
             return None
         if choice == "__skip__":

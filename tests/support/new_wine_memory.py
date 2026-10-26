@@ -383,6 +383,43 @@ class MemoryWine:
         """
         self._before("progress", (completed, total, label))
 
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
+    def choose_release(
+        self, source: PlaylistTrack, candidates: tuple[ReleaseCandidate, ...]
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            candidates: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(source, candidates)
+
+    def choose_endpoint(
+        self, source: PlaylistTrack, tracks: tuple[ReleaseTrack, ...], index: int
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            tracks: Original fixture observation.
+            index: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.endpoint(source, tracks, index)
+
 
 def _marker(track: PlaylistTrack | ReleaseTrack) -> PlaylistTrack:
     if isinstance(track, PlaylistTrack):
@@ -438,11 +475,11 @@ def dependencies(memory: MemoryWine) -> NewWineDependencies:
         memory,
         WineObservations(memory, 2026),
         cast(CellarWorkflow, ScriptedCellar(memory)),
-        memory.choose,
-        memory.endpoint,
+        memory,
+        memory,
         WineMessages(memory.events),
-        memory.clock,
-        memory.progress,
+        memory,
+        memory,
     )
 
 

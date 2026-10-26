@@ -1,9 +1,9 @@
 """Observe recommendation batches before applying ordered selection rules."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from spotify_manager.application.ports.history import HistoricalMatches
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
@@ -24,7 +24,7 @@ class RecommendationResolution:
     """
 
     catalog: HistoricalMatches
-    progress: Callable[[str], None]
+    progress: Messages
     batch_size: int = 10
     multiplier: int = 10
 
@@ -57,7 +57,7 @@ class RecommendationResolution:
                 break
             batch = candidates[start : start + self.batch_size]
             groups = self._search(batch, start, maximum, selection)
-            self.progress("Checking candidates against Spotify Liked Songs")
+            self.progress.echo("Checking candidates against Spotify Liked Songs")
             liked_ids = self.catalog.liked(groups)
             self._project(batch, groups, liked_ids, selection)
         return tuple(selection.results), tuple(selection.pending)
@@ -74,7 +74,7 @@ class RecommendationResolution:
             if selection.skips_search(candidate):
                 groups.append(())
                 continue
-            self.progress(f"Searching Spotify candidate {index}/{maximum}")
+            self.progress.echo(f"Searching Spotify candidate {index}/{maximum}")
             play = Scrobble(candidate.track, candidate.artist, "", 0)
             groups.append(self.catalog.search(play))
         return groups

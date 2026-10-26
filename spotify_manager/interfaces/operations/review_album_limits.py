@@ -1,7 +1,7 @@
 """Invoke review album limits use cases for CLI and HTTP features."""
 
+import time
 from pathlib import Path as Path
-from time import sleep as default_sleep
 
 from spotipy import Spotify as Spotify
 
@@ -13,6 +13,7 @@ from spotify_manager.infrastructure.legacy.album_limits import (
 from spotify_manager.infrastructure.library_records import (
     REMOVED_ALBUMS_LOG_PATH as REMOVED_ALBUMS_LOG_PATH,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.spotify.retry import (
     TRANSIENT_MAX_ATTEMPTS as TRANSIENT_MAX_ATTEMPTS,
 )
@@ -36,9 +37,6 @@ from spotify_manager.infrastructure.spotify.retry import (
 )
 from spotify_manager.infrastructure.spotify.retry import (
     get_retry_after_seconds as get_retry_after_seconds,
-)
-from spotify_manager.infrastructure.spotify.retry import (
-    retry_spotify_server_errors as retry_spotify_server_errors,
 )
 from spotify_manager.interfaces.presenters.album_limits import (
     ActionReader as ActionReader,
@@ -65,12 +63,12 @@ def review_album_limits(
     threshold: float = 0.5,
     use_cache: bool = True,
     refresh_cache: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
     decisions_path: Path | None = None,
     state_service: StateService | None = None,
     progress_callback: ProgressCallback | None = None,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
 ) -> None:

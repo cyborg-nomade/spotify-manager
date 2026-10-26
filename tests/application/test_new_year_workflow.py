@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from functools import partial
 from typing import cast
 from zoneinfo import ZoneInfo
 
@@ -215,12 +214,9 @@ class MemoryAnnual:
         Returns:
             Original first credited identity.
         """
-        raw = cast(
-            dict[str, object],
-            self.retry(
-                partial(self.edge.track, uri), "checking Memory Lane marker artist"
-            ),
-        )
+        for attempt in self.retry.attempts("checking Memory Lane marker artist"):
+            with attempt:
+                raw = self.edge.track(uri)
         return cast(list[dict[str, object]], raw["artists"])[0]["id"]
 
     def append(self, playlist: str, pending: list[str], top: bool) -> None:
@@ -255,10 +251,11 @@ class MemoryAnnual:
             playlist: Original chart identity.
             uris: Original unique ranked marker order.
         """
-        self.retry(
-            partial(self.edge._put, f"playlists/{playlist}/items", {"uris": uris}),
-            "synchronizing the yearly chart in scrobble rank order",
-        )
+        for attempt in self.retry.attempts(
+            "synchronizing the yearly chart in scrobble rank order"
+        ):
+            with attempt:
+                self.edge._put(f"playlists/{playlist}/items", {"uris": uris})
 
     def create(self, name: str, kind: ChartKind, year: int) -> str:
         """Accept original owner read then direct private chart creation.
@@ -271,9 +268,9 @@ class MemoryAnnual:
         Returns:
             Original created chart identity.
         """
-        user = cast(
-            dict[str, str], self.retry(self.edge.current_user, "loading Spotify owner")
-        )
+        for attempt in self.retry.attempts("loading Spotify owner"):
+            with attempt:
+                user = self.edge.current_user()
         created = self.edge.user_playlist_create(
             user["id"],
             name,
@@ -356,8 +353,8 @@ def _cancel(edge: AnnualObservations) -> None:
 def _run(
     edge: AnnualObservations, preview: bool, year: int | None
 ) -> dict[str, object]:
-    cancel = partial(_cancel, edge)
-    retry = AnnualRetry(edge.retry, cancel).run
+    cancel = AnnualCancellation(edge)
+    retry = AnnualRetry(edge, cancel)
     memory = MemoryAnnual(edge, retry)
     effects = memory
     discoveries = cast(AnnualDiscoveries, ScriptedDiscoveries(memory))
@@ -369,7 +366,7 @@ def _run(
         "listener",
         memory,
         resolution,
-        edge.echo,
+        edge,
         ZoneInfo("Europe/Berlin"),
     )
     return NewYear(
@@ -463,3 +460,18 @@ def test_annual_caps_preserve_uncapped_primary_artist_marker_search(
         len(records["albums"]),
         len(records["artists"]),
     ) == (50, 20, 5)
+
+
+@dataclass(frozen=True)
+class AnnualCancellation:
+    """Check the original annual fixture cancellation boundary.
+
+    Args:
+        edge: Original observations and cancellation authority.
+    """
+
+    edge: AnnualObservations
+
+    def check(self) -> None:
+        """Observe cancellation using the original fixture exception identity."""
+        _cancel(self.edge)

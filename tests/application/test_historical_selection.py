@@ -22,6 +22,7 @@ from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import ScrobbleSelection
 from spotify_manager.domain.history import eligible_dates
 from spotify_manager.domain.history import select_scrobble
+from tests.support.runtime_resources import MessageList
 
 
 STAMP = datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC)
@@ -155,12 +156,12 @@ class SelectionMemory:
 
 def _blast(memory: SelectionMemory, count: int) -> BlastFromPastBatch:
     with patch.object(selection_application, "select_scrobble", memory.select):
-        return BlastSelection(memory, memory.messages.append).run(count)
+        return BlastSelection(memory, MessageList(memory.messages)).run(count)
 
 
 def _radio(memory: SelectionMemory) -> DailyMindRadioBatch:
     with patch.object(selection_application, "select_scrobble", memory.select):
-        return AnniversarySelection(memory, memory.messages.append).run()
+        return AnniversarySelection(memory, MessageList(memory.messages)).run()
 
 
 def test_blast_keeps_random_index_order_and_shared_timestamp() -> None:

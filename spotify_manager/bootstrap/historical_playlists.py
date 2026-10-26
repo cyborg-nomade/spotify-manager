@@ -1,7 +1,7 @@
 """Compose historical selections and playlist effects with legacy boundaries."""
 
+from dataclasses import dataclass
 from datetime import date
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -12,6 +12,8 @@ from spotify_manager.application.historical_playlists import HistoricalPlaylistE
 from spotify_manager.application.historical_resolution import HistoricalResolution
 from spotify_manager.application.historical_selection import AnniversarySelection
 from spotify_manager.application.historical_selection import BlastSelection
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.infrastructure.legacy.historical_inputs import (
     LegacyHistoricalInputs,
 )
@@ -22,11 +24,6 @@ from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
 
 
-def _progress(callback: blast.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
-
-
 def _effects(
     sp: Spotify,
     playlist_id: str,
@@ -34,14 +31,13 @@ def _effects(
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
 ) -> HistoricalPlaylistEffects:
-    from spotify_manager.routines.blast_from_past import check_cancel
 
     adapter = LegacyHistoricalPlaylist(sp, playlist_id, retry, cancel)
     return HistoricalPlaylistEffects(
         adapter,
         historical_resolution(sp, progress, retry, cancel),
-        partial(check_cancel, cancel),
-        partial(_progress, progress),
+        HistoricalCancellation(cancel),
+        OptionalMessages(progress),
     )
 
 
@@ -64,7 +60,7 @@ def blast_selection(
     """
     return BlastSelection(
         LegacyHistoricalInputs(path, today, index_reader=random),
-        partial(_progress, progress),
+        OptionalMessages(progress),
     )
 
 
@@ -87,7 +83,7 @@ def anniversary_selection(
     """
     return AnniversarySelection(
         LegacyHistoricalInputs(path, today, timestamp_reader=random),
-        partial(_progress, progress),
+        OptionalMessages(progress),
     )
 
 
@@ -175,12 +171,32 @@ def historical_resolution(
     from spotify_manager.infrastructure.legacy.historical_playlists import (
         LegacyHistoricalMatches,
     )
-    from spotify_manager.routines.blast_from_past import check_cancel
 
     adapter = LegacyHistoricalMatches(sp, retry, cancel)
     workflow = HistoricalResolution(
         adapter,
-        partial(check_cancel, cancel),
-        partial(_progress, progress),
+        HistoricalCancellation(cancel),
+        OptionalMessages(progress),
     )
     return workflow
+
+
+@dataclass(frozen=True)
+class HistoricalCancellation:
+    """Check the original feature cancellation state.
+
+    Args:
+        state: Original optional cancellation resource.
+    """
+
+    state: CancellationState | None
+
+    def check(self) -> None:
+        """Raise the original feature cancellation error when requested.
+
+        Raises:
+            RuntimeError: The feature cancellation state is set.
+        """
+        from spotify_manager.routines.blast_from_past import check_cancel
+
+        check_cancel(self.state)

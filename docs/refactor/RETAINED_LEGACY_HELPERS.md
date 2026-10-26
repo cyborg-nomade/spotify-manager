@@ -36,11 +36,13 @@ recommendation, Palace, Queue, New Wine, release and annual adapters. Their name
 application stages now call fixed policies directly. SDK/file leaves, genuine
 retry operations and supported compatibility imports remain. The 2026-10-20
 pass also replaces file/catalog/publication callback bags, fixed codecs, state
-schema hooks, presenter collectors and operational stage callbacks. Retained
-external Python hooks are normalized at entry; normal execution uses resource
-methods. The detailed hook reasons live in the call-path guide and callback
-dependency guard. This inventory records concrete imports, not permission to
-introduce new callback-based business wiring.
+schema hooks, presenter collectors and operational stage callbacks. The
+2026-10-23 clarification also replaces operator/runtime and external Python
+function hooks with named resource methods. Only required
+framework/standard-library function arguments and two private SDK binding-time
+captures remain, documented in the call-path guide and dependency guard. This
+inventory records concrete imports, not permission to introduce new callback-based
+business wiring.
 
 ## Named bindings by original source
 
@@ -68,7 +70,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_next_album_track_page`
 - `_next_object_page`
 - `_saved_artist_statuses`
-- `parse_spotify_lookup_reference`
 
 ### `processors.scrobble_lookups`
 
@@ -187,7 +188,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_create_great_playlist`
 - `_current_user_id`
 - `_default_state`
-- `_direct_call`
 - `_playlist_artist_ids`
 - `_release_saved`
 - `_remove_queue_track`
@@ -197,7 +197,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_state_access`
 - `_sync_local_album`
 - `_unfollow_artist`
-- `_utc_now`
 - `append_event`
 - `load_ranked_catalog`
 - `load_release_tracks`
@@ -255,7 +254,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_cursor_index`
 - `_cursor_payload`
 - `_default_state`
-- `_direct_retry`
 - `_read_palace_playlist`
 - `_read_saved_album_page`
 - `_replace_saved_albums`
@@ -311,7 +309,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_add_to_playlist`
 - `_deduplicate_wine_cellar`
 - `_default_state`
-- `_direct_retry`
 - `_mapped_artist`
 - `_pending_single`
 - `_persist_state`
@@ -339,7 +336,6 @@ searchable by exact function name and uses the contracts/decisions above.
 - `_add_track`
 - `_append_log`
 - `_clock`
-- `_direct_retry`
 - `_remove_track`
 - `parse_playlist_id`
 
@@ -393,7 +389,6 @@ searchable by exact function name and uses the contracts/decisions above.
 
 - `_append_recommendation_albums`
 - `load_first_track`
-- `parse_playlist_id`
 - `search_candidate_albums`
 
 ### `routines.scrobble_history`
@@ -428,9 +423,7 @@ searchable by exact function name and uses the contracts/decisions above.
 
 - `_add_tracks`
 - `_append_log`
-- `_direct_retry`
 - `_load_playlist_state`
-- `_read_golden_artist_choice`
 - `_read_lastfm_liked`
 - `_read_lastfm_matches`
 - `_read_studio_tracks`

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -47,13 +49,13 @@ class QueueFillCallbacks:
 
     Args:
         choice_reader: Choice reader.
-        echo: Echo.
+        output: Echo.
         progress_callback: Progress callback.
         retry_call: Retry call.
     """
 
     choice_reader: ArtistChoiceReader | None
-    echo: Echo = print
+    output: Echo = STANDARD_OUTPUT
     progress_callback: ProgressCallback | None = None
     retry_call: RetryCall | None = None
 

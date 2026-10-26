@@ -1,6 +1,5 @@
 """Select historical tracks with explicit history, calendar and random boundaries."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 
@@ -9,6 +8,7 @@ from spotify_manager.application.historical_values import BlastFromPastError
 from spotify_manager.application.historical_values import DailyMindRadioBatch
 from spotify_manager.application.historical_values import LastFmExportError
 from spotify_manager.application.ports.history import HistoricalInputs
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import anniversary_dates
 from spotify_manager.domain.history import eligible_dates
@@ -28,7 +28,7 @@ class BlastSelection:
     """
 
     inputs: HistoricalInputs
-    progress: Callable[[str], None]
+    progress: Messages
 
     def run(self, count: int) -> BlastFromPastBatch:
         """Choose tracks from the random source's original index order.
@@ -45,14 +45,14 @@ class BlastSelection:
         """
         if count < 1:
             raise BlastFromPastError("Count must be at least 1.")
-        self.progress("Loading Last.fm scrobbles")
+        self.progress.echo("Loading Last.fm scrobbles")
         history = self.inputs.history()
         cutoff = self.inputs.cutoff()
         available = eligible_dates(history, self.inputs.first_date, cutoff)
         _validate_population(count, available, cutoff)
-        self.progress("Requesting unique date indexes from Random.org")
+        self.progress.echo("Requesting unique date indexes from Random.org")
         indexes = self.inputs.random(len(available), count)
-        self.progress("Applying Last.fm pagination rules")
+        self.progress.echo("Applying Last.fm pagination rules")
         selections = []
         for index in indexes.indexes:
             day = available[index]
@@ -104,7 +104,7 @@ class AnniversarySelection:
     """
 
     inputs: HistoricalInputs
-    progress: Callable[[str], None]
+    progress: Messages
 
     def run(self) -> DailyMindRadioBatch:
         """Choose one play from each populated anniversary date.
@@ -115,7 +115,7 @@ class AnniversarySelection:
         Raises:
             LastFmExportError: The history has no date buckets.
         """
-        self.progress("Loading Last.fm scrobbles")
+        self.progress.echo("Loading Last.fm scrobbles")
         history = self.inputs.history()
         if not history:
             raise LastFmExportError(
@@ -128,9 +128,9 @@ class AnniversarySelection:
         populated, missing = _partition_dates(targets, history)
         if not populated:
             return DailyMindRadioBatch(None, targets, missing, ())
-        self.progress("Requesting a selection timestamp from Random.org")
+        self.progress.echo("Requesting a selection timestamp from Random.org")
         generated_at = self.inputs.timestamp()
-        self.progress("Applying Last.fm pagination rules")
+        self.progress.echo("Applying Last.fm pagination rules")
         indexes = {day: index for index, day in enumerate(targets)}
         selections = []
         for day in populated:

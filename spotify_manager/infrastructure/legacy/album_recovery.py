@@ -1,24 +1,29 @@
 """Recovery adapters retaining the original transport and persistence helpers."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.credited_artists import CreditedArtistDependencies
 from spotify_manager.application.credited_artists import follow_credited_artists
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.application.recovery_values import RecoveryAlbum
 from spotify_manager.application.recovery_values import RecoveryState
 from spotify_manager.application.recovery_values import RemovedAlbumRecord
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist
-from spotify_manager.interfaces.presenters.album_recovery import announce_artist
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces.presenters.album_recovery import RecoveryPresenter
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
+from spotify_manager.routines.recover_removed_albums import _CLOCK_RESOURCE
 
 
 @dataclass
@@ -36,7 +41,7 @@ class CreditedArtistAdapter:
     spotify: Spotify
     artists: list[YourLibraryArtist]
     known_ids: set[str]
-    retry: Callable[[Callable[[], object], str], object]
+    retry: Retry
     audit_path: Path
 
     def statuses(self, artists: list[AlbumArtist]) -> list[bool]:
@@ -144,7 +149,7 @@ class LegacyAlbumRecovery:
 
     Args:
         spotify: Caller-owned synchronous client.
-        echo: Existing effect and retry message sink.
+        output: Existing effect and retry message sink.
         removal_log_path: Original removal history.
         recovery_log_path: Original recovery audit path.
         state_service: Optional injected shared-state service.
@@ -154,11 +159,11 @@ class LegacyAlbumRecovery:
     """
 
     spotify: Spotify
-    echo: Callable[[str], None]
+    output: Messages
     removal_log_path: Path
     recovery_log_path: Path
     state_service: StateService | None
-    sleep: Callable[[float], None]
+    sleep: Wait
     retry_delay: int
     max_attempts: int
     _artists: list[YourLibraryArtist] = field(default_factory=list, init=False)
@@ -166,19 +171,18 @@ class LegacyAlbumRecovery:
     _artist_ids: set[str] = field(default_factory=set, init=False)
     _album_ids: set[str] = field(default_factory=set, init=False)
 
-    def _retry[T](self, operation: Callable[[], T], description: str) -> T:
-        from spotify_manager.infrastructure.spotify.retry import (
-            retry_spotify_server_errors,
-        )
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
-        return retry_spotify_server_errors(
-            operation,
-            description,
-            self.echo,
-            self.sleep,
-            self.retry_delay,
-            self.max_attempts,
-        )
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(
+            self.output, self.sleep, self.retry_delay, self.max_attempts
+        ).attempts(description)
 
     def load(self) -> tuple[list[RemovedAlbumRecord], RecoveryState]:
         """Load records, progress, artists, and albums in their original order.
@@ -223,7 +227,7 @@ class LegacyAlbumRecovery:
         )
 
         album_ids = [record.spotify_id for record in records]
-        raw = _fetch_album_metadata(self.spotify, album_ids, self._retry)
+        raw = _fetch_album_metadata(self.spotify, album_ids, self)
         padded = [*raw, *([None] * (len(records) - len(raw)))]
         return tuple(_album(item) for item in padded)
 
@@ -240,17 +244,15 @@ class LegacyAlbumRecovery:
         Returns:
             Checked and newly followed counts.
         """
-        from spotify_manager.routines.recover_removed_albums import _clock
-
         access = CreditedArtistAdapter(
             self.spotify,
             self._artists,
             self._artist_ids,
-            self._retry,
+            self,
             self.recovery_log_path,
         )
         dependencies = CreditedArtistDependencies(
-            access, _clock, partial(announce_artist, self.echo)
+            access, _CLOCK_RESOURCE, RecoveryPresenter(self.output)
         )
         return follow_credited_artists(dependencies, artists, state, dry_run)
 
@@ -265,7 +267,7 @@ class LegacyAlbumRecovery:
         """
         from spotify_manager.routines.recover_removed_albums import _saved_album
 
-        return _saved_album(self.spotify, record, self._retry)
+        return _saved_album(self.spotify, record, self)
 
     def restore(self, record: RemovedAlbumRecord) -> None:
         """Restore a future album through the original retry callback.
@@ -275,7 +277,7 @@ class LegacyAlbumRecovery:
         """
         from spotify_manager.routines.recover_removed_albums import _restore_album
 
-        _restore_album(self.spotify, record, self._retry)
+        _restore_album(self.spotify, record, self)
 
     def record_album(self, album: RecoveryAlbum, record: RemovedAlbumRecord) -> bool:
         """Retain ordered mirror and statistics publication.

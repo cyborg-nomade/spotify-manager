@@ -22,6 +22,7 @@ from spotify_manager.application.automation_values import AutomationError
 from spotify_manager.application.automation_values import DeadlineReachedError
 from spotify_manager.infrastructure.automation_http import SpaceHttpClient
 from spotify_manager.infrastructure.automation_records import artifact_updates
+from tests.support.runtime_resources import MessageList
 
 
 @dataclass
@@ -147,10 +148,10 @@ class Transport:
             "hf-dummy",
             "automation-dummy",
             self.instant + timedelta(seconds=remaining),
-            self.open,
-            self.now,
-            self.sleep,
-            self.output.append,
+            self,
+            self,
+            self,
+            MessageList(self.output),
         )
 
 

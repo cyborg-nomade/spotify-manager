@@ -15,6 +15,7 @@ from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from tests.support.album_evidence import AlbumEvidenceCase
 from tests.support.album_evidence import read_case
 from tests.support.album_evidence import recommendation_records
+from tests.support.runtime_resources import MessageList
 
 
 WEEK = date(2026, 8, 7)
@@ -75,7 +76,7 @@ class AlbumMemory:
         Raises:
             OSError: An injected observation fails.
         """
-        workflow = AlbumGathering(self, self.progress)
+        workflow = AlbumGathering(self, self)
         return workflow.run(
             self.case.candidates,
             self.case.excluded,
@@ -83,6 +84,14 @@ class AlbumMemory:
             self.case.maximum,
             WEEK,
         )
+
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
 
 
 @pytest.mark.parametrize(
@@ -138,7 +147,7 @@ def test_empty_pool_has_no_progress_or_search_observations() -> None:
     """An empty candidate pool does not invent read or presentation effects."""
     case = read_case("empty")
     memory = AlbumMemory(case)
-    workflow = AlbumGathering(memory, memory.progress)
+    workflow = AlbumGathering(memory, memory)
     assert workflow.run((), set(), set(), 10, WEEK) == ()
     assert memory.events == []
 
@@ -162,7 +171,7 @@ def test_catalog_error_propagates_after_original_candidate_progress() -> None:
     """Retain the public catalog-error hierarchy, message and observation boundary."""
     case = read_case("grouped")
     messages: list[str] = []
-    workflow = AlbumGathering(InvalidAlbumSearch(), messages.append)
+    workflow = AlbumGathering(InvalidAlbumSearch(), MessageList(messages))
     with pytest.raises(SauvignonSpotifyError, match="invalid catalog") as raised:
         workflow.run(case.candidates, set(), set(), 2, WEEK)
     assert isinstance(raised.value, SauvignonError)

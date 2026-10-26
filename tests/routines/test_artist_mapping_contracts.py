@@ -7,6 +7,7 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import release_check as legacy
 from tests.support.artist_mapping import ARTIST
 from tests.support.artist_mapping import EXACT
@@ -37,8 +38,8 @@ def _run(
     return legacy.resolve_spotify_artist(
         cast(Spotify, object()),
         ARTIST,
-        observed.choose if interactive else None,
-        _immediate,
+        observed if interactive else None,
+        NoRetry(),
     )
 
 

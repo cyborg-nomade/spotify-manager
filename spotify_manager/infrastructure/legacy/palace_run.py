@@ -41,7 +41,7 @@ class LegacyPalace:
             message: Original visible stage.
         """
         if self.callbacks.progress_callback is not None:
-            self.callbacks.progress_callback(message)
+            self.callbacks.progress_callback.echo(message)
 
     def state_access(self) -> PalaceStateAccess:
         """Resolve original shared authority or explicit legacy path.
@@ -136,7 +136,7 @@ class LegacyPalace:
         Args:
             message: Original completion text.
         """
-        self.callbacks.echo(message)
+        self.callbacks.output.echo(message)
 
     def cursor_payload(
         self, next_index: int, last: YourLibraryAlbum

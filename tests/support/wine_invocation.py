@@ -54,7 +54,7 @@ class WineInvocation:
             no_discovery=options.no_discovery,
             choose_album_endpoints=options.endpoint_mode,
             dry_run=options.dry_run,
-            echo=callbacks.echo,
+            echo=callbacks.output,
             progress_callback=callbacks.progress,
             retry_call=callbacks.retry,
         )

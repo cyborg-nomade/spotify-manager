@@ -1,6 +1,5 @@
 """Explicit synchronous boundaries used by followed-artist review."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -9,6 +8,8 @@ from spotify_manager.application.artist_review_catalog import CatalogCache
 from spotify_manager.application.artist_review_catalog import CatalogReads
 from spotify_manager.application.artist_review_membership import MembershipPages
 from spotify_manager.application.artist_review_values import ArtistReviewState
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
 from spotify_manager.domain.artist_review_values import TrackCandidate
 from spotify_manager.models.your_library import YourLibraryArtist
@@ -225,20 +226,59 @@ class ReviewSpotify(Protocol):
         ...
 
 
+class TrackChoices(Protocol):
+    """Read an operator's tied-track selection."""
+
+    def choose_track(
+        self, artist: YourLibraryArtist, candidates: tuple[TrackCandidate, ...], /
+    ) -> str:
+        """Choose a track or return the original control response.
+
+        Args:
+            artist: Artist being reviewed.
+            candidates: Ordered tied candidates.
+
+        Returns:
+            Original selected identity or control response.
+        """
+        ...
+
+
+class ReleaseChoices(Protocol):
+    """Read an operator's release selection."""
+
+    def choose_release(
+        self,
+        artist: YourLibraryArtist,
+        candidates: tuple[ReleaseCandidate, ...],
+        allow_decline: bool,
+        /,
+    ) -> str:
+        """Choose a release or return the original control response.
+
+        Args:
+            artist: Artist being reviewed.
+            candidates: Ordered release candidates.
+            allow_decline: Whether declining is allowed at this stage.
+
+        Returns:
+            Original selected identity or control response.
+        """
+        ...
+
+
 @dataclass(frozen=True)
 class ReviewInteraction:
     """Bind original visible output and optional interactive decisions.
 
     Args:
-        echo: Original visible progress and action messages.
+        output: Original visible progress and action messages.
         progress: Original optional position/total callback.
         track: Original optional tied-track prompt.
         release: Original optional release prompt with decline availability.
     """
 
-    echo: Callable[[str], None]
-    progress: Callable[[int, int, str], None] | None
-    track: Callable[[YourLibraryArtist, tuple[TrackCandidate, ...]], str] | None
-    release: (
-        Callable[[YourLibraryArtist, tuple[ReleaseCandidate, ...], bool], str] | None
-    )
+    output: Messages
+    progress: ReviewProgress | None
+    track: TrackChoices | None
+    release: ReleaseChoices | None

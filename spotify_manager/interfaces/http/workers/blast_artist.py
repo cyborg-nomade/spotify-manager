@@ -9,8 +9,7 @@ from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.historical import DormantArtistResultEntry
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
@@ -37,6 +36,10 @@ class BlastArtistWorker:
         count: Invocation-owned count.
         dry_run: Invocation-owned dry run.
         connection_failure: Invocation-owned connection failure.
+
+    Attributes:
+        job: Resolved reconnectable job state.
+        events: SDK event subscription retaining the original setter binding.
     """
 
     context: PlaylistContext
@@ -47,8 +50,7 @@ class BlastArtistWorker:
     dry_run: bool
     connection_failure: str
     job: _BlastJob = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute one alphabetic dormant-artist playlist update."""
@@ -86,7 +88,14 @@ class BlastArtistWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def _echo_progress(self, completed: int, total: int, message: str) -> None:
+    def progress(self, completed: int, total: int, message: str) -> None:
+        """Publish the original review progress and observe cancellation.
+
+        Args:
+            completed: Completed review entries.
+            total: Original expected entries.
+            message: Original complete progress description.
+        """
         self.echo(message)
 
     def _start(self) -> None:
@@ -102,20 +111,18 @@ class BlastArtistWorker:
                 "Dormant-artist recovery started"
                 + (" in dry-run mode." if self.dry_run else "."),
             )
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
 
     def _execute(self) -> blast_from_past_artists.DormantArtistSummary:
         summary = blast_from_past_artists.add_dormant_artists_to_blast_from_past(
             self.spotify,
             self.playlist_id,
             count=self.count,
-            echo=self.echo,
-            progress_callback=self._echo_progress,
-            retry_call=PlaylistRetry(self.job, self.echo).call,
-            cancel_check=self.job.cancel_event.is_set,
+            echo=self,
+            progress_callback=self,
+            retry_call=PlaylistRetry(self.job, self),
+            cancel_check=self.job.cancel_event,
             dry_run=self.dry_run,
         )
         return summary
@@ -152,8 +159,7 @@ class BlastArtistWorker:
             self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 

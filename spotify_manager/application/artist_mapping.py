@@ -1,6 +1,5 @@
 """Resolve artist mappings with original exact preference and custom searches."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -9,7 +8,22 @@ from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.release_check_values import RankedArtist
 
 
-ArtistChoiceReader = Callable[[RankedArtist, tuple[SpotifyArtistCandidate, ...]], str]
+class ArtistChoiceReader(Protocol):
+    """Own the operator interaction for choose artist."""
+
+    def choose_artist(
+        self, artist: RankedArtist, candidates: tuple[SpotifyArtistCandidate, ...], /
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            candidates: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 class ArtistSearch(Protocol):
@@ -87,7 +101,7 @@ class ArtistMapping:
         if self.reader is None:
             _require_empty(artist, choices)
             return None
-        choice = self.reader(artist, choices)
+        choice = self.reader.choose_artist(artist, choices)
         if choice in self.controls:
             return choice
         if choice.startswith(self.search_prefix):

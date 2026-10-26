@@ -1,6 +1,7 @@
 # ADR-003: direct paths from feature adapters to business use cases
 
-**Status:** Accepted; revised Item 7a implementation is ready for PR #67 review.
+**Status:** Accepted; Item 7a tightening is implemented on PR #67. Release awaits
+owner review and approval.
 
 **Date:** 2026-10-03
 
@@ -29,24 +30,28 @@ a future targeted refactor; its current integration contracts still apply.
 
 ## Decision
 
-The owner's 2026-10-20 review extends this rule across the codebase: remove
-callback bags for ordinary I/O, serialization, schema validation, presentation,
-checkpoint publication and operational stage sequencing. Give external resources
-named methods; call fixed transformations and presenters directly. Keep existing
-public Python hook APIs compatible by adapting them once at their outer edge.
-Normal state access uses named format objects. SDK endpoint capture remains
-private to its transport leaf when original binding time is observable. A source
-guard resolves callable aliases, protocols and reexports and requires a documented
-interaction, runtime or compatibility reason for each executable dependency.
+The owner's reviews through 2026-10-23 extend this rule across the codebase.
+Fixed domain rules are imported and called directly. Application stages call
+named stages, while external resources expose cohesive methods. Constructors
+and calls receive resource owners rather than their functions or bound methods.
+This applies to I/O, serialization, schemas, presenters, checkpoints, operator
+choices, notifications, retries, cancellation, clocks, randomness and waits.
+A runtime, interaction or compatibility label is not an exemption.
 
-The owner approved a further application-to-domain simplification on 2026-10-19.
-Fixed domain rules are direct imports and calls, not constructor-supplied
-functions. Application stages are named functions or concrete stage objects;
-do not pass their bound methods as dependencies. External reads/writes use
-cohesive objects with meaningful methods. Keep callbacks for actual operator
-choices, notifications, cancellation, retry and time observations. Integration
-adapters must not execute a hidden application stage. Tests use fake boundary
-objects and named child-stage doubles while preserving existing behavior oracles.
+Compatibility entries accept named schemas and resources too. Retain function
+arguments only where an external framework or standard-library API requires
+them: route/dependency registration, thread targets, default factories, ordering
+keys and the JSON encoder's fallback. Two private concrete SDK captures retain
+observable binding time: the offset-page endpoint and the event setter used
+for restoration. The dependency guard records those exact fields and reasons;
+its separate call-site scan also rejects hidden function-valued arguments.
+
+Retry attempt scopes leave the actual request directly visible in its caller.
+The policy owns entry, failure classification, bounded waits and acceptance;
+it does not receive or execute a supplied operation. Keep original cancellation,
+retry counters, errors, accepted effects and cleanup order. Integration adapters
+must not execute hidden application stages. Tests retain their original results,
+ordered-effect recordings and frozen fixtures while changing boundary wiring.
 This extends Item 7a and does not approve its deployment or merge.
 
 The owner's 2026-10-05 review tightens this decision before any async work:
@@ -69,7 +74,7 @@ ADR-002's job behavior. Refine their implementation with these rules:
   cohesive, public application functions when they have distinct responsibilities.
 - Bootstrap constructs dependencies at startup or the appropriate invocation
   boundary. Separate construction from business execution and response rendering.
-  Do not move invocation-specific observations or callback binding to startup.
+  Do not move invocation-specific observations or observer binding to startup.
 - Retain required public compatibility facades as entry points. After entering a
   feature adapter, ordinary execution should not return through an API/CLI facade
   or a legacy routine/processor wrapper to reach the use case.
@@ -77,7 +82,7 @@ ADR-002's job behavior. Refine their implementation with these rules:
   than locating callbacks or constants through a legacy facade. Keep supported
   overrides explicit at the external boundary. Document any narrow exception that
   cannot yet be removed without changing a frozen contract.
-- Retain stateful contexts where they own job signals, callbacks or resources.
+- Retain stateful contexts where they own job signals, interactions or resources.
   Remove forwarding-only contexts and wrappers when plain functions are clearer.
   Do not add a service locator, workflow framework or one new service per helper.
 - Review the complete input and return path by family. Each retained wrapper must
@@ -116,7 +121,7 @@ move transport/presentation into the business rules.
 - Tests that rely on legacy internals may need equivalent direct-boundary
   coverage before their internal patch targets migrate. Public contract tests
   and frozen fixtures remain unchanged.
-- Resource scopes, clock reads, configuration reads and callback ownership must
+- Resource scopes, clock reads, configuration reads and observer ownership must
   retain their existing observation and cleanup order.
 - The frontend receives no source reorganization in this milestone. Its separate
   refactor will need its own scope, tests and approval.
@@ -130,3 +135,30 @@ move transport/presentation into the business rules.
 5. [x] Verify contracts/effects, typing, boundaries, coverage and local web behavior.
 6. [ ] Review the dedicated Item 7a PR; obtain approval before deployment/merge.
 7. [ ] Carry the call-path acceptance criteria through Items 8–12.
+
+
+## Owner clarification, 2026-10-23: function arguments
+
+Named operator interactions, notifications, clocks, cancellation, randomness,
+waiting and retries replace function-shaped dependencies too. A callback's role
+alone does not justify it. Readability takes precedence over convenience and
+configurability; use direct named calls or cohesive objects with explicit methods
+whenever they can preserve the same behavior. Compatibility APIs receive named
+schemas and resources rather than retaining unnecessary function arguments.
+
+Function arguments remain appropriate only where an external framework or a
+standard-library API actually requires them, such as registered routes, thread
+targets, dataclass default factories and sorting keys. The dependency guard permits
+only two private SDK method captures: the selected library page endpoint and the
+optional event setter restored after a job. They preserve the original lookup
+and binding time; they are not supplied business execution dependencies.
+
+Retry attempt scopes keep the concrete operation visible at its call site. Each
+scope preserves the original failure classification, attempt count, wait,
+cancellation and accepted-result boundary. Python wiring and test doubles may
+change; frozen HTTP/CLI results, SDK calls, errors and ordered effects do not.
+
+This clarification extends the existing Item 7a PR. Its earlier verification
+record describes the October 20 revision; fresh verification is required before
+this tightened pass is ready for review. Deployment and merge still require the
+owner's approval.

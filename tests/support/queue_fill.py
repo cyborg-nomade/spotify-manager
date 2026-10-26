@@ -112,7 +112,7 @@ class FillObservations:
         """
         self.record("history", dry_run, now.isoformat())
         if progress_callback is not None:
-            progress_callback("history status")
+            progress_callback.echo("history status")
         return (PLAY,), 2
 
     def playlist(
@@ -373,9 +373,7 @@ def _run(edge: FillObservations, preview: bool) -> object:
                 dry_run=preview,
                 now=NOW,
             ),
-            QueueFillCallbacks(
-                choice_reader=None, echo=edge.echo, progress_callback=edge.progress
-            ),
+            QueueFillCallbacks(choice_reader=None, output=edge, progress_callback=edge),
             QueueFillResources(),
         )
     return asdict(result)

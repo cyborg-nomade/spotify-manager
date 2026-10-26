@@ -109,11 +109,25 @@ class ReleaseReads:
         assert release == RELEASE
         return self.values
 
+    def choose_album(
+        self, artist: GoldenOldieArtist, releases: tuple[DiscographyRelease, ...]
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            artist: Original fixture observation.
+            releases: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(artist, releases)
+
 
 def _selection(case: dict[str, object]) -> object:
     edge = CatalogResponse(case["payload"], cast(str, case["choice"]))
     if case["kind"] == "artist":
-        choose = None if edge.choice == "absent" else edge.choose
+        choose = None if edge.choice == "absent" else edge
         result = selection.resolve_artist(
             "Artist", golden_records.artist_search(edge.response, "Artist"), choose
         )
@@ -231,11 +245,9 @@ def test_album_recipe_preserves_choice_and_complete_tracklist(
     releases = (RELEASE,) if available else ()
     if error is not None:
         with pytest.raises(SomethingOldSpotifyError, match=error):
-            selection.select_album(_artist(), ARTIST, releases, edge.choose, edge)
+            selection.select_album(_artist(), ARTIST, releases, edge, edge)
         return
-    release, selected = selection.select_album(
-        _artist(), ARTIST, releases, edge.choose, edge
-    )
+    release, selected = selection.select_album(_artist(), ARTIST, releases, edge, edge)
     if choice == "quit":
         assert release is None and selected == ()
         return

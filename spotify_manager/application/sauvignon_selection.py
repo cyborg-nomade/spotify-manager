@@ -1,11 +1,11 @@
 """Choose album editions and load all proposals before accepting remote writes."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Literal
 from typing import Protocol
 
+from spotify_manager.application.album_recommendations import AlbumChoices
 from spotify_manager.application.album_recommendations import choose_album
 from spotify_manager.domain.album_recommendations import AlbumRecommendation
 from spotify_manager.domain.album_recommendations import FirstTrack
@@ -24,7 +24,7 @@ class AlbumEditionChoice:
         quit: Original quit response marker.
     """
 
-    reader: Callable[[AlbumRecommendation, tuple[SpotifyAlbumOption, ...]], str] | None
+    reader: AlbumChoices | None
     skip: str = "skip"
     quit: str = "quit"
 

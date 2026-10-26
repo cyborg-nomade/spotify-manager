@@ -1,12 +1,11 @@
 """Discovery destinations, interaction ownership and persistence resources."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from spotify_manager.application.composer_routes import ReleaseChoiceReader
-from spotify_manager.application.discovery_review import ProgressCallback
-from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.discovery import (
+    DiscoveryInteraction as DiscoveryInteraction,
+)
 from spotify_manager.core.state import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.routines.scrobble_history import LastFmReader
@@ -36,23 +35,6 @@ class DiscoveryOptions:
     newfoundland_playlist_id: str
     dry_run: bool = False
     year: int | None = None
-
-
-@dataclass(frozen=True)
-class DiscoveryCallbacks:
-    """Own operator decisions, notifications and retries for one review.
-
-    Args:
-        choose: Composer and release selection, including skip and quit.
-        echo: Output sink for observations and accepted effects.
-        progress: Optional progress and cancellation callback.
-        retry: Retry boundary, or direct invocation when absent.
-    """
-
-    choose: ReleaseChoiceReader
-    echo: Callable[[str], None] = print
-    progress: ProgressCallback | None = None
-    retry: RetryCall | None = None
 
 
 @dataclass(frozen=True)

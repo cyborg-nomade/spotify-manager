@@ -2,6 +2,8 @@
 
 import json
 from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from contextlib import ExitStack
 from copy import deepcopy
 from dataclasses import asdict
@@ -10,7 +12,6 @@ from dataclasses import field
 from datetime import date
 from datetime import datetime
 from datetime import tzinfo
-from functools import partial
 from functools import partialmethod
 from pathlib import Path
 from typing import cast
@@ -20,6 +21,7 @@ from spotipy import Spotify
 
 from spotify_manager.application.palace_history import PalaceHistory
 from spotify_manager.application.palace_mirror import SavedMirror
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.history import HistoricalAlbum
@@ -33,6 +35,7 @@ from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory as legacy
 from tests.support.queue_neighbors import NOW
+from tests.support.runtime_resources import ProgressMessages
 
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures/refactor/palace_run.json"
@@ -337,6 +340,18 @@ class PalaceObservations:
         """
         self.record("echo", message)
 
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Observe the original retry boundary before a direct operation.
+
+        Args:
+            description: Original retry label.
+
+        Returns:
+            One direct request scope.
+        """
+        self.record("retry", description)
+        return NoRetry().attempts(description)
+
 
 def _patches(edge: PalaceObservations) -> tuple[tuple[object, str, object], ...]:
     return (
@@ -367,7 +382,7 @@ def _run(edge: PalaceObservations, preview: bool) -> object:
                 today=date(2026, 8, 8),
             ),
             PalaceCallbacks(
-                retry_call=edge.retry, progress_callback=edge.progress, echo=edge.echo
+                retry_call=edge, progress_callback=ProgressMessages(edge), output=edge
             ),
             PalaceResources(
                 albums_path=Path("albums"),
@@ -459,8 +474,8 @@ def _cursor_run(edge: PalaceObservations, position: int) -> object:
             position,
             albums_path=Path("albums"),
             state_path=Path("cursor"),
-            retry_call=edge.retry,
-            progress_callback=edge.progress,
+            retry_call=edge,
+            progress_callback=ProgressMessages(edge),
         )
     return {
         "next_index": result.next_index,
@@ -479,7 +494,7 @@ def _historical(
         path=inputs.path,
         today=inputs.date_override,
         random_index_reader=inputs.index_reader,
-        progress_callback=cast(partial[None], resources.progress).args[0],
+        progress_callback=resources.progress,
     )
 
 

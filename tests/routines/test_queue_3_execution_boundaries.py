@@ -1,6 +1,7 @@
 """Pre-extraction recovery boundaries for executing a saved Queue 3 transition."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from copy import deepcopy
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -11,12 +12,13 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
 from spotify_manager.interfaces.requests.queue_3 import Queue3Options
 from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.routines import queue_3
+from tests.routines.test_queue_3 import AutomaticTransitionResource
 from tests.routines.test_queue_3 import FakeSpotify
-from tests.routines.test_queue_3 import automatic_transition
 from tests.routines.test_queue_3 import raw_release
 from tests.routines.test_queue_3 import raw_track
 from tests.support.listening_values import playlist_track
@@ -68,7 +70,7 @@ class ExecutionBoundaries:
         self._record("checkpoint", deepcopy(value))
         self.checkpoint = deepcopy(value)
 
-    def retry(self, operation: Callable[[], object], description: str) -> object:
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
         """Fail before the selected mutation and retain existing read behavior.
 
         Args:
@@ -82,7 +84,7 @@ class ExecutionBoundaries:
             self._record("add", description)
         if description.startswith("removing "):
             self._record("remove", description)
-        return operation()
+        return NoRetry().attempts(description)
 
     def audit(self, path: Path, event_type: str, **details: object) -> None:
         """Observe transition audits before state acknowledgment.
@@ -152,9 +154,9 @@ def _run(spotify: FakeSpotify, memory: ExecutionBoundaries) -> queue_3.FlushSumm
         cast(Spotify, spotify),
         Queue3Options(playlist_id="queue3", active_year=2026),
         Queue3Callbacks(
-            transition_reader=automatic_transition,
-            echo=memory.echo,
-            retry_call=memory.retry,
+            transition_reader=AutomaticTransitionResource(),
+            output=memory,
+            retry_call=memory,
         ),
         Queue3Resources(state_service=cast(queue_3.StateService, memory)),
     )

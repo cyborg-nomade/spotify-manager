@@ -1,6 +1,5 @@
 """Refresh Sauvignon evidence, select editions, recheck membership and audit."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
@@ -8,6 +7,8 @@ from typing import Protocol
 
 from spotify_manager.application.album_recommendations import AlbumGathering
 from spotify_manager.application.ports.calendar import ListeningCalendar
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.recommendation_candidates import CandidateGathering
 from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
@@ -50,6 +51,10 @@ class SauvignonStages:
 
 class SauvignonEffects(Protocol):
     """Caller-owned history, catalog, interaction and durable effect boundaries."""
+
+    def prepare(self) -> None:
+        """Resolve the invocation's retry policy after validating its options."""
+        ...
 
     def refresh(
         self, generated_at: datetime, dry_run: bool
@@ -143,7 +148,7 @@ class SauvignonRun:
         clock: Original UTC clock, evaluated after validation.
         calendar: Original calendar boundary.
         progress: Original stage presentation.
-        echo: Original accepted-append presentation.
+        output: Original accepted-append presentation.
         default_maximum: Original capacity fallback.
         minimum_pool: Original track pool minimum.
         pool_multiplier: Original track pool scaling.
@@ -153,10 +158,10 @@ class SauvignonRun:
 
     effects: SauvignonEffects
     stages: SauvignonStages
-    clock: Callable[[], datetime]
+    clock: Clock
     calendar: ListeningCalendar
-    progress: Callable[[str], None]
-    echo: Callable[[str], None]
+    progress: Messages
+    output: Messages
     default_maximum: int = 20
     minimum_pool: int = 100
     pool_multiplier: int = 10
@@ -189,10 +194,11 @@ class SauvignonRun:
             SauvignonSpotifyError: Original catalog or destination is unusable.
         """
         _validate(count, maximum, seed_count)
-        stamp = self.clock()
+        self.effects.prepare()
+        stamp = self.clock.now()
         week = listening_week_start(self.calendar.local_date(stamp))
         history, live_added = self.effects.refresh(stamp, dry_run)
-        self.progress("Loading Sauvignon Terre-Neuve")
+        self.progress.echo("Loading Sauvignon Terre-Neuve")
         playlist = self.effects.read()
         before = len(playlist)
         requested = (
@@ -262,10 +268,10 @@ class SauvignonRun:
     def _append(self, selection: AlbumSelection, dry_run: bool) -> int:
         if not selection.pending or dry_run:
             return 0
-        self.progress("Rechecking Sauvignon before adding albums")
+        self.progress.echo("Rechecking Sauvignon before adding albums")
         additions = fresh_additions(tuple(selection.pending), self.effects.read())
         if additions:
             self.effects.append(additions)
-            self.echo(f"Added {len(additions)} albums to Sauvignon Terre-Neuve.")
+            self.output.echo(f"Added {len(additions)} albums to Sauvignon Terre-Neuve.")
         selection.results = list(accepted_results(tuple(selection.results), additions))
         return len(additions)

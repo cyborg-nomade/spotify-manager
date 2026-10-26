@@ -164,12 +164,10 @@ def _run(
         refresh = "full" if full else "incremental"
     checkpoint = checkpoints.load_or_create_checkpoint(files, paths, refresh)
     catalog = MemoryCatalog(edge)
-    retry = LibraryRetry(
-        paths, checkpoint, files, edge.echo, edge.wait, edge.sleep, 0, 0
-    )
-    progress = None if edge.profile == "no-progress" else edge.progress
+    retry = LibraryRetry(paths, checkpoint, files, edge, edge, edge, 0, 0)
+    progress = None if edge.profile == "no-progress" else edge
     session = AnalysisSession(
-        paths, checkpoint, files, catalog, retry, edge.echo, progress, edge.cancel
+        paths, checkpoint, files, catalog, retry, edge, progress, edge
     )
     return _invoke(session, RecordedAnalysisBackups(files), kind, full)
 

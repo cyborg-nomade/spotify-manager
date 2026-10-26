@@ -1,6 +1,5 @@
 """Gather original dated artist history before cutoff and random-source reads."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
@@ -10,6 +9,7 @@ from spotify_manager.application.discography_values import DiscographyError
 from spotify_manager.application.historical_values import LastFmExportError
 from spotify_manager.application.historical_values import RandomIndexSet
 from spotify_manager.application.historical_values import RandomOrgError
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.something_old_values import SomethingOldError
 from spotify_manager.domain.discography_history import dated_artists
 from spotify_manager.domain.discography_history import selected_artist
@@ -123,7 +123,7 @@ class DiscographyHistory:
     """
 
     source: DatedHistory
-    progress: Callable[[str], None]
+    progress: Messages
     first: date
 
     def run(self) -> HistoricalArtistSelection:
@@ -136,7 +136,7 @@ class DiscographyHistory:
             DiscographyError: History is unavailable, empty or random reading fails.
             IndexError: The original reader returns no index or an invalid index.
         """
-        self.progress("Memory Lane is empty; loading Last.fm artist history")
+        self.progress.echo("Memory Lane is empty; loading Last.fm artist history")
         history = self._history()
         cutoff = self.source.cutoff()
         rankings = dated_artists(history, self.first, cutoff)
@@ -145,7 +145,7 @@ class DiscographyHistory:
                 "No artist-bearing Last.fm dates are available through "
                 f"{cutoff.isoformat()}."
             )
-        self.progress("Requesting a historical date from Random.org")
+        self.progress.echo("Requesting a historical date from Random.org")
         indexes = self._random(len(rankings))
         return selected_artist(
             rankings, cutoff, indexes.indexes[0], indexes.generated_at

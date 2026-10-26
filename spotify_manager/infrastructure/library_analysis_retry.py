@@ -1,6 +1,5 @@
 """Original library-specific synchronous retry attempts, audits and wait decisions."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from requests.exceptions import ConnectionError as RequestsConnectionError
@@ -12,6 +11,7 @@ from spotify_manager.application.library_analysis_values import Checkpoint
 from spotify_manager.application.library_analysis_values import Echo
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import Sleep
+from spotify_manager.application.retry_attempts import RetryAttempts
 from spotify_manager.domain.library_analysis import retry_delay
 from spotify_manager.domain.library_analysis_values import LibraryAnalysisCancelledError
 from spotify_manager.domain.library_analysis_values import LibrarySyncError
@@ -29,7 +29,7 @@ class LibraryRetry:
         paths: Original independent output family.
         checkpoint: Original mutable accepted progress.
         files: Original ordered audit and clock boundaries.
-        echo: Original retry presenter.
+        output: Original retry presenter.
         wait: Original optional interactive retry decision.
         sleep: Original blocking default wait.
         base_seconds: Original first transient delay.
@@ -39,46 +39,25 @@ class LibraryRetry:
     paths: LibraryAnalysisPaths
     checkpoint: Checkpoint
     files: AnalysisFiles
-    echo: Echo
+    output: Echo
     wait: RetryWait | None
     sleep: Sleep
     base_seconds: int
     max_seconds: int
 
-    def call[T](
-        self,
-        operation: Callable[[], T],
-        description: str,
-        max_attempts: int | None = None,
-    ) -> T:
-        """Retain original shared attempt counting across server/transport failures.
+    def attempts(
+        self, description: str, max_attempts: int | None = None
+    ) -> RetryAttempts:
+        """Open the original library retry boundary for a direct request.
 
         Args:
-            operation: Original selected Spotify request.
-            description: Original visible operation label.
-            max_attempts: Original optional maximum attempts.
+            description: Original operation label.
+            max_attempts: Original optional attempt limit.
 
         Returns:
-            Original accepted response.
-
-        Raises:
-            LibrarySyncError: An original terminal request or bounded retry fails.
-            SpotifyRateLimitError: The original request reports HTTP 429.
-            LibraryAnalysisCancelledError: The original retry decision requests a pause.
+            Scopes sharing the original server and transport failure counter.
         """
-        attempt = 0
-        while True:
-            try:
-                return operation()
-            except SpotifyException as exc:
-                _validate_spotify_failure(exc, description)
-                attempt += 1
-                _check_server_attempt(exc, attempt, description, max_attempts)
-                self._server_wait(exc, attempt, description)
-            except (RequestsConnectionError, RequestsTimeout) as exc:
-                attempt += 1
-                _check_transport_attempt(exc, attempt, description, max_attempts)
-                self._transport_wait(exc, attempt, description)
+        return RetryAttempts(LibraryAttemptPolicy(self, description, max_attempts))
 
     def _server_wait(
         self, error: SpotifyException, attempt: int, description: str
@@ -94,7 +73,7 @@ class LibraryRetry:
             attempt=attempt,
             delay_seconds=delay,
         )
-        self.echo(
+        self.output.echo(
             f"Spotify HTTP {error.http_status} while {description}; "
             f"retrying in {delay} seconds (attempt {attempt})."
         )
@@ -117,7 +96,7 @@ class LibraryRetry:
             attempt=attempt,
             delay_seconds=delay,
         )
-        self.echo(
+        self.output.echo(
             f"Spotify connection interrupted while {description}; "
             f"retrying in {delay} seconds (attempt {attempt})."
         )
@@ -125,7 +104,7 @@ class LibraryRetry:
 
     def _wait(self, notice: RetryNotice, error: BaseException) -> None:
         should_continue = (
-            self.wait(notice)
+            self.wait.wait(notice)
             if self.wait is not None
             else _default_wait(notice.delay_seconds, self.sleep)
         )
@@ -136,7 +115,7 @@ class LibraryRetry:
 
 
 def _default_wait(delay: int, sleep: Sleep) -> bool:
-    sleep(delay)
+    sleep.sleep(delay)
     return True
 
 
@@ -171,3 +150,50 @@ def _check_transport_attempt(
             f"Spotify connection remained unavailable for {attempt} attempts "
             f"while {description}."
         ) from error
+
+
+@dataclass
+class LibraryAttemptPolicy:
+    """Own the original shared attempt counter for one library request.
+
+    Args:
+        retry: Original library wait, audit and presentation resources.
+        description: Original operation label.
+        maximum: Original optional maximum attempts.
+        failures: Shared server and transport failure count.
+    """
+
+    retry: LibraryRetry
+    description: str
+    maximum: int | None
+    failures: int = 0
+
+    def start(self) -> None:
+        """Begin the original request without an additional observation."""
+
+    def accepted(self) -> None:
+        """Accept the request without an additional observation."""
+
+    def failed(self, error: BaseException) -> bool:
+        """Apply the original server or transport failure policy.
+
+        Args:
+            error: Original request failure.
+
+        Returns:
+            Whether another original attempt is permitted.
+        """
+        if isinstance(error, SpotifyException):
+            _validate_spotify_failure(error, self.description)
+            self.failures += 1
+            _check_server_attempt(error, self.failures, self.description, self.maximum)
+            self.retry._server_wait(error, self.failures, self.description)
+            return True
+        if isinstance(error, (RequestsConnectionError, RequestsTimeout)):
+            self.failures += 1
+            _check_transport_attempt(
+                error, self.failures, self.description, self.maximum
+            )
+            self.retry._transport_wait(error, self.failures, self.description)
+            return True
+        return False

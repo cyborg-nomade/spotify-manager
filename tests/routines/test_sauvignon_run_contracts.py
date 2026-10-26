@@ -8,6 +8,7 @@ import pytest
 from spotipy import Spotify
 
 from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.recommendation_candidates import CandidateGathering
 from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
@@ -16,6 +17,7 @@ from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
 from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
 from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 from spotify_manager.routines import sauvignon as legacy
+from tests.support.runtime_resources import ProgressMessages
 from tests.support.sauvignon_run import STAMP
 from tests.support.sauvignon_run import RunObservations
 from tests.support.sauvignon_run import marker
@@ -87,9 +89,9 @@ def _run(
         ),
         SauvignonCallbacks(
             choice_reader=None,
-            echo=observations.echo,
-            progress_callback=observations.progress,
-            retry_call=_immediate,
+            output=observations,
+            progress_callback=ProgressMessages(observations),
+            retry_call=NoRetry(),
         ),
         SauvignonResources(log_path=tmp_path / "audit"),
     )
@@ -279,7 +281,7 @@ def test_sauvignon_falsey_retry_is_resolved_before_history(
         ),
         SauvignonCallbacks(
             choice_reader=None,
-            progress_callback=observed.progress,
+            progress_callback=ProgressMessages(observed),
             retry_call=FalseyRetry(observed.events),
         ),
         SauvignonResources(log_path=tmp_path / "audit"),

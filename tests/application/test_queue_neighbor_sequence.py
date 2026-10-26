@@ -154,7 +154,15 @@ class Observations:
         Returns:
             Workflow using only typed in-memory boundaries.
         """
-        return QueueRecommendations(self, self.clock, self, self.progress)
+        return QueueRecommendations(self, self, self, self)
+
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
 
 
 TRACE = ["clock", "week", "load", "previous", "progress", "lookup", "read", "save"]

@@ -22,12 +22,13 @@ class LegacyQueueNeighborhoods:
         log_path: Original previous-addition log location.
         now: Optional original explicit timestamp.
         callback: Optional original progress presenter.
+        timestamp_override: Original optional timestamp override.
     """
 
     reader: legacy.LastFmReader
     cache_path: Path
     log_path: Path
-    now: datetime | None
+    timestamp_override: datetime | None
     callback: legacy.ProgressCallback | None
 
     def load(self) -> dict[str, object]:
@@ -103,13 +104,13 @@ class LegacyQueueNeighborhoods:
             seed.artist, limit=legacy.SIMILAR_ARTIST_LIMIT
         )
 
-    def clock(self) -> datetime:
+    def now(self) -> datetime:
         """Resolve the original timestamp before loading the cache.
 
         Returns:
             Original supplied or current timestamp converted to UTC.
         """
-        return (self.now or legacy.datetime.now(UTC)).astimezone(UTC)
+        return (self.timestamp_override or legacy.datetime.now(UTC)).astimezone(UTC)
 
     def progress(self, current: int, total: int, status: str) -> None:
         """Present the original progress only when configured.
@@ -120,4 +121,4 @@ class LegacyQueueNeighborhoods:
             status: Original status text.
         """
         if self.callback is not None:
-            self.callback(current, total, status)
+            self.callback.progress(current, total, status)

@@ -1,9 +1,8 @@
 """Bind original artist-review files, catalog seams and synchronous Spotify retries."""
 
+import time
 from collections import Counter
-from collections.abc import Callable
 from pathlib import Path
-from time import sleep as default_sleep
 
 from spotipy import Spotify
 
@@ -15,6 +14,8 @@ from spotify_manager.application.artist_review_session import ReviewSession
 from spotify_manager.application.artist_review_values import ArtistReviewPaths
 from spotify_manager.application.artist_review_values import ArtistReviewState
 from spotify_manager.application.artist_review_values import ReviewCounts
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.artist_review_values import QueuePlaylists
 from spotify_manager.infrastructure.artist_review_resources import ReviewFiles
@@ -33,11 +34,11 @@ def compose(
     sp: Spotify,
     playlists: QueuePlaylists,
     paths: ArtistReviewPaths,
-    echo: Callable[[str], None],
+    echo: Messages,
     progress: legacy.ProgressCallback | None,
     track_choice: legacy.TrackChoiceReader | None,
     release_choice: legacy.ReleaseChoiceReader | None,
-    sleep: Callable[[float], None],
+    sleep: Wait,
     retry_delay: int,
     retry_attempts: int,
     state_service: StateService | None,
@@ -69,7 +70,7 @@ def compose(
         playlists,
         ReviewFiles(resources),
         catalog,
-        ReviewSpotifyAccess(resources.spotify, resources.retry),
+        ReviewSpotifyAccess(resources.spotify, resources),
         interaction,
     )
 
@@ -82,7 +83,7 @@ def recovery_session(
     paths: ArtistReviewPaths,
     run_id: str,
     retry: legacy.RetryCall,
-    echo: Callable[[str], None],
+    echo: Messages,
 ) -> ReviewSession:
     """Bind original public recovery helpers without loading new invocation facts.
 
@@ -99,7 +100,7 @@ def recovery_session(
     Returns:
         Recovery context sharing the exact original mutable authorities.
     """
-    resources = ReviewResources(sp, paths, echo, default_sleep, 0, 0, None)
+    resources = ReviewResources(sp, paths, echo, time, 0, 0, None)
     spotify = ReviewSpotifyAccess(sp, retry)
     catalog = ReviewCatalog(resources)
     return ReviewSession(

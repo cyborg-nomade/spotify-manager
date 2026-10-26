@@ -78,11 +78,11 @@ def _review(
     preview: bool = False,
     owned: tuple[OwnedPlaylist, ...] = (),
 ) -> Queue3Review:
-    session = Queue3Run(state, memory, memory.now, preview)
+    session = Queue3Run(state, memory, memory, preview)
     queue = _queue()
     snapshot = session.start(queue)
     ordering = ReleaseOrdering(None, snapshot.orders, session)
-    planner = Queue3Planner(memory, {}, ordering, memory.choose)
+    planner = Queue3Planner(memory, {}, ordering, memory)
     execution = Queue3Execution(
         memory,
         cast(DiscoveryLibraryReconciliation, memory),
@@ -98,7 +98,7 @@ def _review(
         execution,
         observations,
         owned,
-        memory.choose_composer,
+        memory,
         memory,
         memory,
     )
@@ -129,7 +129,7 @@ def test_nonmatching_run_is_replaced_before_validation(active: object) -> None:
     memory = CoordinationMemory()
     state = _state([])
     state["active_run"] = active
-    session = Queue3Run(state, memory, memory.now, False)
+    session = Queue3Run(state, memory, memory, False)
     snapshot = session.start(_queue())
     assert snapshot.resumed is False and state["active_run"] is snapshot.record
     assert len(snapshot.entries) == 1 and len(memory.checkpoints) == 1
@@ -141,7 +141,7 @@ def test_preview_ignores_saved_run_without_overwriting_working_active_record() -
     memory = CoordinationMemory()
     state = _state([])
     original = state["active_run"]
-    snapshot = Queue3Run(state, memory, memory.now, True).start(_queue())
+    snapshot = Queue3Run(state, memory, memory, True).start(_queue())
     assert snapshot.resumed is False and len(snapshot.entries) == 1
     assert state["active_run"] is original and memory.checkpoints == []
 
@@ -160,7 +160,7 @@ def test_resumed_container_validation_precedes_all_effects(field: str) -> None:
     )
     target[field] = False
     with pytest.raises(Queue3StateError):
-        Queue3Run(state, memory, memory.now, False).start(_queue())
+        Queue3Run(state, memory, memory, False).start(_queue())
     assert memory.events == []
 
 
@@ -170,7 +170,7 @@ def test_new_snapshot_is_saved_before_release_order_validation() -> None:
     state = _state([])
     state.update(active_run=None, release_orders=False)
     with pytest.raises(Queue3StateError, match="release-order"):
-        Queue3Run(state, memory, memory.now, False).start(_queue())
+        Queue3Run(state, memory, memory, False).start(_queue())
     assert len(memory.checkpoints) == 1
 
 
@@ -379,7 +379,7 @@ def test_finish_suppresses_unacknowledged_paused_or_preview_completion(
         entries: Original run's remaining entry records.
     """
     memory = CoordinationMemory()
-    session = Queue3Run(_state(entries), memory, memory.now, False)
+    session = Queue3Run(_state(entries), memory, memory, False)
     snapshot = session.start(_queue())
     replace(session, dry_run=preview).finish(snapshot, paused)
     assert memory.events == [] and snapshot.record["status"] == "active"
@@ -395,7 +395,7 @@ def test_composer_acknowledgment_only_updates_existing_route_records(
         route: Existing logical artist route value.
     """
     memory = CoordinationMemory()
-    session = Queue3Run(_state([]), memory, memory.now, False)
+    session = Queue3Run(_state([]), memory, memory, False)
     entry = _entry()
     routes = {"artist": route}
     session.acknowledge(entry, "composer_advance", TARGET, "artist", routes)
@@ -406,7 +406,7 @@ def test_composer_acknowledgment_only_updates_existing_route_records(
 def test_preview_acknowledgment_leaves_entry_and_route_unchanged() -> None:
     """Preview effects do not acknowledge durable entries or routes."""
     memory = CoordinationMemory()
-    session = Queue3Run(_state([]), memory, memory.now, True)
+    session = Queue3Run(_state([]), memory, memory, True)
     entry = _entry()
     routes: dict[str, object] = {"artist": {}}
     session.acknowledge(entry, "composer_advance", TARGET, "artist", routes)
@@ -418,7 +418,7 @@ def test_preview_acknowledgment_leaves_entry_and_route_unchanged() -> None:
 def test_summary_counts_only_new_results_and_preserves_annual_decisions() -> None:
     """Resume metadata and action counts stay distinct from total entries."""
     memory = CoordinationMemory()
-    session = Queue3Run(_state([{}, {}, {}, {}, {}, {}]), memory, memory.now, False)
+    session = Queue3Run(_state([{}, {}, {}, {}, {}, {}]), memory, memory, False)
     snapshot = session.start(_queue())
     base = FlushResult("Artist", "source", "Album", "advance")
     results = (

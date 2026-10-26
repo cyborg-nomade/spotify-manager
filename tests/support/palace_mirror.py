@@ -92,6 +92,14 @@ class MirrorReads:
         """
         self.trace.append(["progress", message])
 
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
 
 def _page(profile: str, offset: int) -> object:
     if profile == "invalid-page":
@@ -151,7 +159,7 @@ def _run(edge: MirrorReads, root: Path) -> object:
             path=path,
             backups_dir=root / "backups",
             log_path=root / "audit.jsonl",
-            progress_callback=edge.progress,
+            progress_callback=edge,
         )
     return {
         "albums": [album.model_dump() for album in albums],

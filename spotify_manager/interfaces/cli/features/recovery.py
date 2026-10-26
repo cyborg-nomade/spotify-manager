@@ -60,8 +60,8 @@ class RecoveryCLI:
                 )
                 recover_removed_albums.recover_removed_albums(
                     self.runtime.review_client(),
-                    echo=self._recover_removed_albums_echo,
-                    progress_callback=self._recover_removed_albums_update_progress,
+                    echo=RecoverRemovedAlbumsInteraction(self),
+                    progress_callback=RecoverRemovedAlbumsInteraction(self),
                     dry_run=dry_run,
                     limit=limit,
                 )
@@ -131,3 +131,31 @@ class RecoveryCLI:
             style="yellow",
         )
         raise typer.Exit(code=0) from exc
+
+
+@dataclass(frozen=True)
+class RecoverRemovedAlbumsInteraction:
+    """Own command-specific terminal interaction.
+
+    Args:
+        owner: Command instance owning this display and its progress state.
+    """
+
+    owner: RecoveryCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._recover_removed_albums_echo(message)
+
+    def progress(self, position: int, total: int) -> None:
+        """Present the command's original progress.
+
+        Args:
+            position: Original position.
+            total: Original total.
+        """
+        self.owner._recover_removed_albums_update_progress(position, total)

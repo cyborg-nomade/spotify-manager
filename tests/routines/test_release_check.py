@@ -1,5 +1,6 @@
 import json
 from collections import Counter
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
@@ -11,7 +12,7 @@ from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
-from spotify_manager.infrastructure.callbacks import call_direct
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
@@ -19,30 +20,107 @@ from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import release_check
 from spotify_manager.routines import scrobble_history
 from tests.support.history_dependencies import release_history
+from tests.support.runtime_resources import Answer
+from tests.support.runtime_resources import ProgressDetails
+from tests.support.runtime_resources import UnexpectedInteraction
 
 
-def _record_destinations(
-    prompts: list[tuple[str, ...]],
-    _artist: release_check.RankedArtist,
-    _release: release_check.ReleaseCandidate,
-    _track: release_check.ReleaseTrack,
-    destinations: tuple[str, ...],
-    _unattached: bool,
-) -> str:
-    prompts.append(destinations)
-    return release_check.CHOICE_ADD
+@dataclass(frozen=True)
+class DestinationChoice:
+    """Record original eligible destinations before choosing a release action.
+
+    Args:
+        prompts: Original destination observations.
+        answer: Original release action.
+    """
+
+    prompts: list[tuple[str, ...]]
+    answer: str = release_check.CHOICE_ADD
+
+    def choose_release(
+        self,
+        artist: release_check.RankedArtist,
+        release: release_check.ReleaseCandidate,
+        track: release_check.ReleaseTrack,
+        destinations: tuple[str, ...],
+        unattached: bool,
+    ) -> str:
+        """Record the original destination order and return the original action.
+
+        Args:
+            artist: Original ranked history artist.
+            release: Original offered edition.
+            track: Original offered marker.
+            destinations: Original eligible destinations.
+            unattached: Original release attachment state.
+
+        Returns:
+            Original scripted release action.
+        """
+        self.prompts.append(destinations)
+        return self.answer
 
 
-def _record_unattached_destinations(
-    prompts: list[tuple[tuple[str, ...], bool]],
-    _artist: release_check.RankedArtist,
-    _release: release_check.ReleaseCandidate,
-    _track: release_check.ReleaseTrack,
-    destinations: tuple[str, ...],
-    unattached: bool,
-) -> str:
-    prompts.append((destinations, unattached))
-    return release_check.CHOICE_ADD
+@dataclass(frozen=True)
+class UnattachedDestinationChoice:
+    """Record the original destination and attachment observations.
+
+    Args:
+        prompts: Original complete destination observations.
+    """
+
+    prompts: list[tuple[tuple[str, ...], bool]]
+
+    def choose_release(
+        self,
+        artist: release_check.RankedArtist,
+        release: release_check.ReleaseCandidate,
+        track: release_check.ReleaseTrack,
+        destinations: tuple[str, ...],
+        unattached: bool,
+    ) -> str:
+        """Record the original attachment prompt and accept the release.
+
+        Args:
+            artist: Original ranked history artist.
+            release: Original offered edition.
+            track: Original offered marker.
+            destinations: Original eligible destinations.
+            unattached: Original release attachment state.
+
+        Returns:
+            Original add control.
+        """
+        self.prompts.append((destinations, unattached))
+        return release_check.CHOICE_ADD
+
+
+@dataclass(frozen=True)
+class SecondArtistChoice:
+    """Record the original mapping prompt and choose its second candidate.
+
+    Args:
+        artists: Original prompted-artist observations.
+    """
+
+    artists: list[str]
+
+    def choose_artist(
+        self,
+        artist: release_check.RankedArtist,
+        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
+    ) -> str:
+        """Choose the original second mapping after recording its artist.
+
+        Args:
+            artist: Original ranked history artist.
+            candidates: Original offered Spotify mappings.
+
+        Returns:
+            Original second candidate identity.
+        """
+        self.artists.append(artist.name)
+        return candidates[1].spotify_id
 
 
 def raw_artist(spotify_id: str, name: str) -> dict[str, object]:
@@ -430,6 +508,12 @@ def test_classical_composer_skips_release_catalog_lookup(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Classical composer skips release catalog lookup.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     artist = release_check.RankedArtist(
         "johann-sebastian-bach",
         "Johann Sebastian Bach",
@@ -471,9 +555,7 @@ def test_classical_composer_skips_release_catalog_lookup(
             dry_run=True,
             now=datetime(2026, 8, 28, tzinfo=UTC),
         ),
-        ReleaseCheckCallbacks(
-            progress_callback=lambda _done, _total, detail: progress.append(detail)
-        ),
+        ReleaseCheckCallbacks(progress_callback=ProgressDetails(progress)),
         ReleaseCheckResources(
             state_path=tmp_path / "state.json", log_path=tmp_path / "log.jsonl"
         ),
@@ -546,6 +628,7 @@ def test_release_scope_expands_only_for_top_fifty() -> None:
 
 
 def test_artist_mapping_can_repeat_with_a_custom_search() -> None:
+    """Artist mapping can repeat with a custom search."""
     artist = release_check.RankedArtist("artist", "Last.fm Name", 100, 51)
     spotify = FakeSpotify()
     spotify.artist_results = {
@@ -554,20 +637,11 @@ def test_artist_mapping_can_repeat_with_a_custom_search() -> None:
     }
     candidate_counts: list[int] = []
 
-    def choose(
-        _artist: release_check.RankedArtist,
-        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
-    ) -> str:
-        candidate_counts.append(len(candidates))
-        if not candidates:
-            return f"{release_check.CHOICE_SEARCH_PREFIX}Different Spotify Name"
-        return candidates[0].spotify_id
-
     selected = release_check.resolve_spotify_artist(
         spotify,
         artist,
-        choose,
-        lambda operation, _description: operation(),
+        SearchArtistChoice(candidate_counts),
+        NoRetry(),
     )
 
     assert isinstance(selected, release_check.SpotifyArtistCandidate)
@@ -580,6 +654,7 @@ def test_artist_mapping_can_repeat_with_a_custom_search() -> None:
 
 
 def test_future_release_track_lists_are_cached_between_singles() -> None:
+    """Future release track lists are cached between singles."""
     spotify = FakeSpotify()
     future = candidate("Future Album")
     spotify.release_tracks[future.spotify_id] = [
@@ -600,14 +675,14 @@ def test_future_release_track_lists_are_cached_between_singles() -> None:
         spotify,
         single_track,
         (future,),
-        lambda operation, _description: operation(),
+        NoRetry(),
         cache,
     )
     second = release_check.matching_future_release(
         spotify,
         single_track,
         (future,),
-        lambda operation, _description: operation(),
+        NoRetry(),
         cache,
     )
 
@@ -617,20 +692,18 @@ def test_future_release_track_lists_are_cached_between_singles() -> None:
 
 
 def test_unavailable_future_track_list_is_treated_as_empty() -> None:
-    class MissingReleaseSpotify:
-        def album_tracks(self, *_args: object, **_kwargs: object) -> object:
-            raise SpotifyException(404, -1, "missing")
-
+    """Unavailable future track list is treated as empty."""
     tracks = release_check.load_release_tracks(
         MissingReleaseSpotify(),
         candidate("Unavailable Future Album"),
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     assert tracks == ()
 
 
 def test_recent_catalog_scans_past_an_old_page_for_newer_release() -> None:
+    """Recent catalog scans past an old page for newer release."""
     artist = release_check.RankedArtist("artist", "Artist", 500, 1)
     spotify_artist = release_check.SpotifyArtistCandidate(
         "artist-id",
@@ -666,7 +739,7 @@ def test_recent_catalog_scans_past_an_old_page_for_newer_release() -> None:
         artist,
         spotify_artist,
         date(2026, 9, 1),
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     assert [release.spotify_id for release in catalog] == ["new-release"]
@@ -674,6 +747,7 @@ def test_recent_catalog_scans_past_an_old_page_for_newer_release() -> None:
 
 
 def test_wine_cellar_deduplication_keeps_first_primary_artist_track() -> None:
+    """Wine cellar deduplication keeps first primary artist track."""
     spotify = FakeSpotify()
     first = raw_track("first", "First", "artist-a", "Artist A")
     other = raw_track("other", "Other", "artist-b", "Artist B")
@@ -684,7 +758,7 @@ def test_wine_cellar_deduplication_keeps_first_primary_artist_track() -> None:
         {"item": duplicate},
         {"item": first},
     ]
-    retry = call_direct
+    retry = NoRetry()
 
     snapshot = release_check._playlist_snapshot(spotify, "wine", retry)
     removed, membership = release_check._deduplicate_wine_cellar(
@@ -710,16 +784,7 @@ def test_wine_cellar_deduplication_keeps_first_primary_artist_track() -> None:
 
 
 def test_playlist_replacement_uses_bounded_ordered_batches() -> None:
-    class RecordingSpotify:
-        def __init__(self) -> None:
-            self.calls: list[tuple[str, str, dict[str, object]]] = []
-
-        def _put(self, path: str, payload: dict[str, object]) -> None:
-            self.calls.append(("put", path, payload))
-
-        def _post(self, path: str, payload: dict[str, object]) -> None:
-            self.calls.append(("post", path, payload))
-
+    """Playlist replacement uses bounded ordered batches."""
     spotify = RecordingSpotify()
     entries = tuple(
         release_check.PlaylistEntry(
@@ -736,7 +801,7 @@ def test_playlist_replacement_uses_bounded_ordered_batches() -> None:
         spotify,
         "wine",
         entries,
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     assert [call[0] for call in spotify.calls] == ["put", "post", "post"]
@@ -748,6 +813,12 @@ def test_existing_wine_cellar_artist_is_only_prompted_for_new_vintage(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Existing wine cellar artist is only prompted for new vintage.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     artist = release_check.RankedArtist("artist", "Artist", 500, 1)
     patch_history_and_ranking(monkeypatch, (artist,))
     spotify = FakeSpotify()
@@ -779,9 +850,7 @@ def test_existing_wine_cellar_artist_is_only_prompted_for_new_vintage(
             expected_username="man-et-arms",
             now=datetime(2026, 9, 19, tzinfo=UTC),
         ),
-        ReleaseCheckCallbacks(
-            release_choice_reader=partial(_record_destinations, prompts)
-        ),
+        ReleaseCheckCallbacks(release_choice_reader=DestinationChoice(prompts)),
         ReleaseCheckResources(
             state_path=tmp_path / "state.json", log_path=tmp_path / "log.jsonl"
         ),
@@ -797,6 +866,12 @@ def test_existing_wine_cellar_artist_outside_top_fifty_skips_catalog(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Existing wine cellar artist outside top fifty skips catalog.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     artist = release_check.RankedArtist("artist", "Artist", 100, 51)
     patch_history_and_ranking(monkeypatch, (artist,))
     spotify = FakeSpotify()
@@ -814,9 +889,7 @@ def test_existing_wine_cellar_artist_outside_top_fifty_skips_catalog(
             now=datetime(2026, 9, 19, tzinfo=UTC),
         ),
         ReleaseCheckCallbacks(
-            release_choice_reader=lambda *_args: pytest.fail(
-                "release prompt is not needed"
-            )
+            release_choice_reader=UnexpectedInteraction("release prompt is not needed")
         ),
         ReleaseCheckResources(
             state_path=tmp_path / "state.json", log_path=tmp_path / "log.jsonl"
@@ -875,6 +948,12 @@ def test_real_run_adds_each_tier_correctly_and_reuses_mappings(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Real run adds each tier correctly and reuses mappings.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     top = release_check.RankedArtist("top", "Top Artist", 5000, 1)
     outside = release_check.RankedArtist("outside", "Outside Artist", 100, 51)
     patch_history_and_ranking(monkeypatch, (top, outside))
@@ -988,33 +1067,11 @@ def test_real_run_adds_each_tier_correctly_and_reuses_mappings(
             expected_username="man-et-arms",
             now=datetime(2026, 8, 6, tzinfo=UTC),
         ),
-        ReleaseCheckCallbacks(
-            artist_choice_reader=lambda artist, candidates: (
-                choices.append(artist.name) or candidates[1].spotify_id
-            )
-        ),
+        ReleaseCheckCallbacks(artist_choice_reader=SecondArtistChoice(choices)),
         ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
-    assert choices == ["Top Artist"]
-    assert summary.wine_cellar_added == 2
-    assert summary.new_vintage_added == 4
-    remaster = next(
-        result for result in summary.results if result.release_id == "top-remaster"
-    )
-    assert remaster.reason == "non-deluxe reissue or remaster"
-    linked = next(
-        result for result in summary.results if result.release_id == "outside-single"
-    )
-    assert linked.linked_future_release == "Future Album"
-    assert linked.wine_cellar_action == "added"
-    assert linked.new_vintage_action == "not applicable"
-
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    assert state["artist_mappings"]["top"]["spotify_id"] == "top-id"
-    assert state["last_checked_through"] == "2026-08-06"
-    assert state["active_run"] is None
-    assert log_path.read_text(encoding="utf-8").count("release_checked") == 7
+    _assert_release_tiers(summary, choices, state_path, log_path)
 
     posts_after_first_run = len(spotify.posts)
     search_calls_after_first_run = len(spotify.search_calls)
@@ -1027,7 +1084,7 @@ def test_real_run_adds_each_tier_correctly_and_reuses_mappings(
             now=datetime(2026, 8, 7, tzinfo=UTC),
         ),
         ReleaseCheckCallbacks(
-            artist_choice_reader=lambda *_args: pytest.fail("mapping should be reused")
+            artist_choice_reader=UnexpectedInteraction("mapping should be reused")
         ),
         ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
@@ -1041,6 +1098,12 @@ def test_release_prompt_can_permanently_skip_an_eligible_release(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Release prompt can permanently skip an eligible release.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     artist = release_check.RankedArtist("artist", "Artist", 500, 10)
     patch_history_and_ranking(monkeypatch, (artist,))
     spotify = FakeSpotify()
@@ -1063,16 +1126,6 @@ def test_release_prompt_can_permanently_skip_an_eligible_release(
     log_path = tmp_path / "log.jsonl"
     prompts: list[tuple[str, ...]] = []
 
-    def choose_release(
-        _artist: release_check.RankedArtist,
-        _release: release_check.ReleaseCandidate,
-        _track: release_check.ReleaseTrack,
-        destinations: tuple[str, ...],
-        _unattached: bool,
-    ) -> str:
-        prompts.append(destinations)
-        return release_check.CHOICE_SKIP
-
     summary = release_check.run_release_check(
         spotify,
         object(),
@@ -1081,7 +1134,9 @@ def test_release_prompt_can_permanently_skip_an_eligible_release(
             expected_username="man-et-arms",
             now=datetime(2026, 8, 6, tzinfo=UTC),
         ),
-        ReleaseCheckCallbacks(release_choice_reader=choose_release),
+        ReleaseCheckCallbacks(
+            release_choice_reader=DestinationChoice(prompts, release_check.CHOICE_SKIP)
+        ),
         ReleaseCheckResources(state_path=state_path, log_path=log_path),
     )
 
@@ -1096,6 +1151,12 @@ def test_unattached_single_can_be_added_to_wine_cellar(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Unattached single can be added to wine cellar.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     artist = release_check.RankedArtist("later", "Later Artist", 100, 51)
     patch_history_and_ranking(monkeypatch, (artist,))
     spotify = FakeSpotify()
@@ -1130,7 +1191,7 @@ def test_unattached_single_can_be_added_to_wine_cellar(
             now=datetime(2026, 8, 6, tzinfo=UTC),
         ),
         ReleaseCheckCallbacks(
-            release_choice_reader=partial(_record_unattached_destinations, prompts)
+            release_choice_reader=UnattachedDestinationChoice(prompts)
         ),
         ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
@@ -1147,6 +1208,12 @@ def test_permanent_artist_skip_persists_during_dry_run_and_avoids_search(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Permanent artist skip persists during dry run and avoids search.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     artist = release_check.RankedArtist("missing", "Missing Artist", 100, 51)
     patch_history_and_ranking(monkeypatch, (artist,))
     spotify = FakeSpotify()
@@ -1162,9 +1229,7 @@ def test_permanent_artist_skip_persists_during_dry_run_and_avoids_search(
             now=datetime(2026, 8, 6, tzinfo=UTC),
         ),
         ReleaseCheckCallbacks(
-            artist_choice_reader=lambda _artist, _candidates: (
-                release_check.CHOICE_SKIP_ARTIST
-            )
+            artist_choice_reader=Answer(release_check.CHOICE_SKIP_ARTIST)
         ),
         ReleaseCheckResources(state_path=state_path, log_path=tmp_path / "log.jsonl"),
     )
@@ -1184,7 +1249,7 @@ def test_permanent_artist_skip_persists_during_dry_run_and_avoids_search(
             now=datetime(2026, 8, 7, tzinfo=UTC),
         ),
         ReleaseCheckCallbacks(
-            artist_choice_reader=lambda *_args: pytest.fail(
+            artist_choice_reader=UnexpectedInteraction(
                 "permanently skipped artist should not be mapped again"
             )
         ),
@@ -1413,3 +1478,89 @@ def test_state_save_fingerprints_and_restore_backup(tmp_path: Path) -> None:
     assert backup_path.read_bytes() == saved_original
     assert restored["artist_mappings"]["artist"]["spotify_id"] == "spotify-artist"
     assert release_check.state_fingerprint(restored) != original_fingerprint
+
+
+@dataclass(frozen=True)
+class SearchArtistChoice:
+    """Repeat the original custom mapping search after an empty result.
+
+    Args:
+        counts: Original offered-candidate counts.
+    """
+
+    counts: list[int]
+
+    def choose_artist(
+        self,
+        artist: release_check.RankedArtist,
+        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
+    ) -> str:
+        """Request the original custom search or accept its first candidate.
+
+        Args:
+            artist: Original ranked history artist.
+            candidates: Original offered Spotify mappings.
+
+        Returns:
+            Original search control or selected identity.
+        """
+        self.counts.append(len(candidates))
+        if not candidates:
+            return f"{release_check.CHOICE_SEARCH_PREFIX}Different Spotify Name"
+        return candidates[0].spotify_id
+
+
+class MissingReleaseSpotify:
+    """Retain the original missingrelease spotify boundary fixture."""
+
+    def album_tracks(self, *_args: object, **_kwargs: object) -> object:
+        """Simulate a release disappearing before its tracks are read.
+
+        Args:
+            *_args: External SDK positional arguments.
+            **_kwargs: External SDK keyword options.
+
+        Raises:
+            SpotifyException: The SDK reports that the release is missing.
+        """
+        raise SpotifyException(404, -1, "missing")
+
+
+class RecordingSpotify:
+    """Retain the original recording spotify boundary fixture."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, dict[str, object]]] = []
+
+    def _put(self, path: str, payload: dict[str, object]) -> None:
+        self.calls.append(("put", path, payload))
+
+    def _post(self, path: str, payload: dict[str, object]) -> None:
+        self.calls.append(("post", path, payload))
+
+
+def _assert_release_tiers(
+    summary: release_check.ReleaseCheckSummary,
+    choices: list[str],
+    state_path: Path,
+    log_path: Path,
+) -> None:
+    assert choices == ["Top Artist"]
+    assert summary.wine_cellar_added == 2
+    assert summary.new_vintage_added == 4
+    remaster = next(
+        result for result in summary.results if result.release_id == "top-remaster"
+    )
+    assert remaster.reason == "non-deluxe reissue or remaster"
+    linked = next(
+        result for result in summary.results if result.release_id == "outside-single"
+    )
+    assert linked.linked_future_release == "Future Album"
+    assert linked.wine_cellar_action == "added"
+    assert linked.new_vintage_action == "not applicable"
+
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["artist_mappings"]["top"]["spotify_id"] == "top-id"
+    assert state["last_checked_through"] == "2026-08-06"
+    assert state["active_run"] is None
+    assert log_path.read_text(encoding="utf-8").count("release_checked") == 7

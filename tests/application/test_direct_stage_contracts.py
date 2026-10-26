@@ -69,6 +69,22 @@ class MappingMemory:
         self.events.append(("choice", tuple(item.spotify_id for item in candidates)))
         return self.choices.pop(0)
 
+    def choose_artist(
+        self,
+        recommendation: ArtistRecommendation,
+        candidates: tuple[SpotifyArtistCandidate, ...],
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            recommendation: Original fixture observation.
+            candidates: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(recommendation, candidates)
+
 
 def test_queue_mapping_automatic_exact_match_requires_no_operator() -> None:
     """Preserve automatic selection and original rank metadata without a prompt."""
@@ -80,7 +96,7 @@ def test_queue_mapping_automatic_exact_match_requires_no_operator() -> None:
 def test_queue_mapping_custom_search_retains_original_prompt_context() -> None:
     """Keep the Queue recommendation while asking the shared mapping use case."""
     memory = MappingMemory([(OTHER,), (EXACT,)], ["search: custom", "exact"])
-    assert QueueArtistMapping(memory, memory.choose).resolve(RECOMMENDATION) is EXACT
+    assert QueueArtistMapping(memory, memory).resolve(RECOMMENDATION) is EXACT
     assert memory.events == [
         ("search", None),
         ("choice", ("other",)),
@@ -185,7 +201,7 @@ def test_retrospective_import_honors_completed_authority_without_more_effects(
         preview: Original preview acquisition behavior.
     """
     imports = ImportMemory()
-    importer = AnnualDiscoveryImport(imports, imports, imports.present, imports.now)
+    importer = AnnualDiscoveryImport(imports, imports, imports, imports)
     state: dict[str, object] = {"annual_imports": {"2026": {"completed": True}}}
     inputs = AnnualDiscoveryInputs("queue", [], state, (), importer)
     memory = AnnualMemory(inputs)

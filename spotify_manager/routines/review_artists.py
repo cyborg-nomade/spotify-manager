@@ -1,11 +1,9 @@
 """Restart-safe review of followed artists and listening queues."""
 
-from collections.abc import Callable
+import time
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
-from time import sleep as default_sleep
 
 from pydantic import BaseModel
 from spotipy import Spotify
@@ -15,6 +13,13 @@ from spotify_manager.application.artist_review_catalog import FirstTrack
 from spotify_manager.application.artist_review_catalog import RawReleasePage
 from spotify_manager.application.artist_review_catalog import ReleasePage
 from spotify_manager.application.artist_review_catalog import search_releases
+from spotify_manager.application.artist_review_effects import (
+    ReleaseChoices as ReleaseChoiceReader,
+)
+from spotify_manager.application.artist_review_effects import (
+    TrackChoices as TrackChoiceReader,
+)
+from spotify_manager.application.artist_review_membership import MembershipAccess
 from spotify_manager.application.artist_review_membership import MembershipPage
 from spotify_manager.application.artist_review_membership import (
     playlist_membership as gather_membership,
@@ -41,6 +46,10 @@ from spotify_manager.application.library_statistics import (
 from spotify_manager.application.library_statistics import (
     report_with_unfollowed_artists,
 )
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap import artist_review as composition
 
 # UFI
@@ -108,16 +117,26 @@ from spotify_manager.infrastructure.artist_review_resources import (
     SpotifyMembershipPages,
 )
 from spotify_manager.infrastructure.library_records import current_stats_history_key
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.routine_state_codecs import ReviewArtistsStateCodec
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_MAX_ATTEMPTS
 from spotify_manager.infrastructure.spotify.retry import TRANSIENT_RETRY_DELAY_SECONDS
 from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
 from spotify_manager.infrastructure.spotify.retry import SpotifyTransientServerError
-from spotify_manager.infrastructure.spotify.retry import (
-    retry_spotify_server_errors as retry_spotify_server_errors,
-)
 from spotify_manager.models.stats import StatsReport
 from spotify_manager.models.your_library import YourLibraryArtist
+
+
+type Sleep = Wait
+
+
+type ProgressCallback = ReviewProgress
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
 
 
 SEARCH_LIMIT = 10
@@ -130,15 +149,6 @@ UNFOLLOW_BATCH_SIZE = 40
 CHOICE_SKIP = "skip"
 CHOICE_QUIT = "quit"
 CHOICE_DECLINE = "decline"
-
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[int, int, str], None]
-TrackChoiceReader = Callable[[YourLibraryArtist, tuple["TrackCandidate", ...]], str]
-ReleaseChoiceReader = Callable[
-    [YourLibraryArtist, tuple["ReleaseCandidate", ...], bool], str
-]
-Sleep = Callable[[float], None]
-RetryCall = Callable[[Callable[[], object], str], object]
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -631,7 +641,7 @@ def flush_pending_queue_moves(
     paths: ArtistReviewPaths,
     run_id: str,
     retry_call: RetryCall,
-    get_membership: Callable[[str], PlaylistMembership],
+    memberships: MembershipAccess,
     echo: Echo,
 ) -> None:
     """Finish journaled queue-one to queue-two moves idempotently.
@@ -644,15 +654,15 @@ def flush_pending_queue_moves(
         paths: Original complete file locations.
         run_id: Original sortable invocation identity.
         retry_call: Original caller-owned synchronous retry wrapper.
-        get_membership: Original caller-owned queue membership authority.
         echo: Original visible progress and action presenter.
+        memberships: Named live liked-track membership reader.
     """
     from spotify_manager.interfaces.operations.review_artists import (
         flush_pending_queue_moves as operation,
     )
 
     return operation(
-        sp, artists, state, counts, paths, run_id, retry_call, get_membership, echo
+        sp, artists, state, counts, paths, run_id, retry_call, memberships, echo
     )
 
 
@@ -662,11 +672,11 @@ def review_artists(
     track_choice_reader: TrackChoiceReader | None = None,
     release_choice_reader: ReleaseChoiceReader | None = None,
     paths: ArtistReviewPaths = DEFAULT_PATHS,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     refresh_cache: bool = False,
     limit: int | None = None,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
     state_service: StateService | None = None,
@@ -737,32 +747,30 @@ __all__ = [
 def _read_tracks(
     sp: Spotify, artist: YourLibraryArtist, retry_call: RetryCall
 ) -> list[TrackCandidate]:
-    response = retry_call(
-        partial(
-            sp.search,
-            q=spotify_search_query(artist.name),
-            type="track",
-            limit=SEARCH_LIMIT,
-            offset=0,
-        ),
-        f"searching ranked tracks for {artist.name}",
-    )
+    for attempt in retry_call.attempts(f"searching ranked tracks for {artist.name}"):
+        with attempt:
+            response = sp.search(
+                q=spotify_search_query(artist.name),
+                type="track",
+                limit=SEARCH_LIMIT,
+                offset=0,
+            )
     return catalog_records.track_page(response, artist.spotify_id, artist.name)
 
 
 def _read_ranked_page(
     sp: Spotify, artist: YourLibraryArtist, retry_call: RetryCall, offset: int
 ) -> ReleasePage:
-    response = retry_call(
-        partial(
-            sp.search,
-            q=spotify_search_query(artist.name),
-            type="album",
-            limit=SEARCH_LIMIT,
-            offset=offset,
-        ),
-        f"searching ranked releases for {artist.name} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"searching ranked releases for {artist.name} at offset {offset}"
+    ):
+        with attempt:
+            response = sp.search(
+                q=spotify_search_query(artist.name),
+                type="album",
+                limit=SEARCH_LIMIT,
+                offset=offset,
+            )
     return catalog_records.release_page(
         response, artist.spotify_id, artist.name, offset
     )
@@ -771,16 +779,16 @@ def _read_ranked_page(
 def _read_discography_page(
     sp: Spotify, artist: YourLibraryArtist, retry_call: RetryCall, offset: int
 ) -> RawReleasePage:
-    response = retry_call(
-        partial(
-            sp.artist_albums,
-            artist.spotify_id,
-            include_groups="album,single,compilation",
-            limit=ARTIST_ALBUM_PAGE_LIMIT,
-            offset=offset,
-        ),
-        f"fetching releases for {artist.name} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"fetching releases for {artist.name} at offset {offset}"
+    ):
+        with attempt:
+            response = sp.artist_albums(
+                artist.spotify_id,
+                include_groups="album,single,compilation",
+                limit=ARTIST_ALBUM_PAGE_LIMIT,
+                offset=offset,
+            )
     return catalog_records.scan_page(response, artist.name)
 
 
@@ -788,10 +796,7 @@ def _read_first(
     sp: Spotify, retry_call: RetryCall, release: ReleaseCandidate
 ) -> FirstTrack | None:
     try:
-        response = retry_call(
-            partial(sp.album_tracks, release.spotify_id, limit=1, offset=0),
-            f"fetching the first track of {release.name}",
-        )
+        response = _request_first_track(retry_call, release, sp)
     except SpotifyException as exc:
         if exc.http_status != 404:
             raise
@@ -802,15 +807,15 @@ def _read_first(
 def _read_membership_page(
     sp: Spotify, playlist_id: str, retry_call: RetryCall, offset: int
 ) -> MembershipPage:
-    response = retry_call(
-        partial(
-            sp._get,
-            f"playlists/{playlist_id}/items",
-            limit=PLAYLIST_PAGE_LIMIT,
-            offset=offset,
-        ),
-        f"loading queue playlist {playlist_id} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading queue playlist {playlist_id} at offset {offset}"
+    ):
+        with attempt:
+            response = sp._get(
+                f"playlists/{playlist_id}/items",
+                limit=PLAYLIST_PAGE_LIMIT,
+                offset=offset,
+            )
     return catalog_records.membership_page(response, playlist_id)
 
 
@@ -834,3 +839,12 @@ def _stats_reports(raw: dict[str, object]) -> dict[str, StatsReport]:
     for key, value in raw.items():
         history[key] = StatsReport.model_validate(value)
     return history
+
+
+def _request_first_track(
+    retry_call: RetryCall, release: ReleaseCandidate, sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"fetching the first track of {release.name}"):
+        with attempt:
+            return sp.album_tracks(release.spotify_id, limit=1, offset=0)
+    raise AssertionError("Retry scopes must include an attempt")

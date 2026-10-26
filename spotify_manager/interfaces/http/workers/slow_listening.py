@@ -1,6 +1,7 @@
 """Explicit callbacks and wire presentation for SlowListeningWorker."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -10,8 +11,8 @@ from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.slow_listening import (
     SlowListeningPendingChoice,
@@ -44,8 +45,9 @@ class SlowListeningWorker:
         playlist_id: Destination playlist identity.
         dry_run: Whether to preview without durable writes.
         job: Mutable job record owned by this worker.
-        spotify_event_setter: SDK event subscription hook.
-        previous_spotify_event_callback: Original SDK event observer restored on exit.
+
+    Attributes:
+        events: SDK event subscription retaining the original setter binding.
     """
 
     context: PlaylistContext
@@ -54,8 +56,7 @@ class SlowListeningWorker:
     playlist_id: str
     dry_run: bool
     job: _BlastJob = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute an interactive Slow Listening flush as a reconnectable job."""
@@ -87,9 +88,7 @@ class SlowListeningWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def progress_callback(
-        self, completed: int, total: int, progress_status: str
-    ) -> None:
+    def progress(self, completed: int, total: int, progress_status: str) -> None:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
@@ -126,11 +125,9 @@ class SlowListeningWorker:
             self.job.result.status = "waiting"
             self.job.result.detail = detail
             self.context.append(self.job, detail)
-        return await_submission(
-            self.job.choice_event, self._consume_wait_for_submission
-        )
+        return await_submission(self.job.choice_event, self)
 
-    def action_reader(
+    def choose_track(
         self,
         source: new_wine.PlaylistTrack,
         target: new_wine.ReleaseTrack,
@@ -162,7 +159,7 @@ class SlowListeningWorker:
         )
         return choice
 
-    def order_reader(
+    def order_releases(
         self,
         release_date: str,
         candidates: tuple[slow_listening.DiscographyRelease, ...],
@@ -192,7 +189,7 @@ class SlowListeningWorker:
             )
         return order
 
-    def completion_notifier(self, source: new_wine.PlaylistTrack) -> None:
+    def complete(self, source: new_wine.PlaylistTrack) -> None:
         """Wait for acknowledgement of the completed artist.
 
         Args:
@@ -216,7 +213,7 @@ class SlowListeningWorker:
                 "Slow Listening completion was not acknowledged."
             )
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -225,24 +222,16 @@ class SlowListeningWorker:
         if self.job.cancel_event.wait(seconds):
             raise _SlowListeningJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self.echo,
-            sleep=self.interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
+        return SpotifyRetries(self, self, 10, 3).attempts(description)
 
     def _start(self) -> None:
         self.job = self.context.lookup(self.job_id, command="flush_slow_listening")
@@ -257,22 +246,20 @@ class SlowListeningWorker:
                     f"{(' in dry-run mode' if self.dry_run else '')}."
                 ),
             )
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
 
     def _execute(self) -> slow_listening.FlushSummary:
         summary = slow_listening.flush_slow_listening(
             self.spotify,
             self.playlist_id,
-            order_reader=self.order_reader,
-            completion_notifier=self.completion_notifier,
-            action_reader=self.action_reader,
+            order_reader=self,
+            completion_notifier=self,
+            action_reader=self,
             dry_run=self.dry_run,
-            echo=self.echo,
-            progress_callback=self.progress_callback,
-            retry_call=self.retry_call,
+            echo=self,
+            progress_callback=self,
+            retry_call=self,
         )
         return summary
 
@@ -300,8 +287,7 @@ class SlowListeningWorker:
             self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.slow_listening_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
@@ -363,7 +349,15 @@ class SlowListeningWorker:
             self.job.result.detail = f"Unexpected Slow Listening error: {exc}"
             self.context.append(self.job, self.job.result.detail)
 
-    def _consume_wait_for_submission(self) -> tuple[str, tuple[str, ...] | None] | None:
+    def consume(self) -> tuple[str, tuple[str, ...] | None] | None:
+        """Consume an accepted submission while holding the job lock.
+
+        Returns:
+            Original submitted value, or none while the job is waiting.
+
+        Raises:
+            RuntimeError: The job's original cancellation boundary stops execution.
+        """
         with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _SlowListeningJobCancelledError

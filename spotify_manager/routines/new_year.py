@@ -1,8 +1,6 @@
 """Public annual retrospective facade and original synchronous SDK boundaries."""
 
-from collections.abc import Callable
 from datetime import datetime as datetime
-from functools import partial
 from typing import cast
 from zoneinfo import ZoneInfo
 
@@ -12,6 +10,8 @@ from spotify_manager.application.new_year_charts import ChartKind
 from spotify_manager.application.new_year_membership import RetryCall as RetryCall
 from spotify_manager.application.new_year_sources import named_playlist
 from spotify_manager.application.new_year_values import NewYearError as NewYearError
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.bootstrap import new_year as composition
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
 from spotify_manager.core.state.service import StateService
@@ -19,6 +19,7 @@ from spotify_manager.domain.annual_history import YearEntry
 from spotify_manager.domain.annual_history import rank_year as annual_ranking
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.infrastructure import new_year_state
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.routines import blast_from_past as blast_from_past
 from spotify_manager.routines import new_wine as new_wine
 from spotify_manager.routines import palace_of_memory as palace_of_memory
@@ -91,8 +92,8 @@ def run_new_year(
     year: int | None = None,
     dry_run: bool = True,
     state_service: StateService | None = None,
-    echo: Callable[[str], None] = print,
-    cancel_check: Callable[[], bool] | None = None,
+    echo: Messages = STANDARD_OUTPUT,
+    cancel_check: CancellationState | None = None,
     retry_call: RetryCall | None = None,
 ) -> dict[str, object]:
     """Plan all annual markers, then preview or execute the five checkpointed stages.
@@ -147,16 +148,20 @@ def _move_position(sp: Spotify, playlist_id: str, position: int) -> None:
 def _replace_chart(
     sp: Spotify, retry: RetryCall, playlist_id: str, uris: list[str]
 ) -> None:
-    retry(
-        partial(sp._put, f"playlists/{playlist_id}/items", payload={"uris": uris}),
-        "synchronizing the yearly chart in scrobble rank order",
-    )
+    for attempt in retry.attempts(
+        "synchronizing the yearly chart in scrobble rank order"
+    ):
+        with attempt:
+            sp._put(f"playlists/{playlist_id}/items", payload={"uris": uris})
 
 
 def _create_chart(
     sp: Spotify, retry: RetryCall, name: str, kind: ChartKind, year: int
 ) -> str:
-    user = cast(dict[str, str], retry(sp.current_user, "loading Spotify owner"))
+    for attempt in retry.attempts("loading Spotify owner"):
+        with attempt:
+            accepted_response = sp.current_user()
+    user = cast(dict[str, str], accepted_response)
     created = sp.user_playlist_create(
         user["id"],
         name,
@@ -167,9 +172,12 @@ def _create_chart(
 
 
 def _primary_artist(sp: Spotify, retry: RetryCall, uri: str) -> object:
+    for attempt in retry.attempts("checking Memory Lane marker artist"):
+        with attempt:
+            response = sp.track(uri)
     raw = cast(
         dict[str, object],
-        retry(partial(sp.track, uri), "checking Memory Lane marker artist"),
+        response,
     )
     artists = cast(list[dict[str, object]], raw.get("artists", [{}]))
     return artists[0].get("id")

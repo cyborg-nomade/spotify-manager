@@ -1,12 +1,13 @@
 """Gather Queue artist neighborhoods with original cache checkpoint ordering."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
 from typing import Protocol
 
 from spotify_manager.application.ports.calendar import ListeningCalendar
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.domain.queue_candidates import LastFmSimilarArtist
 from spotify_manager.domain.queue_candidates import QueueCandidates
 from spotify_manager.domain.queue_values import ArtistRecommendation
@@ -83,9 +84,9 @@ class QueueRecommendations:
     """
 
     cache: QueueNeighborhoodCache
-    clock: Callable[[], datetime]
+    clock: Clock
     calendar: ListeningCalendar
-    progress: Callable[[int, int, str], None]
+    progress: ReviewProgress
 
     def run(
         self,
@@ -111,7 +112,7 @@ class QueueRecommendations:
             AssertionError: Validated entries changed type.
             QueueStateError: Original cache or prior-addition data is unusable.
         """
-        generated_at = now or self.clock()
+        generated_at = now or self.clock.now()
         active_week = week or listening_week_start(
             self.calendar.local_date(generated_at)
         )
@@ -120,7 +121,9 @@ class QueueRecommendations:
         assert isinstance(entries, dict)
         candidates = QueueCandidates(heard | self.cache.previous())
         for index, seed in enumerate(seeds, start=1):
-            self.progress(index - 1, len(seeds), f"Last.fm neighbors: {seed.artist}")
+            self.progress.progress(
+                index - 1, len(seeds), f"Last.fm neighbors: {seed.artist}"
+            )
             similar = self._neighbors(cache, entries, seed, generated_at, active_week)
             candidates.observe(seed, similar)
         return candidates.ranked(active_week, limit)

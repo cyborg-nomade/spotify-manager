@@ -2,6 +2,8 @@
 
 from typing import Protocol
 
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.models.lookups import AlbumEvaluation
 
@@ -95,3 +97,39 @@ class DiscoveryLibraryPresentation(Protocol):
             action: Original persisted or preview action string.
             dry_run: Whether to use preview wording.
         """
+
+
+class DiscoveryInteraction(Retry, Protocol):
+    """Own the operator, notifications and request policy for one discovery run."""
+
+    def choose(
+        self, artist: str, candidates: tuple[RankedRelease | OwnedPlaylist, ...]
+    ) -> str:
+        """Obtain the operator's release or composer-playlist decision.
+
+        Args:
+            artist: Reviewed artist's display name.
+            candidates: Ordered choices displayed to the operator.
+
+        Returns:
+            Selected identity or the original skip/quit control value.
+        """
+        ...
+
+    def echo(self, message: str) -> None:
+        """Present an observation or an accepted effect.
+
+        Args:
+            message: Original complete message.
+        """
+        ...
+
+    def progress(self, completed: int, total: int, detail: str) -> None:
+        """Report current progress and observe cancellation.
+
+        Args:
+            completed: Original completed-entry count.
+            total: Original expected-entry count.
+            detail: Original current operation description.
+        """
+        ...

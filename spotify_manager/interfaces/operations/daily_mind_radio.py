@@ -5,16 +5,17 @@ from pathlib import Path as Path
 
 from spotipy import Spotify as Spotify
 
-from spotify_manager.application.historical_resolution import direct_call as direct_call
 from spotify_manager.application.historical_values import (
     DailyMindRadioBatch as DailyMindRadioBatch,
 )
 from spotify_manager.application.historical_values import (
     DailyMindRadioSpotifySummary as DailyMindRadioSpotifySummary,
 )
+from spotify_manager.application.ports.runtime import NO_RETRY
 from spotify_manager.bootstrap.historical_playlists import anniversary_playlist
 from spotify_manager.bootstrap.historical_playlists import anniversary_selection
 from spotify_manager.routines import blast_from_past as blast_from_past
+from spotify_manager.routines.blast_from_past import FETCH_RANDOM_TIMESTAMP_RESOURCE
 from spotify_manager.routines.blast_from_past import (
     fetch_random_timestamp as fetch_random_timestamp,
 )
@@ -26,7 +27,7 @@ from spotify_manager.routines.daily_mind_radio import (
 def select_daily_mind_radio(
     path: Path = blast_from_past.DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_timestamp_reader: RandomTimestampReader = (fetch_random_timestamp),
+    random_timestamp_reader: RandomTimestampReader = (FETCH_RANDOM_TIMESTAMP_RESOURCE),
     progress_callback: blast_from_past.ProgressCallback | None = None,
 ) -> DailyMindRadioBatch:
     """Select one scrobble from each populated anniversary date.
@@ -55,9 +56,9 @@ def add_daily_mind_radio_to_spotify(
     playlist_id: str,
     path: Path = blast_from_past.DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_timestamp_reader: RandomTimestampReader = (fetch_random_timestamp),
+    random_timestamp_reader: RandomTimestampReader = (FETCH_RANDOM_TIMESTAMP_RESOURCE),
     progress_callback: blast_from_past.ProgressCallback | None = None,
-    retry_call: blast_from_past.RetryCall = direct_call,
+    retry_call: blast_from_past.RetryCall = NO_RETRY,
     cancel_check: blast_from_past.CancelCheck | None = None,
     dry_run: bool = False,
 ) -> DailyMindRadioSpotifySummary:

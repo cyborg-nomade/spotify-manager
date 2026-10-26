@@ -1,8 +1,8 @@
 """Review releases sequentially and retain accepted-write restart ordering."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from typing import Protocol
 
 from spotify_manager.application.future_release import FutureRecordMatching
 from spotify_manager.application.release_check_values import ReleaseCheckError
@@ -25,9 +25,31 @@ from spotify_manager.domain.release_check_values import ReleaseCheckResult
 from spotify_manager.domain.release_check_values import ReleaseTrack
 
 
-type ReleaseChoiceReader = Callable[
-    [RankedArtist, ReleaseCandidate, ReleaseTrack, tuple[str, ...], bool], str
-]
+class ReleaseChoiceReader(Protocol):
+    """Own the operator interaction for choose release."""
+
+    def choose_release(
+        self,
+        artist: RankedArtist,
+        release: ReleaseCandidate,
+        track: ReleaseTrack,
+        destinations: tuple[str, ...],
+        unattached: bool,
+        /,
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            release: Original interaction value.
+            track: Original interaction value.
+            destinations: Original interaction value.
+            unattached: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 @dataclass(frozen=True)
@@ -259,7 +281,7 @@ class ReleaseReview:
         if not self.progress.preview:
             self.progress.save()
         assert assessment.track is not None
-        return self.reader(
+        return self.reader.choose_release(
             artist, release, assessment.track, destinations, assessment.unattached
         )
 

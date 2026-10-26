@@ -9,6 +9,7 @@ import pytest
 from spotipy import Spotify
 
 from spotify_manager.routines import blast_from_past as routine
+from tests.support.runtime_resources import MessageList
 
 
 def _selection(title: str) -> routine.ScrobbleSelection:
@@ -126,7 +127,7 @@ def _resolve(
         cast(Spotify, object()),
         selections,
         routine.PlaylistState(0, present),
-        progress_callback=steps.messages.append,
+        progress_callback=MessageList(steps.messages),
     )
 
 

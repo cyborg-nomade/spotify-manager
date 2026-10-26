@@ -1,16 +1,19 @@
 """Tests for the Queue 3 chronological discography routine."""
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
-import pytest
-
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
 from spotify_manager.interfaces.requests.queue_3 import Queue3Options
 from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import queue_3
 from spotify_manager.routines import slow_listening
+from tests.support.runtime_resources import DiscardMessages
+from tests.support.runtime_resources import MessageList
+from tests.support.runtime_resources import UnexpectedCall
 
 
 def raw_release(
@@ -250,6 +253,11 @@ def test_saved_composer_route_is_revalidated_with_conservative_matcher() -> None
 
 
 def test_flush_advances_only_first_ten_unique_artists(tmp_path: Path) -> None:
+    """Verify flush advances only first ten unique artists.
+
+    Args:
+        tmp_path: Isolated fixture storage.
+    """
     spotify = FakeSpotify()
     first_tracks: list[dict[str, object]] = []
     for index in range(1, 12):
@@ -287,9 +295,7 @@ def test_flush_advances_only_first_ten_unique_artists(tmp_path: Path) -> None:
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
         Queue3Callbacks(
-            transition_reader=lambda *_args: pytest.fail(
-                "no release boundary should be reached"
-            )
+            transition_reader=UnexpectedCall("no release boundary should be reached")
         ),
         Queue3Resources(
             **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
@@ -306,6 +312,11 @@ def test_flush_advances_only_first_ten_unique_artists(tmp_path: Path) -> None:
 
 
 def test_release_boundary_prompts_once_and_saves_kept_album(tmp_path: Path) -> None:
+    """Release boundary prompts once and saves kept album.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     first = raw_release("first", "First", artist_id="artist", total_tracks=2)
     second = raw_release(
@@ -329,18 +340,10 @@ def test_release_boundary_prompts_once_and_saves_kept_album(tmp_path: Path) -> N
     spotify.liked_track_ids.add("f1")
     transitions: list[tuple[str, str]] = []
 
-    def transition(
-        _source,
-        current: slow_listening.DiscographyRelease,
-        following: slow_listening.DiscographyRelease,
-    ) -> str:
-        transitions.append((current.spotify_id, following.spotify_id))
-        return queue_3.CHOICE_ADVANCE
-
     summary = queue_3.flush_queue_3(
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
-        Queue3Callbacks(transition_reader=transition),
+        Queue3Callbacks(transition_reader=TransitionChoices(transitions)),
         Queue3Resources(
             **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
         ),
@@ -356,6 +359,11 @@ def test_release_boundary_prompts_once_and_saves_kept_album(tmp_path: Path) -> N
 
 
 def test_final_track_unsaves_album_and_removes_artist(tmp_path: Path) -> None:
+    """Final track unsaves album and removes artist.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "final",
@@ -383,7 +391,7 @@ def test_final_track_unsaves_album_and_removes_artist(tmp_path: Path) -> None:
     summary = queue_3.flush_queue_3(
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
-        Queue3Callbacks(transition_reader=automatic_transition),
+        Queue3Callbacks(transition_reader=AutomaticTransitionResource()),
         Queue3Resources(
             **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
         ),
@@ -398,6 +406,11 @@ def test_final_track_unsaves_album_and_removes_artist(tmp_path: Path) -> None:
 
 
 def test_ineligible_marker_moves_to_first_studio_release(tmp_path: Path) -> None:
+    """Ineligible marker moves to first studio release.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     marker_release = raw_release(
         "single",
@@ -428,18 +441,10 @@ def test_ineligible_marker_moves_to_first_studio_release(tmp_path: Path) -> None
     spotify.playlists["queue3"] = [marker]
     transitions: list[tuple[str, str]] = []
 
-    def transition(
-        _source,
-        current: slow_listening.DiscographyRelease,
-        following: slow_listening.DiscographyRelease,
-    ) -> str:
-        transitions.append((current.spotify_id, following.spotify_id))
-        return queue_3.CHOICE_ADVANCE
-
     summary = queue_3.flush_queue_3(
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
-        Queue3Callbacks(transition_reader=transition),
+        Queue3Callbacks(transition_reader=TransitionChoices(transitions)),
         Queue3Resources(
             **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
         ),
@@ -452,6 +457,11 @@ def test_ineligible_marker_moves_to_first_studio_release(tmp_path: Path) -> None
 
 
 def test_artist_without_eligible_releases_is_completed(tmp_path: Path) -> None:
+    """Verify artist without eligible releases is completed.
+
+    Args:
+        tmp_path: Isolated fixture storage.
+    """
     spotify = FakeSpotify()
     single = raw_release(
         "single",
@@ -468,9 +478,7 @@ def test_artist_without_eligible_releases_is_completed(tmp_path: Path) -> None:
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
         Queue3Callbacks(
-            transition_reader=lambda *_args: pytest.fail(
-                "there is no release transition"
-            )
+            transition_reader=UnexpectedCall("there is no release transition")
         ),
         Queue3Resources(
             **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
@@ -483,6 +491,11 @@ def test_artist_without_eligible_releases_is_completed(tmp_path: Path) -> None:
 
 
 def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
+    """Annual import is unique and persisted.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     existing_release = raw_release("existing-r", "Existing", artist_id="existing")
     new_release = raw_release("new-r", "New", artist_id="new")
@@ -505,15 +518,15 @@ def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
         state,
         owned_playlists=queue_3.load_owned_playlists(
             spotify,  # type: ignore[arg-type]
-            lambda operation, _description: operation(),
+            NoRetry(),
             "queue3",
         ),
         active_year=2026,
         dry_run=False,
-        retry_call=lambda operation, _description: operation(),
+        retry_call=NoRetry(),
         state_path=state_path,
         log_path=tmp_path / "log.jsonl",
-        echo=lambda _line: None,
+        echo=DiscardMessages(),
     )
 
     assert [result.action for result in results] == ["already present", "added"]
@@ -532,20 +545,25 @@ def test_annual_import_is_unique_and_persisted(tmp_path: Path) -> None:
         state,
         owned_playlists=queue_3.load_owned_playlists(
             spotify,  # type: ignore[arg-type]
-            lambda operation, _description: operation(),
+            NoRetry(),
             "queue3",
         ),
         active_year=2026,
         dry_run=False,
-        retry_call=lambda operation, _description: operation(),
+        retry_call=NoRetry(),
         state_path=state_path,
         log_path=tmp_path / "log.jsonl",
-        echo=lambda _line: None,
+        echo=DiscardMessages(),
     )
     assert repeated == ()
 
 
 def test_previous_year_import_runs_without_advancing_queue(tmp_path: Path) -> None:
+    """Previous year import runs without advancing queue.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("new-r", "New", artist_id="new")
     marker = raw_track("new-t", "New", release, artist_id="new")
@@ -557,10 +575,10 @@ def test_previous_year_import_runs_without_advancing_queue(tmp_path: Path) -> No
         "queue3",
         active_year=2026,
         dry_run=False,
-        retry_call=lambda operation, _description: operation(),
+        retry_call=NoRetry(),
         state_path=state_path,
         log_path=tmp_path / "log.jsonl",
-        echo=lambda _line: None,
+        echo=DiscardMessages(),
     )
 
     assert summary.additions == 1
@@ -575,6 +593,11 @@ def test_previous_year_import_runs_without_advancing_queue(tmp_path: Path) -> No
 def test_previous_year_import_reports_completed_year_without_api_mutation(
     tmp_path: Path,
 ) -> None:
+    """Previous year import reports completed year without api mutation.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     state_path = completed_annual_state(tmp_path)
     messages: list[str] = []
@@ -584,10 +607,10 @@ def test_previous_year_import_reports_completed_year_without_api_mutation(
         "queue3",
         active_year=2026,
         dry_run=False,
-        retry_call=lambda operation, _description: operation(),
+        retry_call=NoRetry(),
         state_path=state_path,
         log_path=tmp_path / "log.jsonl",
-        echo=messages.append,
+        echo=MessageList(messages),
     )
 
     assert summary.already_completed is True
@@ -599,6 +622,12 @@ def test_previous_year_import_reports_completed_year_without_api_mutation(
 def test_owned_composer_playlist_overrides_discography_and_survives_performer_credit(
     tmp_path: Path,
 ) -> None:
+    """Verify owned composer playlist overrides discography and survives performer
+    credit.
+
+    Args:
+        tmp_path: Isolated fixture storage.
+    """
     spotify = FakeSpotify()
     bach_release = raw_release(
         "bach-release",
@@ -667,9 +696,7 @@ def test_owned_composer_playlist_overrides_discography_and_survives_performer_cr
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
         Queue3Callbacks(
-            transition_reader=lambda *_args: pytest.fail(
-                "composer routes do not prompt by release"
-            )
+            transition_reader=UnexpectedCall("composer routes do not prompt by release")
         ),
         Queue3Resources(**{**paths(tmp_path), "state_path": state_path}),
     )
@@ -685,7 +712,7 @@ def test_owned_composer_playlist_overrides_discography_and_survives_performer_cr
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
         Queue3Callbacks(
-            transition_reader=lambda *_args: pytest.fail(
+            transition_reader=UnexpectedCall(
                 "composer routes do not load a discography"
             )
         ),
@@ -701,6 +728,11 @@ def test_owned_composer_playlist_overrides_discography_and_survives_performer_cr
 def test_multiple_owned_composer_playlists_are_prompted_and_persisted(
     tmp_path: Path,
 ) -> None:
+    """Multiple owned composer playlists are prompted and persisted.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "glass-release",
@@ -738,21 +770,15 @@ def test_multiple_owned_composer_playlists_are_prompted_and_persisted(
     )
     choices: list[tuple[str, tuple[str, ...]]] = []
 
-    def select(artist: str, candidates: tuple[queue_3.OwnedPlaylist, ...]) -> str:
-        choices.append(
-            (artist, tuple(candidate.spotify_id for candidate in candidates))
-        )
-        return "glass-b"
-
     state_path = completed_annual_state(tmp_path)
     summary = queue_3.flush_queue_3(
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
         Queue3Callbacks(
-            transition_reader=lambda *_args: pytest.fail(
+            transition_reader=UnexpectedCall(
                 "composer routes do not prompt by release"
             ),
-            composer_playlist_reader=select,
+            composer_playlist_reader=ComposerChoices(choices),
         ),
         Queue3Resources(**{**paths(tmp_path), "state_path": state_path}),
     )
@@ -764,6 +790,11 @@ def test_multiple_owned_composer_playlists_are_prompted_and_persisted(
 
 
 def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
+    """Verify final composer playlist track completes artist.
+
+    Args:
+        tmp_path: Isolated fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "reich-release",
@@ -788,9 +819,7 @@ def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
         spotify,
         Queue3Options(playlist_id="queue3", active_year=2026),
         Queue3Callbacks(
-            transition_reader=lambda *_args: pytest.fail(
-                "composer routes do not prompt by release"
-            )
+            transition_reader=UnexpectedCall("composer routes do not prompt by release")
         ),
         Queue3Resources(
             **{**paths(tmp_path), "state_path": completed_annual_state(tmp_path)}
@@ -801,3 +830,71 @@ def test_final_composer_playlist_track_completes_artist(tmp_path: Path) -> None:
     assert summary.results[0].composer_playlist == "[CD] Chronological Steve Reich"
     assert summary.results[0].reason == "last track of the composer playlist"
     assert spotify.playlists["queue3"] == []
+
+
+class AutomaticTransitionResource:
+    """Own the original fixed fixture observation."""
+
+    def choose_transition(self, *_args: object) -> str:
+        """Observe the original fixture boundary.
+
+        Returns:
+            Original fixture response.
+        """
+        return automatic_transition()
+
+
+@dataclass(frozen=True)
+class TransitionChoices:
+    """Record original release-boundary prompts before advancing.
+
+    Args:
+        transitions: Original current and following release observations.
+    """
+
+    transitions: list[tuple[str, str]]
+
+    def choose_transition(
+        self,
+        source: queue_3.PlaylistTrack,
+        current: slow_listening.DiscographyRelease,
+        following: slow_listening.DiscographyRelease,
+    ) -> str:
+        """Record the original transition and accept advancement.
+
+        Args:
+            source: Original playlist marker.
+            current: Original completed release.
+            following: Original next eligible release.
+
+        Returns:
+            Original advance control.
+        """
+        self.transitions.append((current.spotify_id, following.spotify_id))
+        return queue_3.CHOICE_ADVANCE
+
+
+@dataclass(frozen=True)
+class ComposerChoices:
+    """Record the original works-playlist ambiguity before selecting Glass B.
+
+    Args:
+        choices: Original artist and offered-playlist observations.
+    """
+
+    choices: list[tuple[str, tuple[str, ...]]]
+
+    def choose_composer(
+        self, artist: str, candidates: tuple[queue_3.OwnedPlaylist, ...]
+    ) -> str:
+        """Select the original second works playlist.
+
+        Args:
+            artist: Original composer display name.
+            candidates: Original owned works playlists.
+
+        Returns:
+            Original selected playlist identity.
+        """
+        self.choices.append((artist, tuple(item.spotify_id for item in candidates)))
+        return "glass-b"

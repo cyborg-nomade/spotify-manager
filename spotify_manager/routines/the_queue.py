@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import Protocol
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.queue_artist_mapping import (
+    QueueArtistChoice as ArtistChoiceReader,
+)
 from spotify_manager.application.queue_fill_values import FillAction as FillAction
 from spotify_manager.application.queue_fill_values import FillResult as FillResult
 from spotify_manager.application.queue_fill_values import FillSummary as FillSummary
@@ -42,6 +46,7 @@ from spotify_manager.domain.queue_values import (
     ArtistRecommendation as ArtistRecommendation,
 )
 from spotify_manager.domain.queue_values import ArtistSeed as ArtistSeed
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.recommendation_calendar import BerlinCalendar
 from spotify_manager.infrastructure.routine_state_codecs import TheQueueStateCodec
 from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
@@ -64,6 +69,15 @@ from spotify_manager.routines.review_artists import (
 )
 
 
+type ProgressCallback = ReviewProgress
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
+
+
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_STATE_PATH = FILES_DIR / "queue_state.json"
 DEFAULT_LOG_PATH = FILES_DIR / "queue_log.jsonl"
@@ -83,14 +97,6 @@ MIN_CANDIDATE_POOL = 100
 CHOICE_SKIP = release_check.CHOICE_SKIP
 CHOICE_QUIT = release_check.CHOICE_QUIT
 CHOICE_SEARCH_PREFIX = release_check.CHOICE_SEARCH_PREFIX
-
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[int, int, str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-ArtistChoiceReader = Callable[
-    ["ArtistRecommendation", tuple[release_check.SpotifyArtistCandidate, ...]],
-    str,
-]
 
 
 class LastFmReader(found_art.LastFmReader, Protocol):
@@ -473,16 +479,9 @@ def _mapping_choice_reader(
     if reader is None:
         return None
 
-    return partial(_read_mapping_choice, reader, recommendation)
+    from spotify_manager.application.queue_artist_mapping import QueueMappingChoice
 
-
-def _read_mapping_choice(
-    reader: ArtistChoiceReader,
-    recommendation: ArtistRecommendation,
-    _artist: release_check.RankedArtist,
-    choices: tuple[release_check.SpotifyArtistCandidate, ...],
-) -> str:
-    return reader(recommendation, choices)
+    return QueueMappingChoice(reader, recommendation)
 
 
 def _playlist_artist_ids(
@@ -507,19 +506,19 @@ def _liked_statuses(
     materialized = tuple(tracks)
     if not materialized:
         return {}
-    response = retry_call(
-        partial(
-            sp.current_user_saved_tracks_contains,
-            [track.spotify_id for track in materialized],
-        ),
-        f"checking {len(materialized)} top tracks in Liked Songs",
-    )
+    for attempt in retry_call.attempts(
+        f"checking {len(materialized)} top tracks in Liked Songs"
+    ):
+        with attempt:
+            response = sp.current_user_saved_tracks_contains(
+                [track.spotify_id for track in materialized]
+            )
     if not isinstance(response, list) or len(response) != len(materialized):
         raise QueueSpotifyError("Spotify returned invalid Liked Songs statuses.")
-    return {
-        track.spotify_id: bool(liked)
-        for track, liked in zip(materialized, response, strict=True)
-    }
+    statuses = {}
+    for track, liked in zip(materialized, response, strict=True):
+        statuses[track.spotify_id] = bool(liked)
+    return statuses
 
 
 def _persist_followed_artist(
@@ -530,9 +529,9 @@ def _persist_followed_artist(
         AlbumArtist(spotify_id=candidate.spotify_id, name=candidate.name)
     )
     if persisted.total_artists_updated:
-        echo(f"Recorded artist in artists_total.json: {candidate.name}")
+        echo.echo(f"Recorded artist in artists_total.json: {candidate.name}")
     if persisted.stats_history_updated:
-        echo("Updated stats_history.json.")
+        echo.echo("Updated stats_history.json.")
 
 
 def _fill_following(
@@ -540,10 +539,11 @@ def _fill_following(
     spotify_artist: release_check.SpotifyArtistCandidate,
     retry: RetryCall,
 ) -> bool:
-    followed_response = retry(
-        partial(sp.current_user_following_artists, [spotify_artist.spotify_id]),
-        f"checking follow status for {spotify_artist.name}",
-    )
+    for attempt in retry.attempts(f"checking follow status for {spotify_artist.name}"):
+        with attempt:
+            followed_response = sp.current_user_following_artists(
+                [spotify_artist.spotify_id]
+            )
     if not isinstance(followed_response, list) or not followed_response:
         raise QueueSpotifyError("Spotify returned invalid artist follow status.")
     return bool(followed_response[0])
@@ -554,10 +554,9 @@ def _fill_follow(
     spotify_artist: release_check.SpotifyArtistCandidate,
     retry: RetryCall,
 ) -> None:
-    retry(
-        partial(sp.user_follow_artists, [spotify_artist.spotify_id]),
-        f"following {spotify_artist.name}",
-    )
+    for attempt in retry.attempts(f"following {spotify_artist.name}"):
+        with attempt:
+            sp.user_follow_artists([spotify_artist.spotify_id])
 
 
 def fill_queue_from_lastfm(
@@ -607,11 +606,26 @@ def _new_flush_run(
 ) -> dict[str, object]:
     from spotify_manager.application.queue_flush import new_flush_run
 
-    return new_flush_run(playlist_id, tracks, DAILY_ARTIST_LIMIT, _flush_clock)
+    return new_flush_run(playlist_id, tracks, DAILY_ARTIST_LIMIT, _FLUSH_CLOCK_RESOURCE)
 
 
 def _flush_clock() -> datetime:
     return datetime.now(UTC)
+
+
+class FlushClockClock:
+    """Observe the original flush clock source directly."""
+
+    def now(self) -> datetime:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _flush_clock()
+
+
+_FLUSH_CLOCK_RESOURCE = FlushClockClock()
 
 
 def _promotion_track(
@@ -655,10 +669,11 @@ def _flush_following(
     source: new_wine.PlaylistTrack,
     retry: RetryCall,
 ) -> bool:
-    followed = retry(
-        partial(sp.current_user_following_artists, [source.primary_artist_id]),
-        f"checking follow status for {source.primary_artist_name}",
-    )
+    for attempt in retry.attempts(
+        f"checking follow status for {source.primary_artist_name}"
+    ):
+        with attempt:
+            followed = sp.current_user_following_artists([source.primary_artist_id])
     if not isinstance(followed, list) or not followed:
         raise QueueSpotifyError("Spotify returned invalid artist follow status.")
     return bool(followed[0])
@@ -669,7 +684,7 @@ def flush_queue(
     playlists: QueuePlaylists,
     *,
     dry_run: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,

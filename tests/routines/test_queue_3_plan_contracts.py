@@ -9,6 +9,7 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
@@ -59,6 +60,24 @@ class PlanChoices:
         """Record a release-order checkpoint before the subsequent prompt."""
         self.events.append(("save", None))
 
+    def choose_transition(
+        self,
+        source: PlaylistTrack,
+        current: DiscographyRelease,
+        following: DiscographyRelease,
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            current: Original fixture observation.
+            following: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(source, current, following)
+
 
 def _retry(operation: Callable[[], object], _description: str) -> object:
     return operation()
@@ -77,12 +96,12 @@ def _plan(
         cast(Spotify, FakeSpotify()),
         source,
         catalog,
-        _retry,
+        NoRetry(),
         cache,
         {},
         {},
         choices,
-        choices.choose,
+        choices,
     )
 
 

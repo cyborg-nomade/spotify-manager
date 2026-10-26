@@ -12,10 +12,6 @@ from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.routines import release_check as legacy
 
 
-def _history_progress(callback: legacy.ProgressCallback, message: str) -> None:
-    callback(0, 0, message)
-
-
 @dataclass
 class LegacyReleaseOpening:
     """Keep original configuration and acquire state only after the effective clock.

@@ -12,6 +12,7 @@ from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.output import StatusOutput
 from spotify_manager.interfaces.cli.resources import CliResources
 from spotify_manager.interfaces.operations import found_art as found_art
 
@@ -122,7 +123,7 @@ class FoundArtCLI:
             else count
         )
         lastfm_client = create_lastfm_client(
-            LastFmCredentials(api_key, username), self._found_art_log
+            LastFmCredentials(api_key, username), FoundArtDiagnostics(self)
         )
         try:
             with self._found_art_console.status(
@@ -136,7 +137,7 @@ class FoundArtCLI:
                     max_playlist_length=max_playlist_length,
                     seed_count=seed_count,
                     dry_run=dry_run,
-                    progress_callback=status.update,
+                    progress_callback=StatusOutput(status),
                 )
         except (found_art.FoundArtError, LastFmError) as exc:
             self._report_found_art_found_art_failure(exc)
@@ -206,3 +207,22 @@ class FoundArtCLI:
             markup=False,
         )
         raise typer.Exit(code=1) from exc
+
+
+@dataclass(frozen=True)
+class FoundArtDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: FoundArtCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            message: Original message.
+        """
+        self.owner._found_art_log(message)

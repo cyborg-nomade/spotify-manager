@@ -11,6 +11,7 @@ import pytest
 from spotipy import Spotify
 
 from spotify_manager.application.dormant_tracks import DormantLikedTrack
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.infrastructure.legacy.dormant_tracks import LegacyDormantCatalog
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import blast_from_past_artists as legacy
@@ -134,6 +135,14 @@ class Observations:
         self.accepted.extend(match.uri for match in matches)
         self._record("append")
 
+    def is_set(self) -> bool:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.cancel()
+
 
 def _immediate(operation: Callable[[], object], description: str) -> object:
     return operation()
@@ -153,9 +162,9 @@ def _run(effects: Observations, preview: bool = False) -> legacy.DormantArtistSu
         "destination",
         count=1,
         today=date(2026, 9, 25),
-        progress_callback=effects.progress,
-        cancel_check=effects.cancel,
-        retry_call=_immediate,
+        progress_callback=effects,
+        cancel_check=effects,
+        retry_call=NoRetry(),
         dry_run=preview,
     )
 

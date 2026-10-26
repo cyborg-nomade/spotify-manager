@@ -1,6 +1,5 @@
 """Coordinate Golden Oldies matching, interactive choices and ordered recipes."""
 
-from collections.abc import Callable
 from collections.abc import Iterable
 from typing import Protocol
 
@@ -18,8 +17,40 @@ from spotify_manager.domain.golden_selection import SpotifyArtistCandidate
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
 
 
-type ArtistChoice = Callable[[str, tuple[SpotifyArtistCandidate, ...]], str]
-type AlbumChoice = Callable[[GoldenOldieArtist, tuple[DiscographyRelease, ...]], str]
+class ArtistChoice(Protocol):
+    """Own the operator interaction for choose artist."""
+
+    def choose_artist(
+        self, artist: str, candidates: tuple[SpotifyArtistCandidate, ...], /
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            candidates: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
+
+
+class AlbumChoice(Protocol):
+    """Own the operator interaction for choose album."""
+
+    def choose_album(
+        self, artist: GoldenOldieArtist, candidates: tuple[DiscographyRelease, ...], /
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            candidates: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 class GoldenMatches(Protocol):
@@ -98,7 +129,7 @@ def resolve_artist(
         raise SomethingOldSpotifyError(
             f"Spotify returned {len(candidates)} exact artists named {name}."
         )
-    choice = choose(name, candidates)
+    choice = choose.choose_artist(name, candidates)
     if choice == "quit":
         return None
     for candidate in candidates:
@@ -188,7 +219,7 @@ def select_album(
         raise SomethingOldSpotifyError(
             f"No studio albums or EPs were found for {mapped.name}."
         )
-    choice = choose(artist, releases)
+    choice = choose.choose_album(artist, releases)
     if choice == "quit":
         return None, ()
     release = _selected_release(releases, choice)

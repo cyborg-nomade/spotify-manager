@@ -1,6 +1,5 @@
 """Compose saved-album review from caller-owned resources."""
 
-from collections.abc import Callable
 from pathlib import Path
 
 from spotipy import Spotify
@@ -8,6 +7,8 @@ from spotipy import Spotify
 from spotify_manager.application.album_limits import review_albums
 from spotify_manager.application.artist_follows import ArtistFollowOutcome
 from spotify_manager.application.artist_follows import follow_album_artist
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.core.state.service import StateService
 from spotify_manager.infrastructure.legacy.album_limits import AlbumArtistAdapter
 from spotify_manager.infrastructure.legacy.album_limits import LegacyAlbumReview
@@ -45,12 +46,12 @@ def run_album_review(
     threshold: float,
     use_cache: bool,
     refresh_cache: bool,
-    echo: Callable[[str], None],
+    echo: Messages,
     log_path: Path,
     decisions_path: Path,
     state_service: StateService | None,
     progress_callback: ProgressCallback | None,
-    sleep: Callable[[float], None],
+    sleep: Wait,
     retry_delay: int,
     max_attempts: int,
 ) -> None:

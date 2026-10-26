@@ -1,6 +1,7 @@
 """Explicit callbacks and wire presentation for NewWineWorker."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -12,12 +13,13 @@ from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
 from spotify_manager.application.new_wine import NewWineOptions
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.wine import NewWinePendingChoice
 from spotify_manager.interfaces.http.models.wine import NewWineReleaseOption
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.playlist_retry import RateLimitRetries
 from spotify_manager.interfaces.http.presenters.wine import (
     new_wine_refill_result as _new_wine_refill_result,
 )
@@ -43,6 +45,10 @@ class NewWineWorker:
         job_id: Caller-owned job id.
         spotify: Caller-owned spotify.
         rate_limit_delay: Caller-owned rate limit delay.
+
+    Attributes:
+        job: Resolved reconnectable job state.
+        events: SDK event subscription retaining the original setter binding.
     """
 
     options: NewWineOptions
@@ -51,8 +57,7 @@ class NewWineWorker:
     spotify: Spotify
     rate_limit_delay: int
     job: _BlastJob = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute one interactive New Wine flush as a reconnectable web job."""
@@ -84,9 +89,7 @@ class NewWineWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def progress_callback(
-        self, completed: int, total: int, progress_status: str
-    ) -> None:
+    def progress(self, completed: int, total: int, progress_status: str) -> None:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
@@ -101,7 +104,7 @@ class NewWineWorker:
             self.job.result.total = total
             self.job.result.detail = progress_status
 
-    def choice_reader(
+    def choose_release(
         self,
         source: new_wine.PlaylistTrack,
         candidates: tuple[new_wine.ReleaseCandidate, ...],
@@ -131,9 +134,9 @@ class NewWineWorker:
                 f"Choose a release for {source.primary_artist_name} after {source.name}"
             )
             self.context.append(self.job, self.job.result.detail)
-        return await_submission(self.job.choice_event, self._consume_choice_reader)
+        return await_submission(self.job.choice_event, self)
 
-    def endpoint_choice_reader(
+    def choose_endpoint(
         self,
         source: new_wine.PlaylistTrack,
         tracks: tuple[new_wine.ReleaseTrack, ...],
@@ -167,11 +170,9 @@ class NewWineWorker:
                 f"Is {source.name} the last canonical track of {source.release.name}?"
             )
             self.context.append(self.job, self.job.result.detail)
-        return await_submission(
-            self.job.choice_event, self._consume_endpoint_choice_reader
-        )
+        return await_submission(self.job.choice_event, EndpointSubmission(self))
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -180,32 +181,18 @@ class NewWineWorker:
         if self.job.cancel_event.wait(seconds):
             raise _NewWineJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        while True:
-            try:
-                result = review_album_limits.retry_spotify_server_errors(
-                    operation,
-                    description,
-                    echo=self.echo,
-                    sleep=self.interruptible_sleep,
-                    retry_delay_seconds=10,
-                    max_attempts=3,
-                )
-            except review_album_limits.SpotifyRateLimitError as exc:
-                self._wait_for_rate_limit(exc, description)
-                continue
-            with self.context.lock:
-                self.job.result.retry_at = None
-            return result
+        return RateLimitRetries(SpotifyRetries(self, self, 10, 3), self).attempts(
+            description
+        )
 
     def _start(self) -> None:
         self.job = self.context.lookup(self.job_id, command="flush_new_wine")
@@ -220,21 +207,19 @@ class NewWineWorker:
                     f"{(' in dry-run mode' if self.options.dry_run else '')}."
                 ),
             )
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
 
     def _execute(self) -> new_wine.FlushSummary:
         summary = new_wine.flush_new_wine(
             self.spotify,
             self.options,
             NewWineCallbacks(
-                choose=self.choice_reader,
-                endpoint=self.endpoint_choice_reader,
-                echo=self.echo,
-                progress=self.progress_callback,
-                retry=self.retry_call,
+                choose=self,
+                endpoint=self,
+                output=self,
+                progress=self,
+                retry=self,
             ),
             storage=NewWineStorage(),
         )
@@ -269,8 +254,7 @@ class NewWineWorker:
             self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
@@ -331,7 +315,15 @@ class NewWineWorker:
             self.job.result.detail = f"Unexpected New Wine error: {exc}"
             self.context.append(self.job, self.job.result.detail)
 
-    def _consume_choice_reader(self) -> str | None:
+    def consume(self) -> str | None:
+        """Consume an accepted submission while holding the job lock.
+
+        Returns:
+            Original submitted value, or none while the job is waiting.
+
+        Raises:
+            RuntimeError: The job's original cancellation boundary stops execution.
+        """
         with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _NewWineJobCancelledError
@@ -378,9 +370,15 @@ class NewWineWorker:
             )
         return entries
 
-    def _wait_for_rate_limit(
+    def wait_for_rate_limit(
         self, exc: review_album_limits.SpotifyRateLimitError, description: str
     ) -> None:
+        """Wait at the job's original rate-limit boundary.
+
+        Args:
+            exc: Original operation context.
+            description: Original operation context.
+        """
         delay = max(1, exc.retry_after_seconds or self.rate_limit_delay)
         retry_at = self.context.clock.now(UTC) + timedelta(seconds=delay)
         message = (
@@ -393,7 +391,7 @@ class NewWineWorker:
             self.job.result.retry_at = retry_at.isoformat()
             self.job.result.detail = message
             self.context.append(self.job, message)
-        self.interruptible_sleep(delay)
+        self.sleep(delay)
         with self.context.lock:
             self.job.result.retry_at = None
             self.job.result.detail = f"Retrying {description}."
@@ -405,3 +403,27 @@ class NewWineWorker:
                 f" New Wine {summary.refill.before} -> {summary.refill.after}; "
                 f"{summary.refill.added} pulled from Wine Cellar."
             )
+
+    def retry_accepted(self) -> None:
+        """Clear the original retry timestamp after a successful operation."""
+        with self.context.lock:
+            self.job.result.retry_at = None
+
+
+@dataclass(frozen=True)
+class EndpointSubmission:
+    """Consume this job's canonical album endpoint response.
+
+    Args:
+        worker: Job owning its pending choice, lock and signal.
+    """
+
+    worker: NewWineWorker
+
+    def consume(self) -> str | None:
+        """Consume the original locked endpoint response.
+
+        Returns:
+            Original response or none while the job is waiting.
+        """
+        return self.worker._consume_endpoint_choice_reader()

@@ -132,7 +132,7 @@ class ReleaseOrdering:
         ids = (
             tuple(release.spotify_id for release in releases)
             if self.choose is None
-            else self.choose(date, releases)
+            else self.choose.order_releases(date, releases)
         )
         if len(ids) != len(releases) or set(ids) != expected:
             raise SlowListeningError("Release ordering must include every option.")
@@ -278,7 +278,7 @@ class TrackSelection:
         if target.spotify_id in self.skipped_ids:
             self.skipped_labels.append(label)
             return "skip"
-        choice = self.choose(self.source, target, release)
+        choice = self.choose.choose_track(self.source, target, release)
         if choice == "quit" or choice == "advance":
             return choice
         if choice != "skip":

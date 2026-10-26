@@ -291,6 +291,41 @@ class Trace:
         self.record(operation, "interrupted", phase)
         raise EffectInterruptedError(f"{operation}: {phase} acceptance")
 
+    def echo(self, message: str) -> None:
+        """Record an original message without changing its trace representation.
+
+        Args:
+            message: Complete original text.
+        """
+        self.record("echo", "message", message)
+
+    def answer[R](
+        self, operation: str, remaining: deque[R], *args: object, **kwargs: object
+    ) -> R:
+        """Consume one strict answer at the original recorded prompt boundary.
+
+        Args:
+            operation: Original observation name.
+            remaining: Original ordered scripted answers.
+            args: Original prompt values.
+            kwargs: Original named prompt values.
+
+        Returns:
+            The next unchanged scripted answer.
+
+        Raises:
+            AssertionError: An unexpected extra prompt is observed.
+            EffectInterruptedError: The selected boundary is interrupted.
+        """
+        occurrence = self.counts.get(operation, 0) + 1
+        self.counts[operation] = occurrence
+        self.record(operation, "call", {"args": args, "kwargs": kwargs})
+        self.inject(operation, "before", occurrence)
+        result = _choose(remaining, operation)
+        self.record(operation, "accepted", result)
+        self.inject(operation, "after", occurrence)
+        return result
+
     def wrap[**P, R](self, operation: str, function: Callable[P, R]) -> Callable[P, R]:
         """Bind recording around an existing function without a closure.
 

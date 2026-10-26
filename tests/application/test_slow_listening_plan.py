@@ -61,7 +61,7 @@ def _ordering(memory: Choices) -> ReleaseOrdering:
     orders: dict[str, object] = {}
     memory.state["release_orders"] = orders
     return ReleaseOrdering(
-        memory.order, orders, NamespaceCheckpoint(memory, memory.state, False)
+        memory, orders, NamespaceCheckpoint(memory, memory.state, False)
     )
 
 
@@ -71,7 +71,7 @@ def _selection(memory: Choices) -> TrackSelection:
         memory.releases,
         StudioObservations(memory),
         _ordering(memory),
-        memory.choose,
+        memory,
         set(),
         cast(SkippedTracks, ScriptedSkips(memory)),
     )

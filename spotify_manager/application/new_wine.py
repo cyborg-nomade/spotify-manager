@@ -1,10 +1,8 @@
 """Coordinate New Wine planning, ordered execution and resumable cellar refill."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
-from datetime import datetime
 from typing import cast
 
 from spotify_manager.application.new_wine_execution import WineExecution
@@ -20,6 +18,8 @@ from spotify_manager.application.new_wine_values import NewWineStateError
 from spotify_manager.application.new_wine_values import ReleaseChoiceReader
 from spotify_manager.application.ports.new_wine import NewWineAccess
 from spotify_manager.application.ports.new_wine import NewWinePresentation
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.wine_cellar import CellarOptions
 from spotify_manager.application.wine_cellar import CellarWorkflow
 from spotify_manager.domain.catalog import PlaylistTrack
@@ -67,8 +67,8 @@ class NewWineDependencies:
     choose: ReleaseChoiceReader
     endpoint: EndpointChoiceReader | None
     presentation: NewWinePresentation
-    clock: Callable[[], datetime]
-    progress: Callable[[int, int, str], None] | None = None
+    clock: Clock
+    progress: ReviewProgress | None = None
 
 
 def flush_new_wine(
@@ -156,7 +156,7 @@ def _resumable(raw: object, playlist_id: str) -> bool:
 def new_run(
     options: NewWineOptions,
     tracks: tuple[PlaylistTrack, ...],
-    clock: Callable[[], datetime],
+    clock: Clock,
 ) -> dict[str, object]:
     """Snapshot original markers with the existing run layout and clock boundaries.
 
@@ -169,13 +169,13 @@ def new_run(
         Original active-run record with no pending refill transfer.
     """
     return {
-        "run_id": clock().strftime("%Y%m%dT%H%M%S%fZ"),
+        "run_id": clock.now().strftime("%Y%m%dT%H%M%S%fZ"),
         "playlist_id": options.destination,
         "wine_cellar_playlist_id": options.cellar,
         "no_discovery": options.no_discovery,
         "choose_album_endpoints": options.endpoint_mode,
         "status": "active",
-        "created_at": clock().isoformat(),
+        "created_at": clock.now().isoformat(),
         "entries": _snapshot(tracks),
         "refill_pending": None,
     }
@@ -302,7 +302,7 @@ class NewWineRun:
 
     def _progress(self, completed: int, label: str) -> None:
         if self.dependencies.progress is not None:
-            self.dependencies.progress(completed, len(self.entries), label)
+            self.dependencies.progress.progress(completed, len(self.entries), label)
 
     def _refill(self) -> CellarRefillSummary | None:
         cellar = self.run.get("wine_cellar_playlist_id")
@@ -333,7 +333,7 @@ class NewWineRun:
         if self.options.dry_run or self.paused or not _finished(self.entries):
             return
         self.run["status"] = "completed"
-        self.run["completed_at"] = self.dependencies.clock().isoformat()
+        self.run["completed_at"] = self.dependencies.clock.now().isoformat()
         self.dependencies.access.save(self.state)
 
     def _summary(self, refill: CellarRefillSummary | None) -> FlushSummary:

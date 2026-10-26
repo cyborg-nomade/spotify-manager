@@ -1,12 +1,12 @@
 """Tolerant playlist paging and ownership observations for composer routes."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.domain.composers import OwnedPlaylist
 
 
@@ -35,7 +35,7 @@ class SpotifyPlaylistPages:
     """
 
     spotify: Spotify
-    retry: Callable[[Callable[[], object], str], object]
+    retry: Retry
 
     def read(self, offset: int) -> object:
         """Read one account playlist page.

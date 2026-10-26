@@ -29,6 +29,7 @@ from spotify_manager.infrastructure.legacy_library_resources import (
     SpotifyPlaylistWrites,
 )
 from spotify_manager.infrastructure.legacy_library_resources import SpotifyTrackRead
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
@@ -187,7 +188,7 @@ def check(
         albums,
         SpotifyControlMembership(cast(Spotify, client)),
         files(memory),
-        print,
+        STANDARD_OUTPUT,
     )
 
 
@@ -204,7 +205,7 @@ def statistics(
     Returns:
         Recorded boundary result.
     """
-    return control.update_statistics(decisions, albums, files(memory), print)
+    return control.update_statistics(decisions, albums, files(memory), STANDARD_OUTPUT)
 
 
 def playlist(memory: Memory, client: Catalog) -> MonthlyPlaylist:
@@ -240,12 +241,14 @@ def run(scenario: Scenario, memory: Memory, client: Catalog) -> object:
     """
     if scenario.workflow in ("update", "incremental"):
         deps = MemoryAlbumRefresh(cast(Spotify, client), memory)
-        return refresh.refresh(deps, scenario.workflow == "incremental", print)
+        return refresh.refresh(
+            deps, scenario.workflow == "incremental", STANDARD_OUTPUT
+        )
     if scenario.workflow == "monthly":
         actions = MonthlyActions(
             SpotifyControlMembership(cast(Spotify, client)), playlist(memory, client)
         )
-        monthly.run(files(memory), actions, print)
+        monthly.run(files(memory), actions, STANDARD_OUTPUT)
         return None
     if scenario.workflow == "control":
         return check(memory, client, memory.control, memory.albums)
@@ -266,15 +269,15 @@ def other_run(scenario: Scenario, memory: Memory, client: Catalog) -> object:
         Recorded boundary result.
     """
     if scenario.workflow == "convert":
-        conversion.convert(files(memory), catalog(client), print)
+        conversion.convert(files(memory), catalog(client), STANDARD_OUTPUT)
         return None
     if scenario.workflow == "analyse":
-        conversion.analyse(files(memory), catalog(client), print)
+        conversion.analyse(files(memory), catalog(client), STANDARD_OUTPUT)
         return None
     if scenario.workflow == "restore":
-        conversion.restore(files(memory), catalog(client), print)
+        conversion.restore(files(memory), catalog(client), STANDARD_OUTPUT)
         return None
     if scenario.workflow == "compare":
-        conversion.compare(files(memory), LegacyComparisonMetadata(), print)
+        conversion.compare(files(memory), LegacyComparisonMetadata(), STANDARD_OUTPUT)
         return None
     return monthly.count_artists(files(memory))

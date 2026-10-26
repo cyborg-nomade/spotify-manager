@@ -25,6 +25,9 @@ class ScrobbleHistoryWorker:
         dry_run: Invocation-owned dry run.
         full_rebuild: Invocation-owned full rebuild.
         create_lastfm: Invocation-owned create lastfm.
+
+    Attributes:
+        job: Resolved reconnectable job state.
     """
 
     context: PlaylistContext
@@ -58,7 +61,7 @@ class ScrobbleHistoryWorker:
         Args:
             message: Original routine-supplied message.
         """
-        scrobble_history.check_cancel(self.job.cancel_event.is_set)
+        scrobble_history.check_cancel(self.job.cancel_event)
         with self.context.lock:
             self.job.result.detail = message
             self.context.append(self.job, message)
@@ -76,7 +79,7 @@ class ScrobbleHistoryWorker:
                 else "Last.fm scrobble history update started.",
             )
         self.lastfm = lastfm_client(
-            LastFmCredentials(self.api_key, self.username), self.echo
+            LastFmCredentials(self.api_key, self.username), self
         )
 
     def _execute(self) -> scrobble_history.ScrobbleHistorySummary:
@@ -85,8 +88,8 @@ class ScrobbleHistoryWorker:
             expected_username=self.username,
             dry_run=self.dry_run,
             full_rebuild=self.full_rebuild,
-            progress_callback=self.echo,
-            cancel_check=self.job.cancel_event.is_set,
+            progress_callback=self,
+            cancel_check=self.job.cancel_event,
         )
         return summary
 

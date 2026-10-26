@@ -1,6 +1,7 @@
 """Explicit queue CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Never
@@ -10,10 +11,12 @@ from rich.console import Console
 from rich.progress import Progress
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.cli.display import ConsoleDisplay
 from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
@@ -45,7 +48,7 @@ class QueueCLI:
 
     progress_display: ProgressDisplay
     display: ConsoleDisplay
-    sleep: Callable[[float], None]
+    sleep: Wait
 
     def _render_queue_fill_table(
         self, console: Console, results: tuple[the_queue.FillResult, ...]
@@ -215,7 +218,7 @@ class QueueCLI:
             else count
         )
         lastfm_client = create_lastfm_client(
-            LastFmCredentials(api_key, username), self._fill_queue_from_lastfm_log
+            LastFmCredentials(api_key, username), FillQueueFromLastfmDiagnostics(self)
         )
         summary = self._execute_fill_queue_from_lastfm(
             dry_run,
@@ -234,18 +237,6 @@ class QueueCLI:
         elif line.startswith("Would"):
             style = "yellow"
         self._fill_queue_from_lastfm_console.print(line, style=style, markup=False)
-
-    def _fill_queue_from_lastfm_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._fill_queue_from_lastfm_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
 
     def _fill_queue_from_lastfm_update_progress(
         self, completed: int, total: int, status: str
@@ -304,9 +295,9 @@ class QueueCLI:
                     self.runtime.review_client(),
                     playlists,
                     dry_run=dry_run,
-                    echo=self._flush_queue_echo,
-                    progress_callback=self._flush_queue_update_progress,
-                    retry_call=self._flush_queue_retry_call,
+                    echo=FlushQueueInteraction(self),
+                    progress_callback=FlushQueueInteraction(self),
+                    retry_call=FlushQueueInteraction(self),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_queue_rate_limit(exc)
@@ -337,18 +328,6 @@ class QueueCLI:
         elif line.startswith("Unfollowed"):
             style = "bold red"
         self._flush_queue_console.print(line, style=style, markup=False)
-
-    def _flush_queue_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._flush_queue_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
 
     def _flush_queue_update_progress(
         self, completed: int, total: int, status: str
@@ -577,10 +556,10 @@ class QueueCLI:
                         dry_run=dry_run,
                     ),
                     QueueFillCallbacks(
-                        choice_reader=self._fill_queue_from_lastfm_ask_queue_artist,
-                        echo=self._fill_queue_from_lastfm_echo,
-                        progress_callback=self._fill_queue_from_lastfm_update_progress,
-                        retry_call=self._fill_queue_from_lastfm_retry_call,
+                        choice_reader=FillQueueFromLastfmInteraction(self),
+                        output=FillQueueFromLastfmInteraction(self),
+                        progress_callback=FillQueueFromLastfmInteraction(self),
+                        retry_call=FillQueueFromLastfmInteraction(self),
                     ),
                     QueueFillResources(),
                 )
@@ -673,3 +652,120 @@ class QueueCLI:
             if search_text.strip():
                 return f"{the_queue.CHOICE_SEARCH_PREFIX}{search_text.strip()}"
             console.print("Search text cannot be empty.", style="bold yellow")
+
+
+@dataclass(frozen=True)
+class FillQueueFromLastfmInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: QueueCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._fill_queue_from_lastfm_echo(message)
+
+    def progress(self, completed: int, total: int, status: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            completed: Original completed.
+            total: Original total.
+            status: Original status.
+        """
+        self.owner._fill_queue_from_lastfm_update_progress(completed, total, status)
+
+    def choose_artist(
+        self,
+        recommendation: the_queue.ArtistRecommendation,
+        candidates: tuple[release_check.SpotifyArtistCandidate, ...],
+    ) -> str:
+        """Use this command's fixed choose artist prompt.
+
+        Args:
+            recommendation: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._fill_queue_from_lastfm_ask_queue_artist(
+            recommendation, candidates
+        )
+
+
+@dataclass(frozen=True)
+class FlushQueueInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: QueueCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._flush_queue_echo(message)
+
+    def progress(self, completed: int, total: int, status: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            completed: Original completed.
+            total: Original total.
+            status: Original status.
+        """
+        self.owner._flush_queue_update_progress(completed, total, status)
+
+
+@dataclass(frozen=True)
+class FillQueueFromLastfmDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: QueueCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            message: Original message.
+        """
+        self.owner._fill_queue_from_lastfm_log(message)

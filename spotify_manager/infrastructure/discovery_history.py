@@ -1,19 +1,20 @@
 """Read annual discovery progress and refresh canonical history before review."""
 
-from collections.abc import Callable
 from pathlib import Path
 
 from spotify_manager.application.discovery_review import ProgressCallback
 from spotify_manager.application.new_kids_values import NewKidsConfigError
 from spotify_manager.application.new_kids_values import NewKidsStateError
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain import discovery_history as history_policy
 from spotify_manager.domain.discovery_history import AnnualScrobbleIndex
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines.new_kids import DEFAULT_SCROBBLES_PATH
 
 
-type Echo = Callable[[str], None]
+type Echo = Messages
 
 
 def load_annual_scrobble_index(
@@ -50,7 +51,7 @@ def refresh_scrobbles_for_release_progress(
     username: str,
     *,
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
 ) -> scrobble_history.ScrobbleHistorySummary:
     """Refresh shared history before deriving annual release progress.
 
@@ -84,7 +85,7 @@ def refresh_scrobbles_for_release_progress(
         None,
     )
     summary = workflow.run(username, False, False)
-    echo(
+    echo.echo(
         "Last.fm release history ready: "
         f"{summary.live_scrobbles_added} new scrobble(s), "
         f"{summary.total_scrobbles} total."
@@ -121,7 +122,7 @@ def refresh_release_history(
             f"LASTFM_USERNAME is required to refresh {label} release progress."
         )
     if progress:
-        progress(0, 0, "Refreshing Last.fm release history")
+        progress.progress(0, 0, "Refreshing Last.fm release history")
     refresh_scrobbles_for_release_progress(
         lastfm, username, scrobbles_path=path, echo=echo
     )

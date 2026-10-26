@@ -174,6 +174,14 @@ class RefreshBoundary:
         self.step("audit")
         assert summary.persisted
 
+    def is_set(self) -> bool:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.cancel()
+
 
 def _install(boundary: RefreshBoundary, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
@@ -195,7 +203,7 @@ def _refresh(
         boundary,
         legacy_delta_path=None,
         now=datetime.fromtimestamp(10, UTC),
-        cancel_check=boundary.cancel,
+        cancel_check=boundary,
         dry_run=dry_run,
     )
 

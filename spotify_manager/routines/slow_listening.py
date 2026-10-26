@@ -1,11 +1,9 @@
 """Advance the first two Slow Listening entries through studio discographies."""
 
 import json
-from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import Literal
 from typing import cast
@@ -13,11 +11,20 @@ from typing import cast
 from spotipy import Spotify
 
 from spotify_manager.application.checkpoints import Checkpoint
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.slow_listening import new_run
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
+from spotify_manager.application.slow_listening_values import (
+    CompletionNotifier as CompletionNotifier,
+)
 from spotify_manager.application.slow_listening_values import FlushResult as FlushResult
 from spotify_manager.application.slow_listening_values import (
     FlushSummary as FlushSummary,
+)
+from spotify_manager.application.slow_listening_values import (
+    ReleaseOrderReader as ReleaseOrderReader,
 )
 from spotify_manager.application.slow_listening_values import (
     SlowListeningCancelledError as SlowListeningCancelledError,
@@ -31,6 +38,9 @@ from spotify_manager.application.slow_listening_values import (
 from spotify_manager.application.slow_listening_values import (
     SlowListeningStateError as SlowListeningStateError,
 )
+from spotify_manager.application.slow_listening_values import (
+    TrackActionReader as TrackActionReader,
+)
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.compat import StateLocation
 from spotify_manager.core.state.compat import routine_state_from
@@ -42,8 +52,18 @@ from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRele
 from spotify_manager.domain.catalog import release_candidate
 from spotify_manager.domain.slow_listening import track_index
 from spotify_manager.infrastructure import studio_records
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.routine_state_codecs import SlowListeningStateCodec
 from spotify_manager.routines import new_wine
+
+
+type ProgressCallback = ReviewProgress
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -64,22 +84,7 @@ TRAILING_EDITION = release_policy.TRAILING_EDITION
 EP_MARKER = release_policy.EP_MARKER
 NON_STUDIO_PATTERNS = release_policy.NON_STUDIO_PATTERNS
 
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[int, int, str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-ReleaseOrderReader = Callable[
-    [str, tuple["DiscographyRelease", ...]],
-    tuple[str, ...],
-]
-CompletionNotifier = Callable[[new_wine.PlaylistTrack], None]
-TrackActionReader = Callable[
-    [
-        new_wine.PlaylistTrack,
-        new_wine.ReleaseTrack,
-        "DiscographyRelease",
-    ],
-    str,
-]
+
 FlushAction = Literal["advance", "complete", "skip"]
 
 
@@ -155,10 +160,7 @@ def _load_saved_statuses(
     ids = [release.spotify_id for release in releases]
     for start in range(0, len(ids), SAVED_ALBUM_BATCH_SIZE):
         batch = ids[start : start + SAVED_ALBUM_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.current_user_saved_albums_contains, batch),
-            f"checking {len(batch)} saved Slow Listening releases",
-        )
+        response = _read_saved_batch(retry_call, batch, sp)
         if not isinstance(response, list) or len(response) != len(batch):
             raise SlowListeningError("Spotify returned invalid saved-album statuses.")
         for spotify_id, saved in zip(batch, response, strict=True):
@@ -174,16 +176,16 @@ def _tie_key(artist_id: str, chronology_date: str) -> str:
 def _artist_release_page(
     sp: Spotify, artist_id: str, offset: int, retry_call: RetryCall
 ) -> dict[str, object]:
-    response = retry_call(
-        partial(
-            sp.artist_albums,
-            artist_id,
-            include_groups="album,single",
-            limit=ARTIST_RELEASE_PAGE_LIMIT,
-            offset=offset,
-        ),
-        f"loading Slow Listening releases for {artist_id} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading Slow Listening releases for {artist_id} at offset {offset}"
+    ):
+        with attempt:
+            response = sp.artist_albums(
+                artist_id,
+                include_groups="album,single",
+                limit=ARTIST_RELEASE_PAGE_LIMIT,
+                offset=offset,
+            )
     if not isinstance(response, dict) or not isinstance(response.get("items"), list):
         raise SlowListeningError("Spotify returned invalid artist releases.")
     return cast(dict[str, object], response)
@@ -419,7 +421,7 @@ def append_log(
 def _new_run(
     playlist_id: str, tracks: tuple[new_wine.PlaylistTrack, ...]
 ) -> dict[str, object]:
-    return new_run(playlist_id, tracks, _clock)
+    return new_run(playlist_id, tracks, _CLOCK_RESOURCE)
 
 
 def _track_index(
@@ -435,10 +437,9 @@ def _add_playlist_track(
     retry_call: RetryCall,
 ) -> None:
     """Add a replacement before removing its source."""
-    retry_call(
-        partial(_post_track, sp, playlist_id, track),
-        f"adding {track.name} to Slow Listening",
-    )
+    for attempt in retry_call.attempts(f"adding {track.name} to Slow Listening"):
+        with attempt:
+            _post_track(sp, playlist_id, track)
 
 
 def _remove_playlist_track(
@@ -448,10 +449,9 @@ def _remove_playlist_track(
     retry_call: RetryCall,
 ) -> None:
     """Remove the processed source after its replacement is secure."""
-    retry_call(
-        partial(_delete_track, sp, playlist_id, source),
-        f"removing {source.name} from Slow Listening",
-    )
+    for attempt in retry_call.attempts(f"removing {source.name} from Slow Listening"):
+        with attempt:
+            _delete_track(sp, playlist_id, source)
 
 
 def flush_slow_listening(
@@ -462,7 +462,7 @@ def flush_slow_listening(
     *,
     action_reader: TrackActionReader | None = None,
     dry_run: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
@@ -515,6 +515,21 @@ def _clock() -> datetime:
     return datetime.now(UTC)
 
 
+class ClockClock:
+    """Observe the original clock source directly."""
+
+    def now(self) -> datetime:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _clock()
+
+
+_CLOCK_RESOURCE = ClockClock()
+
+
 def _post_track(sp: Spotify, playlist_id: str, track: new_wine.ReleaseTrack) -> object:
     return sp._post(f"playlists/{playlist_id}/items", payload={"uris": [track.uri]})
 
@@ -525,3 +540,12 @@ def _delete_track(
     return sp._delete(
         f"playlists/{playlist_id}/items", payload={"items": [{"uri": source.uri}]}
     )
+
+
+def _read_saved_batch(retry_call: RetryCall, batch: list[str], sp: Spotify) -> object:
+    for attempt in retry_call.attempts(
+        f"checking {len(batch)} saved Slow Listening releases"
+    ):
+        with attempt:
+            return sp.current_user_saved_albums_contains(batch)
+    raise AssertionError("Retry scopes must include an attempt")

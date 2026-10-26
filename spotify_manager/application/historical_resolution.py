@@ -1,12 +1,13 @@
 """Resolve historical plays with ordered searches and one shared liked observation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
 from spotify_manager.application.historical_values import SpotifySelectionResolution
 from spotify_manager.application.historical_values import SpotifySelectionResult
 from spotify_manager.application.ports.history import HistoricalMatchCatalog
+from spotify_manager.application.ports.runtime import Cancellation
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.history import ScrobbleSelection
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
@@ -65,8 +66,8 @@ class HistoricalResolution:
     """
 
     catalog: HistoricalMatchCatalog
-    check_cancel: Callable[[], None]
-    progress: Callable[[str], None]
+    check_cancel: Cancellation
+    progress: Messages
 
     def run(
         self, selections: tuple[ScrobbleSelection, ...], playlist: PlaylistState
@@ -87,22 +88,9 @@ class HistoricalResolution:
         threshold = self.catalog.album_threshold
         groups = []
         for index, selection in enumerate(selections, start=1):
-            self.check_cancel()
-            self.progress(f"Searching Spotify track {index}/{len(selections)}")
+            self.check_cancel.check()
+            self.progress.echo(f"Searching Spotify track {index}/{len(selections)}")
             groups.append(self.catalog.search(selection.scrobble))
-        self.progress("Checking liked Spotify matches")
+        self.progress.echo("Checking liked Spotify matches")
         liked = self.catalog.liked(groups)
         return _project(selections, groups, liked, playlist, threshold)
-
-
-def direct_call(operation: Callable[[], object], _description: str) -> object:
-    """Execute the original direct observation when no outer retry is supplied.
-
-    Args:
-        operation: Original delayed observation.
-        _description: Original passive callback description.
-
-    Returns:
-        Original observation result, propagating its original failure unchanged.
-    """
-    return operation()

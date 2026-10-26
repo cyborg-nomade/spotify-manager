@@ -1,14 +1,15 @@
 """Compose Sauvignon with original clock, settings and caller-owned effects."""
 
-from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.application.sauvignon_run import SauvignonRun
 from spotify_manager.application.sauvignon_run import SauvignonStages
 from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
@@ -18,20 +19,23 @@ from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
 from spotify_manager.routines import sauvignon as legacy
 
 
-def _configure_retry_and_clock(
-    now: datetime | None, retry: legacy.RetryCall | None, effects: LegacySauvignon
-) -> datetime:
-    effects.retry = retry or _immediate
-    return (now or legacy.datetime.now(UTC)).astimezone(UTC)
+@dataclass(frozen=True)
+class SauvignonClock:
+    """Observe the original effective UTC timestamp.
 
+    Args:
+        override: Optional caller-selected effective instant.
+    """
 
-def _immediate(operation: Callable[[], object], description: str) -> object:
-    return operation()
+    override: datetime | None
 
+    def now(self) -> datetime:
+        """Read the clock at its original post-validation boundary.
 
-def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
+        Returns:
+            Original effective timestamp normalized to UTC.
+        """
+        return (self.override or legacy.datetime.now(UTC)).astimezone(UTC)
 
 
 def _stages(effects: LegacySauvignon) -> SauvignonStages:
@@ -40,7 +44,7 @@ def _stages(effects: LegacySauvignon) -> SauvignonStages:
         candidate_gathering(
             effects.lastfm, effects.cache_path, None, None, effects.progress
         ),
-        AlbumGathering(effects, partial(_progress, effects.progress)),
+        AlbumGathering(effects, OptionalMessages(effects.progress)),
         AlbumEditionChoice(
             effects.choice_reader, legacy.CHOICE_SKIP, legacy.CHOICE_QUIT
         ),
@@ -87,19 +91,20 @@ def sauvignon_workflow(
         lastfm,
         playlist_id,
         choice,
-        _immediate,
+        NoRetry(),
         export_path,
         recent_path,
         cache_path,
         log_path,
         progress,
+        retry,
     )
     return SauvignonRun(
         effects,
         _stages(effects),
-        partial(_configure_retry_and_clock, now, retry, effects),
+        SauvignonClock(now),
         BerlinCalendar(),
-        partial(_progress, progress),
+        OptionalMessages(progress),
         echo,
         legacy.DEFAULT_MAX_PLAYLIST_LENGTH,
         legacy.found_art.MIN_WEEKLY_CANDIDATE_POOL,

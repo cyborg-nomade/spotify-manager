@@ -75,7 +75,7 @@ class MemoryQueueFlush:
         Returns:
             Original compatible new run.
         """
-        return new_flush_run("queue", tracks, 10, self.observations.now)
+        return new_flush_run("queue", tracks, 10, self.observations)
 
     def queue_2(self) -> set[str]:
         """Observe original promotion membership before unlucky membership.

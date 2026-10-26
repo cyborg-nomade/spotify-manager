@@ -12,8 +12,7 @@ from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.presenters.recommendations import (
@@ -37,8 +36,9 @@ class FoundArtWorker:
         connection_failure: Connection failure supplied by the caller.
         job: Mutable job record owned by this worker.
         lastfm: Caller-owned Last.fm client.
-        spotify_event_setter: SDK event subscription hook.
-        previous_spotify_event_callback: Original SDK event observer restored on exit.
+
+    Attributes:
+        events: SDK event subscription retaining the original setter binding.
     """
 
     context: PlaylistContext
@@ -51,8 +51,7 @@ class FoundArtWorker:
     connection_failure: str
     job: _BlastJob = field(init=False)
     lastfm: LastFmClient = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute one Found Art web job and retain its complete trace."""
@@ -87,12 +86,10 @@ class FoundArtWorker:
             self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Found Art started"
             self.context.append(self.job, "Found Art started.")
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
         self.lastfm = lastfm_client(
-            LastFmCredentials(self.api_key, self.username), self.echo
+            LastFmCredentials(self.api_key, self.username), self
         )
 
     def _execute(self) -> found_art.FoundArtSummary:
@@ -101,7 +98,7 @@ class FoundArtWorker:
             self.lastfm,
             self.playlist_id,
             count=self.count,
-            progress_callback=self.echo,
+            progress_callback=self,
         )
         return summary
 
@@ -133,8 +130,7 @@ class FoundArtWorker:
             self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 

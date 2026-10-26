@@ -1,9 +1,10 @@
 """Invoke recover removed albums use cases for CLI and HTTP features."""
 
+import time
+from dataclasses import dataclass
 from datetime import date as date
 from functools import partial as partial
 from pathlib import Path as Path
-from time import sleep as default_sleep
 
 from spotipy import Spotify as Spotify
 
@@ -18,6 +19,7 @@ from spotify_manager.infrastructure.legacy.album_recovery import (
 from spotify_manager.infrastructure.library_records import (
     REMOVED_ALBUMS_LOG_PATH as REMOVED_ALBUMS_LOG_PATH,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.spotify.retry import (
     TRANSIENT_MAX_ATTEMPTS as TRANSIENT_MAX_ATTEMPTS,
 )
@@ -33,6 +35,7 @@ from spotify_manager.infrastructure.spotify.retry import (
 from spotify_manager.interfaces.presenters.album_recovery import (
     RecoveryPresenter as RecoveryPresenter,
 )
+from spotify_manager.routines.recover_removed_albums import _CLOCK_RESOURCE
 from spotify_manager.routines.recover_removed_albums import (
     RECOVERY_LOG_PATH as RECOVERY_LOG_PATH,
 )
@@ -53,14 +56,14 @@ from spotify_manager.routines.recover_removed_albums import (
 
 def recover_removed_albums(
     sp: Spotify,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     removal_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
     recovery_log_path: Path = RECOVERY_LOG_PATH,
     dry_run: bool = False,
     limit: int | None = None,
     today: date | None = None,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
     state_service: StateService | None = None,
@@ -102,9 +105,28 @@ def recover_removed_albums(
     return recover_albums(
         library,
         RecoveryPresenter(echo),
-        _clock,
-        partial(_today, today),
+        _CLOCK_RESOURCE,
+        RecoveryDate(today),
         dry_run=dry_run,
         limit=limit,
         progress=progress_callback,
     )
+
+
+@dataclass(frozen=True)
+class RecoveryDate:
+    """Retain the optional effective calendar value.
+
+    Args:
+        override: Original caller-selected date or instant.
+    """
+
+    override: date | None
+
+    def today(self) -> date:
+        """Observe the original effective date at its existing boundary.
+
+        Returns:
+            Original normalized date or instant.
+        """
+        return _today(self.override)

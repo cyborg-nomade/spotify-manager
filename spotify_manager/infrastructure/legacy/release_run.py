@@ -85,7 +85,7 @@ class LegacyReleaseRun:
             message: Original user-visible stage text.
         """
         if self.progress_reader is not None:
-            self.progress_reader(done, total, message)
+            self.progress_reader.progress(done, total, message)
 
     def wine(self) -> PlaylistSnapshot:
         """Load original Wine Cellar membership before cleanup.

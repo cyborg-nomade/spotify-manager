@@ -1,12 +1,13 @@
 """Compose recommendation seed selection with the original calendar and limits."""
 
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import OptionalMessages
 from spotify_manager.application.recommendation_candidates import CandidateGathering
 from spotify_manager.application.recommendation_resolution import (
     RecommendationResolution,
@@ -44,11 +45,6 @@ def _generated_at(now: datetime | None) -> datetime:
     return (now or legacy.datetime.now(UTC)).astimezone(UTC)
 
 
-def _progress(callback: legacy.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
-
-
 def candidate_gathering(
     lastfm: legacy.LastFmReader,
     cache_path: Path,
@@ -73,9 +69,9 @@ def candidate_gathering(
     observations = LegacyNeighborhoods(lastfm, cache_path, log_path)
     workflow = CandidateGathering(
         observations,
-        partial(_generated_at, now),
+        RecommendationClock(now),
         BerlinCalendar(),
-        partial(_progress, progress),
+        OptionalMessages(progress),
     )
     return workflow
 
@@ -94,7 +90,7 @@ def recommendation_resolution(
     """
     workflow = RecommendationResolution(
         LegacyRecommendationMatches(sp),
-        partial(_progress, progress),
+        OptionalMessages(progress),
         legacy.SPOTIFY_RESOLUTION_BATCH_SIZE,
         legacy.SPOTIFY_CANDIDATE_MULTIPLIER,
     )
@@ -147,11 +143,30 @@ def recommendation_run(
             candidate_gathering(lastfm, cache_path, log_path, None, progress),
             recommendation_resolution(sp, progress),
         ),
-        partial(_generated_at, now),
+        RecommendationClock(now),
         BerlinCalendar(),
-        partial(_progress, progress),
+        OptionalMessages(progress),
         legacy.DEFAULT_COUNT,
         legacy.MIN_WEEKLY_CANDIDATE_POOL,
         legacy.WEEKLY_CANDIDATE_POOL_MULTIPLIER,
     )
     return workflow
+
+
+@dataclass(frozen=True)
+class RecommendationClock:
+    """Retain the optional effective calendar value.
+
+    Args:
+        override: Original caller-selected date or instant.
+    """
+
+    override: datetime | None
+
+    def now(self) -> datetime:
+        """Observe the original effective date at its existing boundary.
+
+        Returns:
+            Original normalized date or instant.
+        """
+        return _generated_at(self.override)

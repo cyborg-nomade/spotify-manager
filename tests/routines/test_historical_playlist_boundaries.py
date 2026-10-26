@@ -24,6 +24,7 @@ from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
 from tests.support.direct_dependencies import ObservedBlastSelection
 from tests.support.direct_dependencies import ObservedRadioSelection
+from tests.support.runtime_resources import MessageList
 
 
 def _selection() -> blast.ScrobbleSelection:
@@ -221,10 +222,16 @@ def _invoke(
     spotify = cast(Spotify, object())
     if kind == "radio":
         return radio.add_daily_mind_radio_to_spotify(
-            spotify, "target", progress_callback=steps.messages.append, dry_run=preview
+            spotify,
+            "target",
+            progress_callback=MessageList(steps.messages),
+            dry_run=preview,
         )
     return blast.add_blast_from_past_to_spotify(
-        spotify, "target", progress_callback=steps.messages.append, dry_run=preview
+        spotify,
+        "target",
+        progress_callback=MessageList(steps.messages),
+        dry_run=preview,
     )
 
 

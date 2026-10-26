@@ -1,7 +1,11 @@
 """Tests for the Slow Listening CLI command."""
 
+from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import Mock
 
+import pytest
 from rich.console import Console
 from typer.testing import CliRunner
 
@@ -95,18 +99,72 @@ def test_track_action_prompt_can_skip_proposed_candidate(monkeypatch) -> None:
 
 
 def test_flush_slow_listening_dry_run_uses_configured_playlist(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The CLI should pass the parsed playlist and dry-run mode."""
     received: dict[str, object] = {}
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        Mock(
+            return_value=SimpleNamespace(
+                slow_listening_playlist="https://open.spotify.com/playlist/slow"
+            )
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    scenario = FlushSlowListeningDryRunUsesConfiguredPlaylistScenario(received=received)
+    monkeypatch.setattr(main.slow_listening, "flush_slow_listening", scenario.flush)
+    result = CliRunner().invoke(main.app, ["flush-slow-listening", "--dry-run"])
+    assert result.exit_code == 0
+    assert received == {
+        "playlist_id": "slow",
+        "dry_run": True,
+        "order_reader": True,
+        "completion_notifier": True,
+        "action_reader": True,
+    }
+    assert "Dry run: 1/1 processed" in result.output
+    assert "Current" in result.output
+    assert "Next" in result.output
 
-    def flush(_spotify, playlist_id, **kwargs):
-        received.update(
+
+@dataclass
+class FlushSlowListeningDryRunUsesConfiguredPlaylistScenario:
+    """Retain the original flush slow listening dry run uses configured playlist
+    fixture.
+
+    Args:
+        received: Original received observation or resource.
+    """
+
+    received: dict[str, object]
+
+    def flush(
+        self, _spotify: Any, playlist_id: Any, **kwargs: Any
+    ) -> main.slow_listening.FlushSummary:
+        """Execute the original flush mock boundary.
+
+        Args:
+            _spotify: Original external mock argument.
+            playlist_id: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.received.update(
             playlist_id=playlist_id,
             dry_run=kwargs["dry_run"],
-            order_reader=callable(kwargs["order_reader"]),
-            completion_notifier=callable(kwargs["completion_notifier"]),
-            action_reader=callable(kwargs["action_reader"]),
+            order_reader=callable(
+                getattr(kwargs["order_reader"], "order_releases", None)
+            ),
+            completion_notifier=callable(
+                getattr(kwargs["completion_notifier"], "complete", None)
+            ),
+            action_reader=callable(
+                getattr(kwargs["action_reader"], "choose_track", None)
+            ),
         )
         return main.slow_listening.FlushSummary(
             run_id="run",
@@ -130,34 +188,3 @@ def test_flush_slow_listening_dry_run_uses_configured_playlist(
                 ),
             ),
         )
-
-    monkeypatch.setattr(
-        main,
-        "Settings",
-        lambda: SimpleNamespace(
-            slow_listening_playlist="https://open.spotify.com/playlist/slow",
-        ),
-    )
-    monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(
-        main.slow_listening,
-        "flush_slow_listening",
-        flush,
-    )
-
-    result = CliRunner().invoke(
-        main.app,
-        ["flush-slow-listening", "--dry-run"],
-    )
-
-    assert result.exit_code == 0
-    assert received == {
-        "playlist_id": "slow",
-        "dry_run": True,
-        "order_reader": True,
-        "completion_notifier": True,
-        "action_reader": True,
-    }
-    assert "Dry run: 1/1 processed" in result.output
-    assert "Current" in result.output
-    assert "Next" in result.output

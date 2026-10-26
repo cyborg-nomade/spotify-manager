@@ -5,9 +5,6 @@ from pathlib import Path as Path
 
 from spotipy import Spotify as Spotify
 
-from spotify_manager.application.historical_resolution import (
-    direct_call as _direct_retry,
-)
 from spotify_manager.application.historical_values import (
     BlastFromPastBatch as BlastFromPastBatch,
 )
@@ -36,11 +33,13 @@ from spotify_manager.application.historical_values import (
 from spotify_manager.application.historical_values import (
     SpotifyTrackMatch as SpotifyTrackMatch,
 )
+from spotify_manager.application.ports.runtime import NO_RETRY
 from spotify_manager.bootstrap.historical_playlists import blast_playlist
 from spotify_manager.bootstrap.historical_playlists import blast_selection
 from spotify_manager.bootstrap.historical_playlists import historical_resolution
 from spotify_manager.domain.history import Scrobble as Scrobble
 from spotify_manager.domain.history import ScrobbleSelection as ScrobbleSelection
+from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 from spotify_manager.routines.blast_from_past import (
     DEFAULT_SCROBBLES_PATH as DEFAULT_SCROBBLES_PATH,
 )
@@ -71,7 +70,7 @@ def select_blast_from_past(
     count: int = 10,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     progress_callback: ProgressCallback | None = None,
 ) -> BlastFromPastBatch:
     """Select a Friday-routine batch from the Last.fm export.
@@ -100,7 +99,7 @@ def resolve_spotify_selections(
     selections: tuple[ScrobbleSelection, ...],
     playlist: PlaylistState,
     progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
 ) -> SpotifySelectionResolution:
     """Resolve selected scrobbles and identify new playlist tracks.
@@ -131,9 +130,9 @@ def add_blast_from_past_to_spotify(
     max_playlist_length: int | None = None,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
     dry_run: bool = False,
 ) -> BlastFromPastSpotifySummary:

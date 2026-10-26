@@ -99,12 +99,12 @@ class AlbumReviewCLI:
                 )
                 review_album_limits.review_album_limits(
                     self.runtime.review_client(),
-                    action_reader=self._review_album_limits_read_action,
+                    action_reader=ReviewAlbumLimitsInteraction(self),
                     threshold=threshold,
                     use_cache=not no_cache,
                     refresh_cache=refresh_cache,
-                    echo=self._review_album_limits_echo,
-                    progress_callback=self._review_album_limits_update_progress,
+                    echo=ReviewAlbumLimitsInteraction(self),
+                    progress_callback=ReviewAlbumLimitsInteraction(self),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_review_album_limits_rate_limit(exc)
@@ -179,3 +179,43 @@ class AlbumReviewCLI:
             "Progress was saved up to the last successful removal.", style="yellow"
         )
         raise typer.Exit(code=0) from exc
+
+
+@dataclass(frozen=True)
+class ReviewAlbumLimitsInteraction:
+    """Own command-specific terminal interaction.
+
+    Args:
+        owner: Command instance owning this display and its progress state.
+    """
+
+    owner: AlbumReviewCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._review_album_limits_echo(message)
+
+    def progress(self, position: int, total: int) -> None:
+        """Present the command's original progress.
+
+        Args:
+            position: Original position.
+            total: Original total.
+        """
+        self.owner._review_album_limits_update_progress(position, total)
+
+    def choose_action(self, _album: object, evaluation: object) -> str:
+        """Use this command's fixed choose action prompt.
+
+        Args:
+            _album: Original operator prompt value.
+            evaluation: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._review_album_limits_read_action(_album, evaluation)

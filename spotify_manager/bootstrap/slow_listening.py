@@ -1,12 +1,14 @@
 """Compose synchronous Slow Listening integrations for one invocation."""
 
-from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.slow_listening import SlowListeningDependencies
 from spotify_manager.application.slow_listening_plan import StudioObservations
 from spotify_manager.application.slow_listening_values import CompletionNotifier
@@ -20,14 +22,23 @@ from spotify_manager.infrastructure.legacy.slow_listening import LegacySlowListe
 from spotify_manager.interfaces.presenters.slow_listening import SlowListeningPresenter
 
 
-def _direct(operation: Callable[[], object], description: str) -> object:
-    return operation()
+class AutomaticAdvance:
+    """Accept the existing default track advance without prompting."""
 
+    def choose_track(
+        self, source: PlaylistTrack, target: ReleaseTrack, release: DiscographyRelease
+    ) -> str:
+        """Return the default action when no operator interaction was supplied.
 
-def _advance(
-    source: PlaylistTrack, target: ReleaseTrack, release: DiscographyRelease
-) -> str:
-    return "advance"
+        Args:
+            source: Original marker.
+            target: Proposed successor.
+            release: Successor's release.
+
+        Returns:
+            The original advance action.
+        """
+        return "advance"
 
 
 def slow_listening_dependencies(
@@ -36,13 +47,13 @@ def slow_listening_dependencies(
     order: ReleaseOrderReader,
     complete: CompletionNotifier,
     action: TrackActionReader | None,
-    echo: Callable[[str], None],
-    progress: Callable[[int, int, str], None] | None,
+    echo: Messages,
+    progress: ReviewProgress | None,
     retry: RetryCall | None,
     state_path: Path,
     state_service: StateService | None,
     log_path: Path,
-    clock: Callable[[], datetime],
+    clock: Clock,
 ) -> SlowListeningDependencies:
     """Construct the invocation dependencies without executing the use case.
 
@@ -64,13 +75,18 @@ def slow_listening_dependencies(
         The configured application dependencies or workflow.
     """
     access = LegacySlowListening(
-        client, playlist_id, retry or _direct, state_path, state_service, log_path
+        client,
+        playlist_id,
+        retry or NoRetry(),
+        state_path,
+        state_service,
+        log_path,
     )
     dependencies = SlowListeningDependencies(
         access,
         StudioObservations(access),
         order,
-        action or _advance,
+        action or AutomaticAdvance(),
         complete,
         SlowListeningPresenter(echo),
         clock,

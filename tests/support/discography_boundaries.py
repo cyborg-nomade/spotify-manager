@@ -2,6 +2,8 @@
 
 import json
 from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
@@ -11,6 +13,7 @@ from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.routines import blast_from_past
@@ -151,6 +154,18 @@ class CatalogReads:
         self.trace.append(["retry", description])
         return operation()
 
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Observe the original retry boundary before a direct operation.
+
+        Args:
+            description: Original retry label.
+
+        Returns:
+            One direct request scope.
+        """
+        self.trace.append(["retry", description])
+        return NoRetry().attempts(description)
+
 
 def _catalog_rows(profile: str) -> list[object]:
     if profile == "empty":
@@ -181,9 +196,7 @@ def catalog_outcome(profile: str) -> object:
     edge = CatalogReads(profile)
     result: dict[str, object] = {}
     try:
-        releases = legacy.load_release_catalog(
-            cast(Spotify, edge), "artist", edge.retry
-        )
+        releases = legacy.load_release_catalog(cast(Spotify, edge), "artist", edge)
         result["result"] = [asdict(item) for item in releases]
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
@@ -216,8 +229,8 @@ def _historical(edge: HistoryReads) -> object:
         selected = legacy.select_historical_artist(
             path=FIXTURE.with_name("history"),
             today=date(2026, 8, 8),
-            random_index_reader=edge.random,
-            progress_callback=edge.progress,
+            random_index_reader=edge,
+            progress_callback=edge,
         )
     return asdict(selected)
 

@@ -41,9 +41,7 @@ def _observe(profile: str, failure: str | None) -> dict[str, object]:
     progress = ReleaseProgress(context, effects, "preview" in profile)
     outcome: object
     try:
-        outcome = asdict(
-            release_workflow(progress, "wine", "vintage", effects.choice).run()
-        )
+        outcome = asdict(release_workflow(progress, "wine", "vintage", effects).run())
     except (EffectFailureError, ReleaseCheckError) as exc:
         outcome = {"error": type(exc).__name__, "message": str(exc)}
     return cast(
@@ -129,7 +127,7 @@ def test_release_default_review_avoids_unnecessary_interaction(profile: str) -> 
     """
     context = opening(profile)
     effects = Effects(profile, persisted=context.persisted_state)
-    reader = effects.choice if profile == "destinations_full" else None
+    reader = effects if profile == "destinations_full" else None
     summary = release_workflow(
         ReleaseProgress(context, effects, False), "wine", "vintage", reader
     ).run()

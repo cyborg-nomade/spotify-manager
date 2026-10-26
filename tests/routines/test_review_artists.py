@@ -1,6 +1,7 @@
 """Tests for restart-safe artist review and queue placement."""
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from spotify_manager.models.stats import AlbumsStats
@@ -10,6 +11,9 @@ from spotify_manager.models.stats import TracksStats
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
 from spotify_manager.routines import review_artists
+from tests.support.runtime_resources import Answer
+from tests.support.runtime_resources import DiscardMessages
+from tests.support.runtime_resources import NoWait
 
 
 def artist(artist_id: str, name: str | None = None) -> YourLibraryArtist:
@@ -211,14 +215,24 @@ PLAYLISTS = review_artists.QueuePlaylists("queue-1", "queue-2", "queue-3")
 def run_review(
     sp: FakeSpotify,
     paths: review_artists.ArtistReviewPaths,
-    **kwargs,
+    **kwargs: object,
 ) -> review_artists.ArtistReviewSummary:
+    """Retain the original run review fixture observation.
+
+    Args:
+        sp: Original sp value.
+        paths: Original paths value.
+        kwargs: Original kwargs value.
+
+    Returns:
+        Original fixture result.
+    """
     return review_artists.review_artists(
         sp,
         PLAYLISTS,
         paths=paths,
-        echo=lambda _line: None,
-        sleep=lambda _seconds: None,
+        echo=DiscardMessages(),
+        sleep=NoWait(),
         **kwargs,
     )
 
@@ -299,6 +313,11 @@ def test_existing_tier_queue_entry_avoids_catalog_requests(tmp_path: Path) -> No
 def test_medium_tier_prompts_with_album_and_ep_and_adds_only_to_queue_two(
     tmp_path: Path,
 ) -> None:
+    """Medium tier prompts with album and ep and adds only to queue two.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     item = artist("medium")
     paths = prepare_paths(tmp_path, [item], liked_tracks(item, 6))
     sp = FakeSpotify()
@@ -326,15 +345,7 @@ def test_medium_tier_prompts_with_album_and_ep_and_adds_only_to_queue_two(
     sp.first_tracks["ep"] = [spotify_track("ep-first", item.spotify_id)]
     prompted: list[tuple[tuple[review_artists.ReleaseCandidate, ...], bool]] = []
 
-    def choose_release(
-        _artist: YourLibraryArtist,
-        candidates: tuple[review_artists.ReleaseCandidate, ...],
-        allow_decline: bool,
-    ) -> str:
-        prompted.append((candidates, allow_decline))
-        return "ep"
-
-    summary = run_review(sp, paths, release_choice_reader=choose_release)
+    summary = run_review(sp, paths, release_choice_reader=MediumReleaseChoice(prompted))
 
     assert summary.queued == 1
     assert sp.playlist_get_calls == ["queue-2", "queue-3", "queue-1"]
@@ -351,6 +362,11 @@ def test_medium_tier_prompts_with_album_and_ep_and_adds_only_to_queue_two(
 def test_high_tier_can_decline_or_choose_from_earliest_releases_and_resumes(
     tmp_path: Path,
 ) -> None:
+    """High tier can decline or choose from earliest releases and resumes.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     declined = artist("declined")
     queued = artist("queued")
     paths = prepare_paths(
@@ -378,18 +394,11 @@ def test_high_tier_can_decline_or_choose_from_earliest_releases_and_resumes(
     sp.first_tracks["old"] = [spotify_track("old-first", queued.spotify_id)]
     seen_dates: list[list[str]] = []
 
-    def choose_release(
-        item: YourLibraryArtist,
-        candidates: tuple[review_artists.ReleaseCandidate, ...],
-        allow_decline: bool,
-    ) -> str:
-        assert allow_decline
-        if item.spotify_id == declined.spotify_id:
-            return review_artists.CHOICE_DECLINE
-        seen_dates.append([candidate.release_date for candidate in candidates])
-        return candidates[0].spotify_id
-
-    summary = run_review(sp, paths, release_choice_reader=choose_release)
+    summary = run_review(
+        sp,
+        paths,
+        release_choice_reader=HighReleaseChoice(declined.spotify_id, seen_dates),
+    )
 
     assert summary.declined == 1
     assert summary.queued == 1
@@ -439,6 +448,11 @@ def test_queue_three_placement_is_sticky_when_liked_count_drops(tmp_path: Path) 
 def test_queue_one_artist_with_six_or_more_likes_moves_only_to_queue_two(
     tmp_path: Path,
 ) -> None:
+    """Queue one artist with six or more likes moves only to queue two.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     item = artist("promoted")
     paths = prepare_paths(tmp_path, [item], liked_tracks(item, 18))
     sp = FakeSpotify()
@@ -453,15 +467,9 @@ def test_queue_one_artist_with_six_or_more_likes_moves_only_to_queue_two(
     ]
     prompt_flags: list[bool] = []
 
-    def choose_release(
-        _artist: YourLibraryArtist,
-        candidates: tuple[review_artists.ReleaseCandidate, ...],
-        allow_decline: bool,
-    ) -> str:
-        prompt_flags.append(allow_decline)
-        return candidates[0].spotify_id
-
-    summary = run_review(sp, paths, release_choice_reader=choose_release)
+    summary = run_review(
+        sp, paths, release_choice_reader=PromotionReleaseChoice(prompt_flags)
+    )
 
     assert summary.moved == 1
     assert summary.queued == 0
@@ -480,6 +488,11 @@ def test_queue_one_artist_with_six_or_more_likes_moves_only_to_queue_two(
 
 
 def test_skip_is_run_only_and_cached_search_is_reused(tmp_path: Path) -> None:
+    """Skip is run only and cached search is reused.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     item = artist("ambiguous")
     paths = prepare_paths(tmp_path, [item], liked_tracks(item, 2))
     first_sp = FakeSpotify()
@@ -495,7 +508,7 @@ def test_skip_is_run_only_and_cached_search_is_reused(tmp_path: Path) -> None:
     first = run_review(
         first_sp,
         paths,
-        track_choice_reader=lambda _artist, _candidates: review_artists.CHOICE_SKIP,
+        track_choice_reader=Answer(review_artists.CHOICE_SKIP),
     )
     assert first.skipped == 1
     assert first.reviewed == 0
@@ -504,7 +517,7 @@ def test_skip_is_run_only_and_cached_search_is_reused(tmp_path: Path) -> None:
     resumed = run_review(
         resumed_sp,
         paths,
-        track_choice_reader=lambda _artist, _candidates: "version-b",
+        track_choice_reader=Answer("version-b"),
     )
     assert resumed.queued == 1
     assert resumed_sp.search_calls == []
@@ -591,3 +604,98 @@ def test_playlist_references_and_tiers_map_to_exactly_one_queue() -> None:
     assert playlists.for_liked_count(6) == "second"
     assert playlists.for_liked_count(17) == "second"
     assert playlists.for_liked_count(18) == "third"
+
+
+@dataclass(frozen=True)
+class MediumReleaseChoice:
+    """Record the original medium-tier release prompt and select its EP.
+
+    Args:
+        prompts: Original complete offered releases and decline flag.
+    """
+
+    prompts: list[tuple[tuple[review_artists.ReleaseCandidate, ...], bool]]
+
+    def choose_release(
+        self,
+        artist: YourLibraryArtist,
+        candidates: tuple[review_artists.ReleaseCandidate, ...],
+        allow_decline: bool,
+    ) -> str:
+        """Accept the original EP after recording the prompt.
+
+        Args:
+            artist: Original reviewed artist.
+            candidates: Original offered releases.
+            allow_decline: Original decline availability.
+
+        Returns:
+            Original selected EP identity.
+        """
+        self.prompts.append((candidates, allow_decline))
+        return "ep"
+
+
+@dataclass(frozen=True)
+class HighReleaseChoice:
+    """Retain the original high-tier decline and chronological selection.
+
+    Args:
+        declined_artist: Original artist selected for decline.
+        dates: Original recorded chronological release dates.
+    """
+
+    declined_artist: str
+    dates: list[list[str]]
+
+    def choose_release(
+        self,
+        artist: YourLibraryArtist,
+        candidates: tuple[review_artists.ReleaseCandidate, ...],
+        allow_decline: bool,
+    ) -> str:
+        """Decline the original artist or accept the earliest offered release.
+
+        Args:
+            artist: Original reviewed artist.
+            candidates: Original chronological releases.
+            allow_decline: Original decline availability.
+
+        Returns:
+            Original decline control or first release identity.
+        """
+        assert allow_decline
+        if artist.spotify_id == self.declined_artist:
+            return review_artists.CHOICE_DECLINE
+        self.dates.append([candidate.release_date for candidate in candidates])
+        return candidates[0].spotify_id
+
+
+@dataclass(frozen=True)
+class PromotionReleaseChoice:
+    """Record the original queue-promotion decline flag and select its release.
+
+    Args:
+        flags: Original decline-availability observations.
+    """
+
+    flags: list[bool]
+
+    def choose_release(
+        self,
+        artist: YourLibraryArtist,
+        candidates: tuple[review_artists.ReleaseCandidate, ...],
+        allow_decline: bool,
+    ) -> str:
+        """Return the original first promotion release.
+
+        Args:
+            artist: Original reviewed artist.
+            candidates: Original offered releases.
+            allow_decline: Original decline availability.
+
+        Returns:
+            Original first release identity.
+        """
+        self.flags.append(allow_decline)
+        return candidates[0].spotify_id

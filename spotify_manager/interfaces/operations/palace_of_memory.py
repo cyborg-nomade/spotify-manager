@@ -32,6 +32,7 @@ from spotify_manager.domain.palace_values import (
 from spotify_manager.domain.palace_values import PalaceAlbumResult as PalaceAlbumResult
 from spotify_manager.domain.palace_values import SpotifyAlbum as SpotifyAlbum
 from spotify_manager.domain.palace_values import SpotifyFirstTrack as SpotifyFirstTrack
+from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 from spotify_manager.interfaces.requests.palace import PalaceCallbacks
 from spotify_manager.interfaces.requests.palace import PalaceOptions
 from spotify_manager.interfaces.requests.palace import PalaceResources
@@ -110,7 +111,7 @@ def select_historical_albums(
     count: int = HISTORY_COUNT,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[datetime, date, int, tuple[HistoricalAlbumSelection, ...]]:
     """Gather original eligible album ranks and Random.org date selections.

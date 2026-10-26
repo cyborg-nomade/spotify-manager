@@ -12,9 +12,9 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.analysis_worker import AnalysisWorker
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import spotify_event_setter
 from spotify_manager.interfaces.http.job_records import AnalysisJob
 from spotify_manager.interfaces.http.models.analysis import AnalysisJobResult
 from spotify_manager.interfaces.http.models.analysis import AnalysisResourceProgress
@@ -191,7 +191,7 @@ def test_retry_wait_owns_its_signal_and_original_resume(
     failure = (
         "Spotify connection interrupted" if http_status is None else "Spotify HTTP 500"
     )
-    assert worker.retry_wait(notice) is not cancelled
+    assert worker.wait(notice) is not cancelled
     assert worker.job.result.retry_at is None
     assert _messages(worker)[0] == (
         "Waiting until 2026-09-24T00:00:00+00:00 before retry "
@@ -264,15 +264,15 @@ def test_dispatch_uses_exact_routine_and_owned_callbacks(
     probe = RoutineProbe()
     monkeypatch.setattr(analysis, routine, probe)
     assert worker.execute() == _summary()
-    assert probe.options["echo"] == worker.echo
-    assert probe.options["progress_callback"] == worker.progress
-    assert probe.options["cancel_check"] == worker.job.cancel_event.is_set
+    assert probe.options["echo"] is worker
+    assert probe.options["progress_callback"] is worker
+    assert probe.options["cancel_check"] is worker.job.cancel_event
     if mode == "async":
         assert probe.arguments == ()
         assert "retry_wait" not in probe.options
         return
     assert probe.arguments[0] is worker.spotify
-    assert probe.options["retry_wait"] == worker.retry_wait
+    assert probe.options["retry_wait"] is worker
     if mode == "mirrors":
         assert probe.options["full_rebuild"] is True
 
@@ -377,19 +377,19 @@ class EventClient:
 
 def test_optional_sdk_hook_preserves_binding_and_restoration() -> None:
     """Observe both absence of a hook and the original previous-owner convention."""
-    assert spotify_event_setter(None) is None
-    assert spotify_event_setter(cast(Spotify, object())) is None
+    absent = SpotifyEvents(None)
+    absent.restore()
+    unavailable = SpotifyEvents(cast(Spotify, object()))
+    unavailable.restore()
     first, second = _worker("first"), _worker("second")
-    client = EventClient(first.echo)
-    setter = spotify_event_setter(cast(Spotify, client))
-    assert setter is not None
-    previous = setter(second.echo)
-    assert previous == first.echo
-    assert client.callback == second.echo
+    client = EventClient(first)
+    events = SpotifyEvents(cast(Spotify, client))
+    events.subscribe(second)
+    assert client.callback is second
     assert client.callback is not None
-    client.callback("SDK event")
-    setter(previous)
-    assert client.callback == first.echo
+    client.callback.echo("SDK event")
+    events.restore()
+    assert client.callback is first
     assert _messages(first) == []
     assert _messages(second) == ["SDK event"]
 

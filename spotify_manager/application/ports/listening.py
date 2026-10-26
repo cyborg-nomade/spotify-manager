@@ -1,19 +1,24 @@
 """History and function-shaped ports for interaction, audit, and time."""
 
-from collections.abc import Callable
 from datetime import date
-from datetime import datetime
 from typing import Protocol
 
+from spotify_manager.application.ports.runtime import Clock as Clock
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.domain.history import Scrobble
 
 
+type RandomTimestamp = Clock
+
+
+type MessageSink = Messages
+
+
+type RetryCall = Retry
+
+
 # Interactions, time observations and retry operations retain genuine hooks.
-type MessageSink = Callable[[str], None]
-type ChoiceReader[Context, Choices] = Callable[[Context, Choices], str]
-type Clock = Callable[[], datetime]
-type RandomTimestamp = Callable[[], datetime]
-type RetryCall = Callable[[Callable[[], object], str], object]
 
 
 class ListeningHistory(Protocol):

@@ -23,6 +23,8 @@ from spotify_manager.application.slow_listening_values import (
 from spotify_manager.bootstrap.slow_listening import slow_listening_dependencies
 from spotify_manager.core.state.service import StateService as StateService
 from spotify_manager.domain.catalog import DiscographyRelease as DiscographyRelease
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.routines.slow_listening import _CLOCK_RESOURCE
 from spotify_manager.routines.slow_listening import CHOICE_ADVANCE as CHOICE_ADVANCE
 from spotify_manager.routines.slow_listening import CHOICE_QUIT as CHOICE_QUIT
 from spotify_manager.routines.slow_listening import CHOICE_SKIP as CHOICE_SKIP
@@ -58,7 +60,7 @@ def flush_slow_listening(
     *,
     action_reader: TrackActionReader | None = None,
     dry_run: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
@@ -99,6 +101,6 @@ def flush_slow_listening(
         state_path,
         state_service,
         log_path,
-        _clock,
+        _CLOCK_RESOURCE,
     )
     return execute_flush_slow_listening(playlist_id, configured, dry_run=dry_run)

@@ -2,7 +2,8 @@
 
 import gzip
 import json
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -20,6 +21,7 @@ from spotify_manager.application.album_review import AlbumReviewRequest
 from spotify_manager.application.album_review import review_album
 from spotify_manager.application.music import Track
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.bootstrap.listening import album_review_ports
 from spotify_manager.bootstrap.listening import listening_history
 from spotify_manager.bootstrap.listening import requeue_audit
@@ -206,18 +208,17 @@ class RetryRecorder:
 
     descriptions: list[str] = field(default_factory=list)
 
-    def __call__(self, operation: Callable[[], object], description: str) -> object:
-        """Execute one callable after recording its description.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Record the original retry label before the visible direct operation.
 
         Args:
-            operation: Existing transport operation.
-            description: Human-readable retry boundary.
+            description: Original transport operation description.
 
         Returns:
-            The unmodified operation result; exceptions propagate unchanged.
+            A single attempt propagating the original failure.
         """
         self.descriptions.append(description)
-        return operation()
+        return NoRetry().attempts(description)
 
 
 def test_playlist_writes_keep_order_payloads_and_retry_descriptions() -> None:

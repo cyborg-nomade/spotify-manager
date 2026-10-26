@@ -78,7 +78,7 @@ def fill_sauvignon_from_lastfm(
         lastfm,
         options.playlist_id,
         callbacks.choice_reader,
-        callbacks.echo,
+        callbacks.output,
         callbacks.progress_callback,
         callbacks.retry_call,
         resources.export_path,

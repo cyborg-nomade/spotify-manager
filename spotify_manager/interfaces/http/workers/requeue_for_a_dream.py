@@ -1,6 +1,7 @@
 """Explicit callbacks and wire presentation for RequeueForADreamWorker."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -9,8 +10,9 @@ from datetime import timedelta
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.application.retry_attempts import CheckedAttempts
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.playlist_context import PlaylistContext
 from spotify_manager.interfaces.http.workers.errors import (
@@ -34,6 +36,10 @@ class RequeueForADreamWorker:
         spotify: Invocation-owned spotify.
         playlist_id: Invocation-owned playlist id.
         dry_run: Invocation-owned dry run.
+
+    Attributes:
+        job: Resolved reconnectable job state.
+        events: SDK event subscription retaining the original setter binding.
     """
 
     context: PlaylistContext
@@ -42,8 +48,7 @@ class RequeueForADreamWorker:
     playlist_id: str
     dry_run: bool
     job: _BlastJob = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Execute one reconnectable Requeue for a Dream transition."""
@@ -77,7 +82,7 @@ class RequeueForADreamWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -86,29 +91,18 @@ class RequeueForADreamWorker:
         if self.job.cancel_event.wait(seconds):
             raise _RequeueForADreamJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        if self.job.cancel_event.is_set():
-            raise _RequeueForADreamJobCancelledError
-        result = review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self.echo,
-            sleep=self.interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-        if self.job.cancel_event.is_set():
-            raise _RequeueForADreamJobCancelledError
-        return result
+        self.check()
+        scopes = SpotifyRetries(self, self, 10, 3).attempts(description)
+        return CheckedAttempts(scopes, self)
 
     def _start(self) -> None:
         self.job = self.context.lookup(self.job_id, command="flush_requeue_for_a_dream")
@@ -122,19 +116,17 @@ class RequeueForADreamWorker:
                 if self.dry_run
                 else "Requeue for a Dream started.",
             )
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
 
     def _execute(self) -> requeue_for_a_dream.RequeueForADreamSummary:
         summary = requeue_for_a_dream.flush_requeue_for_a_dream(
             self.spotify,
             self.playlist_id,
             dry_run=self.dry_run,
-            echo=self.echo,
-            progress_callback=self.echo,
-            retry_call=self.retry_call,
+            echo=self,
+            progress_callback=self,
+            retry_call=self,
         )
         return summary
 
@@ -160,8 +152,7 @@ class RequeueForADreamWorker:
             self._present_transition_detail(summary)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
@@ -260,3 +251,12 @@ class RequeueForADreamWorker:
                 f"Next track: {summary.target_track} ({summary.target_release}).",
             )
         self.context.append(self.job, self.job.result.detail)
+
+    def check(self) -> None:
+        """Observe the original retry cancellation boundary.
+
+        Raises:
+            RuntimeError: This job was cancelled.
+        """
+        if self.job.cancel_event.is_set():
+            raise _RequeueForADreamJobCancelledError

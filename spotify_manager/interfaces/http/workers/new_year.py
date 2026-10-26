@@ -58,7 +58,7 @@ class NewYearWorker:
         Args:
             message: Original routine-supplied message.
         """
-        scrobble_history.check_cancel(self.job.cancel_event.is_set)
+        scrobble_history.check_cancel(self.job.cancel_event)
         with self.context.lock:
             self.job.result.detail = message
             self.context.append(self.job, message)
@@ -76,13 +76,13 @@ class NewYearWorker:
         )
         result = new_year.run_new_year(
             self.spotify,
-            lastfm_client(LastFmCredentials(key, username), self.echo),
+            lastfm_client(LastFmCredentials(key, username), self),
             configuration,
             year=self.year,
             dry_run=self.dry_run,
-            echo=self.echo,
-            cancel_check=self.job.cancel_event.is_set,
-            retry_call=PlaylistRetry(self.job, self.echo).call,
+            echo=self,
+            cancel_check=self.job.cancel_event,
+            retry_call=PlaylistRetry(self.job, self),
         )
         with self.context.lock:
             self.job.result.new_year_result = result

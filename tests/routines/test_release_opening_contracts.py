@@ -18,6 +18,7 @@ import pytest
 from spotipy import Spotify
 
 from spotify_manager.application.history_refresh import HistoryRefresh
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
 from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
@@ -115,7 +116,7 @@ class OpeningEffects:
         self._record("refresh")
         callback = kwargs["progress_callback"]
         if callback is not None:
-            cast(Callable[[str], None], callback)("history progress")
+            cast(Messages, callback).echo("history progress")
         return _history(self.empty_history)
 
     def save(self, state: dict[str, object], path: Path) -> None:
@@ -201,7 +202,7 @@ def _invoke(tmp_path: Path, preview: bool, effects: OpeningEffects) -> None:
             dry_run=preview,
             now=STAMP,
         ),
-        ReleaseCheckCallbacks(progress_callback=effects.progress),
+        ReleaseCheckCallbacks(progress_callback=effects),
         ReleaseCheckResources(
             state_path=tmp_path / "state.json", log_path=tmp_path / "audit.jsonl"
         ),

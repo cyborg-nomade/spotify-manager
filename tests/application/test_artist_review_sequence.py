@@ -159,10 +159,10 @@ def _run(edge: original.ReviewObservations) -> ArtistReviewSummary:
     catalog = cast(ReviewCatalog, ScriptedReviewCatalog(edge))
     spotify = memory
     interaction = ReviewInteraction(
-        edge.echo,
-        None if edge.profile == "no-progress" else edge.progress,
-        None if edge.profile == "low-auto-tie" else edge.track_choice,
-        None if edge.profile == "release-auto" else edge.release_choice,
+        edge,
+        None if edge.profile == "no-progress" else edge,
+        None if edge.profile == "low-auto-tie" else edge,
+        None if edge.profile == "release-auto" else edge,
     )
     limit = {"limit-zero": 0, "limit-negative": -1}.get(edge.profile)
     return ArtistReview(original.PLAYLISTS, storage, catalog, spotify, interaction).run(

@@ -133,6 +133,7 @@ test-application:
         --cov=spotify_manager.application.new_year_charts \
         --cov=spotify_manager.application.new_year_membership \
         --cov=spotify_manager.application.new_year_retry \
+        --cov=spotify_manager.application.retry_attempts \
         --cov=spotify_manager.application.artist_review_values \
         --cov=spotify_manager.application.artist_review_effects \
         --cov=spotify_manager.application.artist_review_session \

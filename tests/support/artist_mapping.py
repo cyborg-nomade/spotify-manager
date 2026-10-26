@@ -57,3 +57,17 @@ class MappingObservations:
         assert artist is ARTIST
         self.prompts.append(tuple(item.spotify_id for item in candidates))
         return self.choices.pop(0)
+
+    def choose_artist(
+        self, artist: RankedArtist, candidates: tuple[SpotifyArtistCandidate, ...]
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            artist: Original fixture observation.
+            candidates: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(artist, candidates)

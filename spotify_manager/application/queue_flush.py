@@ -1,11 +1,10 @@
 """Open, resume and checkpoint Queue flush plans at original effect boundaries."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
-from datetime import datetime
 from typing import cast
 
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.queue_flush_effects import QueueFlushEffects
 from spotify_manager.application.queue_flush_execution import QueueFlushExecution
 from spotify_manager.application.queue_flush_planning import QueuePlanning
@@ -23,7 +22,7 @@ def new_flush_run(
     playlist: str,
     tracks: tuple[PlaylistTrack, ...],
     limit: int,
-    clock: Callable[[], datetime],
+    clock: Clock,
 ) -> dict[str, object]:
     """Snapshot original daily sources and retain the two distinct clock reads.
 
@@ -37,8 +36,8 @@ def new_flush_run(
         Original mutable run document with pending entries.
     """
     selected = daily_sources(tracks, limit)
-    run_id = clock().strftime("%Y%m%dT%H%M%S%fZ")
-    started_at = clock().isoformat()
+    run_id = clock.now().strftime("%Y%m%dT%H%M%S%fZ")
+    started_at = clock.now().isoformat()
     entries: list[dict[str, object]] = []
     for track in selected:
         entries.append({"source": asdict(track), "status": "pending", "plan": None})

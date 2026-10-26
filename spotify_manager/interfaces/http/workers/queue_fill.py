@@ -1,6 +1,7 @@
 """Explicit callbacks and wire presentation for QueueFillWorker."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -15,8 +16,8 @@ from spotify_manager.bootstrap.clients import LastFmCredentials
 from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.queue import QueueArtistOption
 from spotify_manager.interfaces.http.models.queue import QueueFillResultEntry
@@ -47,6 +48,12 @@ class QueueFillWorker:
         job_id: Caller-owned job id.
         spotify: Caller-owned spotify.
         connection_failure: Caller-owned connection failure.
+
+    Attributes:
+        job: Resolved reconnectable job state.
+        last_progress: Most recently accepted progress description.
+        lastfm: Invocation-owned Last.fm reader created at the original boundary.
+        events: SDK event subscription retaining the original setter binding.
     """
 
     credentials: LastFmCredentials
@@ -58,8 +65,7 @@ class QueueFillWorker:
     job: _BlastJob = field(init=False)
     last_progress: str | None = field(init=False, default=None)
     lastfm: LastFmClient = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Run reconnectable Last.fm artist discovery for The Queue."""
@@ -98,9 +104,7 @@ class QueueFillWorker:
             self.job.result.detail = message
             self.context.append(self.job, message)
 
-    def progress_callback(
-        self, completed: int, total: int, progress_status: str
-    ) -> None:
+    def progress(self, completed: int, total: int, progress_status: str) -> None:
         """Publish routine progress and observe its cancellation boundary.
 
         Args:
@@ -118,7 +122,7 @@ class QueueFillWorker:
                 self.context.append(self.job, progress_status)
                 self.last_progress = progress_status
 
-    def choice_reader(
+    def choose_artist(
         self,
         recommendation: the_queue.ArtistRecommendation,
         candidates: tuple[release_check.SpotifyArtistCandidate, ...],
@@ -147,9 +151,9 @@ class QueueFillWorker:
             self.job.result.status = "waiting"
             self.job.result.detail = f"Map Last.fm artist {recommendation.artist}"
             self.context.append(self.job, self.job.result.detail)
-        return await_submission(self.job.choice_event, self._consume_choice_reader)
+        return await_submission(self.job.choice_event, self)
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -158,24 +162,16 @@ class QueueFillWorker:
         if self.job.cancel_event.wait(seconds):
             raise _QueueJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self.echo,
-            sleep=self.interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
+        return SpotifyRetries(self, self, 10, 3).attempts(description)
 
     def _start(self) -> None:
         self.job = self.context.lookup(self.job_id, command="fill_queue_from_lastfm")
@@ -191,13 +187,11 @@ class QueueFillWorker:
                 ),
             )
         self.last_progress: str | None = None
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
         self.lastfm = lastfm_client(
             LastFmCredentials(self.credentials.api_key, self.credentials.username),
-            self.echo,
+            self,
         )
 
     def _execute(self) -> the_queue.FillSummary:
@@ -206,10 +200,10 @@ class QueueFillWorker:
             self.lastfm,
             self.options,
             QueueFillCallbacks(
-                choice_reader=self.choice_reader,
-                echo=self.echo,
-                progress_callback=self.progress_callback,
-                retry_call=self.retry_call,
+                choice_reader=self,
+                output=self,
+                progress_callback=self,
+                retry_call=self,
             ),
             QueueFillResources(),
         )
@@ -244,8 +238,7 @@ class QueueFillWorker:
             self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
+        self.events.restore()
         with self.context.lock:
             self.job.result.queue_pending_choice = None
             self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
@@ -312,7 +305,15 @@ class QueueFillWorker:
             self.job.result.detail = f"Unexpected Queue fill error: {exc}"
             self.context.append(self.job, self.job.result.detail)
 
-    def _consume_choice_reader(self) -> str | None:
+    def consume(self) -> str | None:
+        """Consume an accepted submission while holding the job lock.
+
+        Returns:
+            Original submitted value, or none while the job is waiting.
+
+        Raises:
+            RuntimeError: The job's original cancellation boundary stops execution.
+        """
         with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _QueueJobCancelledError

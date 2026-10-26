@@ -1,12 +1,12 @@
 """Interactive routine for removing albums below the liked-track threshold."""
 
 import json
-from collections.abc import Callable
+import time
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-from time import sleep as default_sleep
 from typing import Any
+from typing import Protocol
 
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
@@ -17,6 +17,9 @@ from spotify_manager.application.artist_follows import (
 from spotify_manager.application.library_statistics import (
     report_with_followed_artist as report_with_followed_artist,
 )
+from spotify_manager.application.ports.runtime import CountProgress
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
@@ -30,6 +33,7 @@ from spotify_manager.infrastructure.library_records import (
 from spotify_manager.infrastructure.library_records import (
     current_stats_history_key as current_stats_history_key,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.routine_state_codecs import (
     ReviewAlbumLimitsStateCodec,
 )
@@ -72,9 +76,6 @@ from spotify_manager.infrastructure.spotify.retry import (
 from spotify_manager.infrastructure.spotify.retry import (
     parse_retry_after_seconds as parse_retry_after_seconds,
 )
-from spotify_manager.infrastructure.spotify.retry import (
-    retry_spotify_server_errors as retry_spotify_server_errors,
-)
 from spotify_manager.interfaces.presenters.album_limits import (
     echo_track_details as echo_track_details,
 )
@@ -106,6 +107,15 @@ from spotify_manager.processors.library_lookups import evaluate_album as evaluat
 from spotify_manager.utils.sorting import artist_sort_key
 
 
+type Sleep = Wait
+
+
+type ProgressCallback = CountProgress
+
+
+type Echo = Messages
+
+
 REVIEW_DECISIONS_PATH = (
     Path(__file__).resolve().parent.parent
     / "files"
@@ -113,10 +123,25 @@ REVIEW_DECISIONS_PATH = (
 )
 TRACK_CONTAINS_BATCH_SIZE = 20
 
-Echo = Callable[[str], None]
-ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]
-ProgressCallback = Callable[[int, int], None]
-Sleep = Callable[[float], None]
+
+class ActionReader(Protocol):
+    """Own the operator interaction for choose action."""
+
+    def choose_action(
+        self, album: YourLibraryAlbum, evaluation: AlbumEvaluation, /
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            album: Original interaction value.
+            evaluation: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
+
+
 ReviewDecisions = dict[str, dict[str, object]]
 
 
@@ -593,12 +618,12 @@ def review_album_limits(
     threshold: float = 0.5,
     use_cache: bool = True,
     refresh_cache: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     log_path: Path = REMOVED_ALBUMS_LOG_PATH,
     decisions_path: Path | None = None,
     state_service: StateService | None = None,
     progress_callback: ProgressCallback | None = None,
-    sleep: Sleep = default_sleep,
+    sleep: Sleep = time,
     transient_retry_delay_seconds: int = TRANSIENT_RETRY_DELAY_SECONDS,
     transient_max_attempts: int = TRANSIENT_MAX_ATTEMPTS,
 ) -> None:

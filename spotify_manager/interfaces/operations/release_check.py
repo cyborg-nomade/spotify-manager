@@ -65,7 +65,6 @@ from spotify_manager.routines.release_check import (
 )
 from spotify_manager.routines.release_check import RetryCall as RetryCall
 from spotify_manager.routines.release_check import _default_state as _default_state
-from spotify_manager.routines.release_check import _direct_retry as _direct_retry
 from spotify_manager.routines.release_check import release_tags as release_tags
 from spotify_manager.routines.release_check import save_state as save_state
 from spotify_manager.routines.release_check import (

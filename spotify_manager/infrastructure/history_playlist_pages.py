@@ -1,12 +1,14 @@
 """Synchronous history playlist pages with caller-owned retry and cancellation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Retry
 
-type RetryCall = Callable[[Callable[[], object], str], object]
+
+type RetryCall = Retry
 
 
 @dataclass(frozen=True)
@@ -23,7 +25,7 @@ class SpotifyHistoryPages:
     spotify: Spotify
     playlist: str
     retry: RetryCall
-    cancelled: Callable[[], bool] | None
+    cancelled: CancellationState | None
 
     def read(self, offset: int) -> object:
         """Read one raw playlist page.

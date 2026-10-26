@@ -1,7 +1,7 @@
 """Named catalog, cache and membership resources for synchronous lookups."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol
 from typing import cast
 
 from spotipy import Spotify
@@ -14,7 +14,16 @@ from spotify_manager.infrastructure import lookup_records
 from spotify_manager.models.your_library import YourLibraryFile
 
 
-type ClientFactory = Callable[[], Spotify]
+class ClientFactory(Protocol):
+    """Acquire the caller-owned client only after a cache miss."""
+
+    def client(self) -> Spotify:
+        """Acquire the original synchronous client lazily.
+
+        Returns:
+            Original caller-owned client.
+        """
+        ...
 
 
 @dataclass(frozen=True)
@@ -294,7 +303,7 @@ class AlbumTrackCache:
 
         selected = self.client
         if selected is None and self.factory:
-            selected = self.factory()
+            selected = self.factory.client()
         if selected is None:
             raise TracklistUnavailableError(
                 f"Album {identifier!r} is not cached "

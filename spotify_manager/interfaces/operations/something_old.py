@@ -35,7 +35,6 @@ from spotify_manager.routines.something_old import LastFmReader as LastFmReader
 from spotify_manager.routines.something_old import ModeReader as ModeReader
 from spotify_manager.routines.something_old import ProgressCallback as ProgressCallback
 from spotify_manager.routines.something_old import RetryCall as RetryCall
-from spotify_manager.routines.something_old import _direct_retry as _direct_retry
 from spotify_manager.routines.something_old import (
     parse_playlist_id as parse_playlist_id,
 )

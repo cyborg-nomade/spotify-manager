@@ -10,32 +10,31 @@ from spotipy.exceptions import SpotifyException
 
 from spotify_manager import main
 from spotify_manager.interfaces import lookup_operations
+from spotify_manager.interfaces.cli.output import TYPER_OUTPUT
 from spotify_manager.interfaces.operations import legacy_library as library_operations
 
 
 def test_spotify_client_is_lazy_cached_and_reports_configuration_errors(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Spotify client is lazy cached and reports configuration errors.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        capsys: Original capsys.
+    """
     spotify = object()
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(main, "_client", None)
-
-    def build(**kwargs: object) -> object:
-        calls.append(kwargs)
-        return spotify
-
-    monkeypatch.setattr(main, "get_spotipy_client", build)
+    scenario = SpotifyClientIsLazyCachedAndReportsConfigurationErrorsScenario(
+        calls=calls, spotify=spotify
+    )
+    monkeypatch.setattr(main, "get_spotipy_client", scenario.build)
     assert main.client() is spotify
     assert main.client() is spotify
-    assert calls == [{"event_callback": main.typer.echo}]
-
+    assert calls == [{"event_callback": TYPER_OUTPUT}]
     monkeypatch.setattr(main, "_client", None)
-
-    def fail(**_kwargs: object) -> None:
-        raise main.SpotifyRedirectURIError("bad redirect")
-
-    monkeypatch.setattr(main, "get_spotipy_client", fail)
+    monkeypatch.setattr(main, "get_spotipy_client", scenario.fail)
     with pytest.raises(main.typer.Exit) as exc:
         main.client()
     assert exc.value.exit_code == 1
@@ -380,3 +379,37 @@ class WorkflowCalls:
             client: Original client identity.
         """
         self.events.append(("analyse", client))
+
+
+@dataclass
+class SpotifyClientIsLazyCachedAndReportsConfigurationErrorsScenario:
+    """Retain the original spotify client is lazy cached and reports configuration
+    errors fixture.
+
+    Args:
+        calls: Original calls observation or resource.
+        spotify: Original spotify observation or resource.
+    """
+
+    calls: list[dict[str, object]]
+    spotify: object
+
+    def build(self, **kwargs: object) -> object:
+        """Execute the original build mock boundary.
+
+        Args:
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.calls.append(kwargs)
+        return self.spotify
+
+    def fail(self, **_kwargs: object) -> None:
+        """Execute the original fail mock boundary.
+
+        Args:
+            _kwargs: Original external mock argument.
+        """
+        raise main.SpotifyRedirectURIError("bad redirect")

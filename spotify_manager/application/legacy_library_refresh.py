@@ -51,7 +51,7 @@ def refresh(deps: AlbumRefresh, incremental: bool, echo: Echo) -> list[Simplifie
     Returns:
         Published models or the original mutable fallback authority.
     """
-    echo("Updating total albums...")
+    echo.echo("Updating total albums...")
     stored = deps.load() if incremental else []
     with LegacyFailure(echo):
         raw = gather(deps, len(stored), echo)
@@ -62,7 +62,7 @@ def refresh(deps: AlbumRefresh, incremental: bool, echo: Echo) -> list[Simplifie
             albums = stored
         parsed = validate_albums(sorted(albums, key=sort_key))
         deps.save(parsed)
-        echo("Albums updated!")
+        echo.echo("Albums updated!")
         return parsed
     return stored if incremental else []
 
@@ -106,7 +106,7 @@ def advance(
         UnboundLocalError: Original presentation fails before assigning last_next.
     """
     with LegacyFailure(echo) as attempt:
-        echo(f"{scan.index}/{scan.pages}")
+        echo.echo(f"{scan.index}/{scan.pages}")
         scan.index += 1
         scan.next_url = scan.page["next"]
         scan.next_observed = True
@@ -122,7 +122,7 @@ def advance(
         )
         error.__context__ = attempt.error
         raise error
-    echo(scan.next_url)
+    echo.echo(scan.next_url)
     scan.index -= 1
     scan.page = deps.recover(scan.offset)
 
@@ -136,7 +136,7 @@ def invalid_rows(rows: list[object], echo: Echo) -> None:
     """
     for index, row in enumerate(rows):
         if invalid_row(row):
-            echo(index)
+            echo.echo(index)
 
 
 def invalid_row(row: object) -> bool:
@@ -178,15 +178,15 @@ def playlist(deps: PlaylistClock, echo: Echo) -> str:
     Returns:
         Original accepted playlist identity.
     """
-    echo("Creating playlist...")
+    echo.echo("Creating playlist...")
     year = str(deps.now().year)
     month = (
         str(deps.now().month) if deps.now().month >= 10 else f"0{str(deps.now().month)}"
     )
     name = f"{year}.{month}"
-    echo(f"Playlist name: {name}")
+    echo.echo(f"Playlist name: {name}")
     result = deps.create(name)
-    echo("Done!")
+    echo.echo("Done!")
     return cast(dict[str, str], result)["id"]
 
 
@@ -209,7 +209,7 @@ def add_monthly(
     Returns:
         Whether every original effect completed.
     """
-    echo("Adding monthly albums to playlist and control file...")
+    echo.echo("Adding monthly albums to playlist and control file...")
     with LegacyFailure(echo):
         selected = monthly_slice(albums, index, deps.limits.count())
         identifier = playlist(deps.clock, echo)
@@ -239,7 +239,7 @@ def append_album(
     ordered = tracks(deps.tracks, album, echo)
     append_tracks(ordered, identifier, deps.writes, echo)
     control.append(ControlFileItem(album=album, result=""))
-    echo(f"Added album {album.name} to control file")
+    echo.echo(f"Added album {album.name} to control file")
 
 
 def tracks(
@@ -255,16 +255,16 @@ def tracks(
     Returns:
         Original ordered simplified tracks.
     """
-    echo(f"Getting ordered tracks for album {album.name} - {album.spotify_id}")
+    echo.echo(f"Getting ordered tracks for album {album.name} - {album.spotify_id}")
     page = deps.read(album.spotify_id)
     rows = page["items"]
     while page["next"]:
         page = deps.next(page)
         rows.extend(page["items"])
     parsed = deps.parse(rows)
-    echo("We have all tracks")
+    echo.echo("We have all tracks")
     ordered = deps.sort(parsed)
-    echo("Tracks ordered!")
+    echo.echo("Tracks ordered!")
     return deps.validate(ordered)
 
 
@@ -282,13 +282,13 @@ def append_tracks(
         writes: Original small and batched playlist request owner.
         echo: Original presenter.
     """
-    echo("Appending tracks to playlist...")
+    echo.echo("Appending tracks to playlist...")
     uris = [track.uri for track in ordered_tracks]
     if len(ordered_tracks) <= 100:
         writes.single(identifier, uris)
     else:
         append_batches(uris, identifier, writes)
-    echo("Done!")
+    echo.echo("Done!")
 
 
 def append_batches(uris: list[str], identifier: str, writes: PlaylistWrites) -> None:

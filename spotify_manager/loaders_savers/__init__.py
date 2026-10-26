@@ -14,6 +14,7 @@ from spotify_manager.core.library_data.runtime import (
     publish_managed_path as publish_managed_path,
 )
 from spotify_manager.infrastructure import legacy_library_files as storage
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
 from spotify_manager.models.stats import StatsFileItem
@@ -77,7 +78,7 @@ def load_control_file() -> list[ControlFileItem]:
     Returns:
         Original file values with unchanged validation and native errors.
     """
-    return storage.load_control_file(CONTROL_FILE_PATH, print)
+    return storage.load_control_file(CONTROL_FILE_PATH, STANDARD_OUTPUT)
 
 
 def load_total_albums_file() -> list[SimplifiedAlbum]:
@@ -86,7 +87,7 @@ def load_total_albums_file() -> list[SimplifiedAlbum]:
     Returns:
         Original file values with unchanged validation and native errors.
     """
-    return storage.load_total_albums_file(TOTAL_ALBUMS_PATH, print)
+    return storage.load_total_albums_file(TOTAL_ALBUMS_PATH, STANDARD_OUTPUT)
 
 
 def load_total_albums_new_file() -> list[YourLibraryAlbum]:
@@ -95,7 +96,7 @@ def load_total_albums_new_file() -> list[YourLibraryAlbum]:
     Returns:
         Original file values with unchanged validation and native errors.
     """
-    return storage.load_total_albums_new_file(TOTAL_ALBUMS_NEW_PATH, print)
+    return storage.load_total_albums_new_file(TOTAL_ALBUMS_NEW_PATH, STANDARD_OUTPUT)
 
 
 def load_your_library_file() -> YourLibraryFile:
@@ -104,7 +105,7 @@ def load_your_library_file() -> YourLibraryFile:
     Returns:
         Original file values with unchanged validation and native errors.
     """
-    return storage.load_your_library_file(YOUR_LIBRARY_PATH, print)
+    return storage.load_your_library_file(YOUR_LIBRARY_PATH, STANDARD_OUTPUT)
 
 
 def load_comparison_file() -> Comparison:
@@ -122,7 +123,7 @@ def load_total_artists_file() -> list[YourLibraryArtist]:
     Returns:
         Original file values with unchanged validation and native errors.
     """
-    return storage.load_total_artists_file(TOTAL_ARTISTS_PATH, print)
+    return storage.load_total_artists_file(TOTAL_ARTISTS_PATH, STANDARD_OUTPUT)
 
 
 def load_stats_history_file() -> dict[str, StatsReport]:
@@ -131,7 +132,7 @@ def load_stats_history_file() -> dict[str, StatsReport]:
     Returns:
         Original file values with unchanged validation and native errors.
     """
-    return storage.load_stats_history_file(STATS_HISTORY_PATH, print)
+    return storage.load_stats_history_file(STATS_HISTORY_PATH, STANDARD_OUTPUT)
 
 
 def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]) -> None:
@@ -142,7 +143,10 @@ def save_total_albums_file(total_albums_file_items: list[SimplifiedAlbum]) -> No
 
     """
     return storage.save_total_albums_file(
-        total_albums_file_items, TOTAL_ALBUMS_PATH, print, storage.LegacyModelFiles()
+        total_albums_file_items,
+        TOTAL_ALBUMS_PATH,
+        STANDARD_OUTPUT,
+        storage.LegacyModelFiles(),
     )
 
 
@@ -156,7 +160,7 @@ def save_total_albums_new_file(total_albums_file_items: list[YourLibraryAlbum]) 
     return storage.save_total_albums_new_file(
         total_albums_file_items,
         TOTAL_ALBUMS_NEW_PATH,
-        print,
+        STANDARD_OUTPUT,
         storage.LegacyModelFiles(),
     )
 
@@ -171,7 +175,7 @@ def save_total_artists_file(total_artists_file_items: list[YourLibraryArtist]) -
     return storage.save_total_artists_file(
         total_artists_file_items,
         TOTAL_ARTISTS_PATH,
-        print,
+        STANDARD_OUTPUT,
         storage.LegacyModelFiles(),
     )
 
@@ -184,7 +188,10 @@ def save_control_file(control_file_items: list[ControlFileItem]) -> None:
 
     """
     return storage.save_control_file(
-        control_file_items, CONTROL_FILE_PATH, print, storage.LegacyModelFiles()
+        control_file_items,
+        CONTROL_FILE_PATH,
+        STANDARD_OUTPUT,
+        storage.LegacyModelFiles(),
     )
 
 
@@ -195,7 +202,7 @@ def save_stats_file(stats_file_items: StatsFileItem) -> None:
         stats_file_items: Original persisted facts.
 
     """
-    return storage.save_stats_file(stats_file_items, STATS_FILE_PATH, print)
+    return storage.save_stats_file(stats_file_items, STATS_FILE_PATH, STANDARD_OUTPUT)
 
 
 def save_stats_history(stats_history: dict[str, StatsReport]) -> None:
@@ -205,7 +212,9 @@ def save_stats_history(stats_history: dict[str, StatsReport]) -> None:
         stats_history: Original persisted facts.
 
     """
-    return storage.save_stats_history(stats_history, STATS_HISTORY_PATH, print)
+    return storage.save_stats_history(
+        stats_history, STATS_HISTORY_PATH, STANDARD_OUTPUT
+    )
 
 
 def save_comparison_file(comparison_dict: Comparison) -> None:
@@ -215,4 +224,6 @@ def save_comparison_file(comparison_dict: Comparison) -> None:
         comparison_dict: Original persisted facts.
 
     """
-    return storage.save_comparison_file(comparison_dict, COMPARISON_PATH, print)
+    return storage.save_comparison_file(
+        comparison_dict, COMPARISON_PATH, STANDARD_OUTPUT
+    )

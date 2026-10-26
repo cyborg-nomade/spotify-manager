@@ -33,15 +33,20 @@ Python, including tests and tooling:
    routine modules. Prefer direct named calls over injected forwarding callbacks.
 8. Application code imports and calls fixed domain rules directly. Pass named
    application stage objects rather than their bound methods. Use cohesive
-   objects with explicit methods for external reads and writes. Reserve callbacks
-   for real operator interactions, notifications, cancellation, retries and time
-   observations; do not use them to make fixed business decisions replaceable.
+   objects with explicit methods for external reads and writes. Do not pass
+   functions or bound methods as execution dependencies when named resources and
+   direct calls can do the job. This also applies to operator
+   interactions, notifications, cancellation, retries, time, randomness and
+   compatibility APIs. Reserve function arguments for external framework or
+   standard-library APIs that actually require them, and record each narrow
+   reason; an interaction or retry label is not an exemption.
    Integration adapters must not conceal execution of another application stage.
    Do not pass file readers/writers, serializers, validators, presenters or fixed
    workflow functions as execution dependencies. Use named resource/schema methods
-   and direct presenter calls. Existing external Python hook APIs are adapted once
-   at compatibility edges; they are not a pattern for new internal code. The
-   callback dependency guard records the narrow retained hook reasons.
+   and direct presenter calls. Retain only unavoidable external method captures
+   whose original lookup timing is part of the frozen behavior; keep them private
+   at the concrete SDK edge.
+   The callback dependency guard records those exact binding-time reasons.
 
 Apply these rules throughout the approved incremental refactor, preserving the
 frozen behavior contracts. Existing legacy code is brought into compliance as

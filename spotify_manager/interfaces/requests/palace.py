@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from spotify_manager.routines.blast_from_past import fetch_random_indexes
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
 
 
 if TYPE_CHECKING:
@@ -71,10 +72,10 @@ class PalaceCallbacks:
         random_index_reader: Random index reader.
         retry_call: Retry call.
         progress_callback: Progress callback.
-        echo: Echo.
+        output: Echo.
     """
 
-    random_index_reader: RandomIndexReader = fetch_random_indexes
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES
     retry_call: RetryCall | None = None
     progress_callback: ProgressCallback | None = None
-    echo: Echo = print
+    output: Echo = STANDARD_OUTPUT

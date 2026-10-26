@@ -1,7 +1,9 @@
 """Present Queue 3 outcomes using the existing operator messages."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
+
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import ReviewProgress
 
 
 @dataclass(frozen=True)
@@ -9,12 +11,12 @@ class Queue3Presenter:
     """Write Queue 3 messages through the caller's existing output callback.
 
     Args:
-        echo: Existing CLI or job output sink.
+        output: Existing CLI or job output sink.
         progress: Optional standalone import progress sink.
     """
 
-    echo: Callable[[str], None]
-    progress: Callable[[int, int, str], None] | None = None
+    output: Messages
+    progress: ReviewProgress | None = None
 
     def imported(
         self, year: int, additions: int, considered: int, dry_run: bool
@@ -27,7 +29,7 @@ class Queue3Presenter:
             considered: Unique source artists considered.
             dry_run: Whether this was a preview.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would import' if dry_run else 'Imported'} {additions} artists "
             f"from Great Discoveries {year}; "
             f"{considered - additions} were already present."
@@ -40,7 +42,7 @@ class Queue3Presenter:
             year: Previous-year source year.
         """
         if self.progress is not None:
-            self.progress(0, 1, f"Loading Great Discoveries {year}")
+            self.progress.progress(0, 1, f"Loading Great Discoveries {year}")
 
     def already_imported(self, year: int) -> None:
         """Explain why a stored checkpoint suppresses this import.
@@ -48,7 +50,7 @@ class Queue3Presenter:
         Args:
             year: Previous-year source year.
         """
-        self.echo(f"Great Discoveries {year} was already imported into Queue 3.")
+        self.output.echo(f"Great Discoveries {year} was already imported into Queue 3.")
 
     def checked(self, year: int, already_completed: bool) -> None:
         """Report final progress with the original completion label.
@@ -64,7 +66,7 @@ class Queue3Presenter:
             if already_completed
             else f"Checked Great Discoveries {year}"
         )
-        self.progress(1, 1, message)
+        self.progress.progress(1, 1, message)
 
     def added(self, name: str, dry_run: bool) -> None:
         """Report an accepted or projected target addition.
@@ -73,7 +75,7 @@ class Queue3Presenter:
             name: Target marker title.
             dry_run: Whether this is a preview.
         """
-        self.echo(f"{'Would add' if dry_run else 'Added'}: {name}")
+        self.output.echo(f"{'Would add' if dry_run else 'Added'}: {name}")
 
     def removed(self, name: str, dry_run: bool) -> None:
         """Report an accepted or projected previous-marker removal.
@@ -82,7 +84,9 @@ class Queue3Presenter:
             name: Original source title.
             dry_run: Whether this is a preview.
         """
-        self.echo(f"{'Would remove' if dry_run else 'Removed'} previous track: {name}")
+        self.output.echo(
+            f"{'Would remove' if dry_run else 'Removed'} previous track: {name}"
+        )
 
     def completed(self, artist: str, dry_run: bool) -> None:
         """Report completion after any final marker cleanup.
@@ -91,7 +95,7 @@ class Queue3Presenter:
             artist: Logical artist name.
             dry_run: Whether this is a preview.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would complete' if dry_run else 'Completed'} "
             f"{artist}; removed the final Queue 3 marker."
         )
@@ -103,7 +107,7 @@ class Queue3Presenter:
             artist: Logical artist name.
             reason: Original durable plan reason.
         """
-        self.echo(f"Skipped {artist}: {reason}.")
+        self.output.echo(f"Skipped {artist}: {reason}.")
 
     def started(self, index: int, total: int, artist: str, track: str) -> None:
         """Report entry progress before observing or reusing its plan.
@@ -115,7 +119,7 @@ class Queue3Presenter:
             track: Original source title.
         """
         if self.progress is not None:
-            self.progress(index - 1, total, f"{artist} - {track}")
+            self.progress.progress(index - 1, total, f"{artist} - {track}")
 
     def finished(self, index: int, total: int, artist: str) -> None:
         """Report progress after the entry's audit and acknowledgment.
@@ -126,7 +130,7 @@ class Queue3Presenter:
             artist: Logical artist name.
         """
         if self.progress is not None:
-            self.progress(index, total, f"Completed {artist}")
+            self.progress.progress(index, total, f"Completed {artist}")
 
     def stale(self, artist: str) -> None:
         """Report discarded stale composer plans before their checkpoint.
@@ -134,4 +138,4 @@ class Queue3Presenter:
         Args:
             artist: Logical artist name.
         """
-        self.echo(f"Discarded a stale composer-playlist plan for {artist}.")
+        self.output.echo(f"Discarded a stale composer-playlist plan for {artist}.")

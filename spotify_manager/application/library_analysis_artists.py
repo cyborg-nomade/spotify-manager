@@ -1,7 +1,6 @@
 """Cursor discovery, stable artist reconciliation and resumable live verification."""
 
 from collections.abc import Sequence
-from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -98,10 +97,11 @@ def scan_initial(session: AnalysisSession) -> None:
 def _save_initial_page(
     session: AnalysisSession, state: ResourceState, after: str | None
 ) -> tuple[list[object], dict[str, object], str | None]:
-    response = session.request.call(
-        partial(session.catalog.artists, after),
-        f"reading followed artists after {after or 'the beginning'}",
-    )
+    for attempt in session.request.attempts(
+        f"reading followed artists after {after or 'the beginning'}"
+    ):
+        with attempt:
+            response = session.catalog.artists(after)
     rows, page = session.catalog.artist_items(response)
     converted = converted_items(rows, session.catalog, "artists")
     session.files.append(session.paths.stage("artists"), converted)
@@ -113,7 +113,7 @@ def _save_initial_page(
     state["after"] = next_after
     session.save()
     if session.progress:
-        session.progress(
+        session.progress.progress(
             "artists", artist_count(session), reported_total(page), "Reading live API"
         )
     return rows, page, next_after
@@ -178,10 +178,11 @@ def _reconcile_page(
     session: AnalysisSession, state: ResourceState, known: set[str], after: str | None
 ) -> tuple[list[object], dict[str, object], int]:
     session.check_cancel()
-    response = session.request.call(
-        partial(session.catalog.reconcile_artists, after),
-        f"reconciling followed artists after {after or 'the beginning'}",
-    )
+    for attempt in session.request.attempts(
+        f"reconciling followed artists after {after or 'the beginning'}"
+    ):
+        with attempt:
+            response = session.catalog.reconcile_artists(after)
     rows, page = session.catalog.artist_items(response)
     converted = converted_items(rows, session.catalog, "artists")
     unseen = unseen_items(converted, known)
@@ -250,7 +251,7 @@ def _stage_verification(
         retained=len(retained),
         candidates=len(candidates),
     )
-    session.echo(
+    session.output.echo(
         f"Artists: {reason}; checking {len(candidates)} candidate(s) through "
         "Spotify's live follow-status endpoint."
     )
@@ -271,7 +272,7 @@ def verify(session: AnalysisSession) -> None:
     session.save()
     if session.progress:
         count = artist_count(session)
-        session.progress("artists", count, count, "Complete")
+        session.progress.progress("artists", count, count, "Complete")
 
 
 def _verify_batch(
@@ -284,11 +285,12 @@ def _verify_batch(
     start = int(state.get("candidate_index", 0))
     batch = candidates[start : start + ARTIST_VERIFICATION_BATCH_LIMIT]
     identities = [item.spotify_id for item in batch]
-    response = session.request.call(
-        partial(session.catalog.following, identities),
+    for attempt in session.request.attempts(
         f"verifying followed artists {start + 1}-{start + len(batch)}",
         max_attempts=ARTIST_VERIFICATION_MAX_ATTEMPTS,
-    )
+    ):
+        with attempt:
+            response = session.catalog.following(identities)
     followed = _followed_candidates(batch, response)
     session.files.append(session.paths.stage("artists"), followed)
     state["candidate_index"] = start + len(batch)

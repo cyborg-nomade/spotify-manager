@@ -289,6 +289,28 @@ class PlanReads:
         """
         self.record("progress", message)
 
+    def select_releases(
+        self, candidate: legacy.QueueArtist, catalog: tuple[legacy.CatalogRelease, ...]
+    ) -> tuple[str, ...]:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            candidate: Original fixture observation.
+            catalog: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(candidate, catalog)
+
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
 
 def markers() -> dict[str, tuple[legacy.ArtistMarkers, ...]]:
     """Build original auxiliary-marker qualification scenarios.
@@ -420,8 +442,8 @@ def scripted_reads(edge: PlanReads) -> DiscographyReads:
         cast(DiscographyHistory, ScriptedHistory(edge)),
         cast(DiscographyArtistMapping, ScriptedMapping(edge)),
         cast(DiscographyCatalog, ScriptedCatalog(edge)),
-        edge.choose,
-        edge.progress,
+        edge,
+        edge,
     )
 
 
@@ -457,9 +479,9 @@ def original_plan(edge: PlanReads) -> legacy.DiscographyPlan:
         return legacy.build_discography_plan(
             cast(Spotify, edge),
             {"newfoundland": "nf", "memory_lane": "ml", "requeue": "rq"},
-            edge.choose,
+            edge,
             state_path=Path("state"),
-            progress_callback=edge.progress,
+            progress_callback=edge,
         )
 
 

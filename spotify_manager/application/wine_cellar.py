@@ -1,6 +1,5 @@
 """Fill available New Wine slots with ordered, resumable Wine Cellar transfers."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
@@ -15,6 +14,20 @@ from spotify_manager.domain.catalog import PlaylistTrack
 
 type Inventory = tuple[dict[str, tuple[str, ...]], dict[str, tuple[str, ...]]]
 type LibraryCounts = tuple[int | None, int, bool]
+
+
+class TransferPresentation(Protocol):
+    """Present a completed or previewed cellar transfer."""
+
+    def moved(self, source: PlaylistTrack, duplicate: bool, dry_run: bool) -> None:
+        """Present the original transfer result before checkpoint and audit.
+
+        Args:
+            source: Original cellar marker.
+            duplicate: Whether the destination already had this marker.
+            dry_run: Whether the transfer was previewed.
+        """
+        ...
 
 
 class CellarAccess(Protocol):
@@ -118,10 +131,11 @@ class CellarWorkflow:
     Args:
         access: Original playlist, membership and persistence boundary.
         moved: Original transfer presentation callback.
+        presentation: Named presenter for accepted workflow outcomes.
     """
 
     access: CellarAccess
-    moved: Callable[[PlaylistTrack, bool, bool], None]
+    presentation: TransferPresentation
 
     def run(
         self, options: CellarOptions, state: dict[str, object], run: dict[str, object]
@@ -136,7 +150,7 @@ class CellarWorkflow:
         Returns:
             Original ordered refill results and destination counts.
         """
-        return refill_cellar(self.access, options, state, run, self.moved)
+        return refill_cellar(self.access, options, state, run, self.presentation)
 
 
 def refill_cellar(
@@ -144,7 +158,7 @@ def refill_cellar(
     options: CellarOptions,
     state: dict[str, object],
     run: dict[str, object],
-    moved: Callable[[PlaylistTrack, bool, bool], None],
+    presentation: TransferPresentation,
 ) -> CellarRefillSummary:
     """Resume any pending transfer, then fill available slots in cellar order.
 
@@ -153,7 +167,7 @@ def refill_cellar(
         options: Existing refill settings and optional preview projection.
         state: Complete mutable New Wine namespace.
         run: Active run inside that namespace.
-        moved: Presentation callback receiving source, duplicate flag and preview flag.
+        presentation: Named presenter for accepted workflow outcomes.
 
     Returns:
         Original refill summary with observed and projected membership counts.
@@ -164,7 +178,7 @@ def refill_cellar(
     if len(ids) >= options.target_size and pending is None:
         return _full_summary(options, len(ids))
     sources = access.playlist(options.source)
-    session = CellarRefill(access, options, state, run, moved, ids, sources)
+    session = CellarRefill(access, options, state, run, presentation, ids, sources)
     return session.execute(cast(dict[str, object] | None, pending))
 
 
@@ -201,13 +215,14 @@ class CellarRefill:
         removed: Source markers removed or previewed.
         ineligible: Sources left in the cellar by the existing eligibility rule.
         counts: Eligibility observations cached by normalized artist name.
+        presentation: Named presenter for accepted workflow outcomes.
     """
 
     access: CellarAccess
     options: CellarOptions
     state: dict[str, object]
     run: dict[str, object]
-    moved: Callable[[PlaylistTrack, bool, bool], None]
+    presentation: TransferPresentation
     destination_ids: set[str]
     sources: tuple[PlaylistTrack, ...]
     results: list[CellarRefillResult] = field(default_factory=list)
@@ -330,7 +345,7 @@ class CellarRefill:
             albums,
             self.options.dry_run,
         )
-        self.moved(source, duplicate, self.options.dry_run)
+        self.presentation.moved(source, duplicate, self.options.dry_run)
         return result
 
     def _append(self, source: PlaylistTrack) -> None:

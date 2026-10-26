@@ -22,6 +22,7 @@ from spotify_manager.domain.queue_values import (
     ArtistRecommendation as ArtistRecommendation,
 )
 from spotify_manager.domain.queue_values import ArtistSeed as ArtistSeed
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
 from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
 from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
@@ -133,7 +134,7 @@ def flush_queue(
     playlists: QueuePlaylists,
     *,
     dry_run: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,

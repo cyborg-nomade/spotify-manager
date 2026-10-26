@@ -1,9 +1,7 @@
 """Synchronize annual charts before reconciling their ordered destination markers."""
 
 from dataclasses import dataclass
-from functools import partial
 from typing import Literal
-from typing import cast
 
 from spotify_manager.application.new_year_membership import AnnualMembership
 from spotify_manager.application.new_year_membership import RetryCall
@@ -47,13 +45,10 @@ class AnnualCharts:
             destination: Original category destination identity.
         """
         name = f"top {limit} {year} {kind}"
-        playlist = cast(
-            str,
-            self.retry(
-                partial(self._ensure, name, kind, year),
-                "finding or creating yearly chart",
-            ),
-        )
+        for attempt in self.retry.attempts("finding or creating yearly chart"):
+            with attempt:
+                response = self._ensure(name, kind, year)
+        playlist = response
         uris = [item["uri"] for item in plan[kind]]
         uris = list(dict.fromkeys(uris))
         current = [track.uri for track in self.catalog.playlist(playlist)]

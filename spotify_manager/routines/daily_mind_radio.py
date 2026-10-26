@@ -1,25 +1,28 @@
 """Build the daily mind radio playlist from anniversary scrobbles."""
 
-from collections.abc import Callable
 from datetime import date
-from datetime import datetime
+from datetime import datetime as datetime
 from pathlib import Path
 
 from spotipy import Spotify
 
-from spotify_manager.application.historical_resolution import direct_call
 from spotify_manager.application.historical_values import (
     DailyMindRadioBatch as DailyMindRadioBatch,
 )
 from spotify_manager.application.historical_values import (
     DailyMindRadioSpotifySummary as DailyMindRadioSpotifySummary,
 )
+from spotify_manager.application.ports.runtime import NO_RETRY
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.domain import history as history_policy
 from spotify_manager.routines import blast_from_past
+from spotify_manager.routines.blast_from_past import FETCH_RANDOM_TIMESTAMP_RESOURCE
+
+
+type RandomTimestampReader = Clock
 
 
 ANNIVERSARY_INTERVAL_YEARS = 5
-RandomTimestampReader = Callable[[], datetime]
 
 
 def anniversary_dates(today: date, earliest_year: int) -> tuple[date, ...]:
@@ -40,9 +43,7 @@ def anniversary_dates(today: date, earliest_year: int) -> tuple[date, ...]:
 def select_daily_mind_radio(
     path: Path = blast_from_past.DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_timestamp_reader: RandomTimestampReader = (
-        blast_from_past.fetch_random_timestamp
-    ),
+    random_timestamp_reader: RandomTimestampReader = (FETCH_RANDOM_TIMESTAMP_RESOURCE),
     progress_callback: blast_from_past.ProgressCallback | None = None,
 ) -> DailyMindRadioBatch:
     """Select one scrobble from each populated anniversary date.
@@ -72,11 +73,9 @@ def add_daily_mind_radio_to_spotify(
     playlist_id: str,
     path: Path = blast_from_past.DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_timestamp_reader: RandomTimestampReader = (
-        blast_from_past.fetch_random_timestamp
-    ),
+    random_timestamp_reader: RandomTimestampReader = (FETCH_RANDOM_TIMESTAMP_RESOURCE),
     progress_callback: blast_from_past.ProgressCallback | None = None,
-    retry_call: blast_from_past.RetryCall = direct_call,
+    retry_call: blast_from_past.RetryCall = NO_RETRY,
     cancel_check: blast_from_past.CancelCheck | None = None,
     dry_run: bool = False,
 ) -> DailyMindRadioSpotifySummary:

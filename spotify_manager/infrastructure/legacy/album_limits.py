@@ -1,18 +1,20 @@
 """Bind album-review effects to their original parsers and persistence helpers."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.artist_follows import ArtistPersistenceResult
 from spotify_manager.application.artist_follows import follow_album_artist
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.application.ports.state import RoutineState
+from spotify_manager.application.retry_attempts import RetryAttempts
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.library import AlbumArtist
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
 from spotify_manager.interfaces.presenters.album_limits import present_artist_follow
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
@@ -112,7 +114,7 @@ class LegacyAlbumReview:
         threshold: Existing retention threshold.
         use_cache: Original cache-read option.
         refresh_cache: Original cache-refresh option.
-        echo: Existing output sink used by effect helpers and retries.
+        output: Existing output sink used by effect helpers and retries.
         log_path: Removal audit destination.
         decisions_path: Explicit legacy path or configured default.
         state_service: Optional shared-state service.
@@ -125,11 +127,11 @@ class LegacyAlbumReview:
     threshold: float
     use_cache: bool
     refresh_cache: bool
-    echo: Callable[[str], None]
+    output: Messages
     log_path: Path
     decisions_path: Path
     state_service: StateService | None
-    sleep: Callable[[float], None]
+    sleep: Wait
     retry_delay: int
     max_attempts: int
     _loaded: ReviewSession | None = field(default=None, init=False)
@@ -138,19 +140,10 @@ class LegacyAlbumReview:
         assert self._loaded is not None
         return self._loaded
 
-    def _retry[T](self, operation: Callable[[], T], description: str) -> T:
-        from spotify_manager.infrastructure.spotify.retry import (
-            retry_spotify_server_errors,
-        )
-
-        return retry_spotify_server_errors(
-            operation,
-            description,
-            self.echo,
-            self.sleep,
-            self.retry_delay,
-            self.max_attempts,
-        )
+    def _attempts(self, description: str) -> RetryAttempts:
+        return SpotifyRetries(
+            self.output, self.sleep, self.retry_delay, self.max_attempts
+        ).attempts(description)
 
     def albums(self) -> list[YourLibraryAlbum]:
         """Load files and decisions in their original order.
@@ -208,16 +201,13 @@ class LegacyAlbumReview:
         )
 
         session = self._session()
-        operation = partial(
-            self._follow_review_artist,
-            album,
-            session.known_artists,
-            session.checked_artists,
-        )
-        return self._retry(
-            operation,
-            f"checking/following artist for {format_album_label(album)}",
-        )
+        description = f"checking/following artist for {format_album_label(album)}"
+        for attempt in self._attempts(description):
+            with attempt:
+                return self._follow_review_artist(
+                    album, session.known_artists, session.checked_artists
+                )
+        raise AssertionError("Retry scopes must include an attempt")
 
     def _follow_review_artist(
         self,
@@ -228,7 +218,7 @@ class LegacyAlbumReview:
         outcome = follow_album_artist(
             AlbumArtistAdapter(self.spotify, known_artists), album, checked_artists
         )
-        present_artist_follow(outcome, album, self.echo)
+        present_artist_follow(outcome, album, self.output)
         return outcome.action == "followed"
 
     def evaluate(self, album: YourLibraryAlbum) -> AlbumEvaluation:
@@ -246,16 +236,14 @@ class LegacyAlbumReview:
             format_album_label,
         )
 
-        operation = partial(
-            evaluate_local,
-            local_album(self.spotify, None, self.use_cache, self.refresh_cache),
-            None,
-            album.spotify_id,
-            None,
-            self._session().library,
-            self.threshold,
-        )
-        return self._retry(operation, f"evaluating {format_album_label(album)}")
+        access = local_album(self.spotify, None, self.use_cache, self.refresh_cache)
+        library = self._session().library
+        for attempt in self._attempts(f"evaluating {format_album_label(album)}"):
+            with attempt:
+                return evaluate_local(
+                    access, None, album.spotify_id, None, library, self.threshold
+                )
+        raise AssertionError("Retry scopes must include an attempt")
 
     def live_likes(self, album: YourLibraryAlbum, track_ids: list[str]) -> int:
         """Read live membership without changing batching or retry behavior.
@@ -274,11 +262,11 @@ class LegacyAlbumReview:
             get_live_liked_track_count,
         )
 
-        operation = partial(get_live_liked_track_count, self.spotify, track_ids)
-        return self._retry(
-            operation,
-            f"checking live liked tracks for {format_album_label(album)}",
-        )
+        description = f"checking live liked tracks for {format_album_label(album)}"
+        for attempt in self._attempts(description):
+            with attempt:
+                return get_live_liked_track_count(self.spotify, track_ids)
+        raise AssertionError("Retry scopes must include an attempt")
 
     def remove(
         self,
@@ -304,20 +292,18 @@ class LegacyAlbumReview:
         )
 
         session = self._session()
-        operation = partial(
-            remove_album_from_library,
-            self.spotify,
-            album,
-            evaluation,
-            session.remaining,
-            self.log_path,
-            live_liked_tracks=live_likes,
-        )
-        if automatic:
-            operation = partial(operation, action="auto_zero_live_likes")
-        session.remaining = self._retry(
-            operation, f"removing {format_album_label(album)}"
-        )
+        action = "auto_zero_live_likes" if automatic else "manual"
+        for attempt in self._attempts(f"removing {format_album_label(album)}"):
+            with attempt:
+                session.remaining = remove_album_from_library(
+                    self.spotify,
+                    album,
+                    evaluation,
+                    session.remaining,
+                    self.log_path,
+                    action=action,
+                    live_liked_tracks=live_likes,
+                )
 
     def keep(
         self,

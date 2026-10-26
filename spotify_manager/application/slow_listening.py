@@ -1,12 +1,12 @@
 """Execute Slow Listening choices and checkpoints in their established order."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
-from datetime import datetime
 from typing import cast
 
 from spotify_manager.application.checkpoints import NamespaceCheckpoint
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.ports.slow_listening import SlowListeningAccess
 from spotify_manager.application.ports.slow_listening import SlowListeningPresentation
 from spotify_manager.application.slow_listening_plan import ReleaseOrdering
@@ -50,12 +50,12 @@ class SlowListeningDependencies:
     choose: TrackActionReader
     complete: CompletionNotifier
     presentation: SlowListeningPresentation
-    clock: Callable[[], datetime]
-    progress: Callable[[int, int, str], None] | None = None
+    clock: Clock
+    progress: ReviewProgress | None = None
 
 
 def new_run(
-    playlist_id: str, tracks: tuple[PlaylistTrack, ...], clock: Callable[[], datetime]
+    playlist_id: str, tracks: tuple[PlaylistTrack, ...], clock: Clock
 ) -> dict[str, object]:
     """Create the unchanged durable run layout with two distinct clock reads.
 
@@ -68,10 +68,10 @@ def new_run(
         Active run with original timestamps and pending entries.
     """
     return {
-        "run_id": clock().strftime("%Y%m%dT%H%M%S%fZ"),
+        "run_id": clock.now().strftime("%Y%m%dT%H%M%S%fZ"),
         "playlist_id": playlist_id,
         "status": "active",
-        "created_at": clock().isoformat(),
+        "created_at": clock.now().isoformat(),
         "entries": snapshot_entries(tracks),
     }
 
@@ -362,7 +362,7 @@ class SlowListeningRun:
             or bool(plan.get("completion_acknowledged"))
         ):
             return
-        self.dependencies.complete(source)
+        self.dependencies.complete.complete(source)
         plan["completion_acknowledged"] = True
         self._save()
         tracks = self.dependencies.access.playlist()
@@ -370,13 +370,13 @@ class SlowListeningRun:
 
     def _progress(self, completed: int, label: str) -> None:
         if self.dependencies.progress is not None:
-            self.dependencies.progress(completed, len(self.entries), label)
+            self.dependencies.progress.progress(completed, len(self.entries), label)
 
     def _finish(self) -> None:
         if self.dry_run or self.paused or not _finished(self.entries):
             return
         self.run["status"] = "completed"
-        self.run["completed_at"] = self.dependencies.clock().isoformat()
+        self.run["completed_at"] = self.dependencies.clock.now().isoformat()
         self._save()
 
     def _summary(self, run_id: str) -> FlushSummary:

@@ -1,6 +1,5 @@
 """Coordinate recommendation history, observation, accepted appends and audit."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
@@ -9,6 +8,8 @@ from typing import Protocol
 from spotify_manager.application.found_art_values import FoundArtConfigError
 from spotify_manager.application.found_art_values import FoundArtSummary
 from spotify_manager.application.ports.calendar import ListeningCalendar
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.recommendation_candidates import CandidateGathering
 from spotify_manager.application.recommendation_resolution import (
     RecommendationResolution,
@@ -131,9 +132,9 @@ class RecommendationRun:
 
     effects: RecommendationRunEffects
     stages: RecommendationStages
-    clock: Callable[[], datetime]
+    clock: Clock
     calendar: ListeningCalendar
-    progress: Callable[[str], None]
+    progress: Messages
     default_count: int = 20
     minimum_pool: int = 100
     pool_multiplier: int = 10
@@ -164,11 +165,11 @@ class RecommendationRun:
             SpotifyTrackResolutionError: Catalog or destination data is unusable.
         """
         _validate(count, maximum, seed_count)
-        generated_at = self.clock()
+        generated_at = self.clock.now()
         week = listening_week_start(self.calendar.local_date(generated_at))
         scrobbles, live_added = self.effects.refresh(generated_at, dry_run)
         history = aggregate_track_history(scrobbles)
-        self.progress("Loading the Found Art Spotify playlist")
+        self.progress.echo("Loading the Found Art Spotify playlist")
         playlist = self.effects.read()
         requested = _requested(count, maximum, playlist.total_items, self.default_count)
         batch = self._select(
@@ -220,6 +221,6 @@ class RecommendationRun:
     def _append(self, pending: tuple[SpotifyTrackMatch, ...], dry_run: bool) -> int:
         if not pending or dry_run:
             return 0
-        self.progress(f"Adding {len(pending)} tracks to Found Art")
+        self.progress.echo(f"Adding {len(pending)} tracks to Found Art")
         self.effects.append(list(pending))
         return len(pending)

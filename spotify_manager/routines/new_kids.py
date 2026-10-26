@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +13,9 @@ from spotipy import Spotify
 from spotify_manager.application import composer_progression
 from spotify_manager.application import composer_routes
 from spotify_manager.application import new_kids_state as discovery_state
+from spotify_manager.application.composer_routes import (
+    ReleaseChoiceReader as ReleaseChoiceReader,
+)
 from spotify_manager.application.new_kids_values import (
     ArtistAssessment as ArtistAssessment,
 )
@@ -29,6 +30,9 @@ from spotify_manager.application.new_kids_values import (
     NewKidsStateError as NewKidsStateError,
 )
 from spotify_manager.application.new_kids_values import Queue2Summary as Queue2Summary
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.release_evaluation import evaluate_catalog_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
@@ -52,8 +56,9 @@ from spotify_manager.domain.discovery_progression import (
 )
 from spotify_manager.domain.discovery_progression import LIVE_PATTERN as LIVE_PATTERN
 from spotify_manager.domain.releases import release_identity
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.infrastructure.routine_state_codecs import NewKidsStateCodec
-from spotify_manager.interfaces.requests.discovery import DiscoveryCallbacks
+from spotify_manager.interfaces.requests.discovery import DiscoveryInteraction
 from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
 from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.interfaces.requests.discovery import DiscoveryReviewMode
@@ -73,6 +78,15 @@ from spotify_manager.routines.review_artists import remove_library_artists
 from spotify_manager.routines.review_artists import remove_playlist_items
 from spotify_manager.utils.sorting import album_sort_key
 from spotify_manager.utils.sorting import artist_sort_key
+
+
+type ProgressCallback = ReviewProgress
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -97,13 +111,7 @@ CHOICE_SKIP = "__skip__"
 CHOICE_QUIT = "__quit__"
 
 
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[int, int, str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-
-
 ChoiceCandidate = RankedRelease | composer_playlists.OwnedPlaylist
-ReleaseChoiceReader = Callable[[str, tuple[ChoiceCandidate, ...]], str]
 
 
 AnnualReleaseKey = history_policy.AnnualReleaseKey
@@ -175,7 +183,7 @@ def refresh_scrobbles_for_release_progress(
     username: str,
     *,
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
 ) -> scrobble_history.ScrobbleHistorySummary:
     """Refresh shared history before deriving annual release progress.
 
@@ -212,7 +220,7 @@ def refresh_scrobbles_for_release_progress(
         dry_run=False,
         progress_callback=echo,
     )
-    echo(
+    echo.echo(
         "Last.fm release history ready: "
         f"{summary.live_scrobbles_added} new scrobble(s), "
         f"{summary.total_scrobbles} total."
@@ -347,7 +355,7 @@ def _resolve_composer_playlist(
         owned_playlists,
         excluded_playlist_ids,
         choice_reader,
-        _utc_now,
+        _UTC_NOW_RESOURCE,
     )
 
 
@@ -380,10 +388,7 @@ def _saved_release_statuses(
     statuses: dict[str, bool] = {}
     for start in range(0, len(ids), CONTAINS_BATCH_SIZE):
         batch = ids[start : start + CONTAINS_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.current_user_saved_albums_contains, batch),
-            f"checking {len(batch)} Saved Albums",
-        )
+        response = _saved_release_batch(retry_call, batch, sp)
         _accept_statuses(statuses, batch, response, "Saved Albums")
     return statuses
 
@@ -414,10 +419,9 @@ def load_top_track_data(
     Raises:
         NewKidsError: Spotify returns an invalid top-track collection.
     """
-    response = retry_call(
-        partial(sp.artist_top_tracks, artist_id),
-        f"loading top tracks for artist {artist_id}",
-    )
+    for attempt in retry_call.attempts(f"loading top tracks for artist {artist_id}"):
+        with attempt:
+            response = sp.artist_top_tracks(artist_id)
     raw_tracks = response.get("tracks") if isinstance(response, dict) else None
     if not isinstance(raw_tracks, list):
         raise NewKidsError("Spotify returned invalid artist top tracks.")
@@ -528,16 +532,16 @@ def _artist_release_records(
 def _artist_release_page(
     sp: Spotify, artist_id: str, offset: int, retry_call: RetryCall
 ) -> tuple[list[object], bool]:
-    response = retry_call(
-        partial(
-            sp.artist_albums,
-            artist_id,
-            include_groups="album,single,compilation",
-            limit=ARTIST_RELEASE_PAGE_SIZE,
-            offset=offset,
-        ),
-        f"loading releases for artist {artist_id} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading releases for artist {artist_id} at offset {offset}"
+    ):
+        with attempt:
+            response = sp.artist_albums(
+                artist_id,
+                include_groups="album,single,compilation",
+                limit=ARTIST_RELEASE_PAGE_SIZE,
+                offset=offset,
+            )
     return _catalog_page(response, "Spotify returned invalid artist releases.")
 
 
@@ -568,10 +572,7 @@ def _release_details(
     full_by_id: dict[str, dict[str, object]] = {}
     for start in range(0, len(release_ids), ALBUM_BATCH_SIZE):
         batch = release_ids[start : start + ALBUM_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.albums, batch),
-            f"loading popularity for {len(batch)} releases",
-        )
+        response = _release_details_batch(retry_call, batch, sp)
         raw_albums = response.get("albums") if isinstance(response, dict) else None
         if not isinstance(raw_albums, list):
             raise NewKidsError("Spotify returned invalid album details.")
@@ -643,15 +644,9 @@ def load_release_tracks(
 def _release_track_page(
     sp: Spotify, release: RankedRelease, offset: int, retry_call: RetryCall
 ) -> tuple[list[object], bool]:
-    response = retry_call(
-        partial(
-            sp.album_tracks,
-            release.spotify_id,
-            limit=50,
-            offset=offset,
-        ),
-        f"loading {release.name} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(f"loading {release.name} at offset {offset}"):
+        with attempt:
+            response = sp.album_tracks(release.spotify_id, limit=50, offset=offset)
     return _catalog_page(
         response, f"Spotify returned invalid tracks for {release.name}."
     )
@@ -897,7 +892,7 @@ def _artist_progress(
     artist_name: str,
 ) -> dict[str, object]:
     return discovery_state.artist_progress(
-        state, source, artist_id, artist_name, _utc_now
+        state, source, artist_id, artist_name, _UTC_NOW_RESOURCE
     )
 
 
@@ -1015,25 +1010,22 @@ def _reconcile_release_library(
 
 
 def _release_saved(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> bool:
-    response = retry_call(
-        partial(sp.current_user_saved_albums_contains, [release.spotify_id]),
-        f"checking whether {release.name} is saved",
-    )
+    for attempt in retry_call.attempts(f"checking whether {release.name} is saved"):
+        with attempt:
+            response = sp.current_user_saved_albums_contains([release.spotify_id])
     return bool(response[0]) if isinstance(response, list) and response else False
 
 
 def _save_release(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> None:
-    retry_call(
-        partial(sp.current_user_saved_albums_add, [release.spotify_id]),
-        f"saving {release.name}",
-    )
+    for attempt in retry_call.attempts(f"saving {release.name}"):
+        with attempt:
+            sp.current_user_saved_albums_add([release.spotify_id])
 
 
 def _remove_release(sp: Spotify, release: RankedRelease, retry_call: RetryCall) -> None:
-    retry_call(
-        partial(sp.current_user_saved_albums_delete, [release.spotify_id]),
-        f"unsaving {release.name}",
-    )
+    for attempt in retry_call.attempts(f"unsaving {release.name}"):
+        with attempt:
+            sp.current_user_saved_albums_delete([release.spotify_id])
 
 
 def _catalog_track_popularities(
@@ -1044,20 +1036,11 @@ def _catalog_track_popularities(
     popularities: dict[str, int] = {}
     for start in range(0, len(track_ids), TRACK_BATCH_SIZE):
         batch = track_ids[start : start + TRACK_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.tracks, batch),
-            f"loading popularity for {len(batch)} tracks",
-        )
+        response = _track_popularity_batch(retry_call, batch, sp)
         raw_tracks = response.get("tracks") if isinstance(response, dict) else None
         if not isinstance(raw_tracks, list):
             raise NewKidsError("Spotify returned invalid track details.")
-        for raw_track in raw_tracks:
-            if not isinstance(raw_track, dict):
-                continue
-            track_id = str(raw_track.get("id") or "").strip()
-            popularity = raw_track.get("popularity")
-            if track_id and isinstance(popularity, int):
-                popularities[track_id] = popularity
+        _collect_popularities(raw_tracks, popularities)
     return popularities
 
 
@@ -1117,10 +1100,7 @@ def _assessment_saved(
     statuses: dict[str, bool] = {}
     for start in range(0, len(release_ids), CONTAINS_BATCH_SIZE):
         batch = release_ids[start : start + CONTAINS_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.current_user_saved_albums_contains, batch),
-            f"checking {len(batch)} Saved Albums",
-        )
+        response = _assessment_saved_batch(retry_call, batch, sp)
         _accept_statuses(statuses, batch, response, "Saved Albums")
     return statuses
 
@@ -1131,10 +1111,7 @@ def _assessment_liked(
     statuses: dict[str, bool] = {}
     for start in range(0, len(track_ids), CONTAINS_BATCH_SIZE):
         batch = track_ids[start : start + CONTAINS_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.current_user_saved_tracks_contains, batch),
-            f"checking {len(batch)} Liked Songs",
-        )
+        response = _assessment_liked_batch(retry_call, batch, sp)
         _accept_statuses(statuses, batch, response, "Liked Songs")
     return statuses
 
@@ -1145,10 +1122,7 @@ def _assessment_top_liked(
     statuses: dict[str, bool] = {}
     for start in range(0, len(track_ids), CONTAINS_BATCH_SIZE):
         batch = track_ids[start : start + CONTAINS_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.current_user_saved_tracks_contains, batch),
-            f"checking {len(batch)} top Liked Songs",
-        )
+        response = _assessment_top_liked_batch(retry_call, batch, sp)
         _accept_statuses(statuses, batch, response, "top Liked Songs")
     return statuses
 
@@ -1183,25 +1157,26 @@ def _great_discoveries_playlist(
 
 
 def _current_user_id(sp: Spotify, retry_call: RetryCall) -> str:
-    profile = retry_call(sp.current_user, "loading the current Spotify profile")
+    for attempt in retry_call.attempts("loading the current Spotify profile"):
+        with attempt:
+            accepted_response = sp.current_user()
+    profile = accepted_response
     return str(profile.get("id") or "") if isinstance(profile, dict) else ""
 
 
 def _create_great_playlist(
     sp: Spotify, user_id: str, year: int, retry_call: RetryCall
 ) -> str:
-    created = retry_call(
-        partial(
-            sp.user_playlist_create,
-            user_id,
-            f"Great Discoveries {year}",
-            public=False,
-            description=(
-                f"Artists completed through New Kids on the Block during {year}."
-            ),
-        ),
-        f"creating Great Discoveries {year}",
-    )
+    for attempt in retry_call.attempts(f"creating Great Discoveries {year}"):
+        with attempt:
+            created = sp.user_playlist_create(
+                user_id,
+                f"Great Discoveries {year}",
+                public=False,
+                description=(
+                    f"Artists completed through New Kids on the Block during {year}."
+                ),
+            )
     return str(created.get("id") or "") if isinstance(created, dict) else ""
 
 
@@ -1244,7 +1219,9 @@ def _append_queue_track(
     description: str,
     retry_call: RetryCall,
 ) -> None:
-    retry_call(partial(add_playlist_item, sp, playlist_id, source.uri), description)
+    for attempt in retry_call.attempts(description):
+        with attempt:
+            add_playlist_item(sp, playlist_id, source.uri)
 
 
 def _remove_queue_track(
@@ -1254,9 +1231,9 @@ def _remove_queue_track(
     description: str,
     retry_call: RetryCall,
 ) -> None:
-    retry_call(
-        partial(remove_playlist_items, sp, playlist_id, [source.uri]), description
-    )
+    for attempt in retry_call.attempts(description):
+        with attempt:
+            remove_playlist_items(sp, playlist_id, [source.uri])
 
 
 def _logical_artist(
@@ -1272,7 +1249,7 @@ def _new_run(
     tracks: list[new_wine.PlaylistTrack],
     state: dict[str, object],
 ) -> dict[str, object]:
-    return discovery_state.new_run(playlist_id, tracks, state, _utc_now)
+    return discovery_state.new_run(playlist_id, tracks, state, _UTC_NOW_RESOURCE)
 
 
 def next_release_options(
@@ -1304,7 +1281,7 @@ def _plan_result(
 def _flush_review_playlist(
     sp: Spotify,
     options: DiscoveryOptions,
-    callbacks: DiscoveryCallbacks,
+    callbacks: DiscoveryInteraction,
     resources: DiscoveryResources | None = None,
     mode: DiscoveryReviewMode | None = None,
 ) -> FlushSummary:
@@ -1333,7 +1310,7 @@ def _flush_review_playlist(
 def flush_new_kids(
     sp: Spotify,
     options: DiscoveryOptions,
-    callbacks: DiscoveryCallbacks,
+    callbacks: DiscoveryInteraction,
     resources: DiscoveryResources | None = None,
 ) -> FlushSummary:
     """Advance every snapshotted artist once, then refill New Kids to ten.
@@ -1358,7 +1335,7 @@ def flush_new_kids(
 def flush_queue_2(
     sp: Spotify,
     options: DiscoveryOptions,
-    callbacks: DiscoveryCallbacks,
+    callbacks: DiscoveryInteraction,
     resources: DiscoveryResources | None = None,
 ) -> Queue2Summary:
     """Fill New Kids, then advance the first ten remaining Queue 2 artists.
@@ -1384,6 +1361,21 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+class UtcNowClock:
+    """Observe the original utc now source directly."""
+
+    def now(self) -> datetime:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _utc_now()
+
+
+_UTC_NOW_RESOURCE = UtcNowClock()
+
+
 def _checkpoint_review(
     access: RoutineState, state: dict[str, object], dry_run: bool
 ) -> None:
@@ -1398,7 +1390,9 @@ def _append_review_track(
     description: str,
     retry_call: RetryCall,
 ) -> None:
-    retry_call(partial(add_playlist_item, sp, playlist_id, track.uri), description)
+    for attempt in retry_call.attempts(description):
+        with attempt:
+            add_playlist_item(sp, playlist_id, track.uri)
 
 
 def _remove_review_track(
@@ -1408,33 +1402,28 @@ def _remove_review_track(
     label: str,
     retry_call: RetryCall,
 ) -> None:
-    retry_call(
-        partial(remove_playlist_items, sp, playlist_id, [source.uri]),
-        f"removing previous {label} track {source.name}",
-    )
+    for attempt in retry_call.attempts(
+        f"removing previous {label} track {source.name}"
+    ):
+        with attempt:
+            remove_playlist_items(sp, playlist_id, [source.uri])
 
 
 def _artist_followed(
     sp: Spotify, artist_id: str, artist_name: str, retry_call: RetryCall
 ) -> bool:
-    followed = retry_call(
-        partial(sp.current_user_following_artists, [artist_id]),
-        f"checking follow status for {artist_name}",
-    )
+    for attempt in retry_call.attempts(f"checking follow status for {artist_name}"):
+        with attempt:
+            followed = sp.current_user_following_artists([artist_id])
     return bool(followed[0]) if isinstance(followed, list) and followed else False
 
 
 def _unfollow_artist(
     sp: Spotify, artist_id: str, artist_name: str, retry_call: RetryCall
 ) -> None:
-    retry_call(
-        partial(remove_library_artists, sp, [f"spotify:artist:{artist_id}"]),
-        f"unfollowing {artist_name}",
-    )
-
-
-def _direct_call(operation: Callable[[], object], description: str) -> object:
-    return operation()
+    for attempt in retry_call.attempts(f"unfollowing {artist_name}"):
+        with attempt:
+            remove_library_artists(sp, [f"spotify:artist:{artist_id}"])
 
 
 def _record_statuses(
@@ -1459,7 +1448,73 @@ def _refresh_history(
             f"LASTFM_USERNAME is required to refresh {label} release progress."
         )
     if progress:
-        progress(0, 0, "Refreshing Last.fm release history")
+        progress.progress(0, 0, "Refreshing Last.fm release history")
     refresh_scrobbles_for_release_progress(
         lastfm, username, scrobbles_path=path, echo=echo
     )
+
+
+def _saved_release_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"checking {len(batch)} Saved Albums"):
+        with attempt:
+            return sp.current_user_saved_albums_contains(batch)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _release_details_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"loading popularity for {len(batch)} releases"):
+        with attempt:
+            return sp.albums(batch)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _track_popularity_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"loading popularity for {len(batch)} tracks"):
+        with attempt:
+            return sp.tracks(batch)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _assessment_saved_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"checking {len(batch)} Saved Albums"):
+        with attempt:
+            return sp.current_user_saved_albums_contains(batch)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _assessment_liked_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"checking {len(batch)} Liked Songs"):
+        with attempt:
+            return sp.current_user_saved_tracks_contains(batch)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _assessment_top_liked_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"checking {len(batch)} top Liked Songs"):
+        with attempt:
+            return sp.current_user_saved_tracks_contains(batch)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _collect_popularities(
+    raw_tracks: list[object], popularities: dict[str, int]
+) -> None:
+    for raw_track in raw_tracks:
+        if not isinstance(raw_track, dict):
+            continue
+        track_id = str(raw_track.get("id") or "").strip()
+        popularity = raw_track.get("popularity")
+        if track_id and isinstance(popularity, int):
+            popularities[track_id] = popularity

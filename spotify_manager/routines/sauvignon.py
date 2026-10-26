@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import date
 from datetime import datetime as datetime
-from functools import partial
 from pathlib import Path
 from typing import Literal
 from typing import Protocol
 
 from spotipy import Spotify
 
+from spotify_manager.application.album_recommendations import (
+    AlbumChoices as AlbumChoiceReader,
+)
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.sauvignon_values import (
     SauvignonConfigError as SauvignonConfigError,
 )
@@ -51,6 +54,15 @@ from spotify_manager.routines import new_wine
 from spotify_manager.routines.slow_listening import release_identity as release_identity
 
 
+type ProgressCallback = Messages
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
+
+
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_LOG_PATH = FILES_DIR / "sauvignon_recommendation_log.jsonl"
 DEFAULT_CACHE_PATH = found_art.DEFAULT_CACHE_PATH
@@ -64,12 +76,6 @@ CHOICE_SKIP = "__skip__"
 CHOICE_QUIT = "__quit__"
 
 AlbumKey = tuple[str, str]
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-AlbumChoiceReader = Callable[
-    ["AlbumRecommendation", tuple["SpotifyAlbumOption", ...]], str
-]
 
 
 class LastFmReader(found_art.LastFmReader, Protocol):
@@ -179,16 +185,16 @@ def search_candidate_albums(
         album="",
         timestamp_ms=0,
     )
-    response = retry_call(
-        partial(
-            spotify.search,
-            q=blast_from_past.spotify_search_query(scrobble),
-            type="track",
-            limit=blast_from_past.SPOTIFY_SEARCH_LIMIT,
-            offset=0,
-        ),
-        f"searching Spotify for {candidate.artist} - {candidate.track}",
-    )
+    for attempt in retry_call.attempts(
+        f"searching Spotify for {candidate.artist} - {candidate.track}"
+    ):
+        with attempt:
+            response = spotify.search(
+                q=blast_from_past.spotify_search_query(scrobble),
+                type="track",
+                limit=blast_from_past.SPOTIFY_SEARCH_LIMIT,
+                offset=0,
+            )
     from spotify_manager.infrastructure.album_recommendations import parse_album_search
 
     return parse_album_search(response, candidate)
@@ -286,10 +292,11 @@ def load_first_track(
     Raises:
         SauvignonSpotifyError: Response is invalid or has no playable track.
     """
-    response = retry_call(
-        partial(spotify.album_tracks, album.spotify_id, limit=50, offset=0),
-        f"loading the first track of {album.artist} - {album.album}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading the first track of {album.artist} - {album.album}"
+    ):
+        with attempt:
+            response = spotify.album_tracks(album.spotify_id, limit=50, offset=0)
     from spotify_manager.infrastructure.album_recommendations import parse_first_track
 
     return parse_first_track(response, album)

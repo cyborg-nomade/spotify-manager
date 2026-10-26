@@ -5,6 +5,7 @@ The original baseline and its source/dependency inventories remain unchanged.
 """
 
 import argparse
+import ast
 import json
 import re
 from pathlib import Path
@@ -43,9 +44,33 @@ def _without_source_lines(value: Json) -> Json:
         return value
     result = {}
     for key, item in value.items():
-        if key not in {"line", "source_line"}:
-            result[key] = _without_source_lines(item)
+        if key in {"line", "source_line"}:
+            continue
+        if key == "expression" and isinstance(item, str):
+            item = _direct_expression(item)
+        result[key] = _without_source_lines(item)
     return result
+
+
+def _direct_expression(expression: str) -> str:
+    """Compare a captured partial with its equivalent direct SDK call.
+
+    Args:
+        expression: Original static call expression.
+
+    Returns:
+        Identical arguments and keywords with only the partial wrapper removed.
+    """
+    try:
+        node = ast.parse(expression, mode="eval").body
+    except SyntaxError:
+        return expression
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+        return expression
+    if node.func.id != "partial" or not node.args:
+        return expression
+    direct = ast.Call(func=node.args[0], args=node.args[1:], keywords=node.keywords)
+    return ast.unparse(direct)
 
 
 def _endpoint_contracts(path: Path) -> Json:

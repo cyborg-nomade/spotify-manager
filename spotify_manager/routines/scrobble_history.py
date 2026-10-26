@@ -5,7 +5,6 @@ import json
 import os
 import shutil
 import tempfile
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -20,6 +19,8 @@ from spotify_manager.application.history_values import (
 from spotify_manager.application.history_values import (
     ScrobbleHistorySummary as ScrobbleHistorySummary,
 )
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.core.library_data.runtime import (
     artifact_for_path as artifact_for_path,
@@ -30,18 +31,26 @@ from spotify_manager.core.library_data.runtime import (
 from spotify_manager.routines import blast_from_past
 
 
+type CancelCheck = CancellationState
+
+
+type ProgressCallback = Messages
+
+
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_SCROBBLES_PATH = blast_from_past.DEFAULT_SCROBBLES_PATH
 DEFAULT_LEGACY_DELTA_PATH = FILES_DIR / "found_art_recent_scrobbles.jsonl"
 DEFAULT_BACKUP_DIR = FILES_DIR / "lastfm_history_backups"
 DEFAULT_LOG_PATH = FILES_DIR / "scrobble_history_update_log.jsonl"
-ProgressCallback = Callable[[str], None]
-CancelCheck = Callable[[], bool]
 
 
 def check_cancel(cancel_check: CancelCheck | None) -> None:
-    """Stop before another expensive or mutating refresh step."""
-    if cancel_check is not None and cancel_check():
+    """Stop before another expensive or mutating refresh step.
+
+    Args:
+        cancel_check: Optional cancellation state observed at the original boundary.
+    """
+    if cancel_check is not None and cancel_check.is_set():
         raise ScrobbleHistoryCancelledError("Last.fm history update cancelled.")
 
 

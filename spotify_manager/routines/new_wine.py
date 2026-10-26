@@ -2,11 +2,9 @@
 
 import json
 import re
-from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import Literal
 from typing import cast
@@ -27,6 +25,9 @@ from spotify_manager.application.new_wine_values import (
 from spotify_manager.application.new_wine_values import (
     CellarRefillSummary as CellarRefillSummary,
 )
+from spotify_manager.application.new_wine_values import (
+    EndpointChoiceReader as EndpointChoiceReader,
+)
 from spotify_manager.application.new_wine_values import FlushResult as FlushResult
 from spotify_manager.application.new_wine_values import FlushSummary as FlushSummary
 from spotify_manager.application.new_wine_values import (
@@ -36,6 +37,12 @@ from spotify_manager.application.new_wine_values import NewWineError as NewWineE
 from spotify_manager.application.new_wine_values import (
     NewWineStateError as NewWineStateError,
 )
+from spotify_manager.application.new_wine_values import (
+    ReleaseChoiceReader as ReleaseChoiceReader,
+)
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.core.library_data.runtime import publish_managed_path
 from spotify_manager.core.state import RoutineState
@@ -61,6 +68,15 @@ from spotify_manager.routines.review_album_limits import (
 from spotify_manager.utils.sorting import album_sort_key
 
 
+type ProgressCallback = ReviewProgress
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
+
+
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_STATE_PATH = FILES_DIR / "new_wine_flush_state.json"
 DEFAULT_LOG_PATH = FILES_DIR / "new_wine_flush_log.jsonl"
@@ -81,14 +97,7 @@ CHOICE_FINISH = "finish"
 CHOICE_CUTOFF = "cutoff"
 CHOICE_CONTINUE = "continue"
 
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[int, int, str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-ReleaseChoiceReader = Callable[["PlaylistTrack", tuple["ReleaseCandidate", ...]], str]
-EndpointChoiceReader = Callable[
-    ["PlaylistTrack", tuple["ReleaseTrack", ...], int],
-    str,
-]
+
 FlushAction = Literal[
     "advance",
     "drop",
@@ -229,14 +238,9 @@ def _playlist_track(raw_entry: object) -> PlaylistTrack | None:
     )
 
 
-def _playlist_request(
-    sp: Spotify, playlist_id: str, offset: int
-) -> Callable[[], object]:
-    return partial(
-        sp._get,
-        f"playlists/{playlist_id}/items",
-        limit=PLAYLIST_PAGE_LIMIT,
-        offset=offset,
+def _playlist_request(sp: Spotify, playlist_id: str, offset: int) -> object:
+    return sp._get(
+        f"playlists/{playlist_id}/items", limit=PLAYLIST_PAGE_LIMIT, offset=offset
     )
 
 
@@ -261,10 +265,8 @@ def load_playlist_tracks(
     tracks: list[PlaylistTrack] = []
     offset = 0
     while True:
-        response = retry_call(
-            _playlist_request(sp, playlist_id, offset),
-            f"loading playlist {playlist_id} at offset {offset}",
-        )
+        accepted_response = _read_playlist_page(retry_call, playlist_id, offset, sp)
+        response = accepted_response
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):
@@ -303,15 +305,7 @@ def load_release_tracks(
     tracks: list[ReleaseTrack] = []
     offset = 0
     while True:
-        response = retry_call(
-            partial(
-                sp.album_tracks,
-                release.spotify_id,
-                limit=50,
-                offset=offset,
-            ),
-            f"loading {release.name} at offset {offset}",
-        )
+        response = _read_release_page(retry_call, offset, release, sp)
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):
@@ -353,16 +347,7 @@ def current_year_releases(
     releases: dict[str, ReleaseCandidate] = {}
     offset = 0
     while True:
-        response = retry_call(
-            partial(
-                sp.artist_albums,
-                artist_id,
-                include_groups="album,single",
-                limit=ARTIST_RELEASE_PAGE_LIMIT,
-                offset=offset,
-            ),
-            f"loading {year} releases for artist {artist_id} at offset {offset}",
-        )
+        response = _read_year_release_page(retry_call, year, artist_id, offset, sp)
         if not isinstance(response, dict) or not isinstance(
             response.get("items"), list
         ):
@@ -408,10 +393,7 @@ def get_liked_statuses(
     missing = _missing_track_ids(track_ids, cache)
     for start in range(0, len(missing), LIKED_TRACK_BATCH_SIZE):
         batch = missing[start : start + LIKED_TRACK_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.current_user_saved_tracks_contains, batch),
-            f"checking {len(batch)} live Liked Songs statuses",
-        )
+        response = _read_liked_status_batch(retry_call, batch, sp)
         if not isinstance(response, list) or len(response) != len(batch):
             raise NewWineError("Spotify returned invalid Liked Songs statuses.")
         for track_id, liked in zip(batch, response, strict=True):
@@ -644,7 +626,7 @@ def _new_run(
         choose_album_endpoints,
         False,
     )
-    return new_run(options, tracks, _clock)
+    return new_run(options, tracks, _CLOCK_RESOURCE)
 
 
 def _playlist_track_from_record(raw: object) -> PlaylistTrack:
@@ -737,10 +719,11 @@ def _add_playlist_track(
     retry_call: RetryCall,
 ) -> None:
     """Add one track through Spotify's current playlist-items endpoint."""
-    retry_call(
-        partial(_post_track, sp, playlist_id, track),
-        f"adding {track.name} to playlist {playlist_id}",
-    )
+    for attempt in retry_call.attempts(
+        f"adding {track.name} to playlist {playlist_id}"
+    ):
+        with attempt:
+            _post_track(sp, playlist_id, track)
 
 
 def _remove_playlist_track(
@@ -750,10 +733,11 @@ def _remove_playlist_track(
     retry_call: RetryCall,
 ) -> None:
     """Remove the source only after all required additions succeed."""
-    retry_call(
-        partial(_delete_track, sp, playlist_id, track),
-        f"removing {track.name} from playlist {playlist_id}",
-    )
+    for attempt in retry_call.attempts(
+        f"removing {track.name} from playlist {playlist_id}"
+    ):
+        with attempt:
+            _delete_track(sp, playlist_id, track)
 
 
 def _refill_new_wine(
@@ -857,10 +841,9 @@ def flush_new_wine(
 def _affinity_album_statuses(
     sp: Spotify, artist_name: str, batch: list[str], retry_call: RetryCall
 ) -> tuple[bool, ...]:
-    response = retry_call(
-        partial(sp.current_user_saved_albums_contains, batch),
-        f"checking saved albums for {artist_name}",
-    )
+    for attempt in retry_call.attempts(f"checking saved albums for {artist_name}"):
+        with attempt:
+            response = sp.current_user_saved_albums_contains(batch)
     if not isinstance(response, list) or len(response) != len(batch):
         raise NewWineError("Spotify returned invalid saved-album statuses.")
     return tuple(bool(saved) for saved in response)
@@ -869,10 +852,9 @@ def _affinity_album_statuses(
 def _affinity_track_statuses(
     sp: Spotify, artist_name: str, batch: list[str], retry_call: RetryCall
 ) -> tuple[bool, ...]:
-    response = retry_call(
-        partial(sp.current_user_saved_tracks_contains, batch),
-        f"checking liked tracks for {artist_name}",
-    )
+    for attempt in retry_call.attempts(f"checking liked tracks for {artist_name}"):
+        with attempt:
+            response = sp.current_user_saved_tracks_contains(batch)
     if not isinstance(response, list) or len(response) != len(batch):
         raise NewWineError("Spotify returned invalid Liked Songs statuses.")
     return tuple(bool(liked) for liked in response)
@@ -882,8 +864,38 @@ def _clock() -> datetime:
     return datetime.now(UTC)
 
 
+class ClockClock:
+    """Observe the original clock source directly."""
+
+    def now(self) -> datetime:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _clock()
+
+
+_CLOCK_RESOURCE = ClockClock()
+
+
 def _local_year() -> int:
     return datetime.now().year
+
+
+class LocalYearClock:
+    """Observe the original local year source directly."""
+
+    def year(self) -> int:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _local_year()
+
+
+_LOCAL_YEAR_RESOURCE = LocalYearClock()
 
 
 def _post_track(sp: Spotify, playlist_id: str, track: ReleaseTrack) -> object:
@@ -899,33 +911,29 @@ def _delete_track(sp: Spotify, playlist_id: str, track: PlaylistTrack) -> object
 def _saved_for_keep(
     sp: Spotify, release: ReleaseCandidate, retry_call: RetryCall
 ) -> bool:
-    response = retry_call(
-        partial(sp.current_user_saved_albums_contains, [release.spotify_id]),
-        f"checking whether {release.name} is saved",
-    )
+    for attempt in retry_call.attempts(f"checking whether {release.name} is saved"):
+        with attempt:
+            response = sp.current_user_saved_albums_contains([release.spotify_id])
     return bool(response[0]) if isinstance(response, list) and response else False
 
 
 def _saved_for_drop(sp: Spotify, release: ReleaseCandidate, retry: RetryCall) -> bool:
-    response = retry(
-        partial(sp.current_user_saved_albums_contains, [release.spotify_id]),
-        f"checking whether {release.name} is saved",
-    )
+    for attempt in retry.attempts(f"checking whether {release.name} is saved"):
+        with attempt:
+            response = sp.current_user_saved_albums_contains([release.spotify_id])
     return bool(response[0]) if isinstance(response, list) and response else False
 
 
 def _save_album(sp: Spotify, release: ReleaseCandidate, retry_call: RetryCall) -> None:
-    retry_call(
-        partial(sp.current_user_saved_albums_add, [release.spotify_id]),
-        f"saving {release.name}",
-    )
+    for attempt in retry_call.attempts(f"saving {release.name}"):
+        with attempt:
+            sp.current_user_saved_albums_add([release.spotify_id])
 
 
 def _unsave_album(sp: Spotify, release: ReleaseCandidate, retry: RetryCall) -> None:
-    retry(
-        partial(sp.current_user_saved_albums_delete, [release.spotify_id]),
-        f"unsaving {release.name}",
-    )
+    for attempt in retry.attempts(f"unsaving {release.name}"):
+        with attempt:
+            sp.current_user_saved_albums_delete([release.spotify_id])
 
 
 def _append_playlist_items(
@@ -1007,3 +1015,50 @@ def _unique_inventory_ids(
     for artist, spotify_ids in inventory.items():
         unique[artist] = tuple(dict.fromkeys(spotify_ids))
     return unique
+
+
+def _read_playlist_page(
+    retry_call: RetryCall, playlist_id: str, offset: int, sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(
+        f"loading playlist {playlist_id} at offset {offset}"
+    ):
+        with attempt:
+            return _playlist_request(sp, playlist_id, offset)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _read_release_page(
+    retry_call: RetryCall, offset: int, release: ReleaseCandidate, sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"loading {release.name} at offset {offset}"):
+        with attempt:
+            return sp.album_tracks(release.spotify_id, limit=50, offset=offset)
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _read_year_release_page(
+    retry_call: RetryCall, year: int, artist_id: str, offset: int, sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(
+        f"loading {year} releases for artist {artist_id} at offset {offset}"
+    ):
+        with attempt:
+            return sp.artist_albums(
+                artist_id,
+                include_groups="album,single",
+                limit=ARTIST_RELEASE_PAGE_LIMIT,
+                offset=offset,
+            )
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _read_liked_status_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(
+        f"checking {len(batch)} live Liked Songs statuses"
+    ):
+        with attempt:
+            return sp.current_user_saved_tracks_contains(batch)
+    raise AssertionError("Retry scopes must include an attempt")

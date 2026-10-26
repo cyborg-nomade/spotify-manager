@@ -245,7 +245,7 @@ def observe(
                 now=STAMP,
             ),
             ReleaseCheckCallbacks(
-                release_choice_reader=effects.choice, progress_callback=effects.progress
+                release_choice_reader=effects, progress_callback=effects
             ),
             ReleaseCheckResources(),
         )

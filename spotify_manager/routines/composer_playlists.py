@@ -1,10 +1,8 @@
 """Compatibility entry points for shared composer playlist observations."""
 
-from collections.abc import Callable
-from functools import partial
-
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.domain.composers import (
     COMPOSER_PLAYLIST_PREFIX as COMPOSER_PLAYLIST_PREFIX,
 )
@@ -34,19 +32,19 @@ from spotify_manager.infrastructure.spotify.composer_playlists import (
 )
 
 
+type RetryCall = Retry
+
+
 PLAYLIST_PAGE_LIMIT = 50
-RetryCall = Callable[[Callable[[], object], str], object]
 
 
 def _playlist_page(sp: Spotify, retry_call: RetryCall, offset: int) -> object:
-    return retry_call(
-        partial(
-            sp.current_user_playlists,
-            limit=PLAYLIST_PAGE_LIMIT,
-            offset=offset,
-        ),
-        f"loading owned playlists at offset {offset}",
-    )
+    for attempt in retry_call.attempts(f"loading owned playlists at offset {offset}"):
+        with attempt:
+            response = sp.current_user_playlists(
+                limit=PLAYLIST_PAGE_LIMIT, offset=offset
+            )
+    return response
 
 
 def load_owned_playlists(
