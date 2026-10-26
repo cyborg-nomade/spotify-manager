@@ -3,9 +3,11 @@
 import json
 from dataclasses import asdict
 from dataclasses import dataclass
+from typing import cast
 
 from spotify_manager.application.queue_flush import QueueFlush
 from spotify_manager.application.queue_flush import new_flush_run
+from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.application.queue_flush_values import FlushResult
 from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.application.queue_values import QueueSpotifyError
@@ -73,7 +75,7 @@ class MemoryQueueFlush:
         Returns:
             Original compatible new run.
         """
-        return new_flush_run("queue", tracks, 10, self.observations.now)
+        return new_flush_run("queue", tracks, 10, self.observations)
 
     def queue_2(self) -> set[str]:
         """Observe original promotion membership before unlucky membership.
@@ -119,7 +121,7 @@ class MemoryQueueFlush:
         """
         return catalog_track(raw)
 
-    def plan(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
+    def record(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
         """Observe live planning before the accepted original checkpoint.
 
         Args:
@@ -308,7 +310,7 @@ def application_outcome(scenario: str, preview: bool, failure: str | None) -> ob
     edge.setup()
     outcome: dict[str, object] = {}
     try:
-        outcome["result"] = asdict(QueueFlush(MemoryQueueFlush(edge)).run(preview))
+        outcome["result"] = asdict(queue_workflow(edge).run(preview))
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))
     outcome.update(trace=edge.trace, state=edge.state, checkpoints=edge.checkpoints)
@@ -317,3 +319,16 @@ def application_outcome(scenario: str, preview: bool, failure: str | None) -> ob
         playlists[key] = [track.spotify_id for track in tracks]
     outcome["playlists"] = playlists
     return json.loads(json.dumps(outcome, default=str))
+
+
+def queue_workflow(edge: FlushObservations) -> QueueFlush:
+    """Bind the existing isolated complete flush oracle to its named plan stage.
+
+    Args:
+        edge: Original accepted state and interruption behavior.
+
+    Returns:
+        Workflow with the same independently observed plan outcomes.
+    """
+    memory = MemoryQueueFlush(edge)
+    return QueueFlush(memory, cast(QueuePlanning, memory))

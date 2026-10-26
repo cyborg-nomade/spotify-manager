@@ -7,10 +7,10 @@ from unittest.mock import Mock
 
 import pytest
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import sauvignon
 from tests.routines.test_sauvignon import album_option
-from tests.routines.test_sauvignon import immediate
 from tests.routines.test_sauvignon import raw_spotify_track
 from tests.routines.test_sauvignon import track_candidate
 
@@ -171,5 +171,5 @@ def test_original_first_track_failure_responses(response: object, message: str) 
     spotify = Mock()
     spotify.album_tracks.return_value = response
     with pytest.raises(sauvignon.SauvignonSpotifyError, match=message):
-        sauvignon.load_first_track(spotify, album_option(), immediate)
+        sauvignon.load_first_track(spotify, album_option(), NoRetry())
     spotify.album_tracks.assert_called_once_with("album-id", limit=50, offset=0)

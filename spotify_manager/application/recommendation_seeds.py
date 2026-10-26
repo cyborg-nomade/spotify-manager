@@ -1,13 +1,14 @@
 """Validate seed requests before observing the week or applying listening policies."""
 
-from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 
 from spotify_manager.application.found_art_values import FoundArtConfigError
 from spotify_manager.application.found_art_values import FoundArtStateError
+from spotify_manager.application.ports.calendar import ListeningCalendar
 from spotify_manager.domain.recommendation_history import TrackHistory
+from spotify_manager.domain.recommendation_history import listening_week_start
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
 from spotify_manager.domain.recommendation_seeds import choose_seeds
 
@@ -17,12 +18,12 @@ class RecommendationSeeds:
     """Validate seed requests and preserve the original clock and diversity errors.
 
     Args:
-        current_week: Resolve the week only after validating and materializing history.
+        calendar: Resolve the week only after validating and materializing history.
         pool_multiplier: Original per-group candidate pool multiplier.
         max_per_artist: Original artist diversity limit.
     """
 
-    current_week: Callable[[], date]
+    calendar: ListeningCalendar
     pool_multiplier: int = 10
     max_per_artist: int = 2
 
@@ -50,7 +51,7 @@ class RecommendationSeeds:
             raise FoundArtStateError(
                 "No tracks are available for recommendation seeds."
             )
-        active_week = week or self.current_week()
+        active_week = week or listening_week_start(self.calendar.local_date())
         selected = choose_seeds(
             tracks, count, active_week, self.pool_multiplier, self.max_per_artist
         )

@@ -1,77 +1,55 @@
 """Explicit discovery CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn
-from rich.progress import MofNCompleteColumn
 from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
-from rich.prompt import Prompt
 from rich.table import Table
-from rich.text import Text
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client as create_lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.discovery import RankedRelease
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
+from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
+from spotify_manager.interfaces.requests.discovery import DiscoveryResources
 from spotify_manager.routines import composer_playlists
-from spotify_manager.routines import found_art
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import scrobble_history
-from spotify_manager.settings import Settings
 
 
 @dataclass(kw_only=True)
 class DiscoveryCLI:
-    """Execute and present discovery through explicit facade dependencies.
+    """Run New Kids and Queue 2 reviews with terminal interaction.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        create_lastfm: Factory for lastfm instances.
-        complete_column: Rich complete column constructor.
-        create_progress: Factory for progress instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        configuration: Original settings factory supplied by the facade.
-        spinner_column: Rich spinner column constructor.
-        create_table: Factory for table instances.
-        create_text: Factory for text instances.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        ask_new_kids_release_choice: Original ask new kids release choice boundary
-            supplied by the facade.
-        print_album_discovery_decisions: Original print album discovery decisions
-            boundary supplied by the facade.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
-    bar_column: type[BarColumn]
-    create_console: type[Console]
-    create_lastfm: type[LastFmClient]
-    complete_column: type[MofNCompleteColumn]
-    create_progress: type[Progress]
-    prompt: type[Prompt]
-    configuration: type[Settings]
-    spinner_column: type[SpinnerColumn]
-    create_table: type[Table]
-    create_text: type[Text]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
-    ask_new_kids_release_choice: Callable[..., str]
-    print_album_discovery_decisions: Callable[..., None]
-    review_client: Callable[..., Spotify]
-    sleep: Callable[[float], None]
+    runtime: CliResources
+
+    progress_display: ProgressDisplay
+    display: ConsoleDisplay
+    sleep: Wait
 
     def _prompt_new_kids_release_choice(
         self,
@@ -113,7 +91,7 @@ class DiscoveryCLI:
         """
         if not decisions:
             return
-        table = self.create_table(title=title)
+        table = self.display.create_table(title=title)
         table.add_column("Artist")
         table.add_column("Current")
         table.add_column("Release")
@@ -142,7 +120,9 @@ class DiscoveryCLI:
                 decision.source_release,
                 "liked" if decision.current_liked else "unliked",
                 str(decision.consecutive_unliked),
-                self.create_text(decision.action, style=action_styles[decision.action]),
+                self.display.create_text(
+                    decision.action, style=action_styles[decision.action]
+                ),
                 next_item,
             )
         console.print(table)
@@ -153,9 +133,9 @@ class DiscoveryCLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._flush_new_kids_console = self.create_console()
+        self._flush_new_kids_console = self.display.create_console()
         self._flush_new_kids_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             new_kids_playlist_id = new_kids.parse_playlist_id(
                 configuration.new_kids_on_the_block_playlist,
@@ -180,8 +160,9 @@ class DiscoveryCLI:
             )
         except (new_kids.NewKidsConfigError, found_art.FoundArtConfigError) as exc:
             self._report_flush_new_kids_configuration_failure(exc)
-        lastfm_client = self.create_lastfm(
-            lastfm_api_key, lastfm_username, event_callback=self._flush_new_kids_log
+        lastfm_client = create_lastfm_client(
+            LastFmCredentials(lastfm_api_key, lastfm_username),
+            FlushNewKidsDiagnostics(self),
         )
         summary = self._execute_flush_new_kids(
             dry_run,
@@ -212,18 +193,6 @@ class DiscoveryCLI:
             style = "cyan"
         self._flush_new_kids_console.print(line, style=style, markup=False)
 
-    def _flush_new_kids_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._flush_new_kids_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
     def _flush_new_kids_update_progress(
         self, completed: int, total: int, status: str
     ) -> None:
@@ -240,7 +209,7 @@ class DiscoveryCLI:
     def _flush_new_kids_ask_new_kids_release_choice(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
-        return self.ask_new_kids_release_choice(
+        return self._prompt_new_kids_release_choice(
             self._flush_new_kids_console,
             artist,
             candidates,
@@ -253,9 +222,9 @@ class DiscoveryCLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._flush_queue_2_console = self.create_console()
+        self._flush_queue_2_console = self.display.create_console()
         self._flush_queue_2_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             new_kids_playlist_id = new_kids.parse_playlist_id(
                 configuration.new_kids_on_the_block_playlist,
@@ -280,8 +249,9 @@ class DiscoveryCLI:
             )
         except (new_kids.NewKidsConfigError, found_art.FoundArtConfigError) as exc:
             self._report_flush_queue_2_configuration_failure(exc)
-        lastfm_client = self.create_lastfm(
-            lastfm_api_key, lastfm_username, event_callback=self._flush_queue_2_log
+        lastfm_client = create_lastfm_client(
+            LastFmCredentials(lastfm_api_key, lastfm_username),
+            FlushQueue2Diagnostics(self),
         )
         summary = self._execute_flush_queue(
             dry_run,
@@ -312,18 +282,6 @@ class DiscoveryCLI:
             style = "cyan"
         self._flush_queue_2_console.print(line, style=style, markup=False)
 
-    def _flush_queue_2_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._flush_queue_2_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
     def _flush_queue_2_update_progress(
         self, completed: int, total: int, status: str
     ) -> None:
@@ -340,7 +298,7 @@ class DiscoveryCLI:
     def _flush_queue_2_ask_new_kids_release_choice(
         self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
     ) -> str:
-        return self.ask_new_kids_release_choice(
+        return self._prompt_new_kids_release_choice(
             self._flush_queue_2_console,
             artist,
             candidates,
@@ -352,16 +310,15 @@ class DiscoveryCLI:
     ) -> Never:
         self._flush_new_kids_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
         if not dry_run:
             self._flush_new_kids_console.print(
-                "The active New Kids run was saved and can be resumed.",
-                style="yellow",
+                "The active New Kids run was saved and can be resumed.", style="yellow"
             )
         raise typer.Exit(code=0) from exc
 
@@ -374,8 +331,7 @@ class DiscoveryCLI:
         )
         if not dry_run:
             self._flush_new_kids_console.print(
-                "The active New Kids run was saved and can be resumed.",
-                style="yellow",
+                "The active New Kids run was saved and can be resumed.", style="yellow"
             )
         raise typer.Exit(code=0) from exc
 
@@ -383,14 +339,13 @@ class DiscoveryCLI:
         self, exc: SpotifyException, dry_run: bool
     ) -> Never:
         self._flush_new_kids_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
         if not dry_run:
             self._flush_new_kids_console.print(
-                "The active New Kids run was saved and can be resumed.",
-                style="yellow",
+                "The active New Kids run was saved and can be resumed.", style="yellow"
             )
         raise typer.Exit(code=1) from exc
 
@@ -399,16 +354,15 @@ class DiscoveryCLI:
     ) -> Never:
         self._flush_queue_2_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
         if not dry_run:
             self._flush_queue_2_console.print(
-                "The active Queue 2 run was saved and can be resumed.",
-                style="yellow",
+                "The active Queue 2 run was saved and can be resumed.", style="yellow"
             )
         raise typer.Exit(code=0) from exc
 
@@ -421,8 +375,7 @@ class DiscoveryCLI:
         )
         if not dry_run:
             self._flush_queue_2_console.print(
-                "The active Queue 2 run was saved and can be resumed.",
-                style="yellow",
+                "The active Queue 2 run was saved and can be resumed.", style="yellow"
             )
         raise typer.Exit(code=0) from exc
 
@@ -430,14 +383,13 @@ class DiscoveryCLI:
         self, exc: SpotifyException, dry_run: bool
     ) -> Never:
         self._flush_queue_2_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
         if not dry_run:
             self._flush_queue_2_console.print(
-                "The active Queue 2 run was saved and can be resumed.",
-                style="yellow",
+                "The active Queue 2 run was saved and can be resumed.", style="yellow"
             )
         raise typer.Exit(code=1) from exc
 
@@ -464,8 +416,7 @@ class DiscoveryCLI:
     ) -> Never:
         if not dry_run:
             self._flush_new_kids_console.print(
-                "New Kids flush paused. The active run was saved.",
-                style="bold yellow",
+                "New Kids flush paused. The active run was saved.", style="bold yellow"
             )
         raise typer.Exit(code=0) from exc
 
@@ -492,8 +443,7 @@ class DiscoveryCLI:
     ) -> Never:
         if not dry_run:
             self._flush_queue_2_console.print(
-                "Queue 2 flush paused. The active run was saved.",
-                style="bold yellow",
+                "Queue 2 flush paused. The active run was saved.", style="bold yellow"
             )
         raise typer.Exit(code=0) from exc
 
@@ -503,12 +453,12 @@ class DiscoveryCLI:
         Args:
             summary: Completed routine outcome to render.
         """
-        self.print_album_discovery_decisions(
+        self._render_album_discovery_decisions(
             self._flush_new_kids_console, "New Kids on the Block", summary.results
         )
         transfers = self._transfer_stages(summary)
         if transfers:
-            transfer_table = self.create_table(title="Queue 2 transfer")
+            transfer_table = self.display.create_table(title="Queue 2 transfer")
             transfer_table.add_column("Stage")
             transfer_table.add_column("Artist")
             transfer_table.add_column("Track")
@@ -521,16 +471,10 @@ class DiscoveryCLI:
         prefix = "Dry run" if summary.dry_run else "Flush"
         self._flush_new_kids_console.print(
             (
-                f"{prefix}"
-                ": New Kids "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                "; "
-                f"{len(summary.results)}"
-                " decisions, "
-                f"{len(summary.prefill) + len(summary.postfill)}"
-                " Queue 2 transfers."
+                f"{prefix}: New Kids {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}; {len(summary.results)}"
+                f" decisions, {len(summary.prefill) + len(summary.postfill)}"
+                f" Queue 2 transfers."
             ),
             style="bold",
         )
@@ -540,8 +484,7 @@ class DiscoveryCLI:
             )
         if summary.paused:
             self._flush_new_kids_console.print(
-                "Flush paused; run the command again to resume.",
-                style="bold yellow",
+                "Flush paused; run the command again to resume.", style="bold yellow"
             )
 
     def _show_flush_queue(self, summary: new_kids.Queue2Summary) -> None:
@@ -550,11 +493,11 @@ class DiscoveryCLI:
         Args:
             summary: Completed routine outcome to render.
         """
-        self.print_album_discovery_decisions(
+        self._render_album_discovery_decisions(
             self._flush_queue_2_console, "The Queue 2", summary.results
         )
         if summary.prefill:
-            transfer_table = self.create_table(title="New Kids prefill")
+            transfer_table = self.display.create_table(title="New Kids prefill")
             transfer_table.add_column("Artist")
             transfer_table.add_column("Track")
             transfer_table.add_column("Action")
@@ -564,20 +507,11 @@ class DiscoveryCLI:
         prefix = "Dry run" if summary.dry_run else "Flush"
         self._flush_queue_2_console.print(
             (
-                f"{prefix}"
-                ": New Kids "
-                f"{summary.new_kids_length_before}"
-                " -> "
-                f"{summary.new_kids_length_after}"
-                "; Queue 2 "
-                f"{summary.queue_length_before}"
-                " -> "
-                f"{summary.queue_length_after}"
-                "; "
-                f"{len(summary.results)}"
-                " decisions, "
-                f"{len(summary.prefill)}"
-                " transfers."
+                f"{prefix}: New Kids {summary.new_kids_length_before} -> "
+                f"{summary.new_kids_length_after}; Queue 2 "
+                f"{summary.queue_length_before} -> {summary.queue_length_after}; "
+                f"{len(summary.results)} decisions, {len(summary.prefill)}"
+                f" transfers."
             ),
             style="bold",
         )
@@ -587,8 +521,7 @@ class DiscoveryCLI:
             )
         if summary.paused:
             self._flush_queue_2_console.print(
-                "Flush paused; run the command again to resume.",
-                style="bold yellow",
+                "Flush paused; run the command again to resume.", style="bold yellow"
             )
 
     def _execute_flush_new_kids(
@@ -619,12 +552,14 @@ class DiscoveryCLI:
             The routine outcome.
         """
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._flush_new_kids_console,
                 transient=True,
             ) as self._flush_new_kids_progress:
@@ -634,19 +569,19 @@ class DiscoveryCLI:
                     description, total=None
                 )
                 summary = new_kids.flush_new_kids(
-                    self.review_client(),
-                    new_kids_playlist_id,
-                    queue_2_playlist_id,
-                    great_discoveries_playlist_id,
-                    unlucky_ones_playlist_id,
-                    newfoundland_playlist_id,
-                    choice_reader=self._flush_new_kids_ask_new_kids_release_choice,
-                    dry_run=dry_run,
-                    echo=self._flush_new_kids_echo,
-                    progress_callback=self._flush_new_kids_update_progress,
-                    retry_call=self._flush_new_kids_retry_call,
-                    lastfm=lastfm_client,
-                    lastfm_username=lastfm_username,
+                    self.runtime.review_client(),
+                    DiscoveryOptions(
+                        new_kids_playlist_id=new_kids_playlist_id,
+                        queue_2_playlist_id=queue_2_playlist_id,
+                        great_discoveries_2026_playlist_id=great_discoveries_playlist_id,
+                        unlucky_ones_playlist_id=unlucky_ones_playlist_id,
+                        newfoundland_playlist_id=newfoundland_playlist_id,
+                        dry_run=dry_run,
+                    ),
+                    FlushNewKidsInteraction(self),
+                    resources=DiscoveryResources(
+                        lastfm=lastfm_client, lastfm_username=lastfm_username
+                    ),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_new_kids_rate_limit(exc, dry_run)
@@ -690,12 +625,14 @@ class DiscoveryCLI:
             The routine outcome.
         """
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._flush_queue_2_console,
                 transient=True,
             ) as self._flush_queue_2_progress:
@@ -705,19 +642,21 @@ class DiscoveryCLI:
                     description, total=None
                 )
                 summary = new_kids.flush_queue_2(
-                    self.review_client(),
-                    new_kids_playlist_id,
-                    queue_2_playlist_id,
-                    great_discoveries_playlist_id,
-                    unlucky_ones_playlist_id,
-                    newfoundland_playlist_id,
-                    choice_reader=self._flush_queue_2_ask_new_kids_release_choice,
-                    dry_run=dry_run,
-                    echo=self._flush_queue_2_echo,
-                    progress_callback=self._flush_queue_2_update_progress,
-                    retry_call=self._flush_queue_2_retry_call,
-                    lastfm=lastfm_client,
-                    lastfm_username=lastfm_username,
+                    self.runtime.review_client(),
+                    DiscoveryOptions(
+                        new_kids_playlist_id=new_kids_playlist_id,
+                        queue_2_playlist_id=queue_2_playlist_id,
+                        great_discoveries_2026_playlist_id=great_discoveries_playlist_id,
+                        unlucky_ones_playlist_id=unlucky_ones_playlist_id,
+                        newfoundland_playlist_id=newfoundland_playlist_id,
+                        dry_run=dry_run,
+                    ),
+                    FlushQueue2Interaction(self),
+                    resources=DiscoveryResources(
+                        log_path=new_kids.DEFAULT_QUEUE_2_LOG_PATH,
+                        lastfm=lastfm_client,
+                        lastfm_username=lastfm_username,
+                    ),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_queue_2_rate_limit(exc, dry_run)
@@ -751,7 +690,9 @@ class DiscoveryCLI:
         Returns:
             The original value selected or formatted by this adapter.
         """
-        table = self.create_table(title=f"Choose the next release for {artist_name}")
+        table = self.display.create_table(
+            title=f"Choose the next release for {artist_name}"
+        )
         table.add_column("#", justify="right")
         table.add_column("Release")
         table.add_column("Type")
@@ -764,7 +705,7 @@ class DiscoveryCLI:
             self._row_new_kids_release_choice_candidate(candidate, index, table)
         console.print(table)
         choices = [str(index) for index in range(1, len(candidates) + 1)]
-        response = self.prompt.ask(
+        response = self.display.prompt.ask(
             "Release number / [s]kip this run / [q]uit",
             choices=[*choices, "s", "q"],
             console=console,
@@ -798,7 +739,7 @@ class DiscoveryCLI:
                 str(candidate.popularity) if candidate.popularity is not None else "-"
             )
             top_track = (
-                (f"#{candidate.top_track_rank}")
+                f"#{candidate.top_track_rank}"
                 if candidate.top_track_rank is not None
                 else "-"
             )
@@ -823,3 +764,151 @@ class DiscoveryCLI:
         for transfer in summary.postfill:
             transfers.append(("After", transfer))
         return transfers
+
+
+@dataclass(frozen=True)
+class FlushNewKidsInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: DiscoveryCLI
+
+    def choose(
+        self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
+    ) -> str:
+        """Read the operator's release or composer-playlist selection.
+
+        Args:
+            artist: Reviewed artist's display name.
+            candidates: Original ordered candidates.
+
+        Returns:
+            Selected identity or original control value.
+        """
+        return self.owner._flush_new_kids_ask_new_kids_release_choice(
+            artist, candidates
+        )
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._flush_new_kids_echo(message)
+
+    def progress(self, completed: int, total: int, detail: str) -> None:
+        """Update the command's original progress display.
+
+        Args:
+            completed: Completed-entry count.
+            total: Expected-entry count.
+            detail: Original operation description.
+        """
+        self.owner._flush_new_kids_update_progress(completed, total, detail)
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+
+@dataclass(frozen=True)
+class FlushQueue2Interaction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: DiscoveryCLI
+
+    def choose(
+        self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
+    ) -> str:
+        """Read the operator's release or composer-playlist selection.
+
+        Args:
+            artist: Reviewed artist's display name.
+            candidates: Original ordered candidates.
+
+        Returns:
+            Selected identity or original control value.
+        """
+        return self.owner._flush_queue_2_ask_new_kids_release_choice(artist, candidates)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._flush_queue_2_echo(message)
+
+    def progress(self, completed: int, total: int, detail: str) -> None:
+        """Update the command's original progress display.
+
+        Args:
+            completed: Completed-entry count.
+            total: Expected-entry count.
+            detail: Original operation description.
+        """
+        self.owner._flush_queue_2_update_progress(completed, total, detail)
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+
+@dataclass(frozen=True)
+class FlushNewKidsDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: DiscoveryCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            message: Original message.
+        """
+        self.owner._flush_new_kids_log(message)
+
+
+@dataclass(frozen=True)
+class FlushQueue2Diagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: DiscoveryCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            message: Original message.
+        """
+        self.owner._flush_queue_2_log(message)

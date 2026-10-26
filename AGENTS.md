@@ -23,6 +23,30 @@ Python, including tests and tooling:
    helpers may omit docstrings when their names and types fully explain them.
 5. Follow PEP 8 and Ruff formatting. Catch specific exception types; do not add
    catch-all `except Exception:` blocks.
+6. Keep function signatures at an absolute maximum of 13 parameters, normally
+   two or three. Group cohesive request values, paths and interaction callbacks
+   in explicit typed models; do not use an untyped options dictionary or merely
+   move a large dependency list into a generated constructor.
+7. Make HTTP execution statically navigable: route declaration, endpoint,
+   named application use case, domain decision, and presenter. Keep bootstrap
+   construction outside business execution and client creation outside legacy
+   routine modules. Prefer direct named calls over injected forwarding callbacks.
+8. Application code imports and calls fixed domain rules directly. Pass named
+   application stage objects rather than their bound methods. Use cohesive
+   objects with explicit methods for external reads and writes. Do not pass
+   functions or bound methods as execution dependencies when named resources and
+   direct calls can do the job. This also applies to operator
+   interactions, notifications, cancellation, retries, time, randomness and
+   compatibility APIs. Reserve function arguments for external framework or
+   standard-library APIs that actually require them, and record each narrow
+   reason; an interaction or retry label is not an exemption.
+   Integration adapters must not conceal execution of another application stage.
+   Do not pass file readers/writers, serializers, validators, presenters or fixed
+   workflow functions as execution dependencies. Use named resource/schema methods
+   and direct presenter calls. Retain only unavoidable external method captures
+   whose original lookup timing is part of the frozen behavior; keep them private
+   at the concrete SDK edge.
+   The callback dependency guard records those exact binding-time reasons.
 
 Apply these rules throughout the approved incremental refactor, preserving the
 frozen behavior contracts. Existing legacy code is brought into compliance as

@@ -1,8 +1,8 @@
 """Verify original direct and falsey caller retry timing around cancellation checks."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from functools import partial
 
 from spotify_manager.application.new_year_retry import AnnualRetry
 
@@ -21,8 +21,8 @@ def test_annual_missing_caller_retry_runs_operation_between_cancellation_checks(
 ):
     """Retain original direct invocation and both cancellation boundaries."""
     trace: list[str] = []
-    retry = AnnualRetry(None, partial(_cancel, trace))
-    assert retry.run(partial(_operation, trace), "description") == 11
+    retry = AnnualRetry(None, TraceCancellation(trace))
+    assert _execute(retry, trace) == 11
     assert trace == ["cancel", "operation", "cancel"]
 
 
@@ -45,15 +45,14 @@ class FalseyRetry:
         self.trace.append("truthiness")
         return False
 
-    def __call__(self, operation: Callable[[], object], description: str) -> object:
-        """Reject an unexpected call to the original falsey retry boundary.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Reject execution through the original falsey retry authority.
 
         Args:
-            operation: Original deferred operation.
             description: Original retry label.
 
         Raises:
-            AssertionError: Original falsey callers must use direct invocation.
+            AssertionError: The original falsey authority must never execute.
         """
         raise AssertionError("falsey caller must not execute")
 
@@ -63,7 +62,29 @@ def test_annual_falsey_retry_is_checked_only_after_first_cancellation_boundary()
 ):
     """Retain original late truthiness and direct operation semantics."""
     trace: list[str] = []
-    retry = AnnualRetry(FalseyRetry(trace), partial(_cancel, trace))
+    retry = AnnualRetry(FalseyRetry(trace), TraceCancellation(trace))
     assert trace == []
-    assert retry.run(partial(_operation, trace), "description") == 11
+    assert _execute(retry, trace) == 11
     assert trace == ["cancel", "truthiness", "operation", "cancel"]
+
+
+@dataclass(frozen=True)
+class TraceCancellation:
+    """Record original annual cancellation observations.
+
+    Args:
+        trace: Original ordered operation observations.
+    """
+
+    trace: list[str]
+
+    def check(self) -> None:
+        """Observe the original cancellation boundary."""
+        _cancel(self.trace)
+
+
+def _execute(retry: AnnualRetry, trace: list[str]) -> int:
+    for attempt in retry.attempts("description"):
+        with attempt:
+            return _operation(trace)
+    raise AssertionError("Retry scopes must include an attempt")

@@ -1,7 +1,8 @@
 """Typed memory boundaries for unusual durable analysis states and malformed facts."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
 from collections.abc import Sequence
+from contextlib import AbstractContextManager
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -11,12 +12,11 @@ from typing import cast
 from pydantic import BaseModel
 
 from spotify_manager.application.library_analysis_checkpoint import new_checkpoint
-from spotify_manager.application.library_analysis_effects import AnalysisCatalog
-from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_effects import AnalysisSession
 from spotify_manager.application.library_analysis_effects import OffsetRead
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
 from spotify_manager.application.library_analysis_values import LibraryModel
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
@@ -169,7 +169,7 @@ class AnalysisMemory:
         Returns:
             Original memory offset page reader.
         """
-        return self.offset_page
+        return MemoryOffsetPages(self)
 
     def offset_page(self, *, limit: int, offset: int) -> object:
         """Read the original next offset page.
@@ -208,6 +208,130 @@ class AnalysisMemory:
         self.effects.append(("following", identities))
         return self.follow_response
 
+    def publish_path(self, path: Path, source: str) -> None:
+        """Observe publish path at the recorded boundary.
+
+        Args:
+            path: Isolated fixture file location.
+            source: Original publication provenance.
+        """
+        assert path.is_file()
+
+    def staged[T: BaseModel](self, path: Path, model: type[T]) -> list[T]:
+        """Observe staged at the recorded boundary.
+
+        Args:
+            path: Isolated fixture file location.
+            model: Model used to validate persisted fixture rows.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.models(path, model)
+
+    def clock(self) -> str:
+        """Observe clock at the recorded boundary.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return _clock()
+
+    def run_id(self) -> str:
+        """Observe run id at the recorded boundary.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return _run_id()
+
+    def fingerprint(self, path: Path) -> dict[str, int]:
+        """Observe fingerprint at the recorded boundary.
+
+        Args:
+            path: Isolated fixture file location.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return _fingerprint(path)
+
+    def reset_staging(self, path: Path) -> None:
+        """Observe reset staging at the recorded boundary.
+
+        Args:
+            path: Isolated fixture file location.
+        """
+        self.reset(path)
+
+    def export_artists(self, paths: LibraryAnalysisPaths) -> list[YourLibraryArtist]:
+        """Observe export artists at the recorded boundary.
+
+        Args:
+            paths: Isolated analysis locations.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return _export_artists(paths)
+
+    def artists(self, after: str | None) -> object:
+        """Observe artists at the recorded boundary.
+
+        Args:
+            after: Original cursor continuation.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.cursor(after)
+
+    def reconcile_artists(self, after: str | None) -> object:
+        """Observe reconcile artists at the recorded boundary.
+
+        Args:
+            after: Original cursor continuation.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return self.cursor(after)
+
+    def convert(self, row: object, resource: ResourceName) -> LibraryModel | None:
+        """Observe convert at the recorded boundary.
+
+        Args:
+            row: Raw fixture resource row.
+            resource: Active resource identity.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return _convert(row)
+
+    def items(self, page: object, resource: ResourceName) -> list[object]:
+        """Observe items at the recorded boundary.
+
+        Args:
+            page: Observed unvalidated page.
+            resource: Active resource identity.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return _items(page, resource)
+
+    def artist_items(self, page: object) -> tuple[list[object], dict[str, object]]:
+        """Observe artist items at the recorded boundary.
+
+        Args:
+            page: Observed unvalidated page.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return _artist_items(page)
+
 
 def _clock() -> str:
     return "2026-09-24T12:00:00+00:00"
@@ -238,10 +362,45 @@ def _artist_items(raw: object) -> tuple[list[object], dict[str, object]]:
     return cast(list[object], page["items"]), page
 
 
-def _request[T](
-    operation: Callable[[], T], description: str, max_attempts: int | None = None
-) -> T:
-    return operation()
+class ImmediateRequests:
+    """Execute memory requests without transport retries."""
+
+    def attempts(
+        self, description: str, max_attempts: int | None = None
+    ) -> Iterator[AbstractContextManager[None]]:
+        """Provide one direct memory request scope.
+
+        Args:
+            description: Original request description.
+            max_attempts: Original optional attempt limit, unused without failures.
+
+        Returns:
+            One direct scope.
+        """
+        return NoRetry().attempts(description)
+
+
+@dataclass(frozen=True)
+class MemoryOffsetPages:
+    """Read offset pages from memory.
+
+    Args:
+        memory: Recorded authority.
+    """
+
+    memory: AnalysisMemory
+
+    def read(self, *, limit: int, offset: int) -> object:
+        """Read one page.
+
+        Args:
+            limit: Page size.
+            offset: Raw row offset.
+
+        Returns:
+            Next response.
+        """
+        return self.memory.offset_page(limit=limit, offset=offset)
 
 
 def memory_session(
@@ -258,41 +417,16 @@ def memory_session(
         Independently injected session without production bootstrap or SDKs.
     """
     paths = LibraryAnalysisPaths.for_files_dir(root, "mirrors")
-    files = AnalysisFiles(
-        memory.read,
-        memory.write,
-        memory.models,
-        memory.models,
-        memory.publish,
-        memory.append,
-        memory.event,
-        memory.export,
-        _clock,
-        _run_id,
-        _fingerprint,
-        memory.reset,
-        memory.remove,
-        _export_artists,
-    )
-    catalog = AnalysisCatalog(
-        memory.offset,
-        memory.cursor,
-        memory.cursor,
-        memory.following,
-        _convert,
-        _convert,
-        _convert,
-        _items,
-        _artist_items,
-    )
+    files = memory
+    catalog = memory
     checkpoint = new_checkpoint(files, paths)
     return AnalysisSession(
         paths,
         checkpoint,
         files,
         catalog,
-        _request,
-        memory.echo,
-        memory.progress if progress else None,
+        ImmediateRequests(),
+        memory,
+        memory if progress else None,
         None,
     )

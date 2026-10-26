@@ -5,7 +5,6 @@ from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from functools import partial
 
 import pytest
 
@@ -73,8 +72,16 @@ class MemoryRecovery:
             Records and shared restart state.
         """
         self._effect("load")
-        self.state.persist = partial(self._effect, "checkpoint")
+        self.state.checkpoint = self
         return self.records, self.state
+
+    def save(self, state: RecoveryState) -> None:
+        """Record an accepted recovery checkpoint.
+
+        Args:
+            state: Current restart progress, retained by this memory boundary.
+        """
+        self._effect("checkpoint")
 
     def albums(
         self, records: list[RemovedAlbumRecord]
@@ -214,13 +221,19 @@ class MemoryRecovery:
         """
         self._effect(f"progress:{completed}/{total}")
 
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
 
 def test_recovery_orders_artist_and_album_effects() -> None:
     """Retain the full write, audit, checkpoint, and progress sequence."""
     fixture = MemoryRecovery()
-    result = recover_albums(
-        fixture, fixture, fixture.clock, fixture.today, progress=fixture.progress
-    )
+    result = recover_albums(fixture, fixture, fixture, fixture, progress=fixture)
     assert fixture.effects == [
         "load",
         "progress:0/1",
@@ -251,9 +264,7 @@ def test_recovery_preview_preserves_reads_without_writes(already_saved: bool) ->
         already_saved: Whether the album is currently saved.
     """
     fixture = MemoryRecovery(is_saved=already_saved)
-    result = recover_albums(
-        fixture, fixture, fixture.clock, fixture.today, dry_run=True
-    )
+    result = recover_albums(fixture, fixture, fixture, fixture, dry_run=True)
     assert result.albums_restored == int(not already_saved)
     assert fixture.state.processed_album_ids == {"album"}
     assert not {"restore", "mirror", "audit", "checkpoint"}.intersection(
@@ -265,7 +276,7 @@ def test_recovery_preview_preserves_reads_without_writes(already_saved: bool) ->
 def test_already_saved_future_release_still_updates_mirror() -> None:
     """Current remote membership does not skip the local repair boundary."""
     fixture = MemoryRecovery(is_saved=True)
-    recover_albums(fixture, fixture, fixture.clock, fixture.today)
+    recover_albums(fixture, fixture, fixture, fixture)
     assert "restore" not in fixture.effects
     assert fixture.effects[7:11] == [
         "mirror",
@@ -293,7 +304,7 @@ def test_nonfuture_albums_have_no_membership_or_restore(
         album: Metadata observation to process.
     """
     fixture = MemoryRecovery(observations=(album,))
-    result = recover_albums(fixture, fixture, fixture.clock, fixture.today)
+    result = recover_albums(fixture, fixture, fixture, fixture)
     assert not {"saved", "restore", "mirror"}.intersection(fixture.effects)
     assert result.processed == 1
     assert result.unavailable == int(album is None)
@@ -313,10 +324,10 @@ def test_limit_preserves_python_slice_semantics(limit: int) -> None:
     result = recover_albums(
         fixture,
         fixture,
-        fixture.clock,
-        fixture.today,
+        fixture,
+        fixture,
         limit=limit,
-        progress=fixture.progress,
+        progress=fixture,
     )
     assert result.processed == 0
     assert fixture.effects == ["load", "progress:0/0", "finish"]
@@ -325,9 +336,7 @@ def test_limit_preserves_python_slice_semantics(limit: int) -> None:
 def test_restart_skips_completed_records() -> None:
     """Completed IDs survive a new use-case invocation without new observations."""
     fixture = MemoryRecovery(state=RecoveryState({"album"}, set()))
-    result = recover_albums(
-        fixture, fixture, fixture.clock, fixture.today, progress=fixture.progress
-    )
+    result = recover_albums(fixture, fixture, fixture, fixture, progress=fixture)
     assert result.processed == 0
     assert fixture.effects == ["load", "progress:1/1", "finish"]
 
@@ -336,7 +345,7 @@ def test_excess_metadata_preserves_artist_effects_before_strict_zip_error() -> N
     """An oversized response retains its legacy effects before raising."""
     fixture = MemoryRecovery(observations=(_future(), _future()))
     with pytest.raises(ValueError, match="zip"):
-        recover_albums(fixture, fixture, fixture.clock, fixture.today)
+        recover_albums(fixture, fixture, fixture, fixture)
     assert "follow:4:False" in fixture.effects
     assert fixture.state.processed_album_ids == {"album"}
     assert "finish" not in fixture.effects
@@ -353,7 +362,7 @@ def test_failed_recovery_retains_accepted_writes(failure: str) -> None:
     """
     fixture = MemoryRecovery(fail=failure)
     with pytest.raises(RuntimeError, match=failure):
-        recover_albums(fixture, fixture, fixture.clock, fixture.today)
+        recover_albums(fixture, fixture, fixture, fixture)
     assert fixture.is_saved is (failure in {"mirror", "audit", "checkpoint"})
     assert bool(fixture.state.processed_album_ids) is (failure == "checkpoint")
     assert fixture.effects[-1] == failure

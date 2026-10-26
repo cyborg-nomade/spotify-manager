@@ -1,37 +1,43 @@
 """Explicit requeue CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
 import typer
 from rich.console import Console
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.routines import requeue_for_a_dream
-from spotify_manager.routines import review_album_limits
-from spotify_manager.settings import Settings
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces.cli.output import StatusOutput
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import (
+    requeue_for_a_dream as requeue_for_a_dream,
+)
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)
 class RequeueCLI:
-    """Execute and present requeue through explicit facade dependencies.
+    """Run Requeue progression and present its outcome.
 
     Args:
-        create_console: Factory for console instances.
-        configuration: Original settings factory supplied by the facade.
-        create_table: Factory for table instances.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        create_console: Interface presentation resource.
+        create_table: Interface presentation resource.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
+    runtime: CliResources
+
     create_console: type[Console]
-    configuration: type[Settings]
     create_table: type[Table]
-    review_client: Callable[..., Spotify]
-    sleep: Callable[[float], None]
+    sleep: Wait
 
     def _run_flush_requeue_for_a_dream(self, dry_run: bool) -> None:
         """Advance the first Requeue for a Dream artist by one release.
@@ -40,7 +46,7 @@ class RequeueCLI:
             dry_run: Whether to preview changes using the original routine behavior.
         """
         self._flush_requeue_for_a_dream_console = self.create_console()
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = requeue_for_a_dream.parse_playlist_id(
                 configuration.reqeueue_for_a_dream_playlist
@@ -52,12 +58,12 @@ class RequeueCLI:
                 "Planning Requeue for a Dream" + (" (dry run)" if dry_run else "")
             ) as status:
                 summary = requeue_for_a_dream.flush_requeue_for_a_dream(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     playlist_id,
                     dry_run=dry_run,
-                    echo=self._flush_requeue_for_a_dream_echo,
-                    progress_callback=status.update,
-                    retry_call=self._flush_requeue_for_a_dream_retry_call,
+                    echo=FlushRequeueForADreamInteraction(self),
+                    progress_callback=StatusOutput(status),
+                    retry_call=FlushRequeueForADreamInteraction(self),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_requeue_for_a_dream_rate_limit(exc)
@@ -73,18 +79,6 @@ class RequeueCLI:
         style = "bold green" if line.startswith(("Added", "Removed")) else "cyan"
         self._flush_requeue_for_a_dream_console.print(line, style=style, markup=False)
 
-    def _flush_requeue_for_a_dream_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._flush_requeue_for_a_dream_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
     def _report_flush_requeue_for_a_dream_configuration_failure(
         self, exc: requeue_for_a_dream.RequeueForADreamConfigError
     ) -> Never:
@@ -98,9 +92,9 @@ class RequeueCLI:
     ) -> Never:
         self._flush_requeue_for_a_dream_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -168,12 +162,39 @@ class RequeueCLI:
         self._flush_requeue_for_a_dream_console.print(table)
         self._flush_requeue_for_a_dream_console.print(
             (
-                "Playlist: "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                " tracks"
+                f"Playlist: {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after} tracks"
             )
             + (" (preview only)." if dry_run else "."),
             style="bold cyan" if dry_run else "bold green",
         )
+
+
+@dataclass(frozen=True)
+class FlushRequeueForADreamInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: RequeueCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._flush_requeue_for_a_dream_echo(message)

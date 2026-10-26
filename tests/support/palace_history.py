@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
+from spotify_manager.application.historical_values import RandomIndexSet
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory as legacy
@@ -108,6 +109,26 @@ class HistoryReads:
         """
         self.trace.append(["progress", message])
 
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
+    def sample(self, population: int, count: int) -> blast_from_past.RandomIndexSet:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            population: Original fixture observation.
+            count: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.random(population, count)
+
 
 def _indexes(profile: str, count: int, population: int) -> tuple[int, ...]:
     if profile == "out-of-range":
@@ -149,8 +170,8 @@ def _run(edge: HistoryReads, count: int) -> object:
             count=count,
             path=Path("history"),
             today=date(2026, 8, 8),
-            random_index_reader=edge.random,
-            progress_callback=edge.progress,
+            random_index_reader=edge,
+            progress_callback=edge,
         )
     return {
         "generated": generated,
@@ -167,3 +188,38 @@ def cases() -> list[dict[str, object]]:
         Original inputs and complete result/error evidence.
     """
     return cast(list[dict[str, object]], json.loads(FIXTURE.read_text()))
+
+
+@dataclass(frozen=True)
+class HistoryInputs:
+    """Supply the original file, calendar and random observation boundaries.
+
+    Args:
+        reads: Original scripted history/random responses and failures.
+        path: Original requested history location.
+        cutoff_date: Original effective inclusive cutoff.
+    """
+
+    reads: HistoryReads
+    path: Path
+    cutoff_date: date
+
+    def history(self) -> dict[date, list[Scrobble]]:
+        """Read the original dated history and retain its observation trace."""
+        return self.reads.read(self.path)
+
+    def cutoff(self) -> date:
+        """Return the original fixed cutoff after the file observation."""
+        return self.cutoff_date
+
+    def random(self, population: int, count: int) -> RandomIndexSet:
+        """Read the existing scripted index response.
+
+        Args:
+            population: Original populated-date count.
+            count: Original requested selection count.
+
+        Returns:
+            Original shared timestamp and unmodified indexes.
+        """
+        return self.reads.random(population, count)

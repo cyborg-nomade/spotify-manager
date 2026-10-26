@@ -1,6 +1,5 @@
 """Stable library identities, analysis outcomes and clean pause signals."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 from typing import Protocol
@@ -150,4 +149,16 @@ class LibrarySyncRestoreError(LibrarySyncError):
     """Raised when a requested analysis backup cannot be restored."""
 
 
-RetryWait = Callable[[RetryNotice], bool]
+class RetryWait(Protocol):
+    """Own an operator's wait or pause decision after a scheduled retry."""
+
+    def wait(self, notice: RetryNotice) -> bool:
+        """Wait or request a clean pause using the original notice.
+
+        Args:
+            notice: Original retry status, attempt and delay.
+
+        Returns:
+            Whether the original request should continue.
+        """
+        ...

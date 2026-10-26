@@ -2,8 +2,8 @@
 
 import json
 import shutil
-from collections.abc import Callable
 from dataclasses import asdict
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -93,12 +93,57 @@ def append_audit(
         raise PalaceOfMemoryStateError(f"Could not write {label}: {path}") from exc
 
 
+class SavedAlbumFiles(Protocol):
+    """Observe backup time and accept complete saved-album models."""
+
+    def clock(self) -> datetime:
+        """Observe the independent backup clock.
+
+        Returns:
+            Original UTC instant.
+        """
+        ...
+
+    def write(self, path: Path, albums: tuple[YourLibraryAlbum, ...]) -> None:
+        """Accept and publish complete models.
+
+        Args:
+            path: Canonical mirror location.
+            albums: Complete ordered replacement.
+        """
+        ...
+
+
+class PalaceSavedAlbumFiles:
+    """Use the original clock and accepted model writer at the mirror boundary."""
+
+    def clock(self) -> datetime:
+        """Observe the original backup clock.
+
+        Returns:
+            Current UTC instant.
+        """
+        from spotify_manager.routines import palace_of_memory as legacy
+
+        return legacy.datetime.now(UTC)
+
+    def write(self, path: Path, albums: tuple[YourLibraryAlbum, ...]) -> None:
+        """Accept and publish complete models.
+
+        Args:
+            path: Canonical mirror location.
+            albums: Complete ordered replacement.
+        """
+        from spotify_manager.routines.analyse_library import write_models
+
+        write_models(path, albums)
+
+
 def replace_saved_albums(
     path: Path,
     backups: Path,
     albums: tuple[YourLibraryAlbum, ...],
-    clock: Callable[[], datetime],
-    write: Callable[[Path, tuple[YourLibraryAlbum, ...]], None],
+    files: SavedAlbumFiles,
 ) -> str | None:
     """Back up original bytes before atomic model replacement and publication.
 
@@ -106,8 +151,7 @@ def replace_saved_albums(
         path: Original canonical mirror location.
         backups: Original backup directory.
         albums: Original complete canonical replacement.
-        clock: Original independent backup timestamp boundary.
-        write: Original atomic model writer and publication boundary.
+        files: Independent backup clock and accepted model publication owner.
 
     Returns:
         Original backup location when a previous file exists.
@@ -120,10 +164,10 @@ def replace_saved_albums(
         if path.exists():
             backups.mkdir(parents=True, exist_ok=True)
             backup = backups / (
-                clock().strftime("%Y%m%dT%H%M%S%fZ") + "-albums_total_new.json"
+                files.clock().strftime("%Y%m%dT%H%M%S%fZ") + "-albums_total_new.json"
             )
             shutil.copy2(path, backup)
-        write(path, albums)
+        files.write(path, albums)
     except OSError as exc:
         raise PalaceOfMemoryStateError(
             f"Could not publish refreshed saved albums: {path}"

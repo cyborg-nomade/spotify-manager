@@ -1,18 +1,39 @@
 """Original album-review messages and action prompts for CLI and HTTP callers."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol
 
 from spotify_manager.application.album_limits import ReviewCounts
 from spotify_manager.application.album_limits import ReviewOutcome
 from spotify_manager.application.artist_follows import ArtistFollowOutcome
+from spotify_manager.application.ports.runtime import CountProgress
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.models.your_library import YourLibraryAlbum
 
 
-type Echo = Callable[[str], None]
-type ActionReader = Callable[[YourLibraryAlbum, AlbumEvaluation], str]
-type ProgressCallback = Callable[[int, int], None]
+type ProgressCallback = CountProgress
+
+
+type Echo = Messages
+
+
+class ActionReader(Protocol):
+    """Own the operator interaction for choose action."""
+
+    def choose_action(
+        self, album: YourLibraryAlbum, evaluation: AlbumEvaluation, /
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            album: Original interaction value.
+            evaluation: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 def present_artist_follow(
@@ -26,16 +47,16 @@ def present_artist_follow(
         echo: Existing output callback.
     """
     if outcome.action == "unresolved":
-        echo(f"Could not resolve artist id for: {album.artist}")
+        echo.echo(f"Could not resolve artist id for: {album.artist}")
         return
     if outcome.action != "followed":
         return
     assert outcome.artist is not None and outcome.persistence is not None
-    echo(f"Followed artist: {outcome.artist.name}")
+    echo.echo(f"Followed artist: {outcome.artist.name}")
     if outcome.persistence.total_artists_updated:
-        echo(f"Recorded artist in artists_total.json: {outcome.artist.name}")
+        echo.echo(f"Recorded artist in artists_total.json: {outcome.artist.name}")
     if outcome.persistence.stats_history_updated:
-        echo("Updated stats_history.json.")
+        echo.echo("Updated stats_history.json.")
 
 
 def format_album_label(album: YourLibraryAlbum) -> str:
@@ -77,7 +98,7 @@ def echo_track_details(evaluation: AlbumEvaluation, echo: Echo) -> None:
     """
     for index, track in enumerate(evaluation.tracks, start=1):
         marker = "liked" if track.liked else "not liked"
-        echo(f"  {index:02d}. [{marker}] {track.name}")
+        echo.echo(f"  {index:02d}. [{marker}] {track.name}")
 
 
 def _normalized_action(action: str, evaluation: AlbumEvaluation) -> str | None:
@@ -110,14 +131,14 @@ def read_action(
         Normalized remove, keep, skip, or quit action.
     """
     while True:
-        action = action_reader(album, evaluation).strip().casefold()
+        action = action_reader.choose_action(album, evaluation).strip().casefold()
         normalized = _normalized_action(action, evaluation)
         if normalized is not None:
             return normalized
         if action in {"d", "details"}:
             echo_track_details(evaluation, echo)
             continue
-        echo("Choose r/remove, k/keep, s/skip, d/details, or q/quit.")
+        echo.echo("Choose r/remove, k/keep, s/skip, d/details, or q/quit.")
 
 
 def _outcome_message(
@@ -151,12 +172,12 @@ class AlbumReviewPresenter:
 
     Args:
         action_reader: Original interface choice callback.
-        echo: Output sink.
+        output: Output sink.
         progress_callback: Optional progress and cancellation callback.
     """
 
     action_reader: ActionReader
-    echo: Echo
+    output: Echo
     progress_callback: ProgressCallback | None
 
     def outcome(
@@ -176,7 +197,7 @@ class AlbumReviewPresenter:
             position: One-based position.
             total: Original album count.
         """
-        self.echo(_outcome_message(outcome, album, evaluation, position, total))
+        self.output.echo(_outcome_message(outcome, album, evaluation, position, total))
 
     def candidate(
         self,
@@ -193,10 +214,12 @@ class AlbumReviewPresenter:
             position: One-based position.
             total: Original album count.
         """
-        self.echo("")
-        self.echo(f"[{position}/{total}] remove candidate: {format_album_label(album)}")
-        self.echo(format_evaluation_summary(evaluation))
-        self.echo(f"Source: {evaluation.source}")
+        self.output.echo("")
+        self.output.echo(
+            f"[{position}/{total}] remove candidate: {format_album_label(album)}"
+        )
+        self.output.echo(format_evaluation_summary(evaluation))
+        self.output.echo(f"Source: {evaluation.source}")
 
     def show_live_likes(self, count: int | None) -> None:
         """Present live membership availability.
@@ -205,9 +228,9 @@ class AlbumReviewPresenter:
             count: Current count or None when identifiers are unavailable.
         """
         if count is None:
-            self.echo("Live liked tracks: unavailable; asking for confirmation.")
+            self.output.echo("Live liked tracks: unavailable; asking for confirmation.")
             return
-        self.echo(f"Live liked tracks: {count}")
+        self.output.echo(f"Live liked tracks: {count}")
 
     def choose(self, album: YourLibraryAlbum, evaluation: AlbumEvaluation) -> str:
         """Read the original interface action.
@@ -219,7 +242,7 @@ class AlbumReviewPresenter:
         Returns:
             Normalized action.
         """
-        return read_action(album, evaluation, self.action_reader, self.echo)
+        return read_action(album, evaluation, self.action_reader, self.output)
 
     def progress(self, position: int, total: int) -> None:
         """Deliver completion progress when a callback exists.
@@ -229,7 +252,7 @@ class AlbumReviewPresenter:
             total: Original album count.
         """
         if self.progress_callback is not None:
-            self.progress_callback(position, total)
+            self.progress_callback.progress(position, total)
 
     def finish(self, counts: ReviewCounts) -> None:
         """Present final review counts.
@@ -237,8 +260,8 @@ class AlbumReviewPresenter:
         Args:
             counts: Completed outcomes.
         """
-        self.echo("")
-        self.echo(
+        self.output.echo("")
+        self.output.echo(
             f"Review complete. Kept: {counts.kept}. Skipped: {counts.skipped}. "
             f"Removed: {counts.removed}. Followed artists: {counts.followed}."
         )

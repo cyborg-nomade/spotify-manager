@@ -1,9 +1,13 @@
 """Preserve cancellation before and after each original annual retry boundary."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 from spotify_manager.application.new_year_membership import RetryCall
+from spotify_manager.application.ports.runtime import Cancellation
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.retry_attempts import CheckedAttempts
 
 
 @dataclass(frozen=True)
@@ -16,19 +20,17 @@ class AnnualRetry:
     """
 
     caller: RetryCall | None
-    cancel: Callable[[], None]
+    cancel: Cancellation
 
-    def run(self, operation: Callable[[], object], description: str) -> object:
-        """Check cancellation around the complete original caller-owned operation.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original complete deferred read or effect.
-            description: Original retry description.
+            description: Original request description.
 
         Returns:
-            Original accepted operation result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        self.cancel()
-        result = self.caller(operation, description) if self.caller else operation()
-        self.cancel()
-        return result
+        self.cancel.check()
+        scopes = (self.caller or NoRetry()).attempts(description)
+        return CheckedAttempts(scopes, self.cancel)

@@ -1,11 +1,13 @@
 """Original artist-statistics and cached/offline album lookup workflows."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
+from spotify_manager.application.lookup_effects import ArtistLibrary
 from spotify_manager.application.lookup_effects import CachedTracks
 from spotify_manager.application.lookup_effects import LocalAlbumLookup
+from spotify_manager.application.lookup_effects import LookupMembership
 from spotify_manager.application.lookup_effects import LookupTrack
+from spotify_manager.application.lookup_resolution import artist
 from spotify_manager.domain import albums as album_policy
 from spotify_manager.domain.lookup_selection import local_album
 from spotify_manager.domain.lookup_values import SpotifyLookupResponseError
@@ -17,21 +19,19 @@ from spotify_manager.models.your_library import YourLibraryFile
 
 @dataclass(frozen=True)
 class ArtistStatistics:
-    """Supply original identity, catalog and membership stages.
+    """Describe a live artist lookup and its external catalog.
 
     Args:
-        resolve: Original exact identity resolution.
-        releases: Original primary-credit release gathering.
-        saved: Original saved-release membership count.
-        tracks: Original primary-credit track gathering.
-        liked: Original liked-track membership count.
+        catalog: Artist metadata, releases, tracks and membership reader.
+        name: Optional exact artist reference.
+        identifier: Preferred direct identity.
+        batch_size: Original conservative membership batch size.
     """
 
-    resolve: Callable[[], tuple[str, str]]
-    releases: Callable[[str], list[str]]
-    saved: Callable[[list[str]], int]
-    tracks: Callable[[str, list[str]], list[str]]
-    liked: Callable[[list[str]], int]
+    catalog: ArtistLibrary
+    name: str | None
+    identifier: str | None
+    batch_size: int
 
 
 def artist_statistics(deps: ArtistStatistics) -> ArtistLibraryStats:
@@ -43,11 +43,13 @@ def artist_statistics(deps: ArtistStatistics) -> ArtistLibraryStats:
     Returns:
         Original live artist-statistics response.
     """
-    identifier, name = deps.resolve()
-    releases = deps.releases(identifier)
-    saved = deps.saved(releases)
-    tracks = deps.tracks(identifier, releases)
-    liked = deps.liked(tracks)
+    identifier, name = artist(deps.catalog, deps.name, deps.identifier)
+    releases = deps.catalog.releases(identifier)
+    saved = count_contains(
+        releases, deps.catalog.saved, "Saved Albums", deps.batch_size
+    )
+    tracks = deps.catalog.tracks(identifier, releases)
+    liked = count_contains(tracks, deps.catalog.liked, "Liked Songs", deps.batch_size)
     return ArtistLibraryStats(
         artist_name=name,
         artist_id=identifier,
@@ -59,7 +61,7 @@ def artist_statistics(deps: ArtistStatistics) -> ArtistLibraryStats:
 
 def count_contains(
     ids: list[str],
-    contains: Callable[[list[str]], object],
+    contains: LookupMembership,
     resource: str,
     batch_size: int,
 ) -> int:
@@ -80,7 +82,7 @@ def count_contains(
     count = 0
     for start in range(0, len(ids), batch_size):
         batch = ids[start : start + batch_size]
-        response = contains(batch)
+        response = contains.contains(batch)
         if not isinstance(response, list) or len(response) != len(batch):
             raise SpotifyLookupResponseError(
                 f"Spotify returned invalid {resource} statuses."
@@ -134,12 +136,14 @@ def evaluate_local(
     Returns:
         Original album evaluation response.
     """
-    facts = library if library is not None else deps.library()
+    facts = library if library is not None else deps.files.library()
     resolved_id, resolved_name, resolved_artist = local_album(
         facts.albums, name, identifier, artist
     )
     liked_ids = {track.spotify_id for track in facts.tracks}
-    tracks, cached = deps.tracks(resolved_id)
+    tracks, cached = tracklist(
+        deps.tracks, resolved_id, deps.use_cache, deps.refresh_cache
+    )
     statuses, liked = local_statuses(tracks, liked_ids)
     return local_evaluation(
         resolved_id, resolved_name, resolved_artist, statuses, liked, threshold, cached

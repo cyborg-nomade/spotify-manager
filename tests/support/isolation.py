@@ -187,6 +187,9 @@ def _redirect_defaults(
         destination: Directory replacing the operator's artifact root.
         seen: Function identities already handled through another import alias.
     """
+    if inspect.isclass(value) and is_dataclass(value):
+        _redirect_defaults(patch, value.__init__, destination, seen)
+        return
     if not inspect.isfunction(value) or id(value) in seen:
         return
     seen.add(id(value))

@@ -5,20 +5,24 @@ from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 
+from spotify_manager.application import historical_selection as selection_application
 from spotify_manager.application.historical_selection import AnniversarySelection
 from spotify_manager.application.historical_selection import BlastSelection
 from spotify_manager.application.historical_selection import HistoryByDate
+from spotify_manager.application.historical_values import BlastFromPastBatch
 from spotify_manager.application.historical_values import BlastFromPastError
+from spotify_manager.application.historical_values import DailyMindRadioBatch
 from spotify_manager.application.historical_values import LastFmExportError
 from spotify_manager.application.historical_values import RandomIndexSet
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import ScrobbleSelection
-from spotify_manager.domain.history import anniversary_dates
 from spotify_manager.domain.history import eligible_dates
 from spotify_manager.domain.history import select_scrobble
+from tests.support.runtime_resources import MessageList
 
 
 STAMP = datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC)
@@ -54,6 +58,9 @@ class SelectionMemory:
     date_indexes: list[int] = field(default_factory=list)
     requests: list[tuple[int, int]] = field(default_factory=list)
     failure: str = ""
+    first_date: date = FIRST_DATE
+    page_size: int = 50
+    anniversary_interval: int = 5
 
     def _step(self, name: str) -> None:
         self.events.append(name)
@@ -123,7 +130,12 @@ class SelectionMemory:
         return STAMP
 
     def select(
-        self, day: date, index: int, plays: list[Scrobble], stamp: datetime
+        self,
+        day: date,
+        index: int,
+        plays: list[Scrobble],
+        stamp: datetime,
+        page_size: int,
     ) -> ScrobbleSelection:
         """Apply the original paging rule after recording the supplied date index.
 
@@ -139,35 +151,23 @@ class SelectionMemory:
         self._step("select")
         self.date_indexes.append(index)
         assert stamp is STAMP
-        return select_scrobble(day, index, plays, stamp)
+        return select_scrobble(day, index, plays, stamp, page_size)
 
 
-def _blast(memory: SelectionMemory) -> BlastSelection:
-    return BlastSelection(
-        memory.history,
-        memory.cutoff,
-        memory.eligible,
-        memory.random,
-        memory.select,
-        memory.messages.append,
-    )
+def _blast(memory: SelectionMemory, count: int) -> BlastFromPastBatch:
+    with patch.object(selection_application, "select_scrobble", memory.select):
+        return BlastSelection(memory, MessageList(memory.messages)).run(count)
 
 
-def _radio(memory: SelectionMemory) -> AnniversarySelection:
-    return AnniversarySelection(
-        memory.history,
-        memory.today,
-        anniversary_dates,
-        memory.timestamp,
-        memory.select,
-        memory.messages.append,
-    )
+def _radio(memory: SelectionMemory) -> DailyMindRadioBatch:
+    with patch.object(selection_application, "select_scrobble", memory.select):
+        return AnniversarySelection(memory, MessageList(memory.messages)).run()
 
 
 def test_blast_keeps_random_index_order_and_shared_timestamp() -> None:
     """Retain source index order and read one shared random timestamp."""
     memory = SelectionMemory()
-    result = _blast(memory).run(2)
+    result = _blast(memory, 2)
     assert memory.events == ["history", "cutoff", "random", "select", "select"]
     assert memory.requests == [(2, 2)] and memory.date_indexes == [1, 0]
     assert [selection.scrobble.track for selection in result.selections] == [
@@ -192,7 +192,7 @@ def test_blast_invalid_count_precedes_history_reads(count: int) -> None:
     """
     memory = SelectionMemory()
     with pytest.raises(BlastFromPastError, match="at least 1"):
-        _blast(memory).run(count)
+        _blast(memory, count)
     assert not memory.events and not memory.messages
 
 
@@ -206,7 +206,7 @@ def test_blast_population_validation_precedes_randomness(empty: bool) -> None:
     memory = SelectionMemory(buckets={} if empty else _history())
     expected = "No scrobbled dates.*2021-12-31" if empty else "Count 3 exceeds the 2"
     with pytest.raises(BlastFromPastError, match=expected):
-        _blast(memory).run(3)
+        _blast(memory, 3)
     assert memory.events == ["history", "cutoff"]
 
 
@@ -223,7 +223,7 @@ def test_blast_retains_original_random_boundary_tolerance(
         expected: Track-selection indexes without extra validation.
     """
     memory = SelectionMemory(indexes=indexes)
-    result = _blast(memory).run(1)
+    result = _blast(memory, 1)
     assert memory.date_indexes == expected
     assert len(result.selections) == len(indexes)
 
@@ -232,7 +232,7 @@ def test_blast_out_of_range_index_retains_constructor_error() -> None:
     """An out-of-range injected index raises after the original progress messages."""
     memory = SelectionMemory(indexes=(2,))
     with pytest.raises(IndexError):
-        _blast(memory).run(1)
+        _blast(memory, 1)
     assert memory.events == ["history", "cutoff", "random"]
     assert memory.messages[-1] == "Applying Last.fm pagination rules"
 
@@ -240,7 +240,7 @@ def test_blast_out_of_range_index_retains_constructor_error() -> None:
 def test_radio_missing_dates_keep_unfiltered_indexes() -> None:
     """Missing anniversary buckets retain their positions in subsequent selections."""
     memory = SelectionMemory()
-    result = _radio(memory).run()
+    result = _radio(memory)
     assert memory.events == ["history", "today", "random", "select", "select"]
     assert memory.date_indexes == [0, 2]
     assert result.generated_at is STAMP
@@ -256,7 +256,7 @@ def test_radio_missing_dates_keep_unfiltered_indexes() -> None:
 def test_radio_empty_buckets_skip_randomness() -> None:
     """A known date with an empty bucket is missing, not a selectable population."""
     memory = SelectionMemory(buckets={date(2025, 7, 22): []})
-    result = _radio(memory).run()
+    result = _radio(memory)
     assert memory.events == ["history", "today"]
     assert result.target_dates == result.missing_dates == (date(2025, 7, 22),)
     assert result.generated_at is None and not result.selections
@@ -266,7 +266,7 @@ def test_radio_empty_export_fails_before_clock_access() -> None:
     """Reject history without date buckets before resolving the effective date."""
     memory = SelectionMemory(buckets={})
     with pytest.raises(LastFmExportError, match="does not contain any scrobbles"):
-        _radio(memory).run()
+        _radio(memory)
     assert memory.events == ["history"]
 
 
@@ -284,8 +284,8 @@ def test_selection_failure_suppresses_later_observations(
     memory = SelectionMemory(failure=failure)
     with pytest.raises(OSError, match=failure):
         if kind == "blast":
-            _blast(memory).run(1)
+            _blast(memory, 1)
         else:
-            _radio(memory).run()
+            _radio(memory)
     assert memory.events[-1] == failure
     assert memory.events.count(failure) == 1

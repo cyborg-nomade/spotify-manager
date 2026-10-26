@@ -1,8 +1,6 @@
 """Prepare and finalize restart-safe New Kids and Queue 2 review snapshots."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
 from typing import cast
 
 from spotify_manager.application.discovery_queue import DiscoveryQueueTransfer
@@ -11,6 +9,7 @@ from spotify_manager.application.new_kids_values import FillResult
 from spotify_manager.application.new_kids_values import FlushResult
 from spotify_manager.application.new_kids_values import FlushSummary
 from spotify_manager.application.new_kids_values import NewKidsStateError
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 
@@ -72,7 +71,7 @@ class DiscoveryRun:
     blocking_key: str
     fill_from_queue: bool
     dry_run: bool
-    clock: Callable[[], datetime]
+    clock: Clock
 
     def prepare(
         self,

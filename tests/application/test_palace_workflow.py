@@ -10,6 +10,8 @@ from typing import cast
 import pytest
 
 from spotify_manager.application.palace_effects import PalaceStateAccess
+from spotify_manager.application.palace_history import PalaceHistory
+from spotify_manager.application.palace_mirror import SavedMirror
 from spotify_manager.application.palace_run import Palace
 from spotify_manager.application.palace_values import PalaceOfMemoryConfigError
 from spotify_manager.application.palace_values import PalaceOfMemorySummary
@@ -206,11 +208,59 @@ class MemoryPalace:
         self.edge.record("audit", "audit", asdict(summary))
 
 
+@dataclass(frozen=True)
+class ScriptedMirror:
+    """Supply the existing isolated mirror-stage observations.
+
+    Args:
+        effects: Original complete Palace scenario boundary.
+    """
+
+    effects: MemoryPalace
+
+    def run(self) -> tuple[tuple[YourLibraryAlbum, ...], SavedAlbumRefresh]:
+        """Return the original stage outcome.
+
+        Returns:
+            Observed saved albums and publication result.
+        """
+        return self.effects.refresh()
+
+
+@dataclass(frozen=True)
+class ScriptedHistory:
+    """Supply the existing isolated historical-stage observations.
+
+    Args:
+        effects: Original complete Palace scenario boundary.
+    """
+
+    effects: MemoryPalace
+
+    def run(
+        self, count: int
+    ) -> tuple[datetime, date, int, tuple[HistoricalAlbumSelection, ...]]:
+        """Return the original history-stage outcome.
+
+        Args:
+            count: Configured historical selection count.
+
+        Returns:
+            Timestamp, cutoff, eligible dates and original selected albums.
+        """
+        return self.effects.historical()
+
+
 def _run(edge: PalaceObservations, preview: bool) -> object:
     override = "3" if edge.scenario == "override" else None
     if edge.scenario == "invalid-override":
         override = ""
-    result = Palace(MemoryPalace(edge)).run("destination", preview, override)
+    effects = MemoryPalace(edge)
+    result = Palace(
+        effects,
+        cast(SavedMirror, ScriptedMirror(effects)),
+        cast(PalaceHistory, ScriptedHistory(effects)),
+    ).run("destination", preview, override)
     assert result.added == result.playlist_length_after - result.playlist_length_before
     return asdict(result)
 

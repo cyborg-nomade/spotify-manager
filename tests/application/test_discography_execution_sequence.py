@@ -1,12 +1,12 @@
 """Replay original removal batches, completion failures and confirmed-plan retries."""
 
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import cast
 
 import pytest
 
-from spotify_manager.application.discography_execution import DiscographyEffects
 from spotify_manager.application.discography_execution import DiscographyExecution
 from spotify_manager.application.discography_execution import DiscographyStateAccess
 from spotify_manager.application.discography_values import DiscographyRunSummary
@@ -52,13 +52,52 @@ def _audit(
     edge.audit(selection, next_queue, Path("audit"))
 
 
+@dataclass(frozen=True)
+class ObservedWrites:
+    """Expose the original accepted effects as named adapter methods.
+
+    Args:
+        edge: Original observed writes, authority and failures.
+    """
+
+    edge: ApplyEffects
+
+    def remove(
+        self, selection: ArtistSelection, group: ArtistMarkers, batch: list[str]
+    ) -> None:
+        """Accept the original removal and its retry observation.
+
+        Args:
+            selection: Confirmed artist.
+            group: Original source markers.
+            batch: Original unique removal URIs.
+        """
+        _remove(self.edge, selection, group, batch)
+
+    def audit(self, selection: ArtistSelection, next_queue: QueueName) -> None:
+        """Accept the original completion audit.
+
+        Args:
+            selection: Confirmed artist and exact releases.
+            next_queue: Original next-run priority.
+        """
+        _audit(self.edge, selection, next_queue)
+
+    def state(self) -> DiscographyStateAccess:
+        """Resolve the original priority authority after accepted removals."""
+        return _state(self.edge)
+
+    def progress(self, message: str) -> None:
+        """Deliver the original per-artist notification.
+
+        Args:
+            message: Original stage text.
+        """
+        self.edge.progress(message)
+
+
 def _run(edge: ApplyEffects, empty: bool) -> DiscographyRunSummary:
-    effects = DiscographyEffects(
-        partial(_remove, edge),
-        partial(_audit, edge),
-        partial(_state, edge),
-        edge.progress,
-    )
+    effects = ObservedWrites(edge)
     return DiscographyExecution(effects).run(plan(empty))
 
 

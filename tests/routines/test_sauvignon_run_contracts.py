@@ -1,21 +1,27 @@
 """Protect original Sauvignon stage order, accepted writes and fresh membership."""
 
 from collections.abc import Callable
-from functools import partial
 from pathlib import Path
 from typing import cast
 
 import pytest
 from spotipy import Spotify
 
-from spotify_manager.routines import found_art
-from spotify_manager.routines import new_wine
+from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
+from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
+from spotify_manager.infrastructure.legacy.sauvignon import LegacySauvignon
+from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
+from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
+from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 from spotify_manager.routines import sauvignon as legacy
+from tests.support.runtime_resources import ProgressMessages
 from tests.support.sauvignon_run import STAMP
 from tests.support.sauvignon_run import RunObservations
 from tests.support.sauvignon_run import marker
 from tests.support.sauvignon_run import recommendation
-from tests.support.sauvignon_run import track_history
 
 
 class RunSpotify:
@@ -54,16 +60,15 @@ def _immediate(operation: Callable[[], object], description: str) -> object:
 
 
 def _bind(monkeypatch: pytest.MonkeyPatch, observations: RunObservations) -> None:
-    monkeypatch.setattr(found_art, "refresh_scrobble_history", observations.refresh)
-    monkeypatch.setattr(found_art, "aggregate_track_history", track_history)
-    monkeypatch.setattr(found_art, "select_seed_tracks", observations.seeds)
-    monkeypatch.setattr(found_art, "gather_candidates", observations.tracks)
-    monkeypatch.setattr(new_wine, "load_playlist_tracks", observations.read)
-    monkeypatch.setattr(legacy, "previously_added_album_keys", observations.previous)
-    monkeypatch.setattr(legacy, "gather_album_recommendations", observations.albums)
-    monkeypatch.setattr(legacy, "choose_album_option", observations.choose)
-    monkeypatch.setattr(legacy, "load_first_track", partial(_first, observations))
-    monkeypatch.setattr(legacy, "append_log", observations.audit)
+    monkeypatch.setattr(LegacySauvignon, "refresh", observations.refresh)
+    monkeypatch.setattr(RecommendationSeeds, "run", observations.seeds)
+    monkeypatch.setattr(CandidateGathering, "run", observations.tracks)
+    monkeypatch.setattr(LegacySauvignon, "read", observations.read)
+    monkeypatch.setattr(LegacySauvignon, "previous", observations.previous)
+    monkeypatch.setattr(AlbumGathering, "run", observations.albums)
+    monkeypatch.setattr(AlbumEditionChoice, "choose", observations.choose)
+    monkeypatch.setattr(LegacySauvignon, "first", observations.first)
+    monkeypatch.setattr(LegacySauvignon, "audit", observations.audit)
 
 
 def _run(
@@ -75,16 +80,20 @@ def _run(
     return legacy.fill_sauvignon_from_lastfm(
         cast(Spotify, RunSpotify(observations)),
         cast(legacy.LastFmReader, object()),
-        "destination",
-        None,
-        count=count,
-        max_playlist_length=None,
-        now=STAMP,
-        log_path=tmp_path / "audit",
-        dry_run=dry_run,
-        echo=observations.echo,
-        progress_callback=observations.progress,
-        retry_call=_immediate,
+        SauvignonOptions(
+            playlist_id="destination",
+            count=count,
+            max_playlist_length=None,
+            dry_run=dry_run,
+            now=STAMP,
+        ),
+        SauvignonCallbacks(
+            choice_reader=None,
+            output=observations,
+            progress_callback=ProgressMessages(observations),
+            retry_call=NoRetry(),
+        ),
+        SauvignonResources(log_path=tmp_path / "audit"),
     )
 
 
@@ -239,13 +248,11 @@ def test_sauvignon_invalid_request_precedes_retry_configuration(tmp_path: Path) 
         legacy.fill_sauvignon_from_lastfm(
             cast(Spotify, object()),
             cast(legacy.LastFmReader, object()),
-            "destination",
-            None,
-            count=0,
-            max_playlist_length=None,
-            retry_call=FalseyRetry(events),
-            log_path=tmp_path / "audit",
-            now=STAMP,
+            SauvignonOptions(
+                playlist_id="destination", count=0, max_playlist_length=None, now=STAMP
+            ),
+            SauvignonCallbacks(choice_reader=None, retry_call=FalseyRetry(events)),
+            SauvignonResources(log_path=tmp_path / "audit"),
         )
     assert events == []
 
@@ -265,14 +272,18 @@ def test_sauvignon_falsey_retry_is_resolved_before_history(
     legacy.fill_sauvignon_from_lastfm(
         cast(Spotify, RunSpotify(observed)),
         cast(legacy.LastFmReader, object()),
-        "destination",
-        None,
-        count=1,
-        max_playlist_length=None,
-        retry_call=FalseyRetry(observed.events),
-        dry_run=True,
-        now=STAMP,
-        log_path=tmp_path / "audit",
-        progress_callback=observed.progress,
+        SauvignonOptions(
+            playlist_id="destination",
+            count=1,
+            max_playlist_length=None,
+            dry_run=True,
+            now=STAMP,
+        ),
+        SauvignonCallbacks(
+            choice_reader=None,
+            progress_callback=ProgressMessages(observed),
+            retry_call=FalseyRetry(observed.events),
+        ),
+        SauvignonResources(log_path=tmp_path / "audit"),
     )
     assert observed.events == ["retry:boolean"] + SUCCESS[:7] + ["audit"]

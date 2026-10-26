@@ -7,7 +7,6 @@ from datetime import datetime
 
 import pytest
 
-from spotify_manager.application.queue_fill import QueueFill
 from spotify_manager.application.queue_fill_values import QueueFillRequest
 from spotify_manager.application.queue_values import QueueConfigError
 from spotify_manager.domain.queue_values import ArtistRecommendation
@@ -16,6 +15,7 @@ from tests.support.queue_fill import ARTIST
 from tests.support.queue_fill import RECOMMENDATION
 from tests.support.queue_fill import FillObservations
 from tests.support.queue_fill_application import MemoryQueueFill
+from tests.support.queue_fill_application import fill_workflow
 
 
 @dataclass
@@ -94,7 +94,7 @@ def test_fill_validation_precedes_retry_and_all_reads(
     """
     observations = FillObservations("success")
     with pytest.raises(QueueConfigError) as error:
-        QueueFill(BoundaryFill(observations)).run(fill_request)
+        fill_workflow(BoundaryFill(observations)).run(fill_request)
     assert str(error.value) == message
     assert observations.trace == []
 
@@ -107,7 +107,7 @@ def test_full_queue_stops_after_history_and_initial_membership(preview: bool) ->
         preview: Original preview mode.
     """
     observations = FillObservations("success")
-    result = QueueFill(BoundaryFill(observations, length=2)).run(
+    result = fill_workflow(BoundaryFill(observations, length=2)).run(
         QueueFillRequest(None, 1, 30, preview)
     )
     assert result.requested_count == result.selected == 0
@@ -125,7 +125,7 @@ def test_full_queue_stops_after_history_and_initial_membership(preview: bool) ->
 def test_requested_addition_stops_before_next_candidate_progress() -> None:
     """Stop once the original requested additions are satisfied."""
     observations = FillObservations("success")
-    result = QueueFill(BoundaryFill(observations)).run(
+    result = fill_workflow(BoundaryFill(observations)).run(
         QueueFillRequest(1, None, 30, False)
     )
     assert result.selected == 1
@@ -141,7 +141,7 @@ def test_saved_mapping_skips_interaction_and_duplicate_artist_is_rejected() -> N
     """Reuse accepted mappings and representation updates within the original run."""
     observations = FillObservations("success")
     observations.state["artist_mappings"] = {"artist": asdict(ARTIST)}
-    result = QueueFill(BoundaryFill(observations)).run(
+    result = fill_workflow(BoundaryFill(observations)).run(
         QueueFillRequest(2, None, 30, False)
     )
     assert result.selected == 1
@@ -153,7 +153,7 @@ def test_saved_mapping_skips_interaction_and_duplicate_artist_is_rejected() -> N
 def test_default_count_retains_original_twenty() -> None:
     """Preserve the original default when neither count nor maximum is specified."""
     observations = FillObservations("skip")
-    result = QueueFill(BoundaryFill(observations)).run(
+    result = fill_workflow(BoundaryFill(observations)).run(
         QueueFillRequest(None, None, 30, False)
     )
     assert result.requested_count == 20

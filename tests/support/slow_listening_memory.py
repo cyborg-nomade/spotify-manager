@@ -305,10 +305,47 @@ class MemorySlowListening:
         return SlowListeningDependencies(
             self,
             StudioObservations(self),
-            self.order,
-            self.choose,
-            self.complete,
             self,
-            self.clock,
-            self.progress if progress else None,
+            self,
+            self,
+            self,
+            self,
+            self if progress else None,
         )
+
+    def order_releases(
+        self, date: str, releases: tuple[DiscographyRelease, ...]
+    ) -> tuple[str, ...]:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            date: Original fixture observation.
+            releases: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.order(date, releases)
+
+    def choose_track(
+        self, source: PlaylistTrack, target: ReleaseTrack, release: DiscographyRelease
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            target: Original fixture observation.
+            release: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(source, target, release)
+
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()

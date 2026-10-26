@@ -1,6 +1,8 @@
 """Pre-extraction Queue 3 annual-import mutation, audit and checkpoint contracts."""
 
 from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -10,6 +12,7 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import queue_3
 from tests.routines.test_queue_3 import FakeSpotify
@@ -79,6 +82,19 @@ class ImportBoundaries:
         """
         self._record("message", message)
 
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Observe the original retry boundary before a direct operation.
+
+        Args:
+            description: Original retry label.
+
+        Returns:
+            One direct request scope.
+        """
+        name = "add" if description.startswith("importing") else "read"
+        self._record(name, description)
+        return NoRetry().attempts(description)
+
 
 def _spotify() -> FakeSpotify:
     spotify = FakeSpotify()
@@ -108,9 +124,9 @@ def _run(
         ),
         active_year=2026,
         dry_run=preview,
-        retry_call=boundaries.retry,
+        retry_call=boundaries,
         log_path=Path("audit.jsonl"),
-        echo=boundaries.echo,
+        echo=boundaries,
         state_access=boundaries,
     )
 

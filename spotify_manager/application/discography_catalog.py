@@ -1,8 +1,8 @@
 """Gather raw-row page authority and saved membership before canonical selection."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import replace
+from typing import Protocol
 
 from spotify_manager.application.discography_values import DiscographyError
 from spotify_manager.domain.discography_catalog import canonical_releases
@@ -24,22 +24,48 @@ class DiscographyPage:
     has_next: bool
 
 
+class DiscographyCatalogSource(Protocol):
+    """Read raw-row catalog pages and checked saved membership."""
+
+    def page(self, artist: str, offset: int) -> DiscographyPage:
+        """Read a catalog page at its original raw offset.
+
+        Args:
+            artist: Original primary artist identity.
+            offset: Original raw-row cursor.
+
+        Returns:
+            Parsed releases and complete raw pagination facts.
+        """
+
+    def saved(self, identities: list[str]) -> list[bool]:
+        """Read checked saved statuses in original input order.
+
+        Args:
+            identities: Original ordered release identities.
+
+        Returns:
+            Corresponding validated membership statuses.
+        """
+
+
 @dataclass(frozen=True)
 class DiscographyCatalog:
     """Bind original parsed pages and tolerant saved-status batches.
 
     Args:
-        page: Original page reader with caller retry and raw parsing.
-        saved: Original checked saved-status batch reader.
+        source: Parsed pages and checked membership integration.
         batch_size: Original saved-membership batch size.
     """
 
-    page: Callable[[int], DiscographyPage]
-    saved: Callable[[list[str]], list[bool]]
+    source: DiscographyCatalogSource
     batch_size: int = 20
 
-    def run(self) -> tuple[CatalogRelease, ...]:
+    def run(self, artist: str) -> tuple[CatalogRelease, ...]:
         """Read every page, then saved batches, then select canonical editions.
+
+        Args:
+            artist: Original primary artist identity.
 
         Returns:
             Original complete canonical chronological catalog.
@@ -47,20 +73,20 @@ class DiscographyCatalog:
         Raises:
             DiscographyError: Original next-page authority has no raw rows.
         """
-        releases = self._releases()
+        releases = self._releases(artist)
         observed = []
         for start in range(0, len(releases), self.batch_size):
             batch = releases[start : start + self.batch_size]
             identities = [release.spotify_id for release in batch]
-            statuses = self.saved(identities)
+            statuses = self.source.saved(identities)
             observed.extend(_saved_releases(batch, statuses))
         return canonical_releases(observed)
 
-    def _releases(self) -> list[CatalogRelease]:
+    def _releases(self, artist: str) -> list[CatalogRelease]:
         candidates: dict[str, CatalogRelease] = {}
         offset = 0
         while True:
-            page = self.page(offset)
+            page = self.source.page(artist, offset)
             for release in page.releases:
                 candidates[release.spotify_id] = release
             offset += page.rows

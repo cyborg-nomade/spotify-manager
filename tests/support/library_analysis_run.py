@@ -11,9 +11,13 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.bootstrap import library_analysis as analysis_composition
+from spotify_manager.interfaces.operations import analyse_library as analysis_operations
 from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.routines import analyse_library as legacy
 from tests.routines import test_analyse_library as fake
+from tests.support.analysis_dependencies import observed_analysis_files
+from tests.support.analysis_dependencies import observed_analysis_publication
 from tests.support.effects import Fault
 from tests.support.effects import Json
 from tests.support.effects import Trace
@@ -140,6 +144,14 @@ class AnalysisObservations:
         }
         return {"files": files, "remote": encode_value(remote, self.root)}
 
+    def is_set(self) -> bool:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.cancel()
+
 
 def _spotify(profile: str) -> fake.FakeSpotify:
     albums = [fake.album("a"), fake.album("b")]
@@ -216,6 +228,16 @@ def _publish(edge: AnalysisObservations, path: Path, source: str = "") -> None:
 
 
 def _watch(patch: pytest.MonkeyPatch, edge: AnalysisObservations) -> None:
+    patch.setattr(analysis_operations, "analysis_storage", observed_analysis_files)
+    patch.setattr(
+        analysis_operations, "analysis_publication", observed_analysis_publication
+    )
+    patch.setattr(legacy, "analysis_storage", observed_analysis_files)
+    patch.setattr(legacy, "analysis_publication", observed_analysis_publication)
+    patch.setattr(analysis_composition, "analysis_files", observed_analysis_files)
+    patch.setattr(
+        analysis_composition, "analysis_publication", observed_analysis_publication
+    )
     patch.setattr(legacy, "new_run_id", edge.run_id)
     patch.setattr(legacy, "utc_now", _utc_now)
     patch.setattr(legacy, "current_stats_history_key", _stats_key)
@@ -248,32 +270,30 @@ def _invoke(
     edge: AnalysisObservations, kind: str, full: bool
 ) -> legacy.LibrarySyncSummary:
     paths = _paths(edge.root, kind)
-    progress = None if edge.profile == "no-progress" else edge.progress
+    progress = None if edge.profile == "no-progress" else edge
     if kind == "export":
-        return legacy.analyse_library_async_routine(
-            edge.echo, progress, edge.cancel, paths
-        )
+        return legacy.analyse_library_async_routine(edge, progress, edge, paths)
     if kind == "sync":
         return legacy.analyse_library_sync_routine(
             cast(Spotify, edge.spotify),
-            edge.echo,
+            edge,
             progress,
-            edge.wait,
-            edge.cancel,
+            edge,
+            edge,
             paths,
-            edge.sleep,
+            edge,
             0,
             0,
         )
     if kind == "mirrors":
         return legacy.refresh_live_library_mirrors_routine(
             cast(Spotify, edge.spotify),
-            edge.echo,
+            edge,
             progress,
-            edge.wait,
-            edge.cancel,
+            edge,
+            edge,
             paths,
-            edge.sleep,
+            edge,
             0,
             0,
             full,
@@ -281,12 +301,12 @@ def _invoke(
     return legacy.refresh_live_library_resource_routine(
         cast(Spotify, edge.spotify),
         cast(legacy.ResourceName, kind),
-        edge.echo,
+        edge,
         progress,
-        edge.wait,
-        edge.cancel,
+        edge,
+        edge,
         paths,
-        edge.sleep,
+        edge,
         0,
         0,
         full,

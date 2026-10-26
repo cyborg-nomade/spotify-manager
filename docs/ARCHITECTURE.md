@@ -6,7 +6,7 @@ Spotify Manager is a single-user application that turns a personal listening
 policy into cautious Spotify and Last.fm workflows. It is intentionally a
 modular monolith:
 
-- one Python package contains the interfaces and domain routines;
+- one Python package contains feature interfaces, application workflows and pure domain policies;
 - one process serves the web UI and API;
 - working JSON and JSON-lines files provide mirrors, checkpoints, and audit logs;
 - private Hub datasets durably share routine state and canonical data files;
@@ -27,7 +27,7 @@ flowchart LR
     CLI["Typer CLI"]
     Web["Web cockpit"]
     API["FastAPI service"]
-    Routines["Domain routines"]
+    Routines["Application workflows"]
     Files["JSON state and mirrors"]
     Spotify["Spotify Web API"]
     LastFM["Last.fm API and export"]
@@ -57,8 +57,12 @@ flowchart LR
 ### CLI
 
 `spotify_manager/main.py` defines the Typer application installed as
-`spotify-manager`. It owns terminal rendering and interactive prompts, then
-delegates work to functions in `spotify_manager/routines/`.
+`spotify-manager`. Its stable command signatures construct feature adapters in
+`interfaces/cli/features/`. Those adapters own terminal rendering and prompts,
+and invoke shared functions in `interfaces/operations/` or `lookup_operations.py`.
+The invocation constructs concrete dependencies and calls application use cases;
+pure decisions stay in `domain/`. See the complete
+[request and return map](refactor/CALL_PATH_SIMPLIFICATION.md).
 
 CLI commands use Rich for progress, tables, status messages, and cautious
 confirmation. Each public Typer command has a same-named recipe in `justfile`.
@@ -71,10 +75,16 @@ just flush-new-wine --dry-run
 uv run spotify-manager flush-new-wine --dry-run
         |
         v
-main.py prompt/render adapter
+main.py → interfaces/cli/features/wine.py
         |
         v
-routines/new_wine.py
+interfaces/operations/new_wine.py
+        |
+        v
+application/new_wine.py → domain policies
+        |
+        v
+summary → CLI rendering
 ```
 
 ### Pure API
@@ -82,6 +92,12 @@ routines/new_wine.py
 `spotify_manager/api.py` creates `spotify_manager.api:app`. It exposes live
 lookups, legacy maintenance endpoints, and background-job adapters for the
 interactive routines. Pydantic response models make the job protocol explicit.
+
+Each route declaration sits beside its endpoint. Named feature handlers own
+validation and response translation; `interfaces/http/jobs.py` owns runtime
+resources and job launch construction. Album evaluation calls the named
+application function and presenter directly. This keeps editor navigation from
+URL to policy visible in source.
 
 The pure API does not add the shared-password middleware or serve the frontend.
 It is intended for loopback development, tests, or another trusted wrapper.
@@ -114,19 +130,44 @@ nearest-neighbor route with server-backed completion state.
 | --- | --- | --- |
 | Configuration | `spotify_manager/settings.py` | Parse `.env` and process environment values with Pydantic Settings. |
 | Authentication and clients | `spotify_manager/client/`, `spotify_manager/_auth.py` | Spotify OAuth, credential rotation, Last.fm HTTP calls, and web password enforcement. |
-| Interface adapters | `spotify_manager/main.py`, `spotify_manager/api.py`, `spotify_manager/web.py` | Parse user input, render output, manage web jobs, and translate errors to interface responses. |
-| Domain routines | `spotify_manager/routines/` | Plan and execute playlist, library, recommendation, analysis, and recovery workflows. |
-| Processors | `spotify_manager/processors/` | Shared library transformations, lookups, statistics, and legacy reconciliation. |
+| Stable entry points | `spotify_manager/main.py`, `spotify_manager/api.py`, `spotify_manager/web.py` | Preserve command/endpoint signatures, overrides, composition and web delivery. |
+| Feature interfaces | `spotify_manager/interfaces/cli/`, `spotify_manager/interfaces/http/` | Validate input, own job signals, present results and translate interface errors. |
+| Invocation inputs | `spotify_manager/interfaces/requests/` | Cohesive typed options, interaction callbacks and persistence resources with small constructors. |
+| Shared invocations | `spotify_manager/interfaces/operations/`, `lookup_operations.py`, `sauvignon_operations.py` | Construct invocation dependencies and invoke named application stages for CLI and HTTP. |
+| Application | `spotify_manager/application/` | Sequence observations, decisions, accepted effects, checkpoints and recovery. |
+| Domain | `spotify_manager/domain/` | Pure listening, ranking, progression, selection and state rules. |
+| Composition | `spotify_manager/bootstrap/` | Construct explicit dependencies without advancing application stages; `clients.py` owns Last.fm client creation. |
+| Compatibility and SDK leaves | `spotify_manager/routines/`, `spotify_manager/processors/` | Keep public imports and concrete SDK/file/validation helpers whose contracts remain frozen. Internal code skips their primary workflow forwarding entries. |
 | Models | `spotify_manager/models/` | Pydantic models for exports, mirrors, lookups, albums, artists, tracks, and statistics. |
 | Persistence helpers | `spotify_manager/loaders_savers/` | Load and save canonical and legacy JSON files. |
 | Utilities | `spotify_manager/utils/` | Sorting, comparison, and growth calculations. |
 | Central state | `spotify_manager/core/state/`, `spotify_manager/infrastructure/` | State interface, schema, concurrency, local adapter, and private-Hub adapter. |
 | Local data | `spotify_manager/files/` | Exports, mirrors, caches, staging, backups, and audit logs. |
 
-The interface modules should not reimplement routine rules. Interactive choices
-are passed into routines as callbacks in the CLI and as pause/resume state in
-the API. This keeps Spotify mutation order, eligibility logic, and persistence
-behavior shared between both interfaces.
+Feature interfaces supply invocation-owned choice, progress, retry and cancellation
+callbacks to the shared operation. Application workflows retain Spotify mutation
+order and persistence/recovery sequencing; domain policies retain eligibility and
+selection. Results return to CLI or HTTP presenters. Concrete infrastructure
+bindings use explicit imports rather than mutable routine-module function lookup.
+Fixed domain rules are direct imports and calls in the application. Concrete
+stage objects expose named `run`, `plan` or `resolve` methods; coordinators call
+those methods directly instead of receiving bound-method callbacks. Cohesive
+external resource objects expose catalog, playlist, history and state methods.
+Application stages stay visible in the application path, including child history
+refreshes, annual imports, release matching and Wine Cellar refill. Genuine
+operator, notification, cancellation, retry and clock callbacks remain at their
+interaction boundaries. The [call-path guide](refactor/CALL_PATH_SIMPLIFICATION.md)
+shows the entry, decision and result paths by family.
+
+Ordinary I/O, schema validation and checkpoint ownership use named objects, not
+bags of functions. Fixed presenters and operational stages are direct calls.
+Existing Python hook APIs are adapted at compatibility entries; normal routines
+use named state codecs and named catalog/file resources. A callback dependency
+guard rejects new execution indirection and records why each retained hook is
+necessary. See the [boundary inventory](refactor/CALL_PATH_SIMPLIFICATION.md#ordinary-io-and-execution-dependencies-2026-10-20).
+
+The [retained helper inventory](refactor/RETAINED_LEGACY_HELPERS.md) records the
+remaining compatibility and frozen SDK source boundaries.
 
 ## Routine families
 
@@ -162,7 +203,8 @@ in a private dataset, while `JsonStateStore` provides isolated local/test use.
 ### Threaded web jobs
 
 Long-running web commands are represented by in-memory job objects in
-`spotify_manager/api.py` and run in background threads. A typical interactive
+`interfaces/http/job_records.py`, registered through `interfaces/http/jobs.py`,
+and run in background threads. A typical interactive
 job follows this state machine:
 
 ```mermaid
@@ -295,7 +337,7 @@ spotify-manager/
 |-- docs/                        Architecture and operator guides
 |-- spotify_manager/
 |   |-- _auth.py                 Shared-password middleware
-|   |-- api.py                   FastAPI routes and threaded job adapters
+|   |-- api.py                   FastAPI route declarations and endpoints
 |   |-- main.py                  Typer CLI and Rich prompt adapters
 |   |-- settings.py              Pydantic environment settings
 |   |-- web.py                   Gated frontend deployment wrapper
@@ -303,10 +345,14 @@ spotify-manager/
 |   |-- core/state/              Central state service and contracts
 |   |-- frontend/                Cockpit and Genre Reveal HTML applications
 |   |-- infrastructure/          Hugging Face and local persistence adapters
+|   |-- interfaces/              Feature adapters, typed invocation inputs and presenters
+|   |-- application/             Named business workflows and integration ports
+|   |-- bootstrap/               Concrete dependency and client construction
+|   |-- domain/                  Pure listening policies
 |   |-- loaders_savers/          Canonical JSON persistence helpers
 |   |-- models/                  Pydantic data models
 |   |-- processors/              Shared transformations and lookups
-|   |-- routines/                Domain workflows
+|   |-- routines/                Compatibility entries and preserved SDK/file leaves
 |   |-- utils/                   Sorting and calculations
 |   `-- files/                   Exports, mirrors, caches, logs, and staging
 `-- tests/                       Unit, CLI, API, web, and routine tests
@@ -346,8 +392,9 @@ coverage at `tests/` root.
 ### Adding or changing a routine
 
 1. Update the listening-rules document when the behavior itself changes.
-2. Put domain planning, validation, mutation order, state, and logs in a routine
-   module. Keep prompts and HTML out of that layer.
+2. Put pure decisions in `domain/` and workflow/effect sequencing in
+   `application/`. Bind concrete integrations at the outer boundary and keep
+   prompts and HTML in feature adapters.
 3. Add or update the Typer adapter and its `justfile` recipe.
 4. Add API request/response models and a background-job adapter when the routine
    belongs in the web cockpit.
@@ -360,9 +407,9 @@ coverage at `tests/` root.
 
 ## Known architectural constraints
 
-- `api.py` contains many job adapters and models in one large module. This is a
-  deliberate monolith today, but new cross-routine job behavior should be
-  factored into shared helpers rather than duplicated.
+- `api.py` lists the 115 stable application routes with their endpoint signatures.
+  Runtime administration lives in `interfaces/http/jobs.py`; feature workers own
+  execution. Keep future shared job behavior cohesive and directly named.
 - Background jobs and their displayed logs are process-local. Durable routine
   state handles restarts, but there is no distributed worker or job database.
 - Runtime persistence is file-based. Concurrent writes outside the application

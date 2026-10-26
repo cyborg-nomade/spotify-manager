@@ -1,9 +1,10 @@
 """Resolve Queue 3 composer routes and advance through owned works playlists."""
 
-from collections.abc import Callable
 from dataclasses import asdict
+from typing import Protocol
 from typing import cast
 
+from spotify_manager.application.ports.runtime import TimestampClock
 from spotify_manager.application.queue_3_values import Queue3ConfigError
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
@@ -13,7 +14,22 @@ from spotify_manager.domain.discovery_progression import composer_source_index
 from spotify_manager.domain.queue_3 import source_release
 
 
-type ComposerReader = Callable[[str, tuple[OwnedPlaylist, ...]], str]
+class ComposerReader(Protocol):
+    """Own the operator interaction for choose composer."""
+
+    def choose_composer(
+        self, artist: str, candidates: tuple[OwnedPlaylist, ...], /
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            candidates: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 def resolve_composer_route(
@@ -24,7 +40,7 @@ def resolve_composer_route(
     owned: tuple[OwnedPlaylist, ...],
     state: dict[str, object],
     choose: ComposerReader | None,
-    now: Callable[[], str],
+    now: TimestampClock,
 ) -> tuple[OwnedPlaylist | None, bool]:
     """Reuse a valid route or accept a newly selected owned works playlist.
 
@@ -62,7 +78,7 @@ def resolve_composer_route(
         "playlist_id": selected.spotify_id,
         "playlist_name": selected.name,
         "current_track_id": source_id,
-        "updated_at": now(),
+        "updated_at": now.timestamp(),
     }
     return selected, False
 
@@ -91,7 +107,7 @@ def _choose(
         raise Queue3ConfigError(
             f"Multiple owned playlists match {artist_name}: {names}."
         )
-    selected_id = choose(artist_name, candidates)
+    selected_id = choose.choose_composer(artist_name, candidates)
     if selected_id == "quit":
         return None
     selected = _matching(candidates, selected_id)

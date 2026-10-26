@@ -1,13 +1,13 @@
 """Recover removed albums through ordered observations and explicit effects."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
-from datetime import date
 
 from spotify_manager.application.ports.listening import Clock
 from spotify_manager.application.ports.recovery import RecoveryLibrary
 from spotify_manager.application.ports.recovery import RecoveryPresentation
+from spotify_manager.application.ports.runtime import CountProgress
+from spotify_manager.application.ports.runtime import DateClock
 from spotify_manager.application.recovery_values import RecoveryAlbum
 from spotify_manager.application.recovery_values import RecoveryCounts
 from spotify_manager.application.recovery_values import RecoveryState
@@ -17,7 +17,7 @@ from spotify_manager.domain.library import AlbumArtist
 from spotify_manager.domain.library import release_is_in_future
 
 
-type Progress = Callable[[int, int], None]
+type Progress = CountProgress
 
 
 def _event(record: RemovedAlbumRecord, timestamp: str) -> dict[str, object]:
@@ -75,6 +75,9 @@ class RecoveryRun:
         progress: Optional completion/cancellation callback.
         completed: Prior completed records included in the input.
         total: Progress denominator, respecting the original limit semantics.
+
+    Attributes:
+        counts: Accumulated recovery counts owned by this invocation.
     """
 
     library: RecoveryLibrary
@@ -82,7 +85,7 @@ class RecoveryRun:
     state: RecoveryState
     dry_run: bool
     clock: Clock
-    today: Callable[[], date]
+    today: DateClock
     progress: Progress | None
     completed: int
     total: int
@@ -90,7 +93,7 @@ class RecoveryRun:
 
     def _notify_progress(self) -> None:
         if self.progress is not None:
-            self.progress(self.completed, self.total)
+            self.progress.progress(self.completed, self.total)
 
     def _restore(
         self, record: RemovedAlbumRecord, album: RecoveryAlbum
@@ -133,13 +136,13 @@ class RecoveryRun:
         future = False
         if album.release_date:
             future = release_is_in_future(
-                album.release_date, album.precision, self.today()
+                album.release_date, album.precision, self.today.today()
             )
         restoration = self._restore(record, album) if future else (False, False, False)
         return _available_event(record, album, timestamp, future, restoration)
 
     def _album(self, record: RemovedAlbumRecord, album: RecoveryAlbum | None) -> None:
-        timestamp = self.clock().isoformat()
+        timestamp = self.clock.now().isoformat()
         if album is None:
             self.counts.unavailable += 1
             self.presentation.unavailable(record)
@@ -209,7 +212,7 @@ def recover_albums(
     library: RecoveryLibrary,
     presentation: RecoveryPresentation,
     clock: Clock,
-    today: Callable[[], date],
+    today: DateClock,
     *,
     dry_run: bool = False,
     limit: int | None = None,

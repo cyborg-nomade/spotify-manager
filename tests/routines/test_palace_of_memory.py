@@ -9,6 +9,10 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.interfaces.requests.palace import PalaceCallbacks
+from spotify_manager.interfaces.requests.palace import PalaceOptions
+from spotify_manager.interfaces.requests.palace import PalaceResources
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import palace_of_memory
@@ -241,6 +245,11 @@ def test_resolve_alphabetical_start_rejects_ambiguous_title() -> None:
 
 
 def test_historical_selection_uses_seconds_only_and_wraps(tmp_path: Path) -> None:
+    """Historical selection uses seconds only and wraps.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     history_path = tmp_path / "lastfm.json"
     scrobbles: list[dict[str, object]] = []
     for day in range(1, 6):
@@ -262,7 +271,7 @@ def test_historical_selection_uses_seconds_only_and_wraps(tmp_path: Path) -> Non
         palace_of_memory.select_historical_albums(
             path=history_path,
             today=date(2026, 8, 4),
-            random_index_reader=fixed_random_indexes,
+            random_index_reader=FixedRandomIndexesResource(),
         )
     )
 
@@ -277,6 +286,11 @@ def test_historical_selection_uses_seconds_only_and_wraps(tmp_path: Path) -> Non
 def test_dry_run_plans_ten_unique_first_tracks_without_writes(
     tmp_path: Path,
 ) -> None:
+    """Dry run plans ten unique first tracks without writes.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     albums_path = tmp_path / "albums.json"
     history_path = tmp_path / "lastfm.json"
     state_path = tmp_path / "state.json"
@@ -286,17 +300,17 @@ def test_dry_run_plans_ten_unique_first_tracks_without_writes(
     spotify = FakeSpotify()
 
     summary = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        dry_run=True,
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=log_path,
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(playlist_id="palace", dry_run=True, today=date(2026, 8, 4)),
+        PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=log_path,
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.cutoff_date == date(2025, 12, 31)
@@ -344,6 +358,11 @@ def test_saved_album_refresh_publishes_live_order_with_backup(tmp_path: Path) ->
 
 
 def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None:
+    """Real run adds in order and persists next cursor.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     albums_path = tmp_path / "albums.json"
     history_path = tmp_path / "lastfm.json"
     state_path = tmp_path / "state.json"
@@ -353,16 +372,17 @@ def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None
     spotify = FakeSpotify()
 
     summary = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=log_path,
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+        PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=log_path,
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.added == 10
@@ -384,16 +404,17 @@ def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None
 
     spotify.posts.clear()
     second = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=log_path,
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+        PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=log_path,
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert second.alphabetical_start_index == 5
@@ -407,6 +428,11 @@ def test_real_run_adds_in_order_and_persists_next_cursor(tmp_path: Path) -> None
 def test_manual_alphabetical_start_overrides_and_replaces_cursor(
     tmp_path: Path,
 ) -> None:
+    """Manual alphabetical start overrides and replaces cursor.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     albums_path = tmp_path / "albums.json"
     history_path = tmp_path / "lastfm.json"
     state_path = tmp_path / "state.json"
@@ -423,17 +449,21 @@ def test_manual_alphabetical_start_overrides_and_replaces_cursor(
     spotify = FakeSpotify()
 
     summary = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        alphabetical_start="spotify:album:album-2",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(
+            playlist_id="palace",
+            alphabetical_start="spotify:album:album-2",
+            today=date(2026, 8, 4),
+        ),
+        PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=tmp_path / "log.jsonl",
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.alphabetical_cursor_overridden is True
@@ -451,6 +481,11 @@ def test_manual_alphabetical_start_overrides_and_replaces_cursor(
 def test_manual_alphabetical_start_dry_run_does_not_change_cursor(
     tmp_path: Path,
 ) -> None:
+    """Manual alphabetical start dry run does not change cursor.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     albums_path = tmp_path / "albums.json"
     history_path = tmp_path / "lastfm.json"
     state_path = tmp_path / "state.json"
@@ -460,18 +495,22 @@ def test_manual_alphabetical_start_dry_run_does_not_change_cursor(
     state_path.write_text(original_state)
 
     summary = palace_of_memory.fill_palace_of_memory(
-        FakeSpotify(),  # type: ignore[arg-type]
-        "palace",
-        dry_run=True,
-        alphabetical_start="6",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=state_path,
-        log_path=tmp_path / "log.jsonl",
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        FakeSpotify(),
+        PalaceOptions(
+            playlist_id="palace",
+            dry_run=True,
+            alphabetical_start="6",
+            today=date(2026, 8, 4),
+        ),
+        PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=state_path,
+            log_path=tmp_path / "log.jsonl",
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.alphabetical_start_index == 5
@@ -513,6 +552,11 @@ def test_set_alphabetical_cursor_persists_next_position_without_playlist_calls(
 
 
 def test_real_run_rechecks_playlist_and_avoids_new_duplicate(tmp_path: Path) -> None:
+    """Real run rechecks playlist and avoids new duplicate.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     albums_path = tmp_path / "albums.json"
     history_path = tmp_path / "lastfm.json"
     write_albums(albums_path)
@@ -528,16 +572,17 @@ def test_real_run_rechecks_playlist_and_avoids_new_duplicate(tmp_path: Path) -> 
     ]
 
     summary = palace_of_memory.fill_palace_of_memory(
-        spotify,  # type: ignore[arg-type]
-        "palace",
-        today=date(2026, 8, 4),
-        albums_path=albums_path,
-        scrobbles_path=history_path,
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "log.jsonl",
-        album_backups_dir=tmp_path / "album-backups",
-        album_refresh_log_path=tmp_path / "refresh.jsonl",
-        random_index_reader=fixed_random_indexes,
+        spotify,
+        PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+        PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
+        PalaceResources(
+            albums_path=albums_path,
+            scrobbles_path=history_path,
+            state_path=tmp_path / "state.json",
+            log_path=tmp_path / "log.jsonl",
+            album_backups_dir=tmp_path / "album-backups",
+            album_refresh_log_path=tmp_path / "refresh.jsonl",
+        ),
     )
 
     assert summary.playlist_length_before == 1
@@ -547,6 +592,11 @@ def test_real_run_rechecks_playlist_and_avoids_new_duplicate(tmp_path: Path) -> 
 
 
 def test_failed_playlist_write_does_not_advance_cursor(tmp_path: Path) -> None:
+    """Failed playlist write does not advance cursor.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     albums_path = tmp_path / "albums.json"
     history_path = tmp_path / "lastfm.json"
     state_path = tmp_path / "state.json"
@@ -557,22 +607,24 @@ def test_failed_playlist_write_does_not_advance_cursor(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="post failed"):
         palace_of_memory.fill_palace_of_memory(
-            spotify,  # type: ignore[arg-type]
-            "palace",
-            today=date(2026, 8, 4),
-            albums_path=albums_path,
-            scrobbles_path=history_path,
-            state_path=state_path,
-            log_path=tmp_path / "log.jsonl",
-            album_backups_dir=tmp_path / "album-backups",
-            album_refresh_log_path=tmp_path / "refresh.jsonl",
-            random_index_reader=fixed_random_indexes,
+            spotify,
+            PalaceOptions(playlist_id="palace", today=date(2026, 8, 4)),
+            PalaceCallbacks(random_index_reader=FixedRandomIndexesResource()),
+            PalaceResources(
+                albums_path=albums_path,
+                scrobbles_path=history_path,
+                state_path=state_path,
+                log_path=tmp_path / "log.jsonl",
+                album_backups_dir=tmp_path / "album-backups",
+                album_refresh_log_path=tmp_path / "refresh.jsonl",
+            ),
         )
 
     assert not state_path.exists()
 
 
 def test_search_fallback_requires_exact_artist_and_keeps_track_order() -> None:
+    """Search fallback requires exact artist and keeps track order."""
     spotify = FakeSpotify()
     spotify.search_items = [
         {
@@ -593,21 +645,37 @@ def test_search_fallback_requires_exact_artist_and_keeps_track_order() -> None:
         {"id": "second", "uri": "spotify:track:second", "name": "Alpha"},
     ]
 
-    def retry(operation, _description):
-        return operation()
-
     album = palace_of_memory.search_spotify_album(
         spotify,  # type: ignore[arg-type]
         "Historic Artist",
         "Historic Album",
-        retry,
+        NoRetry(),
     )
     assert album is not None
     track = palace_of_memory.load_first_track(
         spotify,  # type: ignore[arg-type]
         album,
-        retry,
+        NoRetry(),
     )
 
     assert album.spotify_id == "historic"
     assert track.name == "Zeta"
+
+
+class FixedRandomIndexesResource:
+    """Own the original fixed fixture observation."""
+
+    def sample(
+        self, population_size: int, count: int
+    ) -> blast_from_past.RandomIndexSet:
+        """Observe the original fixture boundary.
+
+        Args:
+            population_size: Original fixture value.
+            count: Original fixture value.
+
+
+        Returns:
+            Original fixture response.
+        """
+        return fixed_random_indexes(population_size, count)

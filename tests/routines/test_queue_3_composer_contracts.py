@@ -10,6 +10,7 @@ from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.routines import queue_3
 from tests.support.listening_values import playlist_track
 from tests.support.listening_values import studio_release
+from tests.support.runtime_resources import Answer
 
 
 SOURCE = playlist_track("source", studio_release("album", "Album"))
@@ -79,7 +80,11 @@ def _invalid(artist_name: str, candidates: tuple[OwnedPlaylist, ...]) -> str:
     return "unowned"
 
 
-@pytest.mark.parametrize("choice", [None, _quit, _invalid])
+QUIT = Answer("quit")
+INVALID = Answer("unowned")
+
+
+@pytest.mark.parametrize("choice", [None, QUIT, INVALID])
 def test_original_stale_route_is_removed_before_ambiguous_choice(
     choice: queue_3.ComposerPlaylistReader | None,
 ) -> None:
@@ -91,7 +96,7 @@ def test_original_stale_route_is_removed_before_ambiguous_choice(
     routes: dict[str, object] = {"bach": {"playlist_id": "stale"}}
     state: dict[str, object] = {"composer_routes": routes}
     owned = (WORKS, OwnedPlaylist("other", "[CD] Johann Sebastian Bach Collection", 2))
-    if choice is _quit:
+    if choice is QUIT:
         assert queue_3._resolve_composer_playlist(
             "bach", "Johann Sebastian Bach", "source", "queue", owned, state, choice
         ) == (None, True)

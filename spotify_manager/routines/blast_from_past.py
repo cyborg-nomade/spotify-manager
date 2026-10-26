@@ -1,11 +1,8 @@
 """Select past Last.fm scrobbles using the music-listening rules."""
 
 import re
-from collections.abc import Callable
 from datetime import date
 from datetime import datetime
-from email.utils import parsedate_to_datetime
-from functools import partial
 from pathlib import Path
 from typing import Literal
 from urllib.error import HTTPError
@@ -17,9 +14,6 @@ from zoneinfo import ZoneInfo
 
 from spotipy import Spotify
 
-from spotify_manager.application.historical_resolution import (
-    direct_call as _direct_retry,
-)
 from spotify_manager.application.historical_values import (
     BlastFromPastBatch as BlastFromPastBatch,
 )
@@ -57,6 +51,11 @@ from spotify_manager.application.historical_values import (
 from spotify_manager.application.historical_values import (
     SpotifyTrackResolutionError as SpotifyTrackResolutionError,
 )
+from spotify_manager.application.ports.runtime import NO_RETRY
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import RandomIndexes
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.domain import history as history_policy
 from spotify_manager.domain import history_matching as matching_policy
 from spotify_manager.domain import titles as title_policy
@@ -69,6 +68,17 @@ from spotify_manager.infrastructure import history_export
 from spotify_manager.infrastructure import history_matching_records
 from spotify_manager.infrastructure import history_playlist
 from spotify_manager.infrastructure import random_indexes
+from spotify_manager.infrastructure.history_playlist_pages import SpotifyHistoryPages
+from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
+
+
+type CancelCheck = CancellationState
+
+
+type ProgressCallback = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -89,9 +99,6 @@ ALBUM_MATCH_THRESHOLD = 0.9
 
 
 Direction = Literal["top down", "bottom up"]
-ProgressCallback = Callable[[str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-CancelCheck = Callable[[], bool]
 
 
 def check_cancel(cancel_check: CancelCheck | None) -> None:
@@ -100,11 +107,11 @@ def check_cancel(cancel_check: CancelCheck | None) -> None:
     Args:
         cancel_check: Original cancel check observation.
     """
-    if cancel_check is not None and cancel_check():
+    if cancel_check is not None and cancel_check.is_set():
         raise BlastFromPastCancelledError("Playlist routine cancelled.")
 
 
-RandomIndexReader = Callable[[int, int], RandomIndexSet]
+RandomIndexReader = RandomIndexes
 
 
 def friday_track_cutoff(today: date | None = None) -> date:
@@ -145,7 +152,7 @@ def load_scrobbles_by_date(
     Returns:
         Original load scrobbles by date result.
     """
-    return history_export.by_date(load_scrobble_export, path, SCROBBLE_TIMEZONE)
+    return history_export.by_date(load_scrobble_export(path), SCROBBLE_TIMEZONE)
 
 
 def eligible_dates(
@@ -271,7 +278,7 @@ def matching_spotify_track(
 def search_spotify_matches(
     sp: Spotify,
     scrobble: Scrobble,
-    retry_call: RetryCall = _direct_retry,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
 ) -> tuple[SpotifyTrackMatch, ...]:
     """Search Spotify once and return every qualifying result in rank order.
@@ -286,10 +293,11 @@ def search_spotify_matches(
         Original search spotify matches result.
     """
     check_cancel(cancel_check)
-    response = retry_call(
-        partial(_search_historical_track, sp, scrobble),
-        f"searching Spotify for {scrobble.artist} - {scrobble.track}",
-    )
+    for attempt in retry_call.attempts(
+        f"searching Spotify for {scrobble.artist} - {scrobble.track}"
+    ):
+        with attempt:
+            response = _search_historical_track(sp, scrobble)
     check_cancel(cancel_check)
     if not isinstance(response, dict):
         raise SpotifyTrackResolutionError(
@@ -317,7 +325,7 @@ def search_spotify_matches(
 def liked_spotify_track_ids(
     sp: Spotify,
     match_groups: list[tuple[SpotifyTrackMatch, ...]],
-    retry_call: RetryCall = _direct_retry,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
 ) -> set[str]:
     """Return live liked status for all unique qualifying candidates in batches.
@@ -336,10 +344,7 @@ def liked_spotify_track_ids(
     for start in range(0, len(track_ids), SPOTIFY_LIKED_BATCH_SIZE):
         check_cancel(cancel_check)
         batch = track_ids[start : start + SPOTIFY_LIKED_BATCH_SIZE]
-        statuses = retry_call(
-            partial(sp.current_user_saved_tracks_contains, batch),
-            "checking live liked-track status",
-        )
+        statuses = _read_liked_batch(retry_call, batch, sp)
         check_cancel(cancel_check)
         if not isinstance(statuses, list):
             raise SpotifyTrackResolutionError(
@@ -438,14 +443,27 @@ def fetch_random_indexes(population_size: int, count: int) -> RandomIndexSet:
     except (TimeoutError, URLError) as exc:
         raise RandomOrgError(f"Could not reach Random.org: {exc}") from exc
 
-    return random_indexes.result(
-        body, timestamp_header, population_size, count, parsedate_to_datetime
-    )
+    return random_indexes.result(body, timestamp_header, population_size, count)
 
 
 def fetch_random_timestamp() -> datetime:
     """Return the UTC timestamp from a minimal Random.org generation request."""
     return fetch_random_indexes(population_size=2, count=1).generated_at
+
+
+class FetchRandomTimestampClock:
+    """Observe the original fetch random timestamp source directly."""
+
+    def now(self) -> datetime:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return fetch_random_timestamp()
+
+
+FETCH_RANDOM_TIMESTAMP_RESOURCE = FetchRandomTimestampClock()
 
 
 def page_for_timestamp(generated_at: datetime, total_pages: int) -> int:
@@ -497,7 +515,7 @@ def select_blast_from_past(
     count: int = 10,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     progress_callback: ProgressCallback | None = None,
 ) -> BlastFromPastBatch:
     """Select a Friday-routine batch from the Last.fm export.
@@ -517,15 +535,17 @@ def select_blast_from_past(
         LastFmExportError: History cannot be read.
         RandomOrgError: The random source fails.
     """
-    from spotify_manager.bootstrap.historical_playlists import select_blast
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        select_blast_from_past as operation,
+    )
 
-    return select_blast(count, path, today, random_index_reader, progress_callback)
+    return operation(count, path, today, random_index_reader, progress_callback)
 
 
 def load_playlist_state(
     sp: Spotify,
     playlist_id: str,
-    retry_call: RetryCall = _direct_retry,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
 ) -> PlaylistState:
     """Load the complete target playlist once.
@@ -540,8 +560,7 @@ def load_playlist_state(
         Original load playlist state result.
     """
     return history_playlist.state(
-        partial(_playlist_page, sp, playlist_id, retry_call, cancel_check),
-        _spotify_artist_names,
+        SpotifyHistoryPages(sp, playlist_id, retry_call, cancel_check),
         playlist_id,
     )
 
@@ -550,7 +569,7 @@ def add_spotify_matches(
     sp: Spotify,
     playlist_id: str,
     matches: list[SpotifyTrackMatch],
-    retry_call: RetryCall = _direct_retry,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
 ) -> None:
     """Append Spotify matches to the playlist in API-sized batches.
@@ -566,14 +585,7 @@ def add_spotify_matches(
     for start in range(0, len(uris), SPOTIFY_PLAYLIST_ADD_BATCH_SIZE):
         check_cancel(cancel_check)
         batch = uris[start : start + SPOTIFY_PLAYLIST_ADD_BATCH_SIZE]
-        retry_call(
-            partial(
-                sp._post,
-                f"playlists/{playlist_id}/items",
-                payload={"uris": batch},
-            ),
-            f"adding {len(batch)} tracks to the Spotify playlist",
-        )
+        _append_match_batch(retry_call, batch, sp, playlist_id)
         check_cancel(cancel_check)
 
 
@@ -582,7 +594,7 @@ def resolve_spotify_selections(
     selections: tuple[ScrobbleSelection, ...],
     playlist: PlaylistState,
     progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
 ) -> SpotifySelectionResolution:
     """Resolve selected scrobbles and identify new playlist tracks.
@@ -602,9 +614,11 @@ def resolve_spotify_selections(
         SpotifyTrackResolutionError: Spotify observations are unusable.
         BlastFromPastCancelledError: Cancellation is requested.
     """
-    from spotify_manager.bootstrap.historical_playlists import resolve_matches
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        resolve_spotify_selections as operation,
+    )
 
-    return resolve_matches(
+    return operation(
         sp, selections, playlist, progress_callback, retry_call, cancel_check
     )
 
@@ -616,9 +630,9 @@ def add_blast_from_past_to_spotify(
     max_playlist_length: int | None = None,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
     dry_run: bool = False,
 ) -> BlastFromPastSpotifySummary:
@@ -644,9 +658,11 @@ def add_blast_from_past_to_spotify(
         BlastFromPastError: Configuration, selection or observations fail.
         BlastFromPastCancelledError: Cancellation is requested.
     """
-    from spotify_manager.bootstrap.historical_playlists import add_blast
+    from spotify_manager.interfaces.operations.blast_from_past import (
+        add_blast_from_past_to_spotify as operation,
+    )
 
-    return add_blast(
+    return operation(
         sp,
         playlist_id,
         count,
@@ -669,15 +685,15 @@ def _playlist_page(
     offset: int,
 ) -> object:
     check_cancel(cancel_check)
-    response = retry_call(
-        partial(
-            sp._get,
-            f"playlists/{playlist_id}/items",
-            limit=SPOTIFY_PLAYLIST_PAGE_SIZE,
-            offset=offset,
-        ),
-        f"loading Spotify playlist items at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading Spotify playlist items at offset {offset}"
+    ):
+        with attempt:
+            response = sp._get(
+                f"playlists/{playlist_id}/items",
+                limit=SPOTIFY_PLAYLIST_PAGE_SIZE,
+                offset=offset,
+            )
     check_cancel(cancel_check)
     return response
 
@@ -689,3 +705,20 @@ def _search_historical_track(sp: Spotify, scrobble: Scrobble) -> object:
         limit=SPOTIFY_SEARCH_LIMIT,
         offset=0,
     )
+
+
+def _append_match_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify, playlist_id: str
+) -> None:
+    for attempt in retry_call.attempts(
+        f"adding {len(batch)} tracks to the Spotify playlist"
+    ):
+        with attempt:
+            sp._post(f"playlists/{playlist_id}/items", payload={"uris": batch})
+
+
+def _read_liked_batch(retry_call: RetryCall, batch: list[str], sp: Spotify) -> object:
+    for attempt in retry_call.attempts("checking live liked-track status"):
+        with attempt:
+            return sp.current_user_saved_tracks_contains(batch)
+    raise AssertionError("Retry scopes must include an attempt")

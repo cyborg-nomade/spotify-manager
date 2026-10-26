@@ -1,22 +1,21 @@
 """Replay original runs through independently constructed analysis dependencies."""
 
 from dataclasses import dataclass
-from functools import partial
 from typing import Literal
 from typing import cast
 
 import pytest
+from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application import library_analysis_checkpoint as checkpoints
 from spotify_manager.application import library_analysis_run as workflow
-from spotify_manager.application.library_analysis_effects import AnalysisCatalog
 from spotify_manager.application.library_analysis_effects import AnalysisFiles
 from spotify_manager.application.library_analysis_effects import AnalysisSession
 from spotify_manager.application.library_analysis_effects import OffsetRead
 from spotify_manager.application.library_analysis_publication import AnalysisPublication
 from spotify_manager.application.library_analysis_values import LibraryAnalysisPaths
-from spotify_manager.application.library_analysis_values import resource_config
+from spotify_manager.application.library_analysis_values import LibraryModel
 from spotify_manager.application.library_analysis_values import scoped_paths
 from spotify_manager.domain.library_analysis_values import LibraryAnalysisCancelledError
 from spotify_manager.domain.library_analysis_values import LibrarySyncSummary
@@ -25,14 +24,15 @@ from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.domain.library_analysis_values import (
     _FollowedArtistsEndpointUnavailableError,
 )
-from spotify_manager.infrastructure import library_analysis_backups as backups
 from spotify_manager.infrastructure import library_analysis_files as codecs
+from spotify_manager.infrastructure.library_analysis_catalog import SpotifyOffsetPages
 from spotify_manager.infrastructure.library_analysis_errors import AnalysisFailure
 from spotify_manager.infrastructure.library_analysis_retry import LibraryRetry
 from spotify_manager.infrastructure.library_models import album_from_saved_item
 from spotify_manager.infrastructure.spotify.retry import SpotifyRateLimitError
-from spotify_manager.routines import analyse_library as legacy
 from tests.support import library_analysis_run as original
+from tests.support.analysis_dependencies import RecordedAnalysisBackups
+from tests.support.analysis_dependencies import observed_analysis_files
 from tests.support.effects import Fault
 
 
@@ -56,9 +56,7 @@ class MemoryCatalog:
         Returns:
             Original fake authority's explicit page reader.
         """
-        if resource == "albums":
-            return cast(OffsetRead, self.edge.spotify.current_user_saved_albums)
-        return cast(OffsetRead, self.edge.spotify.current_user_saved_tracks)
+        return SpotifyOffsetPages(cast(Spotify, self.edge.spotify), resource, initial)
 
     def artists(self, after: str | None) -> object:
         """Retain original immediate 502 fallback for the initial cursor scan.
@@ -105,39 +103,48 @@ class MemoryCatalog:
         """
         return self.edge.spotify.current_user_following_artists(identities)
 
+    def convert(self, row: object, resource: ResourceName) -> LibraryModel | None:
+        """Decode a saved resource row without configurable parsing callbacks.
 
-def _files() -> AnalysisFiles:
-    # These substituted boundary callbacks record their original nested read/write
-    # effects. No production facade runner or composition factory is invoked.
-    return AnalysisFiles(
-        legacy.load_json,
-        legacy.write_json_atomic,
-        legacy.load_model_list,
-        legacy.load_models_jsonl,
-        legacy.write_models,
-        legacy.append_models_jsonl,
-        legacy.append_event,
-        legacy.load_your_library,
-        legacy.utc_now,
-        legacy.new_run_id,
-        legacy.export_fingerprint,
-        codecs.reset_staging,
-        codecs.remove,
-        legacy.latest_export_artists,
-    )
+        Args:
+            row: Unvalidated transport row.
+            resource: Active resource.
+
+        Returns:
+            Accepted model, or none for an unusable row.
+        """
+        if resource == "albums":
+            return album_from_saved_item(row)
+        if resource == "tracks":
+            return codecs.track_from_saved_item(row)
+        return codecs.artist_from_api_item(row)
+
+    def items(self, page: object, resource: ResourceName) -> list[object]:
+        """Validate a saved-resource response.
+
+        Args:
+            page: Unvalidated response.
+            resource: Active resource.
+
+        Returns:
+            Complete raw rows.
+        """
+        return codecs.page_items(page, resource)
+
+    def artist_items(self, page: object) -> tuple[list[object], dict[str, object]]:
+        """Validate a followed-artists response.
+
+        Args:
+            page: Unvalidated response.
+
+        Returns:
+            Complete raw rows and cursor envelope.
+        """
+        return codecs.followed_artist_page_items(page)
 
 
 def _publication(files: AnalysisFiles) -> AnalysisPublication:
-    return AnalysisPublication(
-        partial(backups.create_backup_manifest, files=files),
-        partial(backups.create_live_mirror_backup_manifest, files=files),
-        partial(backups.create_resource_backup, files=files),
-        partial(backups.pre_analysis_stats_history, files=files),
-        legacy.current_stats_history_key,
-        backups.manifest_summaries,
-        backups.resource_manifest_summary,
-        resource_config,
-    )
+    return RecordedAnalysisBackups(files)
 
 
 def _paths(edge: original.AnalysisObservations, kind: str) -> LibraryAnalysisPaths:
@@ -150,32 +157,19 @@ def _paths(edge: original.AnalysisObservations, kind: str) -> LibraryAnalysisPat
 def _run(
     edge: original.AnalysisObservations, kind: str, full: bool
 ) -> LibrarySyncSummary:
-    files = _files()
+    files = observed_analysis_files()
     paths = _paths(edge, kind)
     refresh: MirrorRefreshMode | None = None
     if paths.mode == "mirrors":
         refresh = "full" if full else "incremental"
     checkpoint = checkpoints.load_or_create_checkpoint(files, paths, refresh)
-    memory = MemoryCatalog(edge)
-    catalog = AnalysisCatalog(
-        memory.offset,
-        memory.artists,
-        memory.reconcile_artists,
-        memory.following,
-        album_from_saved_item,
-        codecs.track_from_saved_item,
-        codecs.artist_from_api_item,
-        codecs.page_items,
-        codecs.followed_artist_page_items,
-    )
-    retry = LibraryRetry(
-        paths, checkpoint, files, edge.echo, edge.wait, edge.sleep, 0, 0
-    )
-    progress = None if edge.profile == "no-progress" else edge.progress
+    catalog = MemoryCatalog(edge)
+    retry = LibraryRetry(paths, checkpoint, files, edge, edge, edge, 0, 0)
+    progress = None if edge.profile == "no-progress" else edge
     session = AnalysisSession(
-        paths, checkpoint, files, catalog, retry.call, edge.echo, progress, edge.cancel
+        paths, checkpoint, files, catalog, retry, edge, progress, edge
     )
-    return _invoke(session, _publication(files), kind, full)
+    return _invoke(session, RecordedAnalysisBackups(files), kind, full)
 
 
 def _invoke(

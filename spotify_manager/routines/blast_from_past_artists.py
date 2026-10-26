@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import date
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -16,11 +14,15 @@ from spotify_manager.application.dormant_values import (
 from spotify_manager.application.dormant_values import (
     DormantArtistSummary as DormantArtistSummary,
 )
-from spotify_manager.application.historical_resolution import direct_call
+from spotify_manager.application.ports.runtime import NO_RETRY
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.domain.dormant_artists import DormantArtist as DormantArtist
 from spotify_manager.domain.dormant_artists import (
     DormantArtistResult as DormantArtistResult,
 )
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 
 # UFI
 from spotify_manager.routines import blast_from_past
@@ -28,13 +30,20 @@ from spotify_manager.routines import new_kids
 from spotify_manager.routines import release_check
 
 
+type ProgressCallback = ReviewProgress
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
+
+
 DEFAULT_SCROBBLES_PATH = blast_from_past.DEFAULT_SCROBBLES_PATH
 DEFAULT_COUNT = 5
 LOOKBACK_YEARS = 4
 
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[int, int, str], None]
-RetryCall = blast_from_past.RetryCall
+
 CancelCheck = blast_from_past.CancelCheck
 
 
@@ -71,13 +80,7 @@ def _liked_statuses(
     statuses: dict[str, bool] = {}
     for start in range(0, len(tracks), new_kids.CONTAINS_BATCH_SIZE):
         batch = tracks[start : start + new_kids.CONTAINS_BATCH_SIZE]
-        response = retry_call(
-            partial(
-                sp.current_user_saved_tracks_contains,
-                [track.spotify_id for track in batch],
-            ),
-            f"checking {len(batch)} tracks in Liked Songs",
-        )
+        response = _read_liked_track_batch(retry_call, batch, sp)
         from spotify_manager.infrastructure.dormant_catalog import liked_statuses
 
         statuses.update(liked_statuses(response, batch))
@@ -107,10 +110,7 @@ def _track_popularities(
     track_ids = list(by_id)
     for start in range(0, len(track_ids), new_kids.TRACK_BATCH_SIZE):
         batch = track_ids[start : start + new_kids.TRACK_BATCH_SIZE]
-        response = retry_call(
-            partial(sp.tracks, batch),
-            f"loading popularity for {len(batch)} liked tracks",
-        )
+        response = _read_popularity_batch(retry_call, batch, sp)
         from spotify_manager.infrastructure.dormant_catalog import popularity_details
 
         populated.extend(popularity_details(response, by_id))
@@ -135,9 +135,11 @@ def most_popular_liked_track(
     Raises:
         BlastFromPastArtistsError: Original liked/detail response is invalid.
     """
-    from spotify_manager.bootstrap.dormant_artists import select_liked_track
+    from spotify_manager.interfaces.operations.blast_from_past_artists import (
+        most_popular_liked_track as operation,
+    )
 
-    return select_liked_track(sp, artist_id, retry_call)
+    return operation(sp, artist_id, retry_call)
 
 
 def _spotify_artist(
@@ -166,9 +168,9 @@ def add_dormant_artists_to_blast_from_past(
     count: int = DEFAULT_COUNT,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = direct_call,
+    retry_call: RetryCall = NO_RETRY,
     cancel_check: CancelCheck | None = None,
     dry_run: bool = False,
 ) -> DormantArtistSummary:
@@ -194,19 +196,21 @@ def add_dormant_artists_to_blast_from_past(
         BlastFromPastArtistsError: Original catalog observations are unusable.
         BlastFromPastCancelledError: Original safe cancellation is requested.
     """
-    from spotify_manager.bootstrap.dormant_artists import run_dormant_recovery
+    from spotify_manager.interfaces.operations.blast_from_past_artists import (
+        add_dormant_artists_to_blast_from_past as operation,
+    )
 
-    return run_dormant_recovery(
+    return operation(
         sp,
         playlist_id,
-        count,
-        path,
-        today,
-        echo,
-        progress_callback,
-        retry_call,
-        cancel_check,
-        dry_run,
+        count=count,
+        path=path,
+        today=today,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        cancel_check=cancel_check,
+        dry_run=dry_run,
     )
 
 
@@ -229,3 +233,25 @@ def _remember_primary_track(
 ) -> None:
     if track.primary_artist_id == artist_id:
         tracks.setdefault(track.spotify_id, track)
+
+
+def _read_liked_track_batch(
+    retry_call: RetryCall, batch: tuple[new_kids.CatalogTrack, ...], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(f"checking {len(batch)} tracks in Liked Songs"):
+        with attempt:
+            return sp.current_user_saved_tracks_contains(
+                [track.spotify_id for track in batch]
+            )
+    raise AssertionError("Retry scopes must include an attempt")
+
+
+def _read_popularity_batch(
+    retry_call: RetryCall, batch: list[str], sp: Spotify
+) -> object:
+    for attempt in retry_call.attempts(
+        f"loading popularity for {len(batch)} liked tracks"
+    ):
+        with attempt:
+            return sp.tracks(batch)
+    raise AssertionError("Retry scopes must include an attempt")

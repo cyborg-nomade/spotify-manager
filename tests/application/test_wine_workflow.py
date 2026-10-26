@@ -35,7 +35,7 @@ def _entries(memory: MemoryWine) -> list[dict[str, object]]:
 
 
 def _pending(memory: MemoryWine, plan: dict[str, object] | None = None) -> None:
-    memory.stored["active_run"] = new_run(OPTIONS, (SOURCE,), memory.clock)
+    memory.stored["active_run"] = new_run(OPTIONS, (SOURCE,), memory)
     _entries(memory)[0]["plan"] = plan
     memory.events.clear()
     memory.counts.clear()

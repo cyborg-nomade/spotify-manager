@@ -1,7 +1,6 @@
 """Original synchronous retry policy shared by library workflows and interfaces."""
 
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
@@ -11,9 +10,16 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import Timeout as RequestsTimeout
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.application.retry_attempts import RetryAttempts
 
-type Echo = Callable[[str], None]
-type Sleep = Callable[[float], None]
+
+type Sleep = Wait
+
+
+type Echo = Messages
+
 
 TRANSIENT_SPOTIFY_STATUSES = {500, 502, 503, 504}
 TRANSIENT_RETRY_DELAY_SECONDS = 5 * 60
@@ -202,10 +208,10 @@ def format_transient_spotify_failure(exc: SpotifyTransientServerError) -> str:
 
 @dataclass(frozen=True)
 class _RetryPolicy:
-    """Bound retry callbacks, fixed delay, and normalized attempt limit."""
+    """Bound output, wait, fixed delay, and normalized attempt limit."""
 
-    echo: Echo
-    sleep: Sleep
+    output: Echo
+    wait: Sleep
     delay: int
     attempts: int
 
@@ -226,46 +232,10 @@ def _wait_or_raise(
         prefix = f"Spotify API temporarily unavailable ({status})"
     else:
         prefix = "Spotify connection interrupted"
-    policy.echo(
+    policy.output.echo(
         f"{prefix} while {description}. Retrying {format_retry_delay(policy.delay)}."
     )
-    policy.sleep(policy.delay)
-
-
-def retry_spotify_server_errors[T](
-    operation: Callable[[], T],
-    description: str,
-    echo: Echo,
-    sleep: Sleep,
-    retry_delay_seconds: int,
-    max_attempts: int,
-) -> T:
-    """Retry temporary Spotify failures using the original operation-level policy.
-
-    Args:
-        operation: Original observation or effect to attempt.
-        description: Existing user-facing operation description.
-        echo: Existing retry message sink.
-        sleep: Caller-owned retry wait and cancellation boundary.
-        retry_delay_seconds: Original fixed wait duration.
-        max_attempts: Original attempt limit, clamped to at least one.
-
-    Returns:
-        The successful operation's unchanged result.
-
-    Raises:
-        SpotifyRateLimitError: Spotify reports a rate limit.
-        SpotifyTransientServerError: Temporary failures exhaust the attempt limit.
-        SpotifyException: A non-transient Spotify failure occurs.
-    """
-    attempts = 0
-    policy = _RetryPolicy(echo, sleep, retry_delay_seconds, max(1, max_attempts))
-    while True:
-        attempts += 1
-        try:
-            return operation()
-        except (SpotifyException, RequestsConnectionError, RequestsTimeout) as exc:
-            _wait_or_raise(exc, description, attempts, policy)
+    policy.wait.sleep(policy.delay)
 
 
 def handle_spotify_exception(exc: SpotifyException) -> None:
@@ -282,3 +252,86 @@ def handle_spotify_exception(exc: SpotifyException) -> None:
     if exc.http_status == 429:
         raise SpotifyRateLimitError(retry_after_seconds) from exc
     raise exc
+
+
+@dataclass(frozen=True)
+class SpotifyRetries:
+    """Own synchronous retry settings while callers execute requests directly.
+
+    Args:
+        output: Retry message owner.
+        wait: Interruptible or blocking wait owner.
+        delay: Fixed transient delay.
+        maximum: Maximum attempts, clamped to one.
+    """
+
+    output: Echo
+    wait: Sleep
+    delay: int
+    maximum: int
+
+    def attempts(self, description: str) -> RetryAttempts:
+        """Open the original retry boundary without receiving an operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes using the original classification and delay rules.
+        """
+        return RetryAttempts(self.failure_policy(description))
+
+    def failure_policy(self, description: str) -> SpotifyAttemptPolicy:
+        """Create independent failure state for one original retry boundary.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Fresh bounded retry state.
+        """
+        policy = _RetryPolicy(self.output, self.wait, self.delay, max(1, self.maximum))
+        return SpotifyAttemptPolicy(policy, description)
+
+
+@dataclass
+class SpotifyAttemptPolicy:
+    """Classify failures and wait between directly executed Spotify requests.
+
+    Args:
+        settings: Original retry settings and external resources.
+        description: Original request description.
+        failures: Failed attempts in this boundary.
+    """
+
+    settings: _RetryPolicy
+    description: str
+    failures: int = 0
+
+    def start(self) -> None:
+        """Begin a retry boundary without an additional observation."""
+
+    def accepted(self) -> None:
+        """Accept the original request without an additional observation."""
+
+    def failed(self, error: BaseException) -> bool:
+        """Retry only the original Spotify and transport failures.
+
+        Args:
+            error: Original operation failure.
+
+        Returns:
+            Whether the original failure permits another attempt.
+
+        Raises:
+            SpotifyRateLimitError: Spotify asks the caller to pause.
+            SpotifyTransientServerError: The original attempt limit is reached.
+            SpotifyException: The original HTTP failure is not transient.
+        """
+        if not isinstance(
+            error, (SpotifyException, RequestsConnectionError, RequestsTimeout)
+        ):
+            return False
+        self.failures += 1
+        _wait_or_raise(error, self.description, self.failures, self.settings)
+        return True

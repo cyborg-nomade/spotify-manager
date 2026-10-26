@@ -2,11 +2,81 @@
 
 import json
 from dataclasses import asdict
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
+from spotify_manager.application.new_wine import NewWineOptions
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
+from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 from spotify_manager.routines import new_wine
+from tests.support.runtime_resources import Answer
+from tests.support.runtime_resources import DiscardMessages
+from tests.support.runtime_resources import UnexpectedInteraction
+
+
+@dataclass(frozen=True)
+class ReleaseAnswer:
+    """Record offered release identities before returning the scripted answer.
+
+    Args:
+        answer: Original chosen control or release identity.
+        offered: Original offered-candidate observation list.
+    """
+
+    answer: str
+    offered: list[tuple[str, ...]]
+
+    def choose_release(
+        self,
+        source: new_wine.PlaylistTrack,
+        candidates: tuple[new_wine.ReleaseCandidate, ...],
+    ) -> str:
+        """Record the original candidate order and return the original choice.
+
+        Args:
+            source: Original playlist marker.
+            candidates: Original eligible release editions.
+
+        Returns:
+            Original scripted answer.
+        """
+        self.offered.append(tuple(item.spotify_id for item in candidates))
+        return self.answer
+
+
+@dataclass(frozen=True)
+class EndpointAnswer:
+    """Record the original endpoint prompt before choosing its control.
+
+    Args:
+        answer: Original endpoint control.
+        offered: Original track-count and current-position observations.
+    """
+
+    answer: str
+    offered: list[tuple[int, int]]
+
+    def choose_endpoint(
+        self,
+        source: new_wine.PlaylistTrack,
+        tracks: tuple[new_wine.ReleaseTrack, ...],
+        current_index: int,
+    ) -> str:
+        """Record the complete original endpoint prompt context.
+
+        Args:
+            source: Original playlist marker.
+            tracks: Original ordered release tracks.
+            current_index: Original marker position.
+
+        Returns:
+            Original scripted endpoint answer.
+        """
+        self.offered.append((len(tracks), current_index))
+        return self.answer
 
 
 def raw_release(
@@ -162,6 +232,11 @@ def paths(tmp_path: Path) -> dict[str, Path]:
 
 
 def test_flush_advances_every_snapshotted_album_track(tmp_path: Path) -> None:
+    """Flush advances every snapshotted album track.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     first_release = raw_release("r1", "First", artist_id="a1")
     second_release = raw_release("r2", "Second", artist_id="a2")
@@ -178,10 +253,18 @@ def test_flush_advances_every_snapshotted_album_track(tmp_path: Path) -> None:
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("album tracks should not prompt"),
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("album tracks should not prompt")
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.processed == 2
@@ -201,6 +284,11 @@ def test_flush_advances_every_snapshotted_album_track(tmp_path: Path) -> None:
 def test_canonical_cutoff_completes_album_and_offers_follow_up(
     tmp_path: Path,
 ) -> None:
+    """Canonical cutoff completes album and offers follow up.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "album", "Canonical Album", artist_id="artist", total_tracks=5
@@ -235,19 +323,20 @@ def test_canonical_cutoff_completes_album_and_offers_follow_up(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, candidates: (
-            release_calls.append(tuple(item.spotify_id for item in candidates))
-            or new_wine.CHOICE_FINISH
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            endpoint_mode=True,
+            cellar=None,
+            no_discovery=False,
+            dry_run=False,
         ),
-        endpoint_choice_reader=lambda _source, album_tracks, current_index: (
-            endpoint_calls.append((len(album_tracks), current_index))
-            or new_wine.CHOICE_CUTOFF
+        NewWineCallbacks(
+            choose=ReleaseAnswer(new_wine.CHOICE_FINISH, release_calls),
+            endpoint=EndpointAnswer(new_wine.CHOICE_CUTOFF, endpoint_calls),
         ),
-        choose_album_endpoints=True,
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     result = summary.results[0]
@@ -271,6 +360,11 @@ def test_canonical_cutoff_completes_album_and_offers_follow_up(
 def test_canonical_cutoff_governs_drop_evaluation_and_unsaving(
     tmp_path: Path,
 ) -> None:
+    """Canonical cutoff governs drop evaluation and unsaving.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Deluxe Album", artist_id="artist", total_tracks=6)
     tracks = [
@@ -291,12 +385,19 @@ def test_canonical_cutoff_governs_drop_evaluation_and_unsaving(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("no follow-up should be offered"),
-        endpoint_choice_reader=lambda *_args: new_wine.CHOICE_CUTOFF,
-        choose_album_endpoints=True,
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            endpoint_mode=True,
+            cellar=None,
+            no_discovery=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("no follow-up should be offered"),
+            endpoint=Answer(new_wine.CHOICE_CUTOFF),
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     result = summary.results[0]
@@ -311,6 +412,11 @@ def test_canonical_cutoff_governs_drop_evaluation_and_unsaving(
 
 
 def test_canonical_endpoint_review_can_skip_one_entry(tmp_path: Path) -> None:
+    """Canonical endpoint review can skip one entry.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Album", artist_id="artist")
     track = raw_track("t1", "Track", release, artist_id="artist")
@@ -319,12 +425,19 @@ def test_canonical_endpoint_review_can_skip_one_entry(tmp_path: Path) -> None:
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("skipped entries do not continue"),
-        endpoint_choice_reader=lambda *_args: new_wine.CHOICE_SKIP,
-        choose_album_endpoints=True,
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            endpoint_mode=True,
+            cellar=None,
+            no_discovery=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("skipped entries do not continue"),
+            endpoint=Answer(new_wine.CHOICE_SKIP),
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.skipped == 1
@@ -337,6 +450,11 @@ def test_canonical_endpoint_review_can_skip_one_entry(tmp_path: Path) -> None:
 def test_canonical_endpoint_review_can_continue_the_full_tracklist(
     tmp_path: Path,
 ) -> None:
+    """Canonical endpoint review can continue the full tracklist.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Album", artist_id="artist")
     tracks = [
@@ -348,12 +466,19 @@ def test_canonical_endpoint_review_can_continue_the_full_tracklist(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("the release is not complete"),
-        endpoint_choice_reader=lambda *_args: new_wine.CHOICE_CONTINUE,
-        choose_album_endpoints=True,
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            endpoint_mode=True,
+            cellar=None,
+            no_discovery=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("the release is not complete"),
+            endpoint=Answer(new_wine.CHOICE_CONTINUE),
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.results[0].action == "advance"
@@ -365,6 +490,11 @@ def test_canonical_endpoint_review_can_continue_the_full_tracklist(
 def test_canonical_endpoint_mode_requires_an_interactive_reader(
     tmp_path: Path,
 ) -> None:
+    """Canonical endpoint mode requires an interactive reader.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Album", artist_id="artist")
     track = raw_track("t1", "Track", release, artist_id="artist")
@@ -374,17 +504,27 @@ def test_canonical_endpoint_mode_requires_an_interactive_reader(
     with pytest.raises(new_wine.NewWineConfigError, match="choice reader"):
         new_wine.flush_new_wine(
             spotify,
-            "new",
-            "sauv",
-            choice_reader=lambda *_args: new_wine.CHOICE_FINISH,
-            choose_album_endpoints=True,
-            **paths(tmp_path),
+            NewWineOptions(
+                destination="new",
+                sauvignon="sauv",
+                endpoint_mode=True,
+                cellar=None,
+                no_discovery=False,
+                dry_run=False,
+            ),
+            NewWineCallbacks(choose=Answer(new_wine.CHOICE_FINISH)),
+            storage=NewWineStorage(**paths(tmp_path)),
         )
 
 
 def test_flush_refills_new_wine_to_ten_from_top_of_wine_cellar(
     tmp_path: Path,
 ) -> None:
+    """Flush refills new wine to ten from top of wine cellar.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "cellar-release",
@@ -407,11 +547,16 @@ def test_flush_refills_new_wine_to_ten_from_top_of_wine_cellar(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("empty flush should not prompt"),
-        wine_cellar_playlist_id="wine",
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar="wine",
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("empty flush should not prompt")),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.refill is not None
@@ -434,6 +579,11 @@ def test_flush_refills_new_wine_to_ten_from_top_of_wine_cellar(
 def test_no_discovery_refill_keeps_ineligible_tracks_in_cellar_order(
     tmp_path: Path,
 ) -> None:
+    """No discovery refill keeps ineligible tracks in cellar order.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "cellar-release",
@@ -503,16 +653,24 @@ def test_no_discovery_refill_keeps_ineligible_tracks_in_cellar_order(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("empty flush should not prompt"),
-        wine_cellar_playlist_id="wine",
-        no_discovery=True,
-        liked_tracks_path=liked_tracks_path,
-        albums_path=albums_path,
-        **{
-            key: value for key, value in paths(tmp_path).items() if key != "albums_path"
-        },
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar="wine",
+            no_discovery=True,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("empty flush should not prompt")),
+        storage=NewWineStorage(
+            liked_tracks_path=liked_tracks_path,
+            albums_path=albums_path,
+            **{
+                key: value
+                for key, value in paths(tmp_path).items()
+                if key != "albums_path"
+            },
+        ),
     )
 
     assert summary.refill is not None
@@ -539,6 +697,11 @@ def test_no_discovery_refill_keeps_ineligible_tracks_in_cellar_order(
 
 
 def test_refill_resumes_between_add_and_cellar_removal(tmp_path: Path) -> None:
+    """Refill resumes between add and cellar removal.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("cellar-release", "Cellar", artist_id="artist")
     track = raw_track("c1", "Cellar Track", release, artist_id="artist")
@@ -549,11 +712,18 @@ def test_refill_resumes_between_add_and_cellar_removal(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="interrupted after add"):
         new_wine.flush_new_wine(
             spotify,
-            "new",
-            "sauv",
-            choice_reader=lambda *_args: pytest.fail("empty flush should not prompt"),
-            wine_cellar_playlist_id="wine",
-            **paths(tmp_path),
+            NewWineOptions(
+                destination="new",
+                sauvignon="sauv",
+                cellar="wine",
+                no_discovery=False,
+                endpoint_mode=False,
+                dry_run=False,
+            ),
+            NewWineCallbacks(
+                choose=UnexpectedInteraction("empty flush should not prompt")
+            ),
+            storage=NewWineStorage(**paths(tmp_path)),
         )
 
     interrupted_state = json.loads((tmp_path / "state.json").read_text())
@@ -565,11 +735,18 @@ def test_refill_resumes_between_add_and_cellar_removal(tmp_path: Path) -> None:
 
     resumed = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("resumed refill should not prompt"),
-        wine_cellar_playlist_id="wine",
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar="wine",
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("resumed refill should not prompt")
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert resumed.resumed is True
@@ -586,6 +763,11 @@ def test_refill_resumes_between_add_and_cellar_removal(tmp_path: Path) -> None:
 
 
 def test_refill_dry_run_simulates_ten_without_mutation(tmp_path: Path) -> None:
+    """Refill dry run simulates ten without mutation.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "cellar-release",
@@ -608,12 +790,16 @@ def test_refill_dry_run_simulates_ten_without_mutation(tmp_path: Path) -> None:
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("empty flush should not prompt"),
-        wine_cellar_playlist_id="wine",
-        dry_run=True,
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar="wine",
+            dry_run=True,
+            no_discovery=False,
+            endpoint_mode=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("empty flush should not prompt")),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.refill is not None
@@ -628,6 +814,11 @@ def test_refill_dry_run_simulates_ten_without_mutation(tmp_path: Path) -> None:
 
 
 def test_refill_dry_run_uses_projected_post_flush_capacity(tmp_path: Path) -> None:
+    """Refill dry run uses projected post flush capacity.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     dropped_release = raw_release("drop", "Drop", artist_id="drop-artist")
     dropped_tracks = [
@@ -665,12 +856,16 @@ def test_refill_dry_run_uses_projected_post_flush_capacity(tmp_path: Path) -> No
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("drop should not prompt"),
-        wine_cellar_playlist_id="wine",
-        dry_run=True,
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar="wine",
+            dry_run=True,
+            no_discovery=False,
+            endpoint_mode=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("drop should not prompt")),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.results[0].action == "drop"
@@ -685,6 +880,11 @@ def test_refill_dry_run_uses_projected_post_flush_capacity(tmp_path: Path) -> No
 
 
 def test_full_new_wine_does_not_query_wine_cellar(tmp_path: Path) -> None:
+    """Full new wine does not query wine cellar.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
 
     summary = new_wine._refill_new_wine(
@@ -693,14 +893,16 @@ def test_full_new_wine_does_not_query_wine_cellar(tmp_path: Path) -> None:
         "not-configured-in-fake",
         no_discovery=True,
         dry_run=True,
-        retry_call=lambda operation, _description: operation(),
+        retry_call=NoRetry(),
         state={},
         run={"run_id": "run", "refill_pending": None},
-        state_path=tmp_path / "state.json",
-        log_path=tmp_path / "log.jsonl",
-        liked_tracks_path=tmp_path / "missing-liked.json",
-        albums_path=tmp_path / "missing-albums.json",
-        echo=lambda _message: None,
+        storage=NewWineStorage(
+            state_path=tmp_path / "state.json",
+            log_path=tmp_path / "log.jsonl",
+            liked_tracks_path=tmp_path / "missing-liked.json",
+            albums_path=tmp_path / "missing-albums.json",
+        ),
+        echo=DiscardMessages(),
         projected_new_wine_ids={f"track-{index}" for index in range(10)},
     )
 
@@ -712,6 +914,11 @@ def test_full_new_wine_does_not_query_wine_cellar(tmp_path: Path) -> None:
 def test_three_consecutive_unliked_tracks_jump_to_next_liked_track(
     tmp_path: Path,
 ) -> None:
+    """Three consecutive unliked tracks jump to next liked track.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Drop Me", artist_id="artist")
     tracks = [
@@ -742,10 +949,16 @@ def test_three_consecutive_unliked_tracks_jump_to_next_liked_track(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("drop should not prompt"),
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("drop should not prompt")),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     result = summary.results[0]
@@ -770,6 +983,11 @@ def test_three_consecutive_unliked_tracks_jump_to_next_liked_track(
 def test_three_unliked_tracks_after_last_like_drop_and_unsave_album(
     tmp_path: Path,
 ) -> None:
+    """Three unliked tracks after last like drop and unsave album.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Drop Me", artist_id="artist")
     tracks = [
@@ -800,10 +1018,16 @@ def test_three_unliked_tracks_after_last_like_drop_and_unsave_album(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("drop should not prompt"),
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("drop should not prompt")),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     result = summary.results[0]
@@ -820,6 +1044,11 @@ def test_three_unliked_tracks_after_last_like_drop_and_unsave_album(
 
 
 def test_live_like_breaks_the_consecutive_streak(tmp_path: Path) -> None:
+    """Live like breaks the consecutive streak.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Keep Moving", artist_id="artist")
     tracks = [
@@ -838,10 +1067,18 @@ def test_live_like_breaks_the_consecutive_streak(tmp_path: Path) -> None:
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("album tracks should not prompt"),
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("album tracks should not prompt")
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.results[0].action == "advance"
@@ -852,6 +1089,11 @@ def test_live_like_breaks_the_consecutive_streak(tmp_path: Path) -> None:
 def test_dropped_album_remains_saved_when_it_meets_keep_rule(
     tmp_path: Path,
 ) -> None:
+    """Dropped album remains saved when it meets keep rule.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "album",
@@ -876,10 +1118,16 @@ def test_dropped_album_remains_saved_when_it_meets_keep_rule(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("drop should not prompt"),
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("drop should not prompt")),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     result = summary.results[0]
@@ -894,6 +1142,11 @@ def test_dropped_album_remains_saved_when_it_meets_keep_rule(
 def test_last_album_track_sends_first_track_to_sauvignon(
     tmp_path: Path,
 ) -> None:
+    """Last album track sends first track to sauvignon.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Finished", artist_id="artist")
     tracks = [
@@ -907,10 +1160,18 @@ def test_last_album_track_sends_first_track_to_sauvignon(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("album tracks should not prompt"),
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("album tracks should not prompt")
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.sent_to_sauvignon == 1
@@ -929,6 +1190,11 @@ def test_last_album_track_sends_first_track_to_sauvignon(
 def test_sauvignon_does_not_save_album_below_keep_threshold(
     tmp_path: Path,
 ) -> None:
+    """Sauvignon does not save album below keep threshold.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release(
         "album",
@@ -953,10 +1219,18 @@ def test_sauvignon_does_not_save_album_below_keep_threshold(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("album tracks should not prompt"),
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("album tracks should not prompt")
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     result = summary.results[0]
@@ -973,6 +1247,11 @@ def test_sauvignon_does_not_save_album_below_keep_threshold(
 def test_legacy_sauvignon_plan_saves_after_source_was_removed(
     tmp_path: Path,
 ) -> None:
+    """Legacy sauvignon plan saves after source was removed.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Interrupted", artist_id="artist")
     tracks = [
@@ -986,12 +1265,12 @@ def test_legacy_sauvignon_plan_saves_after_source_was_removed(
     source = new_wine.load_playlist_tracks(
         spotify,
         "new",
-        lambda operation, _description: operation(),
+        NoRetry(),
     )[0]
     target = new_wine.load_release_tracks(
         spotify,
         source.release,
-        lambda operation, _description: operation(),
+        NoRetry(),
     )[0]
     state = new_wine._default_state()
     run = new_wine._new_run("new", (source,), None, False, False)
@@ -1017,10 +1296,16 @@ def test_legacy_sauvignon_plan_saves_after_source_was_removed(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("saved plans do not prompt"),
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("saved plans do not prompt")),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.resumed is True
@@ -1031,6 +1316,11 @@ def test_legacy_sauvignon_plan_saves_after_source_was_removed(
 def test_album_endpoint_can_start_another_current_year_release(
     tmp_path: Path,
 ) -> None:
+    """Album endpoint can start another current year release.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Finished", artist_id="artist")
     follow_up = raw_release(
@@ -1063,14 +1353,17 @@ def test_album_endpoint_can_start_another_current_year_release(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, candidates: (
-            offered.append(tuple(candidate.spotify_id for candidate in candidates))
-            or "follow-up"
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
         ),
+        NewWineCallbacks(choose=ReleaseAnswer("follow-up", offered)),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     result = summary.results[0]
@@ -1093,6 +1386,11 @@ def test_album_endpoint_can_start_another_current_year_release(
 def test_drop_endpoint_can_finish_without_a_follow_up_release(
     tmp_path: Path,
 ) -> None:
+    """Drop endpoint can finish without a follow up release.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Drop Me", artist_id="artist")
     follow_up = raw_release(
@@ -1123,14 +1421,17 @@ def test_drop_endpoint_can_finish_without_a_follow_up_release(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, candidates: (
-            offered.append(tuple(candidate.spotify_id for candidate in candidates))
-            or new_wine.CHOICE_FINISH
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
         ),
+        NewWineCallbacks(choose=ReleaseAnswer(new_wine.CHOICE_FINISH, offered)),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     result = summary.results[0]
@@ -1149,6 +1450,11 @@ def test_drop_endpoint_can_finish_without_a_follow_up_release(
 def test_drop_endpoint_can_start_another_current_year_release(
     tmp_path: Path,
 ) -> None:
+    """Drop endpoint can start another current year release.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Drop Me", artist_id="artist")
     follow_up = raw_release(
@@ -1177,11 +1483,17 @@ def test_drop_endpoint_can_start_another_current_year_release(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, _candidates: "follow-up",
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=Answer("follow-up")),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     result = summary.results[0]
@@ -1198,6 +1510,11 @@ def test_drop_endpoint_can_start_another_current_year_release(
 def test_single_prompts_for_current_year_release_and_starts_at_first_track(
     tmp_path: Path,
 ) -> None:
+    """Single prompts for current year release and starts at first track.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     single = raw_release(
         "single",
@@ -1228,14 +1545,17 @@ def test_single_prompts_for_current_year_release_and_starts_at_first_track(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, candidates: (
-            offered.append(tuple(candidate.spotify_id for candidate in candidates))
-            or "album"
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
         ),
+        NewWineCallbacks(choose=ReleaseAnswer("album", offered)),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     assert offered == [("album", "single")]
@@ -1250,11 +1570,19 @@ def test_single_prompts_for_current_year_release_and_starts_at_first_track(
 
     second = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("album tracks should not prompt"),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(
+            choose=UnexpectedInteraction("album tracks should not prompt")
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
     assert second.results[0].consecutive_unliked == 2
     assert [track["id"] for track in spotify.playlists["new"]] == ["a2"]
@@ -1262,16 +1590,19 @@ def test_single_prompts_for_current_year_release_and_starts_at_first_track(
     endpoint_offered: list[tuple[str, ...]] = []
     third = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, candidates: (
-            endpoint_offered.append(
-                tuple(candidate.spotify_id for candidate in candidates)
-            )
-            or new_wine.CHOICE_FINISH
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
         ),
+        NewWineCallbacks(
+            choose=ReleaseAnswer(new_wine.CHOICE_FINISH, endpoint_offered)
+        ),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
     assert endpoint_offered == [("single",)]
     assert third.results[0].action == "drop"
@@ -1282,6 +1613,11 @@ def test_single_prompts_for_current_year_release_and_starts_at_first_track(
 def test_selected_release_uses_track_number_not_alphabetical_response(
     tmp_path: Path,
 ) -> None:
+    """Selected release uses track number not alphabetical response.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     single = raw_release(
         "single",
@@ -1317,11 +1653,17 @@ def test_selected_release_uses_track_number_not_alphabetical_response(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, _candidates: "album",
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=Answer("album")),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     assert summary.results[0].target_track == "Zebra opener"
@@ -1331,6 +1673,11 @@ def test_selected_release_uses_track_number_not_alphabetical_response(
 def test_switching_from_single_to_album_starts_at_album_opener(
     tmp_path: Path,
 ) -> None:
+    """Switching from single to album starts at album opener.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     single = raw_release(
         "single",
@@ -1373,11 +1720,17 @@ def test_switching_from_single_to_album_starts_at_album_opener(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, _candidates: "album",
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=Answer("album")),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     assert summary.results[0].target_track == "The Dark Forest"
@@ -1385,6 +1738,7 @@ def test_switching_from_single_to_album_starts_at_album_opener(
 
 
 def test_current_year_release_scan_exhausts_non_chronological_pages() -> None:
+    """Current year release scan exhausts non chronological pages."""
     spotify = FakeSpotify()
     older = [
         raw_release(
@@ -1419,7 +1773,7 @@ def test_current_year_release_scan_exhausts_non_chronological_pages() -> None:
         spotify,
         "artist",
         2026,
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     assert [release.spotify_id for release in releases] == [
@@ -1429,6 +1783,11 @@ def test_current_year_release_scan_exhausts_non_chronological_pages() -> None:
 
 
 def test_single_release_prompt_can_drop_current_release(tmp_path: Path) -> None:
+    """Single release prompt can drop current release.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     single = raw_release(
         "single",
@@ -1454,11 +1813,17 @@ def test_single_release_prompt_can_drop_current_release(tmp_path: Path) -> None:
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, _candidates: new_wine.CHOICE_DROP,
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=Answer(new_wine.CHOICE_DROP)),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     assert summary.results[0].action == "drop"
@@ -1470,6 +1835,11 @@ def test_single_release_prompt_can_drop_current_release(tmp_path: Path) -> None:
 
 
 def test_lone_current_year_single_is_dropped_automatically(tmp_path: Path) -> None:
+    """Lone current year single is dropped automatically.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     single = raw_release(
         "single",
@@ -1486,11 +1856,17 @@ def test_lone_current_year_single_is_dropped_automatically(tmp_path: Path) -> No
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("lone single should auto-drop"),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("lone single should auto-drop")),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     result = summary.results[0]
@@ -1505,6 +1881,11 @@ def test_lone_current_year_single_is_dropped_automatically(tmp_path: Path) -> No
 
 
 def test_completed_single_is_never_added_to_sauvignon(tmp_path: Path) -> None:
+    """Completed single is never added to sauvignon.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     single = raw_release(
         "single",
@@ -1532,11 +1913,17 @@ def test_completed_single_is_never_added_to_sauvignon(tmp_path: Path) -> None:
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda _source, _candidates: "single",
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=Answer("single")),
+        storage=NewWineStorage(**paths(tmp_path)),
         year=2026,
-        **paths(tmp_path),
     )
 
     assert summary.results[0].action == "complete single"
@@ -1548,6 +1935,11 @@ def test_completed_single_is_never_added_to_sauvignon(tmp_path: Path) -> None:
 def test_dry_run_reports_unsave_without_mutating_spotify_or_state(
     tmp_path: Path,
 ) -> None:
+    """Dry run reports unsave without mutating spotify or state.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Dry", artist_id="artist", total_tracks=3)
     tracks = [
@@ -1566,11 +1958,16 @@ def test_dry_run_reports_unsave_without_mutating_spotify_or_state(
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("drop should not prompt"),
-        dry_run=True,
-        **paths(tmp_path),
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            dry_run=True,
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("drop should not prompt")),
+        storage=NewWineStorage(**paths(tmp_path)),
     )
 
     assert summary.dry_run is True
@@ -1585,6 +1982,11 @@ def test_dry_run_reports_unsave_without_mutating_spotify_or_state(
 def test_interrupted_add_before_remove_resumes_without_double_advance(
     tmp_path: Path,
 ) -> None:
+    """Interrupted add before remove resumes without double advance.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     release = raw_release("album", "Resume", artist_id="artist")
     tracks = [
@@ -1600,20 +2002,34 @@ def test_interrupted_add_before_remove_resumes_without_double_advance(
     with pytest.raises(RuntimeError, match="interrupted"):
         new_wine.flush_new_wine(
             spotify,
-            "new",
-            "sauv",
-            choice_reader=lambda *_args: pytest.fail("album tracks should not prompt"),
-            **options,
+            NewWineOptions(
+                destination="new",
+                sauvignon="sauv",
+                cellar=None,
+                no_discovery=False,
+                endpoint_mode=False,
+                dry_run=False,
+            ),
+            NewWineCallbacks(
+                choose=UnexpectedInteraction("album tracks should not prompt")
+            ),
+            storage=NewWineStorage(**options),
         )
 
     assert [track["id"] for track in spotify.playlists["new"]] == ["t1", "t2"]
 
     summary = new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        choice_reader=lambda *_args: pytest.fail("saved plan should not prompt"),
-        **options,
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+            dry_run=False,
+        ),
+        NewWineCallbacks(choose=UnexpectedInteraction("saved plan should not prompt")),
+        storage=NewWineStorage(**options),
     )
 
     assert summary.resumed is True

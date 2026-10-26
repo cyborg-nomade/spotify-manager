@@ -6,18 +6,25 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.golden_selection import AlbumChoice
+from spotify_manager.application.golden_selection import ArtistChoice
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.history_matching import PlaylistState
-from spotify_manager.routines import scrobble_history
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import something_old as legacy
 from tests.support.golden_oldies import plays
+from tests.support.history_dependencies import something_old_history
 from tests.support.queue_neighbors import NOW
 
 
@@ -124,7 +131,7 @@ class OldObservations:
         self,
         spotify: Spotify,
         artist: str,
-        reader: legacy.ArtistSearchChoiceReader | None,
+        reader: ArtistChoice | None,
         retry: legacy.RetryCall,
     ) -> legacy.SpotifyArtistCandidate | None:
         """Observe original exact-artist resolution and configured cancellation.
@@ -207,7 +214,7 @@ class OldObservations:
         spotify: Spotify,
         artist: legacy.GoldenOldieArtist,
         mapped: legacy.SpotifyArtistCandidate,
-        reader: legacy.AlbumChoiceReader,
+        reader: AlbumChoice,
         retry: legacy.RetryCall,
     ) -> tuple[DiscographyRelease | None, tuple[legacy.SelectedTrack, ...]]:
         """Observe original album interaction and its cancellation result.
@@ -270,11 +277,51 @@ class OldObservations:
         """
         self.record("progress", message)
 
+    def choose_mode(
+        self, artist: legacy.GoldenOldieArtist, spotify: legacy.SpotifyArtistCandidate
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            artist: Original fixture observation.
+            spotify: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.mode(artist, spotify)
+
+    def choose_album(
+        self, artist: legacy.GoldenOldieArtist, releases: tuple[DiscographyRelease, ...]
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            artist: Original fixture observation.
+            releases: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.album_choice(artist, releases)
+
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
 
 def _patches(edge: OldObservations) -> tuple[tuple[object, str, object], ...]:
     return (
         (legacy, "_load_playlist_state", edge.playlist),
-        (scrobble_history, "refresh_scrobble_history", edge.history),
+        (
+            HistoryRefresh,
+            "run",
+            partialmethod(something_old_history, edge.history),
+        ),
         (legacy, "resolve_spotify_artist", edge.resolve),
         (legacy, "select_lastfm_top_tracks", edge.lastfm_tracks),
         (legacy, "select_spotify_top_tracks", edge.spotify_tracks),
@@ -291,13 +338,18 @@ def _run(edge: OldObservations, preview: bool) -> object:
         result = legacy.run_something_old(
             cast(Spotify, edge),
             cast(legacy.LastFmReader, edge),
-            "destination",
-            expected_username="listener",
-            mode_reader=edge.mode,
-            album_choice_reader=edge.album_choice,
-            dry_run=preview,
-            now=NOW,
-            progress_callback=edge.progress,
+            SomethingOldOptions(
+                playlist_id="destination",
+                expected_username="listener",
+                dry_run=preview,
+                now=NOW,
+            ),
+            SomethingOldCallbacks(
+                mode_reader=edge,
+                album_choice_reader=edge,
+                progress_callback=edge,
+            ),
+            SomethingOldResources(),
         )
     return asdict(result)
 

@@ -6,6 +6,10 @@ from spotify_manager.application.legacy_library_conversion import compare_ids
 from spotify_manager.application.legacy_library_effects import Comparison
 from spotify_manager.application.legacy_library_effects import ComparisonAlbum
 from spotify_manager.client import get_spotipy_client as get_spotipy_client
+from spotify_manager.infrastructure.legacy_library_resources import (
+    LegacyComparisonMetadata,
+)
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.models.file_items import SimplifiedAlbum
 from spotify_manager.models.your_library import YourLibraryFile
 
@@ -70,5 +74,8 @@ def compare_and_get_dict(
         Original complete comparison mapping.
     """
     return compare_ids(
-        your_library_id_list, total_albums_id_list, enrich_id_to_album_dict, print
+        your_library_id_list,
+        total_albums_id_list,
+        LegacyComparisonMetadata(),
+        STANDARD_OUTPUT,
     )

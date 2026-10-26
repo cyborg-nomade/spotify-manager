@@ -1,7 +1,5 @@
 """Tolerant original Spotify album-evidence and first-track response codecs."""
 
-from collections.abc import Callable
-
 from spotify_manager.application.sauvignon_values import SauvignonSpotifyError
 from spotify_manager.domain.album_recommendations import FirstTrack
 from spotify_manager.domain.album_recommendations import SpotifyAlbumOption
@@ -12,12 +10,6 @@ from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import normalize_name
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
-
-
-type TrackMatcher = Callable[[Scrobble, object, int], SpotifyTrackMatch | None]
-type OptionParser = Callable[
-    [object, FoundArtCandidate, int], SpotifyAlbumOption | None
-]
 
 
 def artist_pairs(raw: object) -> tuple[tuple[str, str], ...]:
@@ -106,7 +98,6 @@ def parse_album_option(
     raw: object,
     candidate: FoundArtCandidate,
     rank: int,
-    match_track: TrackMatcher,
 ) -> SpotifyAlbumOption | None:
     """Check mandatory matching before exact primary credits and release type.
 
@@ -114,12 +105,15 @@ def parse_album_option(
         raw: Original raw Spotify search observation.
         candidate: Original ranked Last.fm track candidate.
         rank: Original one-based search position.
-        match_track: Existing mandatory artist/title qualification boundary.
 
     Returns:
         Original eligible plain album or EP observation, or no eligible edition.
     """
-    match = match_track(Scrobble(candidate.track, candidate.artist, "", 0), raw, rank)
+    from spotify_manager.routines.blast_from_past import matching_spotify_track
+
+    match = matching_spotify_track(
+        Scrobble(candidate.track, candidate.artist, "", 0), raw, rank
+    )
     if match is None or not isinstance(raw, dict):
         return None
     primary = _primary_album(raw, normalize_name(candidate.artist))
@@ -132,14 +126,12 @@ def parse_album_option(
 def parse_album_search(
     response: object,
     candidate: FoundArtCandidate,
-    parse_option: OptionParser,
 ) -> tuple[SpotifyAlbumOption, ...]:
     """Decode and deduplicate original eligible album observations in search order.
 
     Args:
         response: Original search response.
         candidate: Original ranked candidate.
-        parse_option: Existing raw-observation compatibility boundary.
 
     Returns:
         Preferred observed editions in original deterministic preference order.
@@ -156,7 +148,7 @@ def parse_album_search(
         )
     options: dict[str, SpotifyAlbumOption] = {}
     for rank, raw in enumerate(items, start=1):
-        option = parse_option(raw, candidate, rank)
+        option = parse_album_option(raw, candidate, rank)
         if option is None:
             continue
         previous = options.get(option.spotify_id)

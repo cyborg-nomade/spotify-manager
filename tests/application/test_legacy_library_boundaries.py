@@ -6,7 +6,6 @@ from datetime import datetime
 
 import pytest
 
-from spotify_manager.application.legacy_library_effects import PlaylistClock
 from spotify_manager.application.legacy_library_refresh import append_tracks
 from spotify_manager.application.legacy_library_refresh import playlist
 from spotify_manager.infrastructure.legacy_library_errors import LegacyFailure
@@ -43,6 +42,24 @@ class Effects:
             uris: Original track order.
         """
         self.additions.append((identifier, uris.copy()))
+
+    def single(self, identifier: str, uris: list[str]) -> None:
+        """Observe single at the recorded boundary.
+
+        Args:
+            identifier: Requested resource identity.
+            uris: Uris supplied by this fixture.
+        """
+        self.append(identifier, uris)
+
+    def batch(self, identifier: str, uris: list[str]) -> None:
+        """Observe batch at the recorded boundary.
+
+        Args:
+            identifier: Requested resource identity.
+            uris: Uris supplied by this fixture.
+        """
+        self.append(identifier, uris)
 
     def now(self) -> datetime:
         """Read the next independent clock observation.
@@ -81,7 +98,7 @@ def test_original_application_batches(size: int, expected: list[int]) -> None:
         tracks.append(
             SimplifiedTrack(disc_number=1, track_number=index, uri=str(index))
         )
-    append_tracks(tracks, "playlist", effects.append, effects.append, effects.echo)
+    append_tracks(tracks, "playlist", effects, effects)
     assert [len(uris) for _, uris in effects.additions] == expected
     assert effects.output == [("Appending tracks to playlist...",), ("Done!",)]
 
@@ -106,9 +123,7 @@ def test_original_independent_playlist_clocks(
             datetime(2026, selected, 1),
         ]
     )
-    assert (
-        playlist(PlaylistClock(effects.now, effects.create), effects.echo) == "playlist"
-    )
+    assert playlist(effects, effects) == "playlist"
     assert effects.output == [
         ("Creating playlist...",),
         (f"Playlist name: {expected}",),
@@ -121,6 +136,6 @@ def test_original_independent_playlist_clocks(
 def test_failure_scope_preserves_process_control() -> None:
     """Propagate process control without translating it to a legacy fallback."""
     effects = Effects()
-    with pytest.raises(SystemExit), LegacyFailure(effects.echo):
+    with pytest.raises(SystemExit), LegacyFailure(effects):
         raise SystemExit(1)
     assert effects.output == []

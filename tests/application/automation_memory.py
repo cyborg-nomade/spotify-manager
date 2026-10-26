@@ -2,7 +2,6 @@
 
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from types import ModuleType
 from zoneinfo import ZoneInfo
 
@@ -10,7 +9,6 @@ from spotify_manager.application import automation_run as workflow
 from spotify_manager.application.automation_values import JOBS
 from spotify_manager.application.automation_values import JobSpec
 from spotify_manager.application.automation_values import refresh_jobs
-from spotify_manager.infrastructure.automation_records import artifact_updates
 from tests.support.automation_run import AutomationMemory
 
 
@@ -40,7 +38,7 @@ def cancel(client: AutomationMemory, spec: JobSpec, identity: str) -> None:
         spec: Original cancellation route.
         identity: Original active handle.
     """
-    workflow.cancel_job(client, spec, identity, fixed_now, emit)
+    workflow.cancel_job(client, spec, identity, FixedNowResource(), EmitResource())
 
 
 def poll(client: AutomationMemory, spec: JobSpec, identity: str) -> str:
@@ -54,7 +52,7 @@ def poll(client: AutomationMemory, spec: JobSpec, identity: str) -> str:
     Returns:
         Original terminal outcome.
     """
-    return workflow.poll_job(client, spec, identity, partial(cancel, client), emit)
+    return workflow.poll_job(client, spec, identity, FixedNowResource(), EmitResource())
 
 
 def run_job(client: AutomationMemory, spec: JobSpec) -> str:
@@ -70,9 +68,8 @@ def run_job(client: AutomationMemory, spec: JobSpec) -> str:
     return workflow.run_job(
         client,
         spec,
-        partial(workflow.start_job, client, emit=emit),
-        partial(poll, client),
-        emit,
+        FixedNowResource(),
+        EmitResource(),
     )
 
 
@@ -86,7 +83,7 @@ def fresh(client: AutomationMemory, threshold: datetime) -> bool:
     Returns:
         Original complete-artifact qualification.
     """
-    return workflow.durable_artifacts_are_fresh(client, threshold, artifact_updates)
+    return workflow.durable_artifacts_are_fresh(client, threshold)
 
 
 def run_automation(module: ModuleType, client: AutomationMemory) -> object:
@@ -102,11 +99,11 @@ def run_automation(module: ModuleType, client: AutomationMemory) -> object:
     spec = refresh_jobs(full_rebuild=False, scrobble_rebuild=True)[0]
     selected = client.scenario.workflow
     if selected == "start":
-        return workflow.start_job(client, spec, emit)
+        return workflow.start_job(client, spec, EmitResource())
     if selected == "poll":
         return poll(client, spec, "job")
     if selected == "connection":
-        return workflow.connection_check(client, emit)
+        return workflow.connection_check(client, EmitResource())
     if selected == "fresh":
         return fresh(client, datetime(2026, 9, 24, tzinfo=UTC))
     return workflow.nightly_refresh(
@@ -114,7 +111,30 @@ def run_automation(module: ModuleType, client: AutomationMemory) -> object:
         JOBS,
         None,
         ZoneInfo("Europe/Berlin"),
-        partial(fresh, client),
-        partial(run_job, client),
-        emit,
+        FixedNowResource(),
+        EmitResource(),
     )
+
+
+class FixedNowResource:
+    """Own the original fixed fixture observation."""
+
+    def now(self) -> datetime:
+        """Observe the original fixture boundary.
+
+        Returns:
+            Original fixture response.
+        """
+        return fixed_now()
+
+
+class EmitResource:
+    """Own the original fixed fixture observation."""
+
+    def echo(self, message: str) -> None:
+        """Observe the original fixture boundary.
+
+        Args:
+            message: Original fixture value.
+        """
+        emit(message)

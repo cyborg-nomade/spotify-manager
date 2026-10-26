@@ -1,24 +1,19 @@
 """Compose original manual cursor preflight with caller-owned state and retry."""
 
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.palace_cursor import PalaceCursor
-from spotify_manager.application.palace_values import AlphabeticalCursorUpdate
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.bootstrap.palace_mirror import saved_mirror
 from spotify_manager.core.state.service import StateService
+from spotify_manager.infrastructure.palace_cursor import PalaceCursorAccess
 from spotify_manager.routines import palace_of_memory as legacy
 
 
-def _present(callback: legacy.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
-
-
-def set_cursor(
+def palace_cursor(
     spotify: Spotify,
-    position: int,
     albums_path: Path,
     state_path: Path,
     state_service: StateService | None,
@@ -26,12 +21,11 @@ def set_cursor(
     refresh_log: Path,
     retry_call: legacy.RetryCall | None,
     callback: legacy.ProgressCallback | None,
-) -> AlphabeticalCursorUpdate:
-    """Bind original live refresh and complete manual cursor checkpoint behavior.
+) -> PalaceCursor:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         spotify: Original caller-owned client.
-        position: Original one-based requested position.
         albums_path: Original canonical mirror location.
         state_path: Original durable cursor location.
         state_service: Original optional shared authority.
@@ -41,21 +35,18 @@ def set_cursor(
         callback: Original optional stage presenter.
 
     Returns:
-        Original complete manual cursor update.
+        The configured application dependencies or workflow.
     """
-    retry = retry_call or legacy._direct_retry
-    refresh = partial(
-        legacy.refresh_saved_albums,
+    retry = retry_call or NoRetry()
+    refresh = saved_mirror(
         spotify,
-        path=albums_path,
-        backups_dir=backups,
-        log_path=refresh_log,
-        retry_call=retry,
-        progress_callback=callback,
+        albums_path,
+        backups,
+        refresh_log,
+        retry,
+        callback,
     )
     return PalaceCursor(
-        partial(_present, callback),
+        PalaceCursorAccess(state_path, state_service, callback),
         refresh,
-        partial(legacy._state_access, state_path, state_service),
-        legacy._cursor_payload,
-    ).update(position)
+    )

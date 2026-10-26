@@ -4,8 +4,8 @@ import json as json
 import select as select
 import sys as sys
 import termios as termios
+import time
 import tty as tty
-from collections.abc import Callable as Callable
 from collections.abc import Iterable as Iterable
 from datetime import datetime as datetime
 from datetime import timedelta as timedelta
@@ -51,9 +51,14 @@ from spotify_manager.core.library_data.models import (
 from spotify_manager.core.library_data.runtime import (
     get_library_data_service as get_library_data_service,
 )
+from spotify_manager.core.library_data.service import LibraryDataService
 from spotify_manager.core.state.models import StateDocumentError as StateDocumentError
 from spotify_manager.core.state.models import StateError as StateError
 from spotify_manager.core.state.runtime import get_state_service as get_state_service
+from spotify_manager.core.state.service import StateService
+from spotify_manager.interfaces import sauvignon_operations as sauvignon
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.features.album_review import (
     AlbumReviewCLI as AlbumReviewCLI,
 )
@@ -105,6 +110,61 @@ from spotify_manager.interfaces.cli.history import HistoryCommand as HistoryComm
 from spotify_manager.interfaces.cli.history import (
     present_history_summary as present_history_summary,
 )
+from spotify_manager.interfaces.cli.output import TYPER_OUTPUT
+from spotify_manager.interfaces.lookup_operations import (
+    get_live_artist_library_stats as get_live_artist_library_stats,
+)
+from spotify_manager.interfaces.operations import analyse_library as library_sync
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import (
+    blast_from_past_artists as blast_from_past_artists,
+)
+from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
+from spotify_manager.interfaces.operations import discography as discography
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import genre_reveal as genre_reveal
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import new_wine as new_wine
+from spotify_manager.interfaces.operations import new_year as new_year
+from spotify_manager.interfaces.operations import palace_of_memory as palace_of_memory
+from spotify_manager.interfaces.operations import queue_3 as queue_3
+from spotify_manager.interfaces.operations import (
+    recover_removed_albums as recover_removed_albums,
+)
+from spotify_manager.interfaces.operations import release_check as release_check
+from spotify_manager.interfaces.operations import (
+    requeue_for_a_dream as requeue_for_a_dream,
+)
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import review_artists as artist_review
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
+from spotify_manager.interfaces.operations import slow_listening as slow_listening
+from spotify_manager.interfaces.operations import something_old as something_old
+from spotify_manager.interfaces.operations import the_queue as the_queue
+from spotify_manager.interfaces.operations import upload_library_files as hf_upload
+from spotify_manager.interfaces.operations.legacy_library import (
+    analyse_comparison as analyse_comparison,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    compare_your_library_and_all_albums as compare_your_library_and_all_albums,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    convert_your_library_file as convert_your_library_file,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    count_artists_in_library as count_artists_in_library,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    restore_your_library_from_file as restore_your_library_from_file,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    run_monthly_routines as run_monthly_routines,
+)
+from spotify_manager.interfaces.operations.legacy_library import (
+    update_total_album_list as update_total_album_list,
+)
 from spotify_manager.processors.library_lookups import (
     AlbumNotFoundError as AlbumNotFoundError,
 )
@@ -120,57 +180,7 @@ from spotify_manager.processors.library_lookups import (
 from spotify_manager.processors.library_lookups import (
     SpotifyLookupResponseError as SpotifyLookupResponseError,
 )
-from spotify_manager.processors.library_lookups import (
-    evaluate_album_live as evaluate_album_live,
-)
-from spotify_manager.processors.library_lookups import (
-    get_live_artist_library_stats as get_live_artist_library_stats,
-)
-from spotify_manager.processors.total_albums_processor import (
-    update_total_album_list as update_total_album_list,
-)
-from spotify_manager.routines import analyse_library as library_sync
-from spotify_manager.routines import blast_from_past as blast_from_past
-from spotify_manager.routines import blast_from_past_artists as blast_from_past_artists
 from spotify_manager.routines import composer_playlists as composer_playlists
-from spotify_manager.routines import daily_mind_radio as daily_mind_radio
-from spotify_manager.routines import discography as discography
-from spotify_manager.routines import found_art as found_art
-from spotify_manager.routines import genre_reveal as genre_reveal
-from spotify_manager.routines import new_kids as new_kids
-from spotify_manager.routines import new_wine as new_wine
-from spotify_manager.routines import new_year as new_year
-from spotify_manager.routines import palace_of_memory as palace_of_memory
-from spotify_manager.routines import queue_3 as queue_3
-from spotify_manager.routines import recover_removed_albums as recover_removed_albums
-from spotify_manager.routines import release_check as release_check
-from spotify_manager.routines import requeue_for_a_dream as requeue_for_a_dream
-from spotify_manager.routines import review_album_limits as review_album_limits
-from spotify_manager.routines import review_artists as artist_review
-from spotify_manager.routines import sauvignon as sauvignon
-from spotify_manager.routines import scrobble_history as scrobble_history
-from spotify_manager.routines import slow_listening as slow_listening
-from spotify_manager.routines import something_old as something_old
-from spotify_manager.routines import the_queue as the_queue
-from spotify_manager.routines import upload_library_files as hf_upload
-from spotify_manager.routines.convert_library_file import (
-    analyse_comparison as analyse_comparison,
-)
-from spotify_manager.routines.convert_library_file import (
-    compare_your_library_and_all_albums as compare_your_library_and_all_albums,
-)
-from spotify_manager.routines.convert_library_file import (
-    convert_your_library_file as convert_your_library_file,
-)
-from spotify_manager.routines.convert_library_file import (
-    restore_your_library_from_file as restore_your_library_from_file,
-)
-from spotify_manager.routines.count_items import (
-    count_artists_in_library as count_artists_in_library,
-)
-from spotify_manager.routines.monthly_routine import (
-    run_monthly_routines as run_monthly_routines,
-)
 from spotify_manager.settings import Settings as Settings
 
 
@@ -192,355 +202,330 @@ REVIEW_ACTION_CHOICES = [
 ]
 
 
+class CommandResources:
+    """Own deferred CLI resources while preserving their process-wide lifetime."""
+
+    def client(self) -> Spotify:
+        """Resolve the original cached client.
+
+        Returns:
+            Caller-owned standard client.
+        """
+        return client()
+
+    def review_client(self) -> Spotify:
+        """Resolve the original client without automatic SDK retries.
+
+        Returns:
+            Caller-owned review client.
+        """
+        return review_client()
+
+    def configuration(self) -> Settings:
+        """Observe configuration at the original command boundary.
+
+        Returns:
+            Current settings.
+        """
+        return Settings()
+
+    def get_state_service(self) -> StateService:
+        """Resolve the shared state service.
+
+        Returns:
+            Existing state authority.
+        """
+        return get_state_service()
+
+    def get_library_data_service(self) -> LibraryDataService:
+        """Resolve the shared artifact service.
+
+        Returns:
+            Existing artifact authority.
+        """
+        return get_library_data_service()
+
+
 def _library_data_cli() -> LibraryDataCLI:
     return LibraryDataCLI(
-        create_console=Console,
-        create_table=Table,
-        format_file_size=format_file_size,
-        get_library_data_service=get_library_data_service,
-        selected_artifacts=selected_artifacts,
-        validate_artifact_name=validate_artifact_name,
+        runtime=CommandResources(), create_console=Console, create_table=Table
     )
 
 
 def _album_review_cli() -> AlbumReviewCLI:
     return AlbumReviewCLI(
-        bar_column=BarColumn,
+        runtime=CommandResources(),
         create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
         prompt=Prompt,
         REVIEW_ACTION_CHOICES=REVIEW_ACTION_CHOICES,
-        spinner_column=SpinnerColumn,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_review_action=ask_review_action,
-        review_client=review_client,
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _artist_review_cli() -> ArtistReviewCLI:
     return ArtistReviewCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
-        configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_artist_release_choice=ask_artist_release_choice,
-        ask_artist_track_choice=ask_artist_track_choice,
-        review_client=review_client,
+        runtime=CommandResources(),
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _wine_cli() -> WineCLI:
     return WineCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
-        configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_new_wine_endpoint_choice=ask_new_wine_endpoint_choice,
-        ask_new_wine_release_choice=ask_new_wine_release_choice,
-        review_client=review_client,
-        sleep=sleep,
+        runtime=CommandResources(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _discovery_cli() -> DiscoveryCLI:
     return DiscoveryCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
-        configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_new_kids_release_choice=ask_new_kids_release_choice,
-        print_album_discovery_decisions=print_album_discovery_decisions,
-        review_client=review_client,
-        sleep=sleep,
+        runtime=CommandResources(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _slow_listening_cli() -> SlowListeningCLI:
     return SlowListeningCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
-        configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        acknowledge_slow_listening_completion=acknowledge_slow_listening_completion,
-        ask_slow_listening_action=ask_slow_listening_action,
-        ask_slow_listening_release_order=ask_slow_listening_release_order,
-        review_client=review_client,
-        sleep=sleep,
+        runtime=CommandResources(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _queue_3_cli() -> Queue3CLI:
     return Queue3CLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
-        configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        _render_queue_3_annual_import=_render_queue_3_annual_import,
-        ask_queue_3_composer_playlist=ask_queue_3_composer_playlist,
-        ask_queue_3_release_transition=ask_queue_3_release_transition,
-        review_client=review_client,
-        sleep=sleep,
+        runtime=CommandResources(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _discography_cli() -> DiscographyCLI:
     return DiscographyCLI(
-        create_console=Console,
-        prompt=Prompt,
-        configuration=Settings,
-        create_table=Table,
-        _print_discography_plan=_print_discography_plan,
-        ask_discography_release_selection=ask_discography_release_selection,
-        ask_something_old_artist=ask_something_old_artist,
-        review_client=review_client,
-        sleep=sleep,
+        runtime=CommandResources(),
+        historical_artists=_something_old_cli(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
     )
 
 
 def _library_commands_cli() -> LibraryCommandsCLI:
-    return LibraryCommandsCLI(
-        analyse_comparison=analyse_comparison,
-        client=client,
-        compare_your_library_and_all_albums=compare_your_library_and_all_albums,
-        convert_your_library_file=convert_your_library_file,
-        count_artists_in_library=count_artists_in_library,
-        restore_your_library_from_file=restore_your_library_from_file,
-        run_monthly_routines=run_monthly_routines,
-        update_total_album_list=update_total_album_list,
-    )
+    return LibraryCommandsCLI(runtime=CommandResources())
 
 
 def _state_cli() -> StateCLI:
-    return StateCLI(create_console=Console, get_state_service=get_state_service)
+    return StateCLI(runtime=CommandResources(), create_console=Console)
 
 
 def _library_upload_cli() -> LibraryUploadCLI:
-    return LibraryUploadCLI(
-        create_console=Console, create_table=Table, format_file_size=format_file_size
-    )
+    return LibraryUploadCLI(create_console=Console, create_table=Table)
 
 
 def _found_art_cli() -> FoundArtCLI:
     return FoundArtCLI(
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        configuration=Settings,
-        create_table=Table,
-        create_text=Text,
-        client=client,
-        print_found_art_table=print_found_art_table,
+        runtime=CommandResources(),
+        display=ConsoleDisplay(
+            create_console=Console, create_table=Table, create_text=Text
+        ),
     )
 
 
 def _sauvignon_cli() -> SauvignonCLI:
     return SauvignonCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        create_progress=Progress,
-        prompt=Prompt,
-        configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_sauvignon_album=ask_sauvignon_album,
-        print_sauvignon_table=print_sauvignon_table,
-        review_client=review_client,
-        sleep=sleep,
+        runtime=CommandResources(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _queue_cli() -> QueueCLI:
     return QueueCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
-        configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_queue_artist=ask_queue_artist,
-        configured_queue_playlists=configured_queue_playlists,
-        print_queue_fill_table=print_queue_fill_table,
-        print_queue_flush_table=print_queue_flush_table,
-        review_client=review_client,
-        sleep=sleep,
+        runtime=CommandResources(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _historical_cli() -> HistoricalCLI:
     return HistoricalCLI(
-        create_console=Console,
-        configuration=Settings,
-        create_table=Table,
-        client=client,
-        print_scrobble_selection_table=print_scrobble_selection_table,
-        review_client=review_client,
-        sleep=sleep,
-        create_text=Text,
+        runtime=CommandResources(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, create_table=Table, create_text=Text
+        ),
     )
 
 
 def _something_old_cli() -> SomethingOldCLI:
     return SomethingOldCLI(
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        prompt=Prompt,
-        configuration=Settings,
-        create_table=Table,
-        _scrobble_date=_scrobble_date,
-        ask_something_old_album=ask_something_old_album,
-        ask_something_old_artist=ask_something_old_artist,
-        ask_something_old_mode=ask_something_old_mode,
-        client=client,
-        print_scrobble_history_summary=print_scrobble_history_summary,
-        print_something_old_summary=print_something_old_summary,
+        runtime=CommandResources(),
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
     )
 
 
 def _releases_cli() -> ReleasesCLI:
     return ReleasesCLI(
-        bar_column=BarColumn,
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        prompt=Prompt,
-        configuration=Settings,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        ask_release_check_artist=ask_release_check_artist,
-        ask_release_check_release=ask_release_check_release,
-        client=client,
-        print_release_check_summary=print_release_check_summary,
-        print_scrobble_history_summary=print_scrobble_history_summary,
+        runtime=CommandResources(),
+        display=ConsoleDisplay(
+            create_console=Console, prompt=Prompt, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _new_year_cli() -> NewYearCLI:
-    return NewYearCLI(
-        create_console=Console,
-        create_lastfm=LastFmClient,
-        configuration=Settings,
-        client=client,
-    )
+    return NewYearCLI(runtime=CommandResources(), create_console=Console)
 
 
 def _requeue_cli() -> RequeueCLI:
     return RequeueCLI(
+        runtime=CommandResources(),
         create_console=Console,
-        configuration=Settings,
         create_table=Table,
-        review_client=review_client,
-        sleep=sleep,
+        sleep=time,
     )
 
 
 def _palace_cli() -> PalaceCLI:
     return PalaceCLI(
-        create_console=Console,
-        configuration=Settings,
-        create_table=Table,
-        create_text=Text,
-        review_client=review_client,
-        sleep=sleep,
+        runtime=CommandResources(),
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, create_table=Table, create_text=Text
+        ),
     )
 
 
 def _genre_cli() -> GenreCLI:
     return GenreCLI(
-        create_console=Console,
-        configuration=Settings,
-        create_table=Table,
-        client=client,
+        runtime=CommandResources(), create_console=Console, create_table=Table
     )
 
 
 def _analysis_cli() -> AnalysisCLI:
     return AnalysisCLI(
-        bar_column=BarColumn,
-        create_console=Console,
+        runtime=CommandResources(),
         create_live=Live,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        spinner_column=SpinnerColumn,
-        create_table=Table,
-        create_text=Text,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        monotonic=monotonic,
-        print_library_analysis_summary=print_library_analysis_summary,
-        review_client=review_client,
-        run_library_analysis=run_library_analysis,
-        sleep=sleep,
-        wait_for_library_retry=wait_for_library_retry,
+        monotonic=time,
+        sleep=time,
+        display=ConsoleDisplay(
+            create_console=Console, create_table=Table, create_text=Text
+        ),
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
 def _lookups_cli() -> LookupsCLI:
-    return LookupsCLI(
-        client=client,
-        evaluate_album_live=evaluate_album_live,
-        get_live_artist_library_stats=get_live_artist_library_stats,
-    )
+    return LookupsCLI(runtime=CommandResources())
 
 
 def _recovery_cli() -> RecoveryCLI:
     return RecoveryCLI(
-        bar_column=BarColumn,
+        runtime=CommandResources(),
         create_console=Console,
-        complete_column=MofNCompleteColumn,
-        create_progress=Progress,
-        spinner_column=SpinnerColumn,
-        text_column=TextColumn,
-        time_column=TimeElapsedColumn,
-        review_client=review_client,
+        progress_display=ProgressDisplay(
+            bar_column=BarColumn,
+            complete_column=MofNCompleteColumn,
+            create_progress=Progress,
+            spinner_column=SpinnerColumn,
+            text_column=TextColumn,
+            time_column=TimeElapsedColumn,
+        ),
     )
 
 
@@ -562,11 +547,15 @@ def selected_artifacts(values: Iterable[str]) -> tuple[ArtifactName, ...]:
 
 
 def client() -> Spotify:
-    """Build the Spotify client lazily, so files-only commands never touch it."""
+    """Build the Spotify client lazily, so files-only commands never touch it.
+
+    Returns:
+        Invocation-owned Spotify client.
+    """
     global _client
     if _client is None:
         try:
-            _client = get_spotipy_client(event_callback=typer.echo)
+            _client = get_spotipy_client(event_callback=TYPER_OUTPUT)
         except (SpotifyRedirectURIError, SpotifyClientConfigurationError) as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
@@ -574,7 +563,11 @@ def client() -> Spotify:
 
 
 def review_client() -> Spotify:
-    """Build a no-retry client for interactive review operations."""
+    """Build a no-retry client for interactive review operations.
+
+    Returns:
+        Invocation-owned Spotify client.
+    """
     global _review_client
     if _review_client is None:
         try:
@@ -582,7 +575,7 @@ def review_client() -> Spotify:
                 retries=0,
                 status_retries=0,
                 status_forcelist=DISABLED_SPOTIFY_STATUS_FORCELIST,
-                event_callback=typer.echo,
+                event_callback=TYPER_OUTPUT,
             )
         except (SpotifyRedirectURIError, SpotifyClientConfigurationError) as exc:
             typer.echo(str(exc), err=True)
@@ -958,10 +951,18 @@ def ask_something_old_artist(
     candidates: tuple[something_old.SpotifyArtistCandidate, ...],
     status: Status,
 ) -> str:
-    """Prompt when Spotify has several exact-name artist matches."""
-    return _something_old_cli()._prompt_something_old_artist(
-        console, artist_name, candidates, status
-    )
+    """Prompt when Spotify has several exact-name artist matches.
+
+    Args:
+        console: Original command-owned terminal console.
+        artist_name: Original history artist display name.
+        candidates: Original eligible Spotify artist mappings.
+        status: Original active terminal status display.
+
+    Returns:
+        Selected artist control or identity.
+    """
+    return _something_old_cli().ask_artist(console, artist_name, candidates, status)
 
 
 def ask_release_check_artist(
@@ -1064,7 +1065,10 @@ def new_year_command(
     return _new_year_cli()._run_new_year(year, dry_run)
 
 
-@app.command(name="update-scrobble-history")
+@app.command(
+    name="update-scrobble-history",
+    help="Update the canonical Last.fm export used by every history routine.",
+)
 def update_scrobble_history_command(
     full_rebuild: bool = typer.Option(
         False,
@@ -1077,14 +1081,15 @@ def update_scrobble_history_command(
         help="Fetch and report new scrobbles without changing local files.",
     ),
 ) -> None:
-    """Update the canonical Last.fm export used by every history routine."""
+    """Update the canonical Last.fm export used by every history routine.
+
+    Args:
+        full_rebuild: Whether to discard prior incremental progress.
+        dry_run: Whether to preview without durable writes.
+    """
     HistoryCommand(
         console=Console(),
         configuration=Settings(),
-        validate=found_art.validate_lastfm_configuration,
-        create_client=LastFmClient,
-        refresh=scrobble_history.refresh_scrobble_history,
-        present=print_scrobble_history_summary,
     ).run(full_rebuild, dry_run)
 
 
@@ -1579,7 +1584,7 @@ def review_artists_command(
 
 def _spotify_auth_cli() -> SpotifyAuthCLI:
     return SpotifyAuthCLI(
-        review_client=review_client, rotating_client_type=RotatingSpotify
+        runtime=CommandResources(), rotating_client_type=RotatingSpotify
     )
 
 

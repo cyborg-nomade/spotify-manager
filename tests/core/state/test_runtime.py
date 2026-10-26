@@ -6,6 +6,7 @@ import pytest
 
 from spotify_manager.bootstrap.state import configured_state_store
 from spotify_manager.core.state import StateDocumentError
+from spotify_manager.core.state.definitions import ObjectDefinition
 from spotify_manager.core.state.models import StateConfigurationError
 from spotify_manager.core.state.runtime import get_state_service
 from spotify_manager.core.state.runtime import reset_state_service
@@ -29,7 +30,7 @@ def test_local_runtime_service_uses_one_configured_file(
     monkeypatch.setenv("SPOTIFY_MANAGER_STATE_BACKEND", "local")
     monkeypatch.setenv("SPOTIFY_MANAGER_STATE_LOCAL_PATH", str(path))
     state = get_state_service()
-    namespace = state.namespace("queue", _empty_state)
+    namespace = state.namespace("queue", ObjectDefinition())
     namespace.load()
     namespace.save({"count": 3})
     assert path.exists()

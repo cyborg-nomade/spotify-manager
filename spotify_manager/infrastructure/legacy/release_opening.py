@@ -2,21 +2,14 @@
 
 from dataclasses import dataclass
 from dataclasses import field
-from datetime import datetime
-from functools import partial
 from pathlib import Path
 
-from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.release_opening import ReleaseState
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.release_check_values import RankedArtist
 from spotify_manager.routines import release_check as legacy
-
-
-def _history_progress(callback: legacy.ProgressCallback, message: str) -> None:
-    callback(0, 0, message)
 
 
 @dataclass
@@ -34,6 +27,7 @@ class LegacyReleaseOpening:
         backup_dir: Original history backup location.
         history_log_path: Original history audit location.
         progress: Original progress observer.
+        state_access: Namespace access acquired after the effective clock observations.
     """
 
     lastfm: legacy.LastFmReader
@@ -54,32 +48,10 @@ class LegacyReleaseOpening:
         Returns:
             Original normalized payload, including unknown fields.
         """
-        self.state_access = legacy._state_access(self.state_path, self.state_service)
+        from spotify_manager.routines.release_check import _state_access
+
+        self.state_access = _state_access(self.state_path, self.state_service)
         return self.state_access.load()
-
-    def refresh(self, stamp: datetime) -> ScrobbleHistorySummary:
-        """Refresh actual history and forward optional progress.
-
-        Args:
-            stamp: Original effective UTC timestamp.
-
-        Returns:
-            Original accepted canonical history outcome.
-        """
-        progress = (
-            None if self.progress is None else partial(_history_progress, self.progress)
-        )
-        return legacy.scrobble_history.refresh_scrobble_history(
-            self.lastfm,
-            expected_username=self.expected_username,
-            export_path=self.export_path,
-            legacy_delta_path=self.legacy_delta_path,
-            backup_dir=self.backup_dir,
-            log_path=self.history_log_path,
-            dry_run=False,
-            now=stamp,
-            progress_callback=progress,
-        )
 
     def rank(self, history: tuple[Scrobble, ...]) -> tuple[RankedArtist, ...]:
         """Retain the original ranking compatibility seam.
@@ -90,7 +62,9 @@ class LegacyReleaseOpening:
         Returns:
             Original ranked eligible artists.
         """
-        return legacy.rank_lastfm_artists(history)
+        from spotify_manager.routines.release_check import rank_lastfm_artists
+
+        return rank_lastfm_artists(history)
 
     def restore(self, active: ReleaseState) -> tuple[RankedArtist, ...]:
         """Retain original frozen-ranking decoding before window validation.
@@ -101,7 +75,9 @@ class LegacyReleaseOpening:
         Returns:
             Original frozen ranked artists.
         """
-        return legacy._active_artists(active)
+        from spotify_manager.routines.release_check import _active_artists
+
+        return _active_artists(active)
 
     def persist(self, state: ReleaseState) -> None:
         """Accept the original complete checkpoint and original freshness timestamp.
@@ -109,7 +85,9 @@ class LegacyReleaseOpening:
         Args:
             state: Original mutable new-run state.
         """
-        legacy._persist_state(self.state_access, state)
+        from spotify_manager.routines.release_check import _persist_state
+
+        _persist_state(self.state_access, state)
 
     def audit(self, run_id: str, event: str, **details: object) -> None:
         """Accept original release event bytes after their checkpoint.
@@ -119,4 +97,6 @@ class LegacyReleaseOpening:
             event: Original event name.
             details: Original event fields in insertion order.
         """
-        legacy.append_event(self.log_path, run_id, event, **details)
+        from spotify_manager.routines.release_check import append_event
+
+        append_event(self.log_path, run_id, event, **details)

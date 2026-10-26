@@ -7,14 +7,12 @@ from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
 
-from spotify_manager.application.release_evaluation import evaluate_release
 from spotify_manager.domain.catalog import DiscographyRelease
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
 from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.discovery import RankedRelease
 from spotify_manager.models.lookups import AlbumEvaluation
-from tests.support.listening_values import playlist_track
 
 
 @dataclass
@@ -161,7 +159,7 @@ class CoordinationMemory(ExecutionMemory):
         self.clock_reads += 1
         return value
 
-    def catalog(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
+    def discography(self, artist_id: str) -> tuple[DiscographyRelease, ...]:
         """Observe the original logical-artist catalog request.
 
         Args:
@@ -173,7 +171,7 @@ class CoordinationMemory(ExecutionMemory):
         self._record("catalog", artist_id)
         return self.catalogs.get(artist_id, ())
 
-    def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
+    def read(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Observe a works-playlist request.
 
         Args:
@@ -197,9 +195,9 @@ class CoordinationMemory(ExecutionMemory):
         self._record("tracks", release.spotify_id)
         return self.tracks.get(release.spotify_id, ())
 
-    def evaluate(
+    def memberships(
         self, release: DiscographyRelease, tracks: tuple[ReleaseTrack, ...]
-    ) -> AlbumEvaluation:
+    ) -> dict[str, bool]:
         """Observe the original live evaluation boundary.
 
         Args:
@@ -210,7 +208,7 @@ class CoordinationMemory(ExecutionMemory):
             An original-format all-unliked album evaluation.
         """
         self._record("evaluate", release.spotify_id)
-        return evaluate_release(playlist_track("unused", release).release, tracks, {})
+        return {}
 
     def choose(
         self,
@@ -283,3 +281,21 @@ class CoordinationMemory(ExecutionMemory):
             artist: Logical artist name.
         """
         self._record("stale", artist)
+
+    def choose_transition(
+        self,
+        source: PlaylistTrack,
+        current: DiscographyRelease,
+        following: DiscographyRelease,
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            current: Original fixture observation.
+            following: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(source, current, following)

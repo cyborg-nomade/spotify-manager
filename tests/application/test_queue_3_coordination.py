@@ -6,10 +6,10 @@ from typing import cast
 
 import pytest
 
+from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.queue_3_execution import Queue3Execution
 from spotify_manager.application.queue_3_execution import Queue3LiveQueue
 from spotify_manager.application.queue_3_planner import Queue3Planner
-from spotify_manager.application.queue_3_planner import stable_release_order
 from spotify_manager.application.queue_3_review import Queue3Observations
 from spotify_manager.application.queue_3_review import Queue3Review
 from spotify_manager.application.queue_3_run import Queue3Run
@@ -78,17 +78,18 @@ def _review(
     preview: bool = False,
     owned: tuple[OwnedPlaylist, ...] = (),
 ) -> Queue3Review:
-    session = Queue3Run(state, memory, memory.now, preview)
+    session = Queue3Run(state, memory, memory, preview)
     queue = _queue()
     snapshot = session.start(queue)
-    ordering = ReleaseOrdering(stable_release_order, snapshot.orders, session.save)
-    planner = Queue3Planner(
-        memory.release_tracks, memory.evaluate, {}, ordering, memory.choose
-    )
+    ordering = ReleaseOrdering(None, snapshot.orders, session)
+    planner = Queue3Planner(memory, {}, ordering, memory)
     execution = Queue3Execution(
-        memory.append, memory.remove, memory.reconcile, memory, preview
+        memory,
+        cast(DiscoveryLibraryReconciliation, memory),
+        memory,
+        preview,
     )
-    observations = Queue3Observations(memory.catalog, memory.playlist)
+    observations = Queue3Observations(memory, memory)
     return Queue3Review(
         session,
         snapshot,
@@ -97,8 +98,8 @@ def _review(
         execution,
         observations,
         owned,
-        memory.choose_composer,
-        memory.audit,
+        memory,
+        memory,
         memory,
     )
 
@@ -128,7 +129,7 @@ def test_nonmatching_run_is_replaced_before_validation(active: object) -> None:
     memory = CoordinationMemory()
     state = _state([])
     state["active_run"] = active
-    session = Queue3Run(state, memory, memory.now, False)
+    session = Queue3Run(state, memory, memory, False)
     snapshot = session.start(_queue())
     assert snapshot.resumed is False and state["active_run"] is snapshot.record
     assert len(snapshot.entries) == 1 and len(memory.checkpoints) == 1
@@ -140,7 +141,7 @@ def test_preview_ignores_saved_run_without_overwriting_working_active_record() -
     memory = CoordinationMemory()
     state = _state([])
     original = state["active_run"]
-    snapshot = Queue3Run(state, memory, memory.now, True).start(_queue())
+    snapshot = Queue3Run(state, memory, memory, True).start(_queue())
     assert snapshot.resumed is False and len(snapshot.entries) == 1
     assert state["active_run"] is original and memory.checkpoints == []
 
@@ -159,7 +160,7 @@ def test_resumed_container_validation_precedes_all_effects(field: str) -> None:
     )
     target[field] = False
     with pytest.raises(Queue3StateError):
-        Queue3Run(state, memory, memory.now, False).start(_queue())
+        Queue3Run(state, memory, memory, False).start(_queue())
     assert memory.events == []
 
 
@@ -169,7 +170,7 @@ def test_new_snapshot_is_saved_before_release_order_validation() -> None:
     state = _state([])
     state.update(active_run=None, release_orders=False)
     with pytest.raises(Queue3StateError, match="release-order"):
-        Queue3Run(state, memory, memory.now, False).start(_queue())
+        Queue3Run(state, memory, memory, False).start(_queue())
     assert len(memory.checkpoints) == 1
 
 
@@ -331,7 +332,7 @@ def test_empty_composer_playlist_skips_and_acknowledges_without_catalog_fallback
 def test_observation_cache_retains_empty_catalogs_and_works_playlists() -> None:
     """Repeated entries do not refetch empty observations within one review."""
     memory = CoordinationMemory()
-    observations = Queue3Observations(memory.catalog, memory.playlist)
+    observations = Queue3Observations(memory, memory)
     for _attempt in range(2):
         assert observations.catalog("artist") == ()
         assert observations.playlist("works") == ()
@@ -378,7 +379,7 @@ def test_finish_suppresses_unacknowledged_paused_or_preview_completion(
         entries: Original run's remaining entry records.
     """
     memory = CoordinationMemory()
-    session = Queue3Run(_state(entries), memory, memory.now, False)
+    session = Queue3Run(_state(entries), memory, memory, False)
     snapshot = session.start(_queue())
     replace(session, dry_run=preview).finish(snapshot, paused)
     assert memory.events == [] and snapshot.record["status"] == "active"
@@ -394,7 +395,7 @@ def test_composer_acknowledgment_only_updates_existing_route_records(
         route: Existing logical artist route value.
     """
     memory = CoordinationMemory()
-    session = Queue3Run(_state([]), memory, memory.now, False)
+    session = Queue3Run(_state([]), memory, memory, False)
     entry = _entry()
     routes = {"artist": route}
     session.acknowledge(entry, "composer_advance", TARGET, "artist", routes)
@@ -405,7 +406,7 @@ def test_composer_acknowledgment_only_updates_existing_route_records(
 def test_preview_acknowledgment_leaves_entry_and_route_unchanged() -> None:
     """Preview effects do not acknowledge durable entries or routes."""
     memory = CoordinationMemory()
-    session = Queue3Run(_state([]), memory, memory.now, True)
+    session = Queue3Run(_state([]), memory, memory, True)
     entry = _entry()
     routes: dict[str, object] = {"artist": {}}
     session.acknowledge(entry, "composer_advance", TARGET, "artist", routes)
@@ -417,7 +418,7 @@ def test_preview_acknowledgment_leaves_entry_and_route_unchanged() -> None:
 def test_summary_counts_only_new_results_and_preserves_annual_decisions() -> None:
     """Resume metadata and action counts stay distinct from total entries."""
     memory = CoordinationMemory()
-    session = Queue3Run(_state([{}, {}, {}, {}, {}, {}]), memory, memory.now, False)
+    session = Queue3Run(_state([{}, {}, {}, {}, {}, {}]), memory, memory, False)
     snapshot = session.start(_queue())
     base = FlushResult("Artist", "source", "Album", "advance")
     results = (

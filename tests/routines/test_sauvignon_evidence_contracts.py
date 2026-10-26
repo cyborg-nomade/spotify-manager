@@ -156,6 +156,14 @@ class EvidenceSteps:
         """
         self._step(message)
 
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
 
 def gather_evidence(
     case: EvidenceCase, steps: EvidenceSteps
@@ -177,7 +185,7 @@ def gather_evidence(
         maximum_candidates=case.maximum,
         week_start=WEEK,
         retry_call=immediate,
-        progress_callback=steps.progress,
+        progress_callback=steps,
     )
 
 

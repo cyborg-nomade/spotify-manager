@@ -5,6 +5,7 @@ from dataclasses import field
 
 import pytest
 
+from spotify_manager.application.album_review import AlbumReviewRequest
 from spotify_manager.application.album_review import review_album
 from spotify_manager.application.music import Album
 from spotify_manager.application.music import Track
@@ -108,7 +109,11 @@ def test_assessment_with_memory_ports(
     tracks = tuple(Track(str(i), str(i), f"spotify:track:{i}") for i in range(total))
     statuses = {str(i): i < liked for i in range(total)}
     memory = MemoryAlbums(tracks, statuses)
-    result = review_album(memory, memory, album_id="a", name="Album", artist="Artist")
+    result = review_album(
+        memory,
+        memory,
+        request=AlbumReviewRequest(album_id="a", name="Album", artist="Artist"),
+    )
     assert result.album == Album("a", "Album", "Artist")
     assert result.tracks is tracks
     assert sum(result.liked) == liked
@@ -129,7 +134,7 @@ def test_duplicate_and_missing_identifiers_keep_positions() -> None:
         Track("x", "Last", "x"),
     )
     memory = MemoryAlbums(tracks, {"x": True})
-    result = review_album(memory, memory, album_id="a")
+    result = review_album(memory, memory, request=AlbumReviewRequest(album_id="a"))
     assert result.liked == (True, False, True)
     assert memory.events[-1] == ("liked", ("x", "x"))
 
@@ -146,7 +151,7 @@ def test_failures_stop_subsequent_reads(failure: str, calls: int) -> None:
     """
     memory = MemoryAlbums((), {}, failure)
     with pytest.raises(RuntimeError, match=failure):
-        review_album(memory, memory, name="Album")
+        review_album(memory, memory, request=AlbumReviewRequest(name="Album"))
     assert len(memory.events) == calls
 
 
@@ -163,7 +168,9 @@ def test_threshold_is_passed_to_policy_unchanged(
         required: Expected minimum liked count.
     """
     memory = MemoryAlbums((Track("x", "Track", "x"),), {"x": True})
-    result = review_album(memory, memory, name="Album", threshold=threshold)
+    result = review_album(
+        memory, memory, request=AlbumReviewRequest(name="Album", threshold=threshold)
+    )
     assert result.threshold == threshold
     assert result.assessment.required_liked_tracks == required
 
@@ -172,6 +179,6 @@ def test_boundary_membership_keys_preserve_falsey_identifier_lookup() -> None:
     """Preserve a parsed legacy lookup key without querying its missing identifier."""
     track = Track(None, "Malformed identifier", "x", membership_key="0")
     memory = MemoryAlbums((track,), {"0": True})
-    result = review_album(memory, memory, name="Album")
+    result = review_album(memory, memory, request=AlbumReviewRequest(name="Album"))
     assert result.liked == (True,)
     assert memory.events[-1] == ("liked", ())

@@ -1,48 +1,41 @@
 """Explicit callbacks and wire presentation for ScrobbleHistoryWorker."""
 
-import logging
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
-from threading import Lock
 
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
-from spotify_manager.routines import scrobble_history
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.operations import scrobble_history as scrobble_history
 
 
 @dataclass(kw_only=True)
 class ScrobbleHistoryWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job and present its accepted outcome.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        api_key: Explicit api key input or adapter boundary.
-        username: Explicit username input or adapter boundary.
-        dry_run: Explicit dry run input or adapter boundary.
-        full_rebuild: Explicit full rebuild input or adapter boundary.
-        create_lastfm: Explicit create lastfm input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        context: Invocation-owned context.
+        job_id: Invocation-owned job id.
+        api_key: Invocation-owned api key.
+        username: Invocation-owned username.
+        dry_run: Invocation-owned dry run.
+        full_rebuild: Invocation-owned full rebuild.
+        create_lastfm: Invocation-owned create lastfm.
+
+    Attributes:
+        job: Resolved reconnectable job state.
     """
 
+    context: PlaylistContext
     job_id: str
     api_key: str
     username: str
     dry_run: bool
     full_rebuild: bool
-    create_lastfm: Callable[..., LastFmClient]
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     lastfm: LastFmClient = field(init=False)
 
@@ -68,25 +61,25 @@ class ScrobbleHistoryWorker:
         Args:
             message: Original routine-supplied message.
         """
-        scrobble_history.check_cancel(self.job.cancel_event.is_set)
-        with self.lock:
+        scrobble_history.check_cancel(self.job.cancel_event)
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="update_scrobble_history")
-        with self.lock:
+        self.job = self.context.lookup(self.job_id, command="update_scrobble_history")
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Last.fm scrobble history update started"
-            self.append(
+            self.context.append(
                 self.job,
                 "Last.fm scrobble history update started in dry-run mode."
                 if self.dry_run
                 else "Last.fm scrobble history update started.",
             )
-        self.lastfm = self.create_lastfm(
-            self.api_key, self.username, event_callback=self.echo
+        self.lastfm = lastfm_client(
+            LastFmCredentials(self.api_key, self.username), self
         )
 
     def _execute(self) -> scrobble_history.ScrobbleHistorySummary:
@@ -95,13 +88,13 @@ class ScrobbleHistoryWorker:
             expected_username=self.username,
             dry_run=self.dry_run,
             full_rebuild=self.full_rebuild,
-            progress_callback=self.echo,
-            cancel_check=self.job.cancel_event.is_set,
+            progress_callback=self,
+            cancel_check=self.job.cancel_event,
         )
         return summary
 
     def _completed(self, summary: scrobble_history.ScrobbleHistorySummary) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "completed"
             self.job.result.history_export_scrobbles = summary.export_scrobbles
             self.job.result.history_legacy_scrobbles_added = (
@@ -121,27 +114,27 @@ class ScrobbleHistoryWorker:
                 self.job.result.detail = "Last.fm scrobble history updated safely."
             else:
                 self.job.result.detail = "Last.fm scrobble history was already current."
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        with self.lock:
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+        with self.context.lock:
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self, exc: scrobble_history.ScrobbleHistoryCancelledError) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "cancelled"
             self.job.result.detail = str(exc)
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _failed(self, exc: scrobble_history.ScrobbleHistoryError | LastFmError) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = str(exc)
-            self.append(self.job, f"Scrobble history update failed: {exc}")
+            self.context.append(self.job, f"Scrobble history update failed: {exc}")
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected scrobble history update error")
-        with self.lock:
+        self.context.logger.exception("Unexpected scrobble history update error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = f"Unexpected scrobble history update error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)

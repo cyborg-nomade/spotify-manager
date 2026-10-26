@@ -1,8 +1,6 @@
 """Fill the Something Old slot from Last.fm Golden Oldies statistics."""
 
-from collections.abc import Callable
-from datetime import datetime
-from functools import partial
+from datetime import datetime as datetime
 from pathlib import Path
 from typing import Protocol
 from typing import cast
@@ -10,6 +8,14 @@ from typing import cast
 from spotipy import Spotify
 
 from spotify_manager.application import golden_selection as selections
+from spotify_manager.application.golden_selection import (
+    AlbumChoice as AlbumChoiceReader,
+)
+from spotify_manager.application.golden_selection import (
+    ArtistChoice as ArtistSearchChoiceReader,
+)
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.something_old_values import (
     SomethingOldConfigError as SomethingOldConfigError,
 )
@@ -36,9 +42,19 @@ from spotify_manager.domain.golden_selection import (
     SpotifyArtistCandidate as SpotifyArtistCandidate,
 )
 from spotify_manager.infrastructure import golden_records
+from spotify_manager.infrastructure.golden_catalog import GoldenCatalog
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
+
+
+type ProgressCallback = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -46,27 +62,49 @@ DEFAULT_LOG_PATH = FILES_DIR / "something_old_log.jsonl"
 MIN_ARTIST_SCROBBLES = 50
 TOP_TRACK_LIMIT = 10
 ARTIST_SEARCH_LIMIT = 10
-ProgressCallback = Callable[[str], None]
-RetryCall = slow_listening.RetryCall
 
 
 class LastFmReader(scrobble_history.LastFmReader, Protocol):
     """Last.fm methods used by the shared history refresh."""
 
 
-ArtistSearchChoiceReader = Callable[
-    [str, tuple[SpotifyArtistCandidate, ...]],
-    str,
-]
-ArtistChoiceReader = Callable[
-    [GoldenOldieArtist, tuple[SpotifyArtistCandidate, ...]],
-    str,
-]
-ModeReader = Callable[[GoldenOldieArtist, SpotifyArtistCandidate], str]
-AlbumChoiceReader = Callable[
-    [GoldenOldieArtist, tuple[slow_listening.DiscographyRelease, ...]],
-    str,
-]
+class ArtistChoiceReader(Protocol):
+    """Own the operator interaction for choose artist."""
+
+    def choose_artist(
+        self,
+        artist: GoldenOldieArtist,
+        candidates: tuple[SpotifyArtistCandidate, ...],
+        /,
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            candidates: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
+
+
+class ModeReader(Protocol):
+    """Own the operator interaction for choose mode."""
+
+    def choose_mode(
+        self, artist: GoldenOldieArtist, target: SpotifyArtistCandidate, /
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            target: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 def parse_playlist_id(reference: str | None) -> str:
@@ -134,16 +172,14 @@ def resolve_spotify_artist(
     Raises:
         SomethingOldSpotifyError: Original search or ambiguity choice is unusable.
     """
-    response = retry_call(
-        partial(
-            sp.search,
-            q=f'artist:"{artist_name.replace(chr(34), " ")}"',
-            type="artist",
-            limit=ARTIST_SEARCH_LIMIT,
-            offset=0,
-        ),
-        f"searching Spotify for {artist_name}",
-    )
+    for attempt in retry_call.attempts(f"searching Spotify for {artist_name}"):
+        with attempt:
+            response = sp.search(
+                q=f'''artist:"{artist_name.replace(chr(34), " ")}"''',
+                type="artist",
+                limit=ARTIST_SEARCH_LIMIT,
+                offset=0,
+            )
     return selections.resolve_artist(
         artist_name,
         golden_records.artist_search(response, artist_name),
@@ -180,8 +216,7 @@ def select_lastfm_top_tracks(
     """
     return selections.select_lastfm(
         artist,
-        partial(_read_lastfm_matches, sp, artist, retry_call),
-        partial(_read_lastfm_liked, sp, artist, retry_call),
+        GoldenCatalog(sp, retry_call),
         blast_from_past.ALBUM_MATCH_THRESHOLD,
     )
 
@@ -192,19 +227,17 @@ def _read_lastfm_matches(
     retry_call: RetryCall,
     track: LastFmTrackStat,
 ) -> tuple[blast_from_past.SpotifyTrackMatch, ...]:
-    matches = retry_call(
-        partial(
-            blast_from_past.search_spotify_matches,
-            sp,
-            blast_from_past.Scrobble(
-                track=track.track,
-                artist=artist.artist,
-                album="",
-                timestamp_ms=track.last_scrobbled_ms,
-            ),
-        ),
-        f"matching {artist.artist} - {track.track}",
-    )
+    for attempt in retry_call.attempts(f"matching {artist.artist} - {track.track}"):
+        with attempt:
+            matches = blast_from_past.search_spotify_matches(
+                sp,
+                blast_from_past.Scrobble(
+                    track=track.track,
+                    artist=artist.artist,
+                    album="",
+                    timestamp_ms=track.last_scrobbled_ms,
+                ),
+            )
     if not isinstance(matches, tuple):
         raise SomethingOldSpotifyError(
             f"Spotify returned invalid matches for {artist.artist} - {track.track}."
@@ -218,10 +251,11 @@ def _read_lastfm_liked(
     retry_call: RetryCall,
     groups: list[tuple[blast_from_past.SpotifyTrackMatch, ...]],
 ) -> set[str]:
-    raw = retry_call(
-        partial(blast_from_past.liked_spotify_track_ids, sp, groups),
-        f"checking liked Spotify tracks for {artist.artist}",
-    )
+    for attempt in retry_call.attempts(
+        f"checking liked Spotify tracks for {artist.artist}"
+    ):
+        with attempt:
+            raw = blast_from_past.liked_spotify_track_ids(sp, groups)
     if not isinstance(raw, set):
         raise SomethingOldSpotifyError(
             f"Spotify returned invalid liked-track data for {artist.artist}."
@@ -257,10 +291,9 @@ def select_spotify_top_tracks(
     Raises:
         SomethingOldSpotifyError: Original top-track data is unusable.
     """
-    response = retry_call(
-        partial(sp.artist_top_tracks, artist.spotify_id),
-        f"loading Spotify top tracks for {artist.name}",
-    )
+    for attempt in retry_call.attempts(f"loading Spotify top tracks for {artist.name}"):
+        with attempt:
+            response = sp.artist_top_tracks(artist.spotify_id)
     return selections.select_popular(
         artist, golden_records.popular_tracks(response, artist), TOP_TRACK_LIMIT
     )
@@ -294,7 +327,7 @@ def select_album_tracks(
         spotify_artist,
         releases,
         album_choice_reader,
-        partial(_read_studio_tracks, sp, retry_call),
+        GoldenCatalog(sp, retry_call),
     )
 
 
@@ -320,11 +353,6 @@ def _read_studio_tracks(
         raise SomethingOldSpotifyError(str(exc)) from exc
 
 
-def _direct_retry(operation: Callable[[], object], _description: str) -> object:
-    """Call an operation directly when no routine-level retry is supplied."""
-    return operation()
-
-
 def _load_playlist_state(
     sp: Spotify,
     playlist_id: str,
@@ -332,10 +360,9 @@ def _load_playlist_state(
     description: str,
 ) -> blast_from_past.PlaylistState:
     """Load the destination through the routine's read-only retry policy."""
-    playlist = retry_call(
-        partial(blast_from_past.load_playlist_state, sp, playlist_id),
-        description,
-    )
+    for attempt in retry_call.attempts(description):
+        with attempt:
+            playlist = blast_from_past.load_playlist_state(sp, playlist_id)
     if not isinstance(playlist, blast_from_past.PlaylistState):
         raise SomethingOldSpotifyError(
             f"Spotify returned invalid playlist data for {playlist_id}."
@@ -365,81 +392,30 @@ def _append_log(summary: SomethingOldSummary, path: Path) -> None:
     append_log(summary, path)
 
 
-def _read_golden_artist_choice(
-    reader: ArtistChoiceReader | None,
-    artist: GoldenOldieArtist,
-    _artist_name: str,
-    candidates: tuple[SpotifyArtistCandidate, ...],
-) -> str:
-    if reader is None:
-        raise SomethingOldError("No Spotify artist choice reader is available.")
-    return reader(artist, candidates)
-
-
 def run_something_old(
     sp: Spotify,
     lastfm: LastFmReader,
-    playlist_id: str,
-    *,
-    expected_username: str | None,
-    mode_reader: ModeReader,
-    album_choice_reader: AlbumChoiceReader,
-    artist_choice_reader: ArtistChoiceReader | None = None,
-    dry_run: bool = False,
-    export_path: Path = scrobble_history.DEFAULT_SCROBBLES_PATH,
-    legacy_delta_path: Path | None = scrobble_history.DEFAULT_LEGACY_DELTA_PATH,
-    backup_dir: Path = scrobble_history.DEFAULT_BACKUP_DIR,
-    history_log_path: Path = scrobble_history.DEFAULT_LOG_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
-    now: datetime | None = None,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall = _direct_retry,
+    options: SomethingOldOptions,
+    callbacks: SomethingOldCallbacks,
+    resources: SomethingOldResources | None = None,
 ) -> SomethingOldSummary:
     """Refresh history and fill an empty Something Old playlist cautiously.
 
     Args:
-        sp: Caller-owned Spotify client.
-        lastfm: Caller-owned history reader.
-        playlist_id: Original destination identity.
-        expected_username: Original expected Last.fm account.
-        mode_reader: Original recipe interaction.
-        album_choice_reader: Original studio-release interaction.
-        artist_choice_reader: Optional original exact-artist ambiguity interaction.
-        dry_run: Original preview behavior, including history refresh semantics.
-        export_path: Original canonical history location.
-        legacy_delta_path: Original optional history delta location.
-        backup_dir: Original history backup directory.
-        history_log_path: Original history refresh audit location.
-        log_path: Original successful selection audit location.
-        now: Original optional effective timestamp.
-        progress_callback: Original optional stage presenter.
-        retry_call: Original read retry policy.
+    sp: Caller-owned client.
+    lastfm: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original complete selected, cancelled or nonempty outcome.
+    The original typed summary and accepted effects.
 
     Raises:
-        SomethingOldError: Original history, selection, authority or audit fails.
+    RuntimeError: Observations, selections or persistence cannot complete.
     """
-    from spotify_manager.bootstrap.something_old_run import (
-        run_something_old as run_workflow,
+    from spotify_manager.interfaces.operations.something_old import (
+        run_something_old as operation,
     )
 
-    return run_workflow(
-        sp,
-        lastfm,
-        playlist_id,
-        expected_username,
-        mode_reader,
-        album_choice_reader,
-        artist_choice_reader,
-        dry_run,
-        export_path,
-        legacy_delta_path,
-        backup_dir,
-        history_log_path,
-        log_path,
-        now,
-        progress_callback,
-        retry_call,
-    )
+    return operation(sp, lastfm, options, callbacks, resources)

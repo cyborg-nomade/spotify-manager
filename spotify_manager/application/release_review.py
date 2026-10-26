@@ -1,9 +1,10 @@
 """Review releases sequentially and retain accepted-write restart ordering."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from typing import Protocol
 
+from spotify_manager.application.future_release import FutureRecordMatching
 from spotify_manager.application.release_check_values import ReleaseCheckError
 from spotify_manager.application.release_destinations import ReleaseDestinations
 from spotify_manager.application.release_progress import ReleaseProgress
@@ -24,9 +25,31 @@ from spotify_manager.domain.release_check_values import ReleaseCheckResult
 from spotify_manager.domain.release_check_values import ReleaseTrack
 
 
-type ReleaseChoiceReader = Callable[
-    [RankedArtist, ReleaseCandidate, ReleaseTrack, tuple[str, ...], bool], str
-]
+class ReleaseChoiceReader(Protocol):
+    """Own the operator interaction for choose release."""
+
+    def choose_release(
+        self,
+        artist: RankedArtist,
+        release: ReleaseCandidate,
+        track: ReleaseTrack,
+        destinations: tuple[str, ...],
+        unattached: bool,
+        /,
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            release: Original interaction value.
+            track: Original interaction value.
+            destinations: Original interaction value.
+            unattached: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 @dataclass(frozen=True)
@@ -73,11 +96,13 @@ class ReleaseReview:
         progress: Original state authority and accepted checkpoints/audits.
         destinations: Original mutable memberships and destination identities.
         reader: Optional original release-choice callback.
+        matching: Named containing-record matching stage.
     """
 
     progress: ReleaseProgress
     destinations: ReleaseDestinations
     reader: ReleaseChoiceReader | None
+    matching: FutureRecordMatching
 
     def check_artist(
         self, artist: RankedArtist, mapped: SpotifyArtistCandidate
@@ -178,10 +203,10 @@ class ReleaseReview:
             return ReleaseAssessment(None, reason="release has no playable first track")
         if artist.accepts_all_singles:
             return ReleaseAssessment(track)
-        linked = self.progress.effects.match(track, plan.future, plan.tracks)
+        linked = self.matching.run(track, plan.future, plan.tracks)
         if linked is not None:
             return ReleaseAssessment(track, linked)
-        current = self.progress.effects.match(track, plan.current, plan.tracks)
+        current = self.matching.run(track, plan.current, plan.tracks)
         if current is not None:
             return ReleaseAssessment(
                 track, reason="containing album or EP has already been released"
@@ -256,7 +281,7 @@ class ReleaseReview:
         if not self.progress.preview:
             self.progress.save()
         assert assessment.track is not None
-        return self.reader(
+        return self.reader.choose_release(
             artist, release, assessment.track, destinations, assessment.unattached
         )
 

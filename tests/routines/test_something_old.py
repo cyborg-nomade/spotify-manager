@@ -1,15 +1,26 @@
 import json
 from datetime import UTC
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
+from spotify_manager.application.history_refresh import HistoryRefresh
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.interfaces.requests.something_old import SomethingOldCallbacks
+from spotify_manager.interfaces.requests.something_old import SomethingOldOptions
+from spotify_manager.interfaces.requests.something_old import SomethingOldResources
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import slow_listening
 from spotify_manager.routines import something_old
+from tests.support.framework_stubs import empty_object
+from tests.support.history_dependencies import something_old_history
+from tests.support.runtime_resources import Answer
+from tests.support.runtime_resources import UnexpectedInteraction
 
 
 class FakeSpotify:
@@ -112,9 +123,7 @@ def patch_history_refresh(
         return history_summary(dry_run=bool(kwargs["dry_run"]))
 
     monkeypatch.setattr(
-        something_old.scrobble_history,
-        "refresh_scrobble_history",
-        refresh,
+        HistoryRefresh, "run", partialmethod(something_old_history, refresh)
     )
 
 
@@ -135,6 +144,11 @@ def test_golden_oldies_requires_fifty_and_sorts_by_average() -> None:
 def test_nonempty_playlist_stops_before_refresh_or_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Nonempty playlist stops before refresh or prompt.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     spotify = FakeSpotify(
         [
             {
@@ -147,18 +161,23 @@ def test_nonempty_playlist_stops_before_refresh_or_prompt(
         ]
     )
     monkeypatch.setattr(
-        something_old.scrobble_history,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: pytest.fail("history should not refresh"),
+        HistoryRefresh,
+        "run",
+        partialmethod(
+            something_old_history,
+            UnexpectedInteraction("history should not refresh"),
+        ),
     )
 
     summary = something_old.run_something_old(
         spotify,
         object(),
-        "playlist",
-        expected_username="man-et-arms",
-        mode_reader=lambda *_args: pytest.fail("should not prompt"),
-        album_choice_reader=lambda *_args: pytest.fail("should not prompt"),
+        SomethingOldOptions(playlist_id="playlist", expected_username="man-et-arms"),
+        SomethingOldCallbacks(
+            mode_reader=UnexpectedInteraction("should not prompt"),
+            album_choice_reader=UnexpectedInteraction("should not prompt"),
+        ),
+        SomethingOldResources(),
     )
 
     assert summary.action == "playlist not empty"
@@ -169,6 +188,11 @@ def test_nonempty_playlist_stops_before_refresh_or_prompt(
 def test_dry_run_uses_fresh_oldest_artist_without_mutating(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Dry run uses fresh oldest artist without mutating.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     spotify = FakeSpotify()
     received: dict[str, object] = {}
     patch_history_refresh(monkeypatch, received)
@@ -176,11 +200,14 @@ def test_dry_run_uses_fresh_oldest_artist_without_mutating(
     summary = something_old.run_something_old(
         spotify,
         object(),
-        "playlist",
-        expected_username="man-et-arms",
-        mode_reader=lambda *_args: "spotify_top_tracks",
-        album_choice_reader=lambda *_args: pytest.fail("album prompt is not needed"),
-        dry_run=True,
+        SomethingOldOptions(
+            playlist_id="playlist", expected_username="man-et-arms", dry_run=True
+        ),
+        SomethingOldCallbacks(
+            mode_reader=Answer("spotify_top_tracks"),
+            album_choice_reader=UnexpectedInteraction("album prompt is not needed"),
+        ),
+        SomethingOldResources(),
     )
 
     assert received["dry_run"] is True
@@ -196,6 +223,12 @@ def test_real_run_rechecks_empty_playlist_then_logs_exact_addition(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Real run rechecks empty playlist then logs exact addition.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = FakeSpotify()
     patch_history_refresh(monkeypatch)
     log_path = tmp_path / "something-old.jsonl"
@@ -203,11 +236,12 @@ def test_real_run_rechecks_empty_playlist_then_logs_exact_addition(
     summary = something_old.run_something_old(
         spotify,
         object(),
-        "playlist",
-        expected_username="man-et-arms",
-        mode_reader=lambda *_args: "spotify_top_tracks",
-        album_choice_reader=lambda *_args: pytest.fail("album prompt is not needed"),
-        log_path=log_path,
+        SomethingOldOptions(playlist_id="playlist", expected_username="man-et-arms"),
+        SomethingOldCallbacks(
+            mode_reader=Answer("spotify_top_tracks"),
+            album_choice_reader=UnexpectedInteraction("album prompt is not needed"),
+        ),
+        SomethingOldResources(log_path=log_path),
     )
 
     assert summary.action == "added"
@@ -230,25 +264,12 @@ def test_real_run_refuses_to_add_if_playlist_fills_during_selection(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    class PlaylistFillsSpotify(FakeSpotify):
-        def _get(self, path: str, **_kwargs: object) -> dict[str, object]:
-            assert path.startswith("playlists/")
-            self.playlist_calls += 1
-            items = (
-                []
-                if self.playlist_calls == 1
-                else [
-                    {
-                        "item": raw_spotify_track(
-                            "new-existing",
-                            "New Existing",
-                            "New Existing Album",
-                        )
-                    }
-                ]
-            )
-            return {"items": items, "total": len(items), "next": None}
+    """Real run refuses to add if playlist fills during selection.
 
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     spotify = PlaylistFillsSpotify()
     patch_history_refresh(monkeypatch)
     log_path = tmp_path / "something-old.jsonl"
@@ -257,13 +278,14 @@ def test_real_run_refuses_to_add_if_playlist_fills_during_selection(
         something_old.run_something_old(
             spotify,
             object(),
-            "playlist",
-            expected_username="man-et-arms",
-            mode_reader=lambda *_args: "spotify_top_tracks",
-            album_choice_reader=lambda *_args: pytest.fail(
-                "album prompt is not needed"
+            SomethingOldOptions(
+                playlist_id="playlist", expected_username="man-et-arms"
             ),
-            log_path=log_path,
+            SomethingOldCallbacks(
+                mode_reader=Answer("spotify_top_tracks"),
+                album_choice_reader=UnexpectedInteraction("album prompt is not needed"),
+            ),
+            SomethingOldResources(log_path=log_path),
         )
 
     assert spotify.playlist_calls == 2
@@ -274,6 +296,11 @@ def test_real_run_refuses_to_add_if_playlist_fills_during_selection(
 def test_album_mode_adds_the_complete_chronological_release_choice(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Album mode adds the complete chronological release choice.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     spotify = FakeSpotify()
     patch_history_refresh(monkeypatch)
     release = slow_listening.DiscographyRelease(
@@ -294,29 +321,34 @@ def test_album_mode_adds_the_complete_chronological_release_choice(
     monkeypatch.setattr(
         something_old.slow_listening,
         "load_discography",
-        lambda *_args: (release,),
+        Mock(return_value=(release,)),
     )
     monkeypatch.setattr(
         something_old.slow_listening,
         "load_release_tracks",
-        lambda *_args: (
-            something_old.slow_listening.new_wine.ReleaseTrack(
-                "track-1", "spotify:track:track-1", "First", 1, 1
-            ),
-            something_old.slow_listening.new_wine.ReleaseTrack(
-                "track-2", "spotify:track:track-2", "Second", 1, 2
-            ),
+        Mock(
+            return_value=(
+                something_old.slow_listening.new_wine.ReleaseTrack(
+                    "track-1", "spotify:track:track-1", "First", 1, 1
+                ),
+                something_old.slow_listening.new_wine.ReleaseTrack(
+                    "track-2", "spotify:track:track-2", "Second", 1, 2
+                ),
+            )
         ),
     )
 
     summary = something_old.run_something_old(
         spotify,
         object(),
-        "playlist",
-        expected_username="man-et-arms",
-        mode_reader=lambda *_args: "album",
-        album_choice_reader=lambda _artist, releases: releases[0].spotify_id,
-        dry_run=True,
+        SomethingOldOptions(
+            playlist_id="playlist", expected_username="man-et-arms", dry_run=True
+        ),
+        SomethingOldCallbacks(
+            mode_reader=Answer("album"),
+            album_choice_reader=FirstAlbumChoice(),
+        ),
+        SomethingOldResources(),
     )
 
     assert summary.release == release
@@ -324,15 +356,7 @@ def test_album_mode_adds_the_complete_chronological_release_choice(
 
 
 def test_lastfm_top_tracks_use_strict_spotify_matching() -> None:
-    class SearchSpotify:
-        def search(self, **kwargs: object) -> dict[str, object]:
-            query = str(kwargs["q"])
-            name = "Most Played" if "Most Played" in query else "Second Played"
-            return {"tracks": {"items": [raw_spotify_track(name, name, "Album")]}}
-
-        def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
-            return [False] * len(ids)
-
+    """Lastfm top tracks use strict spotify matching."""
     artist = something_old.GoldenOldieArtist(
         artist="Old Artist",
         scrobbles=50,
@@ -346,9 +370,9 @@ def test_lastfm_top_tracks_use_strict_spotify_matching() -> None:
     )
 
     tracks = something_old.select_lastfm_top_tracks(
-        SearchSpotify(),
+        TrackSearchSpotify(),
         artist,
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     assert [track.track for track in tracks] == ["Most Played", "Second Played"]
@@ -369,35 +393,35 @@ def spotify_artist(spotify_id: str, name: str = "Old Artist") -> dict[str, objec
 def test_artist_resolution_rejects_malformed_search_responses(
     response: object,
 ) -> None:
+    """Artist resolution rejects malformed search responses.
+
+    Args:
+        response: Original response.
+    """
     spotify = type(
         "SearchSpotify",
         (),
-        {"search": lambda *_args, **_kwargs: response},
+        {"search": Mock(return_value=response)},
     )()
     with pytest.raises(something_old.SomethingOldSpotifyError, match="invalid"):
         something_old.resolve_spotify_artist(
             spotify,  # type: ignore[arg-type]
             "Old Artist",
             None,
-            lambda operation, _description: operation(),
+            NoRetry(),
         )
 
 
 def test_artist_resolution_handles_missing_ambiguous_and_selected_matches() -> None:
-    class SearchSpotify:
-        items: list[object] = []
-
-        def search(self, **_kwargs: object) -> dict[str, object]:
-            return {"artists": {"items": self.items}}
-
-    spotify = SearchSpotify()
+    """Artist resolution handles missing ambiguous and selected matches."""
+    spotify = ArtistSearchSpotify()
     spotify.items = [None, spotify_artist("other", "Other Artist")]
     with pytest.raises(something_old.SomethingOldSpotifyError, match="No exact"):
         something_old.resolve_spotify_artist(
             spotify,  # type: ignore[arg-type]
             "Old Artist",
             None,
-            lambda operation, _description: operation(),
+            NoRetry(),
         )
 
     spotify.items = [spotify_artist("one"), spotify_artist("two")]
@@ -406,15 +430,15 @@ def test_artist_resolution_handles_missing_ambiguous_and_selected_matches() -> N
             spotify,  # type: ignore[arg-type]
             "Old Artist",
             None,
-            lambda operation, _description: operation(),
+            NoRetry(),
         )
 
     assert (
         something_old.resolve_spotify_artist(
             spotify,  # type: ignore[arg-type]
             "Old Artist",
-            lambda *_args: "quit",
-            lambda operation, _description: operation(),
+            Answer("quit"),
+            NoRetry(),
         )
         is None
     )
@@ -422,21 +446,22 @@ def test_artist_resolution_handles_missing_ambiguous_and_selected_matches() -> N
         something_old.resolve_spotify_artist(
             spotify,  # type: ignore[arg-type]
             "Old Artist",
-            lambda *_args: "missing",
-            lambda operation, _description: operation(),
+            Answer("missing"),
+            NoRetry(),
         )
 
     selected = something_old.resolve_spotify_artist(
         spotify,  # type: ignore[arg-type]
         "Old Artist",
-        lambda *_args: "two",
-        lambda operation, _description: operation(),
+        Answer("two"),
+        NoRetry(),
     )
     assert selected is not None
     assert selected.spotify_id == "two"
 
 
 def test_spotify_top_tracks_validate_payload_and_usable_tracks() -> None:
+    """Spotify top tracks validate payload and usable tracks."""
     artist = something_old.SpotifyArtistCandidate(
         spotify_id="old-id",
         name="Old Artist",
@@ -446,37 +471,39 @@ def test_spotify_top_tracks_validate_payload_and_usable_tracks() -> None:
         search_rank=1,
     )
 
-    def retry(operation, _description):
-        return operation()
-
     malformed = type(
         "TopSpotify",
         (),
-        {"artist_top_tracks": lambda *_args: {}},
+        {"artist_top_tracks": Mock(side_effect=empty_object)},
     )()
     with pytest.raises(something_old.SomethingOldSpotifyError, match="invalid"):
         something_old.select_spotify_top_tracks(
             malformed,  # type: ignore[arg-type]
             artist,
-            retry,
+            NoRetry(),
         )
 
     unusable = type(
         "TopSpotify",
         (),
-        {"artist_top_tracks": lambda *_args: {"tracks": [None, {"id": "x"}]}},
+        {"artist_top_tracks": Mock(return_value={"tracks": [None, {"id": "x"}]})},
     )()
     with pytest.raises(something_old.SomethingOldSpotifyError, match="no usable"):
         something_old.select_spotify_top_tracks(
             unusable,  # type: ignore[arg-type]
             artist,
-            retry,
+            NoRetry(),
         )
 
 
 def test_album_selection_handles_empty_cancelled_and_invalid_catalogs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Album selection handles empty cancelled and invalid catalogs.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     artist = something_old.GoldenOldieArtist(
         artist="Old Artist",
         scrobbles=50,
@@ -494,21 +521,18 @@ def test_album_selection_handles_empty_cancelled_and_invalid_catalogs(
         search_rank=1,
     )
 
-    def retry(operation, _description):
-        return operation()
-
     monkeypatch.setattr(
         something_old.slow_listening,
         "load_discography",
-        lambda *_args: (),
+        Mock(return_value=()),
     )
     with pytest.raises(something_old.SomethingOldSpotifyError, match="No studio"):
         something_old.select_album_tracks(
             object(),  # type: ignore[arg-type]
             artist,
             spotify_artist_candidate,
-            lambda *_args: "quit",
-            retry,
+            Answer("quit"),
+            NoRetry(),
         )
 
     release = SimpleNamespace(
@@ -519,22 +543,22 @@ def test_album_selection_handles_empty_cancelled_and_invalid_catalogs(
     monkeypatch.setattr(
         something_old.slow_listening,
         "load_discography",
-        lambda *_args: (release,),
+        Mock(return_value=(release,)),
     )
     assert something_old.select_album_tracks(
         object(),  # type: ignore[arg-type]
         artist,
         spotify_artist_candidate,
-        lambda *_args: "quit",
-        retry,
+        Answer("quit"),
+        NoRetry(),
     ) == (None, ())
     with pytest.raises(something_old.SomethingOldSpotifyError, match="selected"):
         something_old.select_album_tracks(
             object(),  # type: ignore[arg-type]
             artist,
             spotify_artist_candidate,
-            lambda *_args: "missing",
-            retry,
+            Answer("missing"),
+            NoRetry(),
         )
 
 
@@ -543,6 +567,12 @@ def test_album_selection_translates_tracklist_failures(
     monkeypatch: pytest.MonkeyPatch,
     track_failure: str,
 ) -> None:
+    """Album selection translates tracklist failures.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        track_failure: Original track failure.
+    """
     artist = something_old.GoldenOldieArtist(
         artist="Old Artist",
         scrobbles=50,
@@ -567,22 +597,20 @@ def test_album_selection_translates_tracklist_failures(
     monkeypatch.setattr(
         something_old.slow_listening,
         "load_discography",
-        lambda *_args: (release,),
+        Mock(return_value=(release,)),
     )
     if track_failure == "error":
         monkeypatch.setattr(
             something_old.slow_listening,
             "load_release_tracks",
-            lambda *_args: (_ for _ in ()).throw(
-                slow_listening.SlowListeningError("tracks failed")
-            ),
+            Mock(side_effect=slow_listening.SlowListeningError("tracks failed")),
         )
         message = "tracks failed"
     else:
         monkeypatch.setattr(
             something_old.slow_listening,
             "load_release_tracks",
-            lambda *_args: (),
+            Mock(return_value=()),
         )
         message = "no playable"
 
@@ -591,6 +619,93 @@ def test_album_selection_translates_tracklist_failures(
             object(),  # type: ignore[arg-type]
             artist,
             spotify_artist_candidate,
-            lambda *_args: "release",
-            lambda operation, _description: operation(),
+            Answer("release"),
+            NoRetry(),
         )
+
+
+class FirstAlbumChoice:
+    """Choose the original first eligible chronological album."""
+
+    def choose_album(
+        self,
+        artist: something_old.GoldenOldieArtist,
+        releases: tuple[something_old.slow_listening.DiscographyRelease, ...],
+    ) -> str:
+        """Accept the original first offered edition.
+
+        Args:
+            artist: Original selected history artist.
+            releases: Original chronological eligible releases.
+
+        Returns:
+            Original first release identity.
+        """
+        return releases[0].spotify_id
+
+
+class PlaylistFillsSpotify(FakeSpotify):
+    """Retain the original playlistfills spotify boundary fixture."""
+
+    def _get(self, path: str, **_kwargs: object) -> dict[str, object]:
+        assert path.startswith("playlists/")
+        self.playlist_calls += 1
+        items = (
+            []
+            if self.playlist_calls == 1
+            else [
+                {
+                    "item": raw_spotify_track(
+                        "new-existing",
+                        "New Existing",
+                        "New Existing Album",
+                    )
+                }
+            ]
+        )
+        return {"items": items, "total": len(items), "next": None}
+
+
+class TrackSearchSpotify:
+    """Retain the original tracksearch spotify boundary fixture."""
+
+    def search(self, **kwargs: object) -> dict[str, object]:
+        """Retain the original search fixture observation.
+
+        Args:
+            kwargs: Original kwargs value.
+
+        Returns:
+            Original fixture result.
+        """
+        query = str(kwargs["q"])
+        name = "Most Played" if "Most Played" in query else "Second Played"
+        return {"tracks": {"items": [raw_spotify_track(name, name, "Album")]}}
+
+    def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
+        """Report that none of the requested tracks are liked.
+
+        Args:
+            ids: Requested track identities.
+
+        Returns:
+            One false membership flag per track.
+        """
+        return [False] * len(ids)
+
+
+class ArtistSearchSpotify:
+    """Retain the original artistsearch spotify boundary fixture."""
+
+    items: list[object] = []
+
+    def search(self, **_kwargs: object) -> dict[str, object]:
+        """Return the configured artist search observations.
+
+        Args:
+            **_kwargs: External SDK keyword options.
+
+        Returns:
+            Original artist search response.
+        """
+        return {"artists": {"items": self.items}}

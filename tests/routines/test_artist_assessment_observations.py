@@ -1,6 +1,8 @@
 """Pre-extraction contracts for New Kids artist-completion observations."""
 
 from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import replace
@@ -10,6 +12,7 @@ from unittest.mock import Mock
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import new_kids
 from tests.routines.test_new_kids import FakeSpotify
 from tests.routines.test_new_kids import ranked_release
@@ -39,6 +42,18 @@ class Requests:
         """
         self.descriptions.append(description)
         return operation()
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Observe the original retry boundary before a direct operation.
+
+        Args:
+            description: Original retry label.
+
+        Returns:
+            One direct request scope.
+        """
+        self.descriptions.append(description)
+        return NoRetry().attempts(description)
 
 
 def _spotify() -> FakeSpotify:
@@ -70,7 +85,7 @@ def test_original_assessment_order_and_popularity_fallback(
         )
     requests = Requests()
     result = new_kids.assess_artist(
-        cast(Spotify, spotify), "artist", (ranked_release("album"),), requests.call, {}
+        cast(Spotify, spotify), "artist", (ranked_release("album"),), requests, {}
     )
     assert (
         result.liked_tracks,
@@ -103,7 +118,7 @@ def test_original_duplicate_catalog_reuses_tracks_and_first_marker_facts() -> No
     album = ranked_release("album")
     catalog = (album, replace(album, name="Repeated"))
     result = new_kids.assess_artist(
-        cast(Spotify, spotify), "artist", catalog, requests.call, {}
+        cast(Spotify, spotify), "artist", catalog, requests, {}
     )
     assert result.total_releases == 2 and result.saved_releases == 1
     assert result.total_primary_tracks == 2
@@ -115,9 +130,7 @@ def test_original_empty_catalog_still_observes_top_tracks() -> None:
     """Completion observes artist top tracks even when there are no catalog releases."""
     spotify = _spotify()
     requests = Requests()
-    result = new_kids.assess_artist(
-        cast(Spotify, spotify), "artist", (), requests.call, {}
-    )
+    result = new_kids.assess_artist(cast(Spotify, spotify), "artist", (), requests, {})
     assert result.representative_track is None and not result.qualifies
     assert result.top_liked_track is not None
     assert requests.descriptions == [

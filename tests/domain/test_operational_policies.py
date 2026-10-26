@@ -1,5 +1,6 @@
 """Exercise pure original deployment, maintenance and upload manifest decisions."""
 
+import hmac
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -29,7 +30,7 @@ class AccessObservations:
     peers: int = 0
     comparisons: list[tuple[str, str]] = field(default_factory=list)
 
-    def peer(self) -> bool:
+    def is_loopback(self) -> bool:
         """Observe the original peer lazily.
 
         Returns:
@@ -76,7 +77,12 @@ def test_open_gate_precedes_credentials(
 @pytest.mark.parametrize("allow", [False, True])
 @pytest.mark.parametrize("local", [False, True])
 def test_credentials_retain_lazy_peer_and_comparison_order(
-    supplied: str, automation: str, configured: str | None, allow: bool, local: bool
+    supplied: str,
+    automation: str,
+    configured: str | None,
+    allow: bool,
+    local: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Protect original automation precedence, local bypass and final comparison.
 
@@ -86,8 +92,10 @@ def test_credentials_retain_lazy_peer_and_comparison_order(
         configured: Original automation configuration.
         allow: Original local-development flag.
         local: Original direct-peer qualification.
+        monkeypatch: Observe constant-time comparison calls at their actual boundary.
     """
     observations = AccessObservations(local)
+    monkeypatch.setattr(hmac, "compare_digest", observations.compare)
     accepted_automation = bool(automation and configured and automation == configured)
     expected = (
         accepted_automation
@@ -100,8 +108,7 @@ def test_credentials_retain_lazy_peer_and_comparison_order(
         automation,
         configured,
         allow,
-        observations.peer,
-        observations.compare,
+        observations,
     )
     assert result is expected
     assert observations.peers == int(

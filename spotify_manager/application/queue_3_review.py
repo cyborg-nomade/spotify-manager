@@ -1,12 +1,14 @@
 """Coordinate pending Queue 3 entries through planning, execution and acknowledgment."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Literal
 from typing import Protocol
 
+from spotify_manager.application.ports.queue_playlists import QueueAudit
+from spotify_manager.application.ports.queue_playlists import StudioCatalog
+from spotify_manager.application.ports.queue_playlists import WorksRead
 from spotify_manager.application.queue_3_composers import ComposerReader
 from spotify_manager.application.queue_3_composers import composer_plan
 from spotify_manager.application.queue_3_composers import resolve_composer_route
@@ -61,14 +63,14 @@ class Queue3Observations:
     """Cache catalogs and works playlists only within this review invocation.
 
     Args:
-        read_catalog: Original eligible studio catalog reader.
-        read_works: Original parsed playlist reader with Queue 3 error translation.
+        source: Named history, cutoff and random-source observations.
+        playlists: Named original complete works-playlist reader.
         catalogs: Already observed logical-artist catalogs.
         works: Already observed owned works-playlist markers.
     """
 
-    read_catalog: Callable[[str], tuple[DiscographyRelease, ...]]
-    read_works: Callable[[str], tuple[PlaylistTrack, ...]]
+    source: StudioCatalog
+    playlists: WorksRead
     catalogs: dict[str, tuple[DiscographyRelease, ...]] = field(default_factory=dict)
     works: dict[str, tuple[PlaylistTrack, ...]] = field(default_factory=dict)
 
@@ -83,7 +85,7 @@ class Queue3Observations:
         """
         found = self.catalogs.get(artist_id)
         if found is None:
-            found = self.read_catalog(artist_id)
+            found = self.source.discography(artist_id)
             self.catalogs[artist_id] = found
         return found
 
@@ -98,7 +100,7 @@ class Queue3Observations:
         """
         found = self.works.get(playlist_id)
         if found is None:
-            found = self.read_works(playlist_id)
+            found = self.playlists.read(playlist_id)
             self.works[playlist_id] = found
         return found
 
@@ -145,7 +147,7 @@ class Queue3Review:
     observations: Queue3Observations
     owned: tuple[OwnedPlaylist, ...]
     choose_composer: ComposerReader | None
-    audit: Callable[[str, dict[str, object]], None]
+    audit: QueueAudit
     presentation: ReviewPresentation
 
     def run(self) -> tuple[tuple[FlushResult, ...], bool]:
@@ -189,7 +191,7 @@ class Queue3Review:
             artist_name=entry.artist_name,
             dry_run=self.session.dry_run,
         )
-        self.audit(
+        self.audit.audit(
             "artist_transition", {"run_id": self.snapshot.identifier, **asdict(result)}
         )
         self.session.acknowledge(
@@ -238,7 +240,7 @@ class Queue3Review:
             self.owned,
             self.session.state,
             self.choose_composer,
-            self.session.timestamp,
+            self.session,
         )
         if paused:
             return None

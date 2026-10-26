@@ -1,11 +1,11 @@
 """Original matching history parsing, timestamp errors and local conversion."""
 
-from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from datetime import tzinfo
 from pathlib import Path
-from typing import cast
 
+from spotify_manager.application import scrobble_lookup_run as workflow
 from spotify_manager.application.historical_values import LastFmExportError
 from spotify_manager.application.scrobble_lookup_run import latest_history_timestamp
 from spotify_manager.domain.history import normalize_name
@@ -13,7 +13,6 @@ from spotify_manager.domain.titles import without_sliding_qualifiers
 
 
 def latest(
-    load: Callable[[Path], dict[str, object]],
     path: Path,
     track: str,
     artist: str,
@@ -22,7 +21,6 @@ def latest(
     """Read original history before matching and validating only relevant dates.
 
     Args:
-        load: Original export fallback boundary.
         path: Original history location.
         track: Original resolved track name.
         artist: Original resolved primary artist.
@@ -34,7 +32,29 @@ def latest(
     Raises:
         LastFmExportError: An original row, matching date or final timestamp fails.
     """
-    payload = load(path)
+    from spotify_manager.routines.blast_from_past import load_scrobble_export
+
+    payload = load_scrobble_export(path)
+    return latest_from_export(payload, track, artist, timezone)
+
+
+def latest_from_export(
+    payload: dict[str, object], track: str, artist: str, timezone: tzinfo
+) -> datetime | None:
+    """Read matching play time from an already observed export.
+
+    Args:
+        payload: Complete original export.
+        track: Resolved title.
+        artist: Resolved primary artist.
+        timezone: Local timezone.
+
+    Returns:
+        Latest matching play time, or none.
+
+    Raises:
+        LastFmExportError: A row or matching date is invalid.
+    """
     rows = payload["scrobbles"]
     assert isinstance(rows, list)
     expected_track = normalize_name(without_sliding_qualifiers(track))
@@ -59,7 +79,7 @@ def latest_timestamp(rows: list[object], track: str, artist: str) -> int | None:
     Raises:
         LastFmExportError: An original row or matching timestamp is invalid.
     """
-    return latest_history_timestamp(rows, track, artist, checked_row, checked_timestamp)
+    return latest_history_timestamp(rows, track, artist)
 
 
 def checked_row(raw: object, index: int) -> dict[str, object]:
@@ -75,9 +95,7 @@ def checked_row(raw: object, index: int) -> dict[str, object]:
     Raises:
         LastFmExportError: The original row is not an object.
     """
-    if not isinstance(raw, dict):
-        raise LastFmExportError(f"Scrobble {index} is not an object.")
-    return cast(dict[str, object], raw)
+    return workflow.checked_row(raw, index)
 
 
 def checked_timestamp(row: dict[str, object], index: int) -> int:
@@ -93,12 +111,7 @@ def checked_timestamp(row: dict[str, object], index: int) -> int:
     Raises:
         LastFmExportError: Original date indexing or integer conversion fails.
     """
-    try:
-        return int(cast(int | str, row["date"]))
-    except (KeyError, TypeError, ValueError) as error:
-        raise LastFmExportError(
-            f"Scrobble {index} has no valid millisecond timestamp."
-        ) from error
+    return workflow.checked_timestamp(row, index)
 
 
 def timestamp_time(timestamp: int, timezone: tzinfo) -> datetime:
@@ -120,3 +133,49 @@ def timestamp_time(timestamp: int, timezone: tzinfo) -> datetime:
         raise LastFmExportError(
             "The latest matching scrobble has an out-of-range timestamp."
         ) from error
+
+
+@dataclass(frozen=True)
+class ScrobbleHistory:
+    """Read a history export in a specified timezone.
+
+    Args:
+        path: Export location, including compressed fallbacks.
+        timezone: Caller-owned timezone.
+    """
+
+    path: Path
+    timezone: tzinfo
+
+    def latest(self, track: str, artist: str) -> datetime | None:
+        """Read the latest matching play.
+
+        Args:
+            track: Resolved title.
+            artist: Resolved primary artist.
+
+        Returns:
+            Latest play time, or none.
+        """
+        return latest(self.path, track, artist, self.timezone)
+
+
+@dataclass(frozen=True)
+class ScrobbleClock:
+    """Observe effective time only after history has been read.
+
+    Args:
+        override: Optional supplied instant.
+        timezone: Caller-owned local timezone.
+    """
+
+    override: datetime | None
+    timezone: tzinfo
+
+    def now(self) -> datetime:
+        """Observe current time or the supplied instant.
+
+        Returns:
+            Effective local instant.
+        """
+        return self.override or datetime.now(self.timezone)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime
 from typing import Protocol
 from urllib.error import HTTPError
@@ -15,6 +14,9 @@ from spotify_manager.application.automation_values import TRANSIENT_HTTP_STATUSE
 from spotify_manager.application.automation_values import ApiError
 from spotify_manager.application.automation_values import AutomationError
 from spotify_manager.application.automation_values import DeadlineReachedError
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.infrastructure.automation_records import decode_response
 
 
@@ -58,7 +60,7 @@ class HttpResponse(Protocol):
 class OpenResponse(Protocol):
     """Supply the original urllib opener without global transport ownership."""
 
-    def __call__(self, request: Request, *, timeout: int) -> HttpResponse:
+    def open(self, request: Request, *, timeout: int) -> HttpResponse:
         """Open the original timed HTTP request.
 
         Args:
@@ -92,9 +94,9 @@ class SpaceHttpClient:
         automation_token: str,
         deadline: datetime,
         opener: OpenResponse,
-        now: Callable[[], datetime],
-        sleep: Callable[[float], None],
-        emit: Callable[[str], None],
+        now: Clock,
+        sleep: Wait,
+        emit: Messages,
     ) -> None:
         """Bind original request and lifetime dependencies.
 
@@ -120,13 +122,23 @@ class SpaceHttpClient:
         self._sleep = sleep
         self._emit = emit
 
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Read and decode durable artifact timestamps at the freshness boundary.
+
+        Returns:
+            Original valid aware timestamps, or none for an invalid container.
+        """
+        from spotify_manager.infrastructure.automation_records import artifact_updates
+
+        return artifact_updates(self.request("GET", "/library-mirrors/status"))
+
     def remaining_seconds(self) -> float:
         """Observe the original signed maintenance time remaining.
 
         Returns:
             Seconds between the original deadline and delayed clock observation.
         """
-        return (self.deadline - self._now()).total_seconds()
+        return (self.deadline - self._now.now()).total_seconds()
 
     def sleep(self, seconds: int) -> None:
         """Retain original maintenance clipping even during cancellation grace.
@@ -140,7 +152,7 @@ class SpaceHttpClient:
         remaining = self.remaining_seconds()
         if remaining <= 0:
             raise DeadlineReachedError("The 05:00 Berlin maintenance deadline arrived.")
-        self._sleep(min(seconds, remaining))
+        self._sleep.sleep(min(seconds, remaining))
 
     def request(
         self,
@@ -167,7 +179,7 @@ class SpaceHttpClient:
             AutomationError: Original transport or success decoding fails.
         """
         boundary = deadline or self.deadline
-        while self._now() < boundary:
+        while self._now.now() < boundary:
             try:
                 return self._attempt(method, path, retry_transient)
             except _RetryRequestError:
@@ -190,18 +202,18 @@ class SpaceHttpClient:
         except (TimeoutError, URLError) as error:
             if not retry:
                 raise AutomationError(f"Could not reach the Space: {error}") from error
-            self._emit("Space connection interrupted; retrying.")
+            self._emit.echo("Space connection interrupted; retrying.")
             self.sleep(REQUEST_RETRY_SECONDS)
         raise _RetryRequestError
 
     def _read(self, request: Request, path: str) -> object:
-        with self._opener(request, timeout=60) as response:
+        with self._opener.open(request, timeout=60) as response:
             return _decode_success(response, path)
 
     def _handle_http(self, error: HTTPError, retry: bool) -> None:
         payload = _http_error_payload(error)
         if retry and error.code in TRANSIENT_HTTP_STATUSES:
-            self._emit(f"Space returned HTTP {error.code}; retrying.")
+            self._emit.echo(f"Space returned HTTP {error.code}; retrying.")
             self.sleep(REQUEST_RETRY_SECONDS)
             return
         raise ApiError(error.code, payload) from error

@@ -1,6 +1,8 @@
 """Tests for the documented read-only Last.fm client."""
 
 import json
+from dataclasses import dataclass
+from unittest.mock import Mock
 from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.parse import parse_qs
@@ -9,6 +11,8 @@ from urllib.parse import urlparse
 import pytest
 
 from spotify_manager.client import lastfm
+from tests.support.runtime_resources import DelayList
+from tests.support.runtime_resources import MessageList
 
 
 class FakeResponse:
@@ -166,26 +170,18 @@ def test_recent_tracks_paginates_and_ignores_now_playing(
 def test_transient_http_error_retries_with_exponential_delay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Transient http error retries with exponential delay.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     calls = 0
     delays: list[float] = []
-
-    def open_request(_request: object, timeout: int) -> FakeResponse:
-        nonlocal calls
-        assert timeout == lastfm.LASTFM_TIMEOUT_SECONDS
-        calls += 1
-        if calls == 1:
-            raise HTTPError("lastfm", 502, "bad gateway", {}, None)
-        return FakeResponse({"similartracks": {"track": []}})
-
-    monkeypatch.setattr(lastfm, "urlopen", open_request)
-    client = lastfm.LastFmClient(
-        "api-key",
-        "listener",
-        sleeper=delays.append,
-    )
-
+    scenario = TransientHttpErrorRetriesWithExponentialDelayScenario(calls=calls)
+    monkeypatch.setattr(lastfm, "urlopen", scenario.open_request)
+    client = lastfm.LastFmClient("api-key", "listener", sleeper=DelayList(delays))
     assert client.similar_tracks("Artist", "Track") == ()
-    assert calls == 2
+    assert scenario.calls == 2
     assert delays == [2.0]
 
 
@@ -237,23 +233,19 @@ def test_http_error_without_available_retry_is_reported(
 def test_connection_error_retries_then_reports_exhaustion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Connection error retries then reports exhaustion.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     delays: list[float] = []
-
-    def fail(_request: object, timeout: int) -> FakeResponse:
-        raise URLError("offline")
-
-    monkeypatch.setattr(lastfm, "urlopen", fail)
+    scenario = ConnectionErrorRetriesThenReportsExhaustionScenario()
+    monkeypatch.setattr(lastfm, "urlopen", scenario.fail)
     client = lastfm.LastFmClient(
-        "key",
-        "listener",
-        max_retries=1,
-        backoff_seconds=0.5,
-        sleeper=delays.append,
+        "key", "listener", max_retries=1, backoff_seconds=0.5, sleeper=DelayList(delays)
     )
-
     with pytest.raises(lastfm.LastFmResponseError, match="could not connect"):
         client.similar_tracks("Artist", "Track")
-
     assert delays == [0.5]
 
 
@@ -285,6 +277,11 @@ def test_non_object_response_is_reported(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_transient_lastfm_error_retries_and_emits_progress(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Transient lastfm error retries and emits progress.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     responses = iter(
         [
             FakeResponse({"error": "11", "message": "offline"}),
@@ -293,13 +290,13 @@ def test_transient_lastfm_error_retries_and_emits_progress(
     )
     messages: list[str] = []
     delays: list[float] = []
-    monkeypatch.setattr(lastfm, "urlopen", lambda *_args, **_kwargs: next(responses))
+    monkeypatch.setattr(lastfm, "urlopen", Mock(side_effect=responses))
 
     tracks = lastfm.LastFmClient(
         " key ",
         " listener ",
-        event_callback=messages.append,
-        sleeper=delays.append,
+        event_callback=MessageList(messages),
+        sleeper=DelayList(delays),
     ).similar_tracks("Artist", "Track")
 
     assert tracks == ()
@@ -446,3 +443,47 @@ def test_recent_tracks_rejects_changed_or_incomplete_history(monkeypatch, change
     monkeypatch.setattr(client, "_request", lambda *a, **kw: next(pages))
     with pytest.raises(lastfm.LastFmResponseError, match="changed|incomplete"):
         client.recent_tracks(from_timestamp=0, to_timestamp=10)
+
+
+@dataclass
+class TransientHttpErrorRetriesWithExponentialDelayScenario:
+    """Retain the original transient http error retries with exponential delay fixture.
+
+    Args:
+        calls: Original calls observation or resource.
+    """
+
+    calls: int
+
+    def open_request(self, _request: object, timeout: int) -> FakeResponse:
+        """Execute the original open request mock boundary.
+
+        Args:
+            _request: Original external mock argument.
+            timeout: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        assert timeout == lastfm.LASTFM_TIMEOUT_SECONDS
+        self.calls += 1
+        if self.calls == 1:
+            raise HTTPError("lastfm", 502, "bad gateway", {}, None)
+        return FakeResponse({"similartracks": {"track": []}})
+
+
+@dataclass
+class ConnectionErrorRetriesThenReportsExhaustionScenario:
+    """Retain the original connection error retries then reports exhaustion fixture."""
+
+    def fail(self, _request: object, timeout: int) -> FakeResponse:
+        """Execute the original fail mock boundary.
+
+        Args:
+            _request: Original external mock argument.
+            timeout: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        raise URLError("offline")

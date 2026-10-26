@@ -8,15 +8,15 @@ import sys
 import time
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
-from typing import cast
 from urllib.request import urlopen as urlopen
 from zoneinfo import ZoneInfo
 
 
 # Actions runs this file directly without installing the application package.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from urllib.request import Request
 
 from spotify_manager.application import automation_run as workflow
 from spotify_manager.application.automation_values import (
@@ -53,9 +53,8 @@ from spotify_manager.application.automation_values import JobLostError as JobLos
 from spotify_manager.application.automation_values import JobSpec as JobSpec
 from spotify_manager.application.automation_values import refresh_jobs as refresh_jobs
 from spotify_manager.domain import automation_calendar as calendar
-from spotify_manager.infrastructure.automation_http import OpenResponse
+from spotify_manager.infrastructure.automation_http import HttpResponse
 from spotify_manager.infrastructure.automation_http import SpaceHttpClient
-from spotify_manager.infrastructure.automation_records import artifact_updates
 from spotify_manager.infrastructure.automation_records import decode_response
 
 
@@ -82,10 +81,10 @@ class SpaceClient(SpaceHttpClient):
             hf_token,
             automation_token,
             deadline,
-            cast(OpenResponse, urlopen),
-            _now,
-            time.sleep,
-            _emit,
+            _TRANSPORT,
+            _CLOCK,
+            time,
+            _OUTPUT,
         )
 
 
@@ -95,6 +94,51 @@ def _now() -> datetime:
 
 def _emit(message: str) -> None:
     print(message, flush=True)
+
+
+class ScriptClock:
+    """Observe the script's UTC clock at its existing runtime boundary."""
+
+    def now(self) -> datetime:
+        """Return the original script clock value.
+
+        Returns:
+            Current aware UTC instant.
+        """
+        return _now()
+
+
+class ScriptOutput:
+    """Present the original flushed automation messages."""
+
+    def echo(self, message: str) -> None:
+        """Present one complete original message.
+
+        Args:
+            message: Original automation status or retry text.
+        """
+        _emit(message)
+
+
+class ScriptTransport:
+    """Open urllib responses through the script's existing transport seam."""
+
+    def open(self, request: Request, *, timeout: int) -> HttpResponse:
+        """Open an original authenticated request.
+
+        Args:
+            request: Prepared urllib request.
+            timeout: Original socket timeout.
+
+        Returns:
+            Context-managed HTTP response.
+        """
+        return urlopen(request, timeout=timeout)
+
+
+_CLOCK = ScriptClock()
+_OUTPUT = ScriptOutput()
+_TRANSPORT = ScriptTransport()
 
 
 def _decode_response(raw: bytes) -> object:
@@ -198,7 +242,7 @@ def start_job(client: workflow.SpaceAccess, spec: JobSpec) -> str:
     Raises:
         AutomationError: Original start or conflict handling fails.
     """
-    return workflow.start_job(client, spec, _emit)
+    return workflow.start_job(client, spec, _OUTPUT)
 
 
 def cancel_job(client: workflow.SpaceAccess, spec: JobSpec, job_id: str) -> None:
@@ -212,7 +256,7 @@ def cancel_job(client: workflow.SpaceAccess, spec: JobSpec, job_id: str) -> None
     Raises:
         AutomationError: Original cancellation fails outside tolerated statuses.
     """
-    workflow.cancel_job(client, spec, job_id, _now, _emit)
+    workflow.cancel_job(client, spec, job_id, _CLOCK, _OUTPUT)
 
 
 def poll_job(client: workflow.SpaceAccess, spec: JobSpec, job_id: str) -> str:
@@ -229,11 +273,11 @@ def poll_job(client: workflow.SpaceAccess, spec: JobSpec, job_id: str) -> str:
     Raises:
         AutomationError: Original polling or cancellation fails.
     """
-    return workflow.poll_job(client, spec, job_id, partial(cancel_job, client), _emit)
+    return workflow.poll_job(client, spec, job_id, _CLOCK, _OUTPUT)
 
 
 def run_job(client: workflow.SpaceAccess, spec: JobSpec) -> str:
-    """Retain original public start/poll seams and checkpoint resume behavior.
+    """Run direct start, poll and checkpoint-resume stages.
 
     Args:
         client: Original caller-owned API client.
@@ -242,9 +286,7 @@ def run_job(client: workflow.SpaceAccess, spec: JobSpec) -> str:
     Returns:
         Original terminal outcome.
     """
-    return workflow.run_job(
-        client, spec, partial(start_job, client), partial(poll_job, client), _emit
-    )
+    return workflow.run_job(client, spec, _CLOCK, _OUTPUT)
 
 
 def run_nightly_refresh(
@@ -268,9 +310,8 @@ def run_nightly_refresh(
         jobs,
         freshness_threshold,
         BERLIN,
-        partial(durable_artifacts_are_fresh, client),
-        partial(run_job, client),
-        _emit,
+        _CLOCK,
+        _OUTPUT,
     )
 
 
@@ -286,7 +327,7 @@ def durable_artifacts_are_fresh(
     Returns:
         Original all-artifacts qualification.
     """
-    return workflow.durable_artifacts_are_fresh(client, threshold, artifact_updates)
+    return workflow.durable_artifacts_are_fresh(client, threshold)
 
 
 def run_connection_check(client: workflow.SpaceAccess) -> int:
@@ -301,7 +342,7 @@ def run_connection_check(client: workflow.SpaceAccess) -> int:
     Raises:
         AutomationError: An original prerequisite or active-job check fails.
     """
-    return workflow.connection_check(client, _emit)
+    return workflow.connection_check(client, _OUTPUT)
 
 
 def _arguments(argv: list[str] | None) -> argparse.Namespace:

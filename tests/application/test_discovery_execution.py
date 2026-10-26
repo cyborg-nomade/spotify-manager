@@ -2,11 +2,13 @@
 
 from dataclasses import asdict
 from dataclasses import dataclass
+from typing import cast
 
 import pytest
 
 from spotify_manager.application.discovery_completion import DiscoveryCompletion
 from spotify_manager.application.discovery_completion import ReviewArtist
+from spotify_manager.application.discovery_destinations import GreatDiscoveries
 from spotify_manager.application.discovery_library import DiscoveryLibraryReconciliation
 from spotify_manager.application.new_kids_execution import NewKidsExecution
 from spotify_manager.application.new_kids_state import assessment_from_record
@@ -15,6 +17,7 @@ from spotify_manager.application.new_kids_values import NewKidsError
 from spotify_manager.application.new_kids_values import NewKidsStateError
 from spotify_manager.application.release_evaluation import evaluate_catalog_release
 from tests.support.discovery_effects import MemoryEffects
+from tests.support.discovery_effects import ScriptedGreatDiscoveries
 from tests.support.discovery_values import release
 from tests.support.discovery_values import track
 from tests.support.listening_values import playlist_track
@@ -71,7 +74,15 @@ def _case(preview: bool = False) -> ExecutionCase:
     }
     library = DiscoveryLibraryReconciliation(memory, memory, memory, preview)
     completion = DiscoveryCompletion(
-        memory, memory, state, 2026, "newfoundland", "unlucky", preview
+        memory,
+        memory,
+        state,
+        2026,
+        "newfoundland",
+        "unlucky",
+        preview,
+        cast(GreatDiscoveries, ScriptedGreatDiscoveries(memory)),
+        "great",
     )
     execution = NewKidsExecution(
         memory,
@@ -84,7 +95,7 @@ def _case(preview: bool = False) -> ExecutionCase:
         "review",
         "New Kids",
         preview,
-        memory.clock,
+        memory,
     )
     return ExecutionCase(memory, execution, progress, entry)
 

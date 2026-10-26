@@ -3,12 +3,20 @@ import gzip
 import json
 from datetime import UTC
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
+from typing import cast
+from unittest.mock import Mock
 
 import pytest
 
 from spotify_manager.client.lastfm import LastFmRecentTrack
+from spotify_manager.core.library_data.service import LibraryDataService
+from spotify_manager.infrastructure.legacy.history_refresh import LegacyHistoryStorage
 from spotify_manager.routines import scrobble_history
+from tests.support.history_dependencies import hydrate_history
+from tests.support.runtime_resources import CancellationFlag
+from tests.support.runtime_resources import MessageList
 
 
 class FakeLastFm:
@@ -153,12 +161,9 @@ def test_managed_refresh_hydrates_and_publishes_even_when_current(
             calls.append(("publish", f"{name}:{source}"))
 
     monkeypatch.setattr(
-        scrobble_history, "artifact_for_path", lambda _path: "scrobbles"
-    )
-    monkeypatch.setattr(
-        scrobble_history,
-        "get_library_data_service",
-        lambda: DataService(),
+        LegacyHistoryStorage,
+        "hydrate",
+        partialmethod(hydrate_history, cast(LibraryDataService, DataService())),
     )
 
     summary = scrobble_history.refresh_scrobble_history(
@@ -178,6 +183,11 @@ def test_managed_refresh_hydrates_and_publishes_even_when_current(
 
 
 def test_refresh_can_cancel_before_reading_history(tmp_path: Path) -> None:
+    """Refresh can cancel before reading history.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     with pytest.raises(
         scrobble_history.ScrobbleHistoryCancelledError,
         match="cancelled",
@@ -185,13 +195,18 @@ def test_refresh_can_cancel_before_reading_history(tmp_path: Path) -> None:
         scrobble_history.refresh_scrobble_history(
             FakeLastFm(()),
             export_path=tmp_path / "missing.json",
-            cancel_check=lambda: True,
+            cancel_check=CancellationFlag(True),
         )
 
 
 def test_current_refresh_records_successful_check_time_without_rewrite(
     tmp_path: Path,
 ) -> None:
+    """Current refresh records successful check time without rewrite.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     export_path = tmp_path / "lastfm.json"
     original = write_export(export_path)
     backup_dir = tmp_path / "backups"
@@ -209,7 +224,7 @@ def test_current_refresh_records_successful_check_time_without_rewrite(
         backup_dir=backup_dir,
         log_path=log_path,
         now=checked_at,
-        progress_callback=progress.append,
+        progress_callback=MessageList(progress),
     )
 
     assert summary.persisted is False
@@ -224,6 +239,11 @@ def test_current_refresh_records_successful_check_time_without_rewrite(
 def test_refresh_recovers_inline_fallback_before_replacing_lfs_pointer(
     tmp_path: Path,
 ) -> None:
+    """Refresh recovers inline fallback before replacing lfs pointer.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     export_path = tmp_path / "lastfm.json"
     export_path.write_text(
         "version https://git-lfs.github.com/spec/v1\n",
@@ -254,7 +274,7 @@ def test_refresh_recovers_inline_fallback_before_replacing_lfs_pointer(
         backup_dir=tmp_path / "backups",
         log_path=tmp_path / "log.jsonl",
         now=datetime.fromtimestamp(10, UTC),
-        progress_callback=progress.append,
+        progress_callback=MessageList(progress),
     )
 
     assert summary.persisted is True
@@ -399,6 +419,12 @@ def test_backup_write_log_and_timestamp_failures_are_wrapped(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Verify backup write log and timestamp failures are wrapped.
+
+    Args:
+        tmp_path: Isolated fixture storage.
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     export_path = tmp_path / "lastfm.json"
     write_export(export_path)
     blocked = tmp_path / "blocked"
@@ -437,7 +463,7 @@ def test_backup_write_log_and_timestamp_failures_are_wrapped(
     monkeypatch.setattr(
         scrobble_history.os,
         "replace",
-        lambda *_args: (_ for _ in ()).throw(OSError("replace failed")),
+        Mock(side_effect=OSError("replace failed")),
     )
     with pytest.raises(
         scrobble_history.ScrobbleHistoryError,

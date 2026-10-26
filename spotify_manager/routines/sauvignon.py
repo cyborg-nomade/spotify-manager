@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import date
-from datetime import datetime
-from functools import partial
+from datetime import datetime as datetime
 from pathlib import Path
 from typing import Literal
 from typing import Protocol
 
 from spotipy import Spotify
 
+from spotify_manager.application.album_recommendations import (
+    AlbumChoices as AlbumChoiceReader,
+)
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.sauvignon_values import (
     SauvignonConfigError as SauvignonConfigError,
 )
@@ -40,12 +43,24 @@ from spotify_manager.domain.album_recommendations import (
 )
 from spotify_manager.domain.album_selection import SauvignonAction as SauvignonAction
 from spotify_manager.domain.album_selection import SauvignonResult as SauvignonResult
+from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
+from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
+from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 
 # UFI
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
 from spotify_manager.routines import new_wine
 from spotify_manager.routines.slow_listening import release_identity as release_identity
+
+
+type ProgressCallback = Messages
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -61,12 +76,6 @@ CHOICE_SKIP = "__skip__"
 CHOICE_QUIT = "__quit__"
 
 AlbumKey = tuple[str, str]
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-AlbumChoiceReader = Callable[
-    ["AlbumRecommendation", tuple["SpotifyAlbumOption", ...]], str
-]
 
 
 class LastFmReader(found_art.LastFmReader, Protocol):
@@ -149,9 +158,7 @@ def _album_option(
 ) -> SpotifyAlbumOption | None:
     from spotify_manager.infrastructure.album_recommendations import parse_album_option
 
-    return parse_album_option(
-        raw_track, candidate, search_rank, blast_from_past.matching_spotify_track
-    )
+    return parse_album_option(raw_track, candidate, search_rank)
 
 
 def search_candidate_albums(
@@ -178,19 +185,19 @@ def search_candidate_albums(
         album="",
         timestamp_ms=0,
     )
-    response = retry_call(
-        partial(
-            spotify.search,
-            q=blast_from_past.spotify_search_query(scrobble),
-            type="track",
-            limit=blast_from_past.SPOTIFY_SEARCH_LIMIT,
-            offset=0,
-        ),
-        f"searching Spotify for {candidate.artist} - {candidate.track}",
-    )
+    for attempt in retry_call.attempts(
+        f"searching Spotify for {candidate.artist} - {candidate.track}"
+    ):
+        with attempt:
+            response = spotify.search(
+                q=blast_from_past.spotify_search_query(scrobble),
+                type="track",
+                limit=blast_from_past.SPOTIFY_SEARCH_LIMIT,
+                offset=0,
+            )
     from spotify_manager.infrastructure.album_recommendations import parse_album_search
 
-    return parse_album_search(response, candidate, _album_option)
+    return parse_album_search(response, candidate)
 
 
 def _option_rank(option: SpotifyAlbumOption) -> tuple[float, int, int]:
@@ -230,7 +237,7 @@ def gather_album_recommendations(
     Raises:
         SauvignonSpotifyError: Existing catalog observations are unusable.
     """
-    from spotify_manager.bootstrap.album_recommendations import gather_albums
+    from spotify_manager.interfaces.sauvignon_operations import gather_albums
 
     return gather_albums(
         spotify,
@@ -285,10 +292,11 @@ def load_first_track(
     Raises:
         SauvignonSpotifyError: Response is invalid or has no playable track.
     """
-    response = retry_call(
-        partial(spotify.album_tracks, album.spotify_id, limit=50, offset=0),
-        f"loading the first track of {album.artist} - {album.album}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading the first track of {album.artist} - {album.album}"
+    ):
+        with attempt:
+            response = spotify.album_tracks(album.spotify_id, limit=50, offset=0)
     from spotify_manager.infrastructure.album_recommendations import parse_first_track
 
     return parse_first_track(response, album)
@@ -318,43 +326,30 @@ def append_log(summary: SauvignonSummary, path: Path = DEFAULT_LOG_PATH) -> None
 def fill_sauvignon_from_lastfm(
     spotify: Spotify,
     lastfm: LastFmReader,
-    playlist_id: str,
-    choice_reader: AlbumChoiceReader | None,
-    *,
-    count: int | None = None,
-    max_playlist_length: int | None = DEFAULT_MAX_PLAYLIST_LENGTH,
-    seed_count: int = DEFAULT_SEED_COUNT,
-    dry_run: bool = False,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    export_path: Path = DEFAULT_SCROBBLES_PATH,
-    recent_path: Path = DEFAULT_RECENT_PATH,
-    cache_path: Path = DEFAULT_CACHE_PATH,
-    log_path: Path = DEFAULT_LOG_PATH,
-    now: datetime | None = None,
+    options: SauvignonOptions,
+    callbacks: SauvignonCallbacks,
+    resources: SauvignonResources | None = None,
 ) -> SauvignonSummary:
-    """Fill Sauvignon with album-level recommendations inferred from Last.fm."""
-    from spotify_manager.bootstrap.sauvignon import run_sauvignon
+    """Fill Sauvignon with album-level recommendations inferred from Last.fm.
 
-    return run_sauvignon(
-        spotify,
-        lastfm,
-        playlist_id,
-        choice_reader,
-        count,
-        max_playlist_length,
-        seed_count,
-        dry_run,
-        echo,
-        progress_callback,
-        retry_call,
-        export_path,
-        recent_path,
-        cache_path,
-        log_path,
-        now,
+    Args:
+    spotify: Caller-owned client.
+    lastfm: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
+
+    Returns:
+    The original typed summary and accepted effects.
+
+    Raises:
+    RuntimeError: Observations, selections or persistence cannot complete.
+    """
+    from spotify_manager.interfaces.sauvignon_operations import (
+        fill_sauvignon_from_lastfm as operation,
     )
+
+    return operation(spotify, lastfm, options, callbacks, resources)
 
 
 def _append_recommendation_albums(

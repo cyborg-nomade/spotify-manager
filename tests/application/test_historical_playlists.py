@@ -5,12 +5,16 @@ from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from typing import cast
 
 import pytest
 
 from spotify_manager.application.historical_playlists import AnniversaryPlaylist
 from spotify_manager.application.historical_playlists import BlastPlaylist
 from spotify_manager.application.historical_playlists import HistoricalPlaylistEffects
+from spotify_manager.application.historical_resolution import HistoricalResolution
+from spotify_manager.application.historical_selection import AnniversarySelection
+from spotify_manager.application.historical_selection import BlastSelection
 from spotify_manager.application.historical_values import BlastFromPastBatch
 from spotify_manager.application.historical_values import BlastFromPastCancelledError
 from spotify_manager.application.historical_values import BlastFromPastConfigError
@@ -21,6 +25,7 @@ from spotify_manager.application.historical_values import SpotifySelectionResult
 from spotify_manager.application.historical_values import SpotifyTrackMatch
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import ScrobbleSelection
+from tests.support.runtime_resources import MessageList
 
 
 def _selection() -> ScrobbleSelection:
@@ -151,23 +156,88 @@ class PlaylistMemory:
             None, (date(2020, 1, 1),), (), () if self.empty else (_selection(),)
         )
 
+    def check(self) -> None:
+        """Observe the same fixture boundary through its named resource method."""
+        self.cancel()
+
+
+@dataclass(frozen=True)
+class ScriptedBlast:
+    """Supply one observed child-stage outcome.
+
+    Args:
+        memory: Existing stage observations and failure script.
+    """
+
+    memory: PlaylistMemory
+
+    def run(self, count: int) -> BlastFromPastBatch:
+        """Return the scripted selection.
+
+        Args:
+            count: Original requested count.
+
+        Returns:
+            Original scripted batch.
+        """
+        return self.memory.blast(count)
+
+
+@dataclass(frozen=True)
+class ScriptedRadio:
+    """Supply one observed anniversary stage.
+
+    Args:
+        memory: Existing stage observations and failure script.
+    """
+
+    memory: PlaylistMemory
+
+    def run(self) -> DailyMindRadioBatch:
+        """Return the original scripted anniversary outcome."""
+        return self.memory.radio()
+
+
+@dataclass(frozen=True)
+class ScriptedResolution:
+    """Supply the original observed resolution stage.
+
+    Args:
+        memory: Existing resolution observations and failure script.
+    """
+
+    memory: PlaylistMemory
+
+    def run(
+        self, selections: tuple[ScrobbleSelection, ...], playlist: PlaylistState
+    ) -> SpotifySelectionResolution:
+        """Return the original scripted resolution.
+
+        Args:
+            selections: Original selected plays.
+            playlist: Original observed destination.
+
+        Returns:
+            Existing decisions and pending matches.
+        """
+        return self.memory.resolve(selections, playlist)
+
 
 def _effects(memory: PlaylistMemory) -> HistoricalPlaylistEffects:
+    resolution = cast(HistoricalResolution, ScriptedResolution(memory))
     return HistoricalPlaylistEffects(
-        memory.read,
-        memory.resolve,
-        memory.append,
-        memory.cancel,
-        memory.messages.append,
+        memory, resolution, memory, MessageList(memory.messages)
     )
 
 
 def _blast(memory: PlaylistMemory) -> BlastPlaylist:
-    return BlastPlaylist(_effects(memory), memory.blast)
+    return BlastPlaylist(_effects(memory), cast(BlastSelection, ScriptedBlast(memory)))
 
 
 def _radio(memory: PlaylistMemory) -> AnniversaryPlaylist:
-    return AnniversaryPlaylist(_effects(memory), memory.radio)
+    return AnniversaryPlaylist(
+        _effects(memory), cast(AnniversarySelection, ScriptedRadio(memory))
+    )
 
 
 @pytest.mark.parametrize(

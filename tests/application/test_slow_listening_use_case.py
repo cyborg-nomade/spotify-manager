@@ -26,7 +26,7 @@ def _clock() -> datetime:
 
 
 def _resume(memory: MemorySlowListening, plan: object = None) -> dict[str, object]:
-    run = new_run("slow", (SOURCE,), _clock)
+    run = new_run("slow", (SOURCE,), ClockResource())
     entries = cast(list[dict[str, object]], run["entries"])
     entries[0]["plan"] = plan
     memory.state["active_run"] = run
@@ -361,3 +361,15 @@ def test_completion_requires_all_original_entries_to_be_finished(
         finished: Whether every entry is complete or skipped.
     """
     assert _finished(entries) is finished
+
+
+class ClockResource:
+    """Own the original fixed fixture observation."""
+
+    def now(self) -> datetime:
+        """Observe the original fixture boundary.
+
+        Returns:
+            Original fixture response.
+        """
+        return _clock()

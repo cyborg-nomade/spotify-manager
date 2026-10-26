@@ -1,17 +1,17 @@
 """Ordered playlist effects for Friday and anniversary historical track batches."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
-from spotify_manager.application.historical_values import BlastFromPastBatch
+from spotify_manager.application.historical_resolution import HistoricalResolution
+from spotify_manager.application.historical_selection import AnniversarySelection
+from spotify_manager.application.historical_selection import BlastSelection
 from spotify_manager.application.historical_values import BlastFromPastConfigError
 from spotify_manager.application.historical_values import BlastFromPastSpotifySummary
-from spotify_manager.application.historical_values import DailyMindRadioBatch
 from spotify_manager.application.historical_values import DailyMindRadioSpotifySummary
-from spotify_manager.application.historical_values import PlaylistState
 from spotify_manager.application.historical_values import SpotifySelectionResolution
-from spotify_manager.application.historical_values import SpotifyTrackMatch
-from spotify_manager.domain.history import ScrobbleSelection
+from spotify_manager.application.ports.history import HistoricalPlaylist
+from spotify_manager.application.ports.runtime import Cancellation
+from spotify_manager.application.ports.runtime import Messages
 
 
 @dataclass(frozen=True)
@@ -19,20 +19,16 @@ class HistoricalPlaylistEffects:
     """Read and resolve playlists without owning a client or retry implementation.
 
     Args:
-        read: Observe the destination playlist once.
-        resolve: Search matches and read their live liked status in original order.
-        append: Append all pending matches using the existing batching boundary.
+        access: Original playlist reads and accepted appends.
+        resolution: Named application stage for search and liked decisions.
         check_cancel: Check cancellation at the routine's original boundaries.
         progress: Present original progress messages.
     """
 
-    read: Callable[[], PlaylistState]
-    resolve: Callable[
-        [tuple[ScrobbleSelection, ...], PlaylistState], SpotifySelectionResolution
-    ]
-    append: Callable[[list[SpotifyTrackMatch]], None]
-    check_cancel: Callable[[], None]
-    progress: Callable[[str], None]
+    access: HistoricalPlaylist
+    resolution: HistoricalResolution
+    check_cancel: Cancellation
+    progress: Messages
 
     def apply(self, resolution: SpotifySelectionResolution, dry_run: bool) -> int:
         """Append pending tracks and return the actual projected increase.
@@ -46,8 +42,10 @@ class HistoricalPlaylistEffects:
         """
         if not resolution.pending_matches or dry_run:
             return 0
-        self.progress(f"Adding {len(resolution.pending_matches)} tracks to Spotify")
-        self.append(list(resolution.pending_matches))
+        self.progress.echo(
+            f"Adding {len(resolution.pending_matches)} tracks to Spotify"
+        )
+        self.access.append(list(resolution.pending_matches))
         return len(resolution.pending_matches)
 
 
@@ -74,11 +72,11 @@ class BlastPlaylist:
 
     Args:
         effects: Existing playlist and presentation boundaries.
-        select: Select a batch for the requested count.
+        selection: Named historical selection stage.
     """
 
     effects: HistoricalPlaylistEffects
-    select: Callable[[int], BlastFromPastBatch]
+    selection: BlastSelection
 
     def run(
         self, playlist_id: str, count: int | None, maximum: int | None, dry_run: bool
@@ -99,17 +97,17 @@ class BlastPlaylist:
             BlastFromPastCancelledError: Cancellation is requested.
         """
         _validate_request(count, maximum)
-        self.effects.check_cancel()
-        self.effects.progress("Loading the Spotify playlist")
-        playlist = self.effects.read()
+        self.effects.check_cancel.check()
+        self.effects.progress.echo("Loading the Spotify playlist")
+        playlist = self.effects.access.read()
         requested = _requested_count(count, maximum, playlist.total_items)
         if requested == 0:
             return BlastFromPastSpotifySummary(
                 playlist_id, 0, playlist.total_items, playlist.total_items, None, ()
             )
-        batch = self.select(requested)
-        self.effects.check_cancel()
-        resolution = self.effects.resolve(batch.selections, playlist)
+        batch = self.selection.run(requested)
+        self.effects.check_cancel.check()
+        resolution = self.effects.resolution.run(batch.selections, playlist)
         added = self.effects.apply(resolution, dry_run)
         return BlastFromPastSpotifySummary(
             playlist_id,
@@ -127,11 +125,11 @@ class AnniversaryPlaylist:
 
     Args:
         effects: Existing playlist and presentation boundaries.
-        select: Select anniversary tracks from the local history.
+        selection: Named anniversary selection stage.
     """
 
     effects: HistoricalPlaylistEffects
-    select: Callable[[], DailyMindRadioBatch]
+    selection: AnniversarySelection
 
     def run(self, playlist_id: str, dry_run: bool) -> DailyMindRadioSpotifySummary:
         """Skip all Spotify observations when no anniversary date is populated.
@@ -146,14 +144,14 @@ class AnniversaryPlaylist:
         Raises:
             BlastFromPastCancelledError: Cancellation is requested.
         """
-        self.effects.check_cancel()
-        batch = self.select()
-        self.effects.check_cancel()
+        self.effects.check_cancel.check()
+        batch = self.selection.run()
+        self.effects.check_cancel.check()
         if not batch.selections:
             return DailyMindRadioSpotifySummary(playlist_id, batch, None, None, ())
-        self.effects.progress("Loading the Spotify playlist")
-        playlist = self.effects.read()
-        resolution = self.effects.resolve(batch.selections, playlist)
+        self.effects.progress.echo("Loading the Spotify playlist")
+        playlist = self.effects.access.read()
+        resolution = self.effects.resolution.run(batch.selections, playlist)
         added = self.effects.apply(resolution, dry_run)
         return DailyMindRadioSpotifySummary(
             playlist_id,

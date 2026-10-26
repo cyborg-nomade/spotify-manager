@@ -12,14 +12,14 @@ from typing import cast
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
 from spotify_manager.interfaces.http.analysis_worker import AnalysisWorker
 from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import spotify_event_setter
 from spotify_manager.interfaces.http.job_records import AnalysisJob
 from spotify_manager.interfaces.http.models.analysis import AnalysisJobResult
 from spotify_manager.interfaces.http.models.analysis import AnalysisResourceProgress
 from spotify_manager.interfaces.http.models.common import JobStatus
-from spotify_manager.routines import analyse_library as analysis
+from spotify_manager.interfaces.operations import analyse_library as analysis
 
 
 @dataclass
@@ -34,7 +34,7 @@ class LogRecorder:
     lock: Lock
     calls: list[tuple[AnalysisJob, str]] = field(default_factory=list)
 
-    def __call__(self, job: AnalysisJob, message: str) -> None:
+    def append(self, job: AnalysisJob, message: str) -> None:
         """Observe one sink call under the owner's lock.
 
         Args:
@@ -43,6 +43,14 @@ class LogRecorder:
         """
         assert self.lock.locked()
         self.calls.append((job, message))
+
+    def now(self) -> datetime:
+        """Observe the original fixture instant.
+
+        Returns:
+            Frozen UTC job time.
+        """
+        return _now()
 
 
 def _now() -> datetime:
@@ -62,8 +70,6 @@ def _worker(identifier: str = "analysis", lock: Lock | None = None) -> AnalysisW
     )
     return AnalysisWorker(
         AnalysisJob(result, Event()),
-        registry_lock,
-        _now,
         LogRecorder(registry_lock),
         "async",
         None,
@@ -73,8 +79,8 @@ def _worker(identifier: str = "analysis", lock: Lock | None = None) -> AnalysisW
 
 
 def _messages(worker: AnalysisWorker) -> list[str]:
-    assert isinstance(worker.append, LogRecorder)
-    return [message for _, message in worker.append.calls]
+    assert isinstance(worker.context, LogRecorder)
+    return [message for _, message in worker.context.calls]
 
 
 def _summary() -> analysis.LibrarySyncSummary:
@@ -185,7 +191,7 @@ def test_retry_wait_owns_its_signal_and_original_resume(
     failure = (
         "Spotify connection interrupted" if http_status is None else "Spotify HTTP 500"
     )
-    assert worker.retry_wait(notice) is not cancelled
+    assert worker.wait(notice) is not cancelled
     assert worker.job.result.retry_at is None
     assert _messages(worker)[0] == (
         "Waiting until 2026-09-24T00:00:00+00:00 before retry "
@@ -258,15 +264,15 @@ def test_dispatch_uses_exact_routine_and_owned_callbacks(
     probe = RoutineProbe()
     monkeypatch.setattr(analysis, routine, probe)
     assert worker.execute() == _summary()
-    assert probe.options["echo"] == worker.echo
-    assert probe.options["progress_callback"] == worker.progress
-    assert probe.options["cancel_check"] == worker.job.cancel_event.is_set
+    assert probe.options["echo"] is worker
+    assert probe.options["progress_callback"] is worker
+    assert probe.options["cancel_check"] is worker.job.cancel_event
     if mode == "async":
         assert probe.arguments == ()
         assert "retry_wait" not in probe.options
         return
     assert probe.arguments[0] is worker.spotify
-    assert probe.options["retry_wait"] == worker.retry_wait
+    assert probe.options["retry_wait"] is worker
     if mode == "mirrors":
         assert probe.options["full_rebuild"] is True
 
@@ -371,19 +377,19 @@ class EventClient:
 
 def test_optional_sdk_hook_preserves_binding_and_restoration() -> None:
     """Observe both absence of a hook and the original previous-owner convention."""
-    assert spotify_event_setter(None) is None
-    assert spotify_event_setter(cast(Spotify, object())) is None
+    absent = SpotifyEvents(None)
+    absent.restore()
+    unavailable = SpotifyEvents(cast(Spotify, object()))
+    unavailable.restore()
     first, second = _worker("first"), _worker("second")
-    client = EventClient(first.echo)
-    setter = spotify_event_setter(cast(Spotify, client))
-    assert setter is not None
-    previous = setter(second.echo)
-    assert previous == first.echo
-    assert client.callback == second.echo
+    client = EventClient(first)
+    events = SpotifyEvents(cast(Spotify, client))
+    events.subscribe(second)
+    assert client.callback is second
     assert client.callback is not None
-    client.callback("SDK event")
-    setter(previous)
-    assert client.callback == first.echo
+    client.callback.echo("SDK event")
+    events.restore()
+    assert client.callback is first
     assert _messages(first) == []
     assert _messages(second) == ["SDK event"]
 
@@ -401,5 +407,5 @@ def test_parallel_callbacks_and_cancellation_keep_distinct_owners() -> None:
     assert second.job.cancel_event.is_set() is False
     assert _messages(first) == ["left"]
     assert _messages(second) == ["right"]
-    assert isinstance(first.append, LogRecorder)
-    assert first.append.calls[0][0] is first.job
+    assert isinstance(first.context, LogRecorder)
+    assert first.context.calls[0][0] is first.job

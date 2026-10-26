@@ -1,85 +1,72 @@
 """Explicit callbacks and wire presentation for SauvignonWorker."""
 
-import logging
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
-from datetime import datetime
 from datetime import timedelta
-from threading import Lock
 
 from requests.exceptions import RequestException
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.application.job_lifecycle import await_submission
+from spotify_manager.bootstrap.clients import LastFmCredentials
+from spotify_manager.bootstrap.clients import lastfm_client
 from spotify_manager.client.lastfm import LastFmClient
 from spotify_manager.client.lastfm import LastFmError
-from spotify_manager.interfaces.http.analysis_worker import EventCallback
-from spotify_manager.interfaces.http.analysis_worker import EventSetter
+from spotify_manager.infrastructure.spotify.events import SpotifyEvents
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces import sauvignon_operations as sauvignon
 from spotify_manager.interfaces.http.job_records import PlaylistJob as _BlastJob
 from spotify_manager.interfaces.http.models.recommendations import SauvignonAlbumOption
 from spotify_manager.interfaces.http.models.recommendations import (
     SauvignonPendingChoice,
 )
-from spotify_manager.interfaces.http.models.recommendations import (
-    SauvignonSelectionResult,
+from spotify_manager.interfaces.http.playlist_context import PlaylistContext
+from spotify_manager.interfaces.http.presenters.recommendations import (
+    sauvignon_selection_results,
 )
-from spotify_manager.interfaces.http.presenters.collections import present_entries
 from spotify_manager.interfaces.http.workers.errors import _SauvignonJobCancelledError
-from spotify_manager.routines import found_art
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import sauvignon
+from spotify_manager.interfaces.operations import found_art as found_art
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.requests.sauvignon import SauvignonCallbacks
+from spotify_manager.interfaces.requests.sauvignon import SauvignonOptions
+from spotify_manager.interfaces.requests.sauvignon import SauvignonResources
 
 
 @dataclass(kw_only=True)
 class SauvignonWorker:
-    """Own one routine job and its explicitly supplied interface dependencies.
+    """Execute one reconnectable job with invocation-owned inputs.
 
     Args:
-        job_id: Explicit job id input or adapter boundary.
-        spotify: Explicit spotify input or adapter boundary.
-        playlist_id: Explicit playlist id input or adapter boundary.
-        api_key: Explicit api key input or adapter boundary.
-        username: Explicit username input or adapter boundary.
-        count: Explicit count input or adapter boundary.
-        max_playlist_length: Explicit max playlist length input or adapter boundary.
-        seed_count: Explicit seed count input or adapter boundary.
-        dry_run: Explicit dry run input or adapter boundary.
-        create_lastfm: Explicit create lastfm input or adapter boundary.
-        connection_failure: Explicit connection failure input or adapter boundary.
-        logger: Explicit logger input or adapter boundary.
-        append: Explicit append input or adapter boundary.
-        lock: Explicit lock input or adapter boundary.
-        _sauvignon_selection_result: Explicit sauvignon selection result input or
-            adapter boundary.
-        clock: Explicit clock input or adapter boundary.
-        lookup: Explicit lookup input or adapter boundary.
+        credentials: Credentials supplied by the caller.
+        options: Options supplied by the caller.
+        context: Shared job lock, clock and presentation context.
+        job_id: Job id supplied by the caller.
+        spotify: Caller-owned Spotify client.
+        connection_failure: Connection failure supplied by the caller.
+        job: Mutable job record owned by this worker.
+        last_progress: Last visible progress observation.
+        lastfm: Caller-owned Last.fm client.
+
+    Attributes:
+        events: SDK event subscription retaining the original setter binding.
     """
 
+    credentials: LastFmCredentials
+    options: SauvignonOptions
+    context: PlaylistContext
     job_id: str
     spotify: Spotify
-    playlist_id: str
-    api_key: str
-    username: str
-    count: int | None
-    max_playlist_length: int | None
-    seed_count: int
-    dry_run: bool
-    create_lastfm: Callable[..., LastFmClient]
     connection_failure: str
-    logger: logging.Logger
-    append: Callable[[_BlastJob, str], None]
-    lock: Lock
-    _sauvignon_selection_result: Callable[..., SauvignonSelectionResult]
-    clock: type[datetime]
-    lookup: Callable[..., _BlastJob]
     job: _BlastJob = field(init=False)
     last_progress: str | None = field(init=False, default=None)
     lastfm: LastFmClient = field(init=False)
-    spotify_event_setter: EventSetter | None = field(init=False)
-    previous_spotify_event_callback: EventCallback | None = field(init=False)
+    events: SpotifyEvents = field(init=False)
 
     def run(self) -> None:
         """Run reconnectable Last.fm album discovery for Sauvignon."""
@@ -114,9 +101,9 @@ class SauvignonWorker:
         Args:
             message: Original routine-supplied message.
         """
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = message
-            self.append(self.job, message)
+            self.context.append(self.job, message)
 
     def progress_callback(self, progress_status: str) -> None:
         """Publish routine progress and observe its cancellation boundary.
@@ -126,13 +113,13 @@ class SauvignonWorker:
         """
         if self.job.cancel_event.is_set():
             raise _SauvignonJobCancelledError
-        with self.lock:
+        with self.context.lock:
             self.job.result.detail = progress_status
             if progress_status != self.last_progress:
-                self.append(self.job, progress_status)
+                self.context.append(self.job, progress_status)
                 self.last_progress = progress_status
 
-    def choice_reader(
+    def choose_album(
         self,
         recommendation: sauvignon.AlbumRecommendation,
         options: tuple[sauvignon.SpotifyAlbumOption, ...],
@@ -146,7 +133,7 @@ class SauvignonWorker:
         Returns:
             The original accepted routine callback result.
         """
-        with self.lock:
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _SauvignonJobCancelledError
             self.job.submitted_choice = None
@@ -163,15 +150,13 @@ class SauvignonWorker:
             )
             self.job.result.status = "waiting"
             self.job.result.detail = (
-                "Choose the Spotify edition for "
-                f"{recommendation.artist}"
-                " - "
+                f"Choose the Spotify edition for {recommendation.artist} - "
                 f"{recommendation.album}"
             )
-            self.append(self.job, self.job.result.detail)
-        return await_submission(self.job.choice_event, self._consume_choice_reader)
+            self.context.append(self.job, self.job.result.detail)
+        return await_submission(self.job.choice_event, self)
 
-    def interruptible_sleep(self, seconds: float) -> None:
+    def sleep(self, seconds: float) -> None:
         """Interrupt the original retry delay when this job is cancelled.
 
         Args:
@@ -180,63 +165,57 @@ class SauvignonWorker:
         if self.job.cancel_event.wait(seconds):
             raise _SauvignonJobCancelledError
 
-    def retry_call(self, operation: Callable[[], object], description: str) -> object:
-        """Apply the original retry policy with job-owned event callbacks.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
 
         Args:
-            operation: Original routine-supplied operation.
-            description: Original routine-supplied description.
+            description: Original request description.
 
         Returns:
-            The original accepted routine callback result.
+            Attempt scopes retaining the original delay, limit and cancellation rules.
         """
-        if self.job.cancel_event.is_set():
-            raise _SauvignonJobCancelledError
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self.echo,
-            sleep=self.interruptible_sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
+        self.check()
+        scopes = SpotifyRetries(self, self, 10, 3).attempts(description)
+        return scopes
 
     def _start(self) -> None:
-        self.job = self.lookup(self.job_id, command="fill_sauvignon_from_lastfm")
-        with self.lock:
+        self.job = self.context.lookup(
+            self.job_id, command="fill_sauvignon_from_lastfm"
+        )
+        with self.context.lock:
             self.job.result.status = "running"
-            self.job.result.started_at = self.clock.now(UTC).isoformat()
+            self.job.result.started_at = self.context.clock.now(UTC).isoformat()
             self.job.result.detail = "Sauvignon album discovery started"
-            dry_run_suffix = " in dry-run mode" if self.dry_run else ""
-            self.append(self.job, f"Sauvignon album discovery started{dry_run_suffix}.")
+            dry_run_suffix = " in dry-run mode" if self.options.dry_run else ""
+            self.context.append(
+                self.job, f"Sauvignon album discovery started{dry_run_suffix}."
+            )
         self.last_progress: str | None = None
-        self.spotify_event_setter = getattr(self.spotify, "set_event_callback", None)
-        self.previous_spotify_event_callback = None
-        if callable(self.spotify_event_setter):
-            self.previous_spotify_event_callback = self.spotify_event_setter(self.echo)
-        self.lastfm = self.create_lastfm(
-            self.api_key, self.username, event_callback=self.echo
+        self.events = SpotifyEvents(self.spotify)
+        self.events.subscribe(self)
+        self.lastfm = lastfm_client(
+            LastFmCredentials(self.credentials.api_key, self.credentials.username),
+            self,
         )
 
     def _execute(self) -> sauvignon.SauvignonSummary:
         summary = sauvignon.fill_sauvignon_from_lastfm(
             self.spotify,
             self.lastfm,
-            self.playlist_id,
-            self.choice_reader,
-            count=self.count,
-            max_playlist_length=self.max_playlist_length,
-            seed_count=self.seed_count,
-            dry_run=self.dry_run,
-            echo=self.echo,
-            progress_callback=self.progress_callback,
-            retry_call=self.retry_call,
+            self.options,
+            SauvignonCallbacks(
+                choice_reader=self,
+                output=self,
+                progress_callback=SauvignonProgress(self),
+                retry_call=self,
+            ),
+            SauvignonResources(),
         )
         return summary
 
     def _completed(self, summary: sauvignon.SauvignonSummary) -> None:
-        results = present_entries(summary.results, self._sauvignon_selection_result)
-        with self.lock:
+        results = sauvignon_selection_results(summary.results)
+        with self.context.lock:
             self.job.result.status = "paused" if summary.paused else "completed"
             self.job.result.requested_count = summary.requested_count
             self.job.result.week_start = summary.week_start.isoformat()
@@ -257,84 +236,67 @@ class SauvignonWorker:
             self.job.result.sauvignon_results = results
             verb = "Would add" if summary.dry_run else "Added"
             self.job.result.detail = (
-                f"{verb}"
-                " "
-                f"{summary.selected}"
-                " of "
-                f"{summary.requested_count}"
-                " album recommendations; playlist "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                "."
+                f"{verb} {summary.selected} of {summary.requested_count}"
+                f" album recommendations; playlist {summary.playlist_length_before}"
+                f" -> {summary.playlist_length_after}."
             )
             for result in results:
                 target = result.spotify_album or "no selected Spotify edition"
-                self.append(
+                self.context.append(
                     self.job,
-                    (
-                        f"{result.artist}"
-                        " - "
-                        f"{result.album}"
-                        " -> "
-                        f"{target}"
-                        " ("
-                        f"{result.action}"
-                        ")."
-                    ),
+                    f"{result.artist} - {result.album} -> {target} ({result.action}).",
                 )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _finish(self) -> None:
-        if callable(self.spotify_event_setter):
-            self.spotify_event_setter(self.previous_spotify_event_callback)
-        with self.lock:
+        self.events.restore()
+        with self.context.lock:
             self.job.result.sauvignon_pending_choice = None
-            self.job.result.completed_at = self.clock.now(UTC).isoformat()
+            self.job.result.completed_at = self.context.clock.now(UTC).isoformat()
 
     def _cancelled(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "cancelled"
             self.job.result.detail = (
-                (
-                    "Sauvignon discovery stopped. Cached calls and "
-                    "completed additions remain saved."
-                )
-                if not self.dry_run
+                "Sauvignon discovery stopped. Cached calls and completed "
+                "additions remain saved."
+                if not self.options.dry_run
                 else "Sauvignon discovery dry run stopped."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _rate_limited(self, exc: review_album_limits.SpotifyRateLimitError) -> None:
         retry_at = None
         if exc.retry_after_seconds is not None:
-            retry_at = self.clock.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
-        with self.lock:
+            retry_at = self.context.clock.now(UTC) + timedelta(
+                seconds=exc.retry_after_seconds
+            )
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.retry_at = retry_at.isoformat() if retry_at else None
             self.job.result.detail = (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _temporarily_unavailable(
         self, exc: review_album_limits.SpotifyTransientServerError
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "paused"
             self.job.result.detail = (
                 review_album_limits.format_transient_spotify_failure(exc)
                 + ". Cached calls and completed additions remain saved."
             )
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _connection_failed(self) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = self.connection_failure
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
     def _failed(
         self,
@@ -343,20 +305,28 @@ class SauvignonWorker:
         | LastFmError
         | SpotifyException,
     ) -> None:
-        with self.lock:
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = str(exc)
-            self.append(self.job, f"Sauvignon discovery failed: {exc}")
+            self.context.append(self.job, f"Sauvignon discovery failed: {exc}")
 
     def _unexpected_failure(self, exc: Exception) -> None:
-        self.logger.exception("Unexpected Sauvignon discovery error")
-        with self.lock:
+        self.context.logger.exception("Unexpected Sauvignon discovery error")
+        with self.context.lock:
             self.job.result.status = "failed"
             self.job.result.detail = f"Unexpected Sauvignon discovery error: {exc}"
-            self.append(self.job, self.job.result.detail)
+            self.context.append(self.job, self.job.result.detail)
 
-    def _consume_choice_reader(self) -> str | None:
-        with self.lock:
+    def consume(self) -> str | None:
+        """Consume an accepted submission while holding the job lock.
+
+        Returns:
+            Original submitted value, or none while the job is waiting.
+
+        Raises:
+            RuntimeError: The job's original cancellation boundary stops execution.
+        """
+        with self.context.lock:
             if self.job.cancel_event.is_set():
                 raise _SauvignonJobCancelledError
             choice = self.job.submitted_choice
@@ -367,7 +337,7 @@ class SauvignonWorker:
             self.job.result.sauvignon_pending_choice = None
             self.job.result.status = "running"
             self.job.result.detail = "Applying Sauvignon album choice"
-            self.append(self.job, f"Album choice received: {choice}.")
+            self.context.append(self.job, f"Album choice received: {choice}.")
             return choice
 
     def _sauvignon_album_options(
@@ -386,3 +356,31 @@ class SauvignonWorker:
                 )
             )
         return entries
+
+    def check(self) -> None:
+        """Observe the original retry cancellation boundary.
+
+        Raises:
+            RuntimeError: This job was cancelled.
+        """
+        if self.job.cancel_event.is_set():
+            raise _SauvignonJobCancelledError
+
+
+@dataclass(frozen=True)
+class SauvignonProgress:
+    """Own the job's progress and cancellation notification boundary.
+
+    Args:
+        worker: Invocation owning the registered job and its lock.
+    """
+
+    worker: SauvignonWorker
+
+    def echo(self, message: str) -> None:
+        """Report the original progress observation and cancellation check.
+
+        Args:
+            message: Complete original operation description.
+        """
+        self.worker.progress_callback(message)

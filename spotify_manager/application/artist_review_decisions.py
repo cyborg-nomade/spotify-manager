@@ -52,7 +52,7 @@ def _zero_liked(session: ReviewSession, artist: YourLibraryArtist) -> None:
             "kept_primary_top_track",
             ranked_tracks=[asdict(track) for track in tracks],
         )
-        session.interaction.echo(
+        session.interaction.output.echo(
             f"Kept: {artist.name} has a primary-credited ranked track"
         )
         return
@@ -67,7 +67,9 @@ def _zero_liked(session: ReviewSession, artist: YourLibraryArtist) -> None:
     )
     session.state.pending_unfollows[artist.spotify_id] = plan
     session.state.persist()
-    session.interaction.echo(f"Planned automatic unfollow: {artist.name} ({reason})")
+    session.interaction.output.echo(
+        f"Planned automatic unfollow: {artist.name} ({reason})"
+    )
     if len(session.state.pending_unfollows) >= 40:
         flush_unfollows(session)
 
@@ -83,7 +85,7 @@ def _already_queued(
         expected_playlist_id=session.playlists.for_liked_count(count),
         placement="retained_existing_tier",
     )
-    session.interaction.echo(f"Already queued: {artist.name}")
+    session.interaction.output.echo(f"Already queued: {artist.name}")
 
 
 def _primary_unliked(
@@ -109,7 +111,7 @@ def _review_track(
     choices = _primary_unliked(session, artist)
     if not choices:
         session.complete(artist, count, "no_unliked_primary_track")
-        session.interaction.echo(
+        session.interaction.output.echo(
             f"No unliked primary-credited ranked track: {artist.name}"
         )
         return True
@@ -118,7 +120,9 @@ def _review_track(
         return True
     reader = session.interaction.track
     choice = (
-        reader(artist, tuple(choices)) if reader is not None else choices[0].spotify_id
+        reader.choose_track(artist, tuple(choices))
+        if reader is not None
+        else choices[0].spotify_id
     )
     control = _control_choice(session, artist, count, choice)
     if control is not None:
@@ -171,7 +175,7 @@ def _queue_track(
         track=asdict(track),
         selection="automatic" if automatic else "prompted",
     )
-    session.interaction.echo(f"Queued: {artist.name} - {track.name}")
+    session.interaction.output.echo(f"Queued: {artist.name} - {track.name}")
 
 
 def _review_release(
@@ -192,7 +196,7 @@ def _review_release(
         return True
     reader = session.interaction.release
     choice = (
-        reader(artist, tuple(releases), decline)
+        reader.choose_release(artist, tuple(releases), decline)
         if reader is not None
         else eligible[0].spotify_id
     )
@@ -232,7 +236,7 @@ def _no_release(
         "no_eligible_release",
         releases=[asdict(release) for release in releases],
     )
-    session.interaction.echo(f"No eligible first-track release: {artist.name}")
+    session.interaction.output.echo(f"No eligible first-track release: {artist.name}")
 
 
 def _decline(
@@ -247,7 +251,7 @@ def _decline(
     session.complete(
         artist, count, "declined", releases=[asdict(release) for release in releases]
     )
-    session.interaction.echo(f"Declined queue addition: {artist.name}")
+    session.interaction.output.echo(f"Declined queue addition: {artist.name}")
 
 
 def _selected_release(
@@ -300,7 +304,7 @@ def _plan_move(
     )
     session.state.pending_queue_moves[artist.spotify_id] = plan
     session.state.persist()
-    flush_moves(session, session.membership)
+    flush_moves(session)
 
 
 def _queue_release(
@@ -331,6 +335,6 @@ def _queue_release(
         release=asdict(release),
         selection="prompted",
     )
-    session.interaction.echo(
+    session.interaction.output.echo(
         f"Queued: {artist.name} - {release.first_track_name} ({release.name})"
     )

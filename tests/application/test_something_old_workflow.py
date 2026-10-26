@@ -8,6 +8,7 @@ from typing import cast
 
 import pytest
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.something_old_run import SomethingOld
 from spotify_manager.application.something_old_values import SomethingOldSummary
@@ -181,13 +182,43 @@ class MemoryOld:
         self.edge.record("audit", asdict(summary))
 
 
+@dataclass(frozen=True)
+class ScriptedHistory:
+    """Supply the existing isolated Something Old history-stage oracle.
+
+    Args:
+        memory: Original external observations.
+    """
+
+    memory: MemoryOld
+
+    def run(
+        self, username: str | None, preview: bool, rebuild: bool, now: datetime
+    ) -> ScrobbleHistorySummary:
+        """Observe the original history stage.
+
+        Args:
+            username: Original expected account.
+            preview: Original publication behavior.
+            rebuild: Original incremental refresh mode.
+            now: Effective timestamp observed before playlist preflight.
+
+        Returns:
+            Original complete canonical refresh summary.
+        """
+        return self.memory.history(now, preview)
+
+
 def _outcome(case: dict[str, object]) -> object:
     edge = OldObservations(
         cast(str, case["scenario"]), cast(str | None, case["failure"])
     )
     outcome: dict[str, object] = {}
     try:
-        result = SomethingOld(MemoryOld(edge)).run("destination", bool(case["preview"]))
+        memory = MemoryOld(edge)
+        result = SomethingOld(
+            memory, cast(HistoryRefresh, ScriptedHistory(memory)), "listener"
+        ).run("destination", bool(case["preview"]))
         outcome["result"] = asdict(result)
     except RuntimeError as exc:
         outcome.update(error=type(exc).__name__, message=str(exc))

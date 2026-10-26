@@ -1,15 +1,18 @@
 """Gather Queue artist neighborhoods with original cache checkpoint ordering."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
 from typing import Protocol
 
+from spotify_manager.application.ports.calendar import ListeningCalendar
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.domain.queue_candidates import LastFmSimilarArtist
 from spotify_manager.domain.queue_candidates import QueueCandidates
 from spotify_manager.domain.queue_values import ArtistRecommendation
 from spotify_manager.domain.queue_values import ArtistSeed
+from spotify_manager.domain.recommendation_history import listening_week_start
 
 
 class QueueNeighborhoodCache(Protocol):
@@ -20,6 +23,16 @@ class QueueNeighborhoodCache(Protocol):
 
         Returns:
             Original complete mutable cache document.
+        """
+
+    def neighbors(self, seed: ArtistSeed) -> tuple[LastFmSimilarArtist, ...]:
+        """Read one uncached Last.fm artist neighborhood.
+
+        Args:
+            seed: Original weighted seed.
+
+        Returns:
+            Similar artists in original response order.
         """
 
     def previous(self) -> set[str]:
@@ -65,17 +78,15 @@ class QueueRecommendations:
 
     Args:
         cache: Original neighborhood persistence boundaries.
-        neighbors: Original Last.fm reader.
         clock: Resolve the original UTC timestamp.
-        listening_week: Resolve the original local calendar when needed.
+        calendar: Resolve the original local calendar when needed.
         progress: Present original per-seed observations.
     """
 
     cache: QueueNeighborhoodCache
-    neighbors: Callable[[ArtistSeed], tuple[LastFmSimilarArtist, ...]]
-    clock: Callable[[], datetime]
-    listening_week: Callable[[datetime], date]
-    progress: Callable[[int, int, str], None]
+    clock: Clock
+    calendar: ListeningCalendar
+    progress: ReviewProgress
 
     def run(
         self,
@@ -83,6 +94,7 @@ class QueueRecommendations:
         heard: set[str],
         week: date | None,
         limit: int,
+        now: datetime | None = None,
     ) -> tuple[ArtistRecommendation, ...]:
         """Gather every seed before applying the original candidate pool slice.
 
@@ -91,6 +103,7 @@ class QueueRecommendations:
             heard: Original heard identities.
             week: Optional original explicit listening week.
             limit: Original pool slice limit without additional validation.
+            now: Parent workflow's already observed timestamp, when supplied.
 
         Returns:
             Original ranked candidates after accepted cache writes.
@@ -99,14 +112,18 @@ class QueueRecommendations:
             AssertionError: Validated entries changed type.
             QueueStateError: Original cache or prior-addition data is unusable.
         """
-        generated_at = self.clock()
-        active_week = week or self.listening_week(generated_at)
+        generated_at = now or self.clock.now()
+        active_week = week or listening_week_start(
+            self.calendar.local_date(generated_at)
+        )
         cache = self.cache.load()
         entries = cache["entries"]
         assert isinstance(entries, dict)
         candidates = QueueCandidates(heard | self.cache.previous())
         for index, seed in enumerate(seeds, start=1):
-            self.progress(index - 1, len(seeds), f"Last.fm neighbors: {seed.artist}")
+            self.progress.progress(
+                index - 1, len(seeds), f"Last.fm neighbors: {seed.artist}"
+            )
             similar = self._neighbors(cache, entries, seed, generated_at, active_week)
             candidates.observe(seed, similar)
         return candidates.ranked(active_week, limit)
@@ -122,6 +139,6 @@ class QueueRecommendations:
         similar = self.cache.lookup(entries.get(seed.key), week)
         if similar is not None:
             return similar
-        similar = self.neighbors(seed)
+        similar = self.cache.neighbors(seed)
         self.cache.remember(cache, entries, seed, similar, generated_at)
         return similar

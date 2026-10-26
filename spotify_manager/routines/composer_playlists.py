@@ -1,10 +1,8 @@
 """Compatibility entry points for shared composer playlist observations."""
 
-from collections.abc import Callable
-from functools import partial
-
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.domain.composers import (
     COMPOSER_PLAYLIST_PREFIX as COMPOSER_PLAYLIST_PREFIX,
 )
@@ -27,23 +25,26 @@ from spotify_manager.infrastructure.spotify.composer_playlists import (
     ComposerPlaylistError as ComposerPlaylistError,
 )
 from spotify_manager.infrastructure.spotify.composer_playlists import (
+    SpotifyPlaylistPages,
+)
+from spotify_manager.infrastructure.spotify.composer_playlists import (
     observe_owned_playlists,
 )
 
 
+type RetryCall = Retry
+
+
 PLAYLIST_PAGE_LIMIT = 50
-RetryCall = Callable[[Callable[[], object], str], object]
 
 
 def _playlist_page(sp: Spotify, retry_call: RetryCall, offset: int) -> object:
-    return retry_call(
-        partial(
-            sp.current_user_playlists,
-            limit=PLAYLIST_PAGE_LIMIT,
-            offset=offset,
-        ),
-        f"loading owned playlists at offset {offset}",
-    )
+    for attempt in retry_call.attempts(f"loading owned playlists at offset {offset}"):
+        with attempt:
+            response = sp.current_user_playlists(
+                limit=PLAYLIST_PAGE_LIMIT, offset=offset
+            )
+    return response
 
 
 def load_owned_playlists(
@@ -65,5 +66,5 @@ def load_owned_playlists(
         ComposerPlaylistError: Playlist responses or owner anchors are invalid.
     """
     return observe_owned_playlists(
-        partial(_playlist_page, sp, retry_call), anchor_playlist_ids
+        SpotifyPlaylistPages(sp, retry_call), anchor_playlist_ids
     )

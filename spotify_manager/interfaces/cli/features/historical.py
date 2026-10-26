@@ -1,50 +1,46 @@
 """Explicit historical CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import date
-from datetime import datetime
 from typing import Never
 
 import typer
 from rich.console import Console
-from rich.table import Table
-from rich.text import Text
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
-from spotify_manager.routines import blast_from_past
-from spotify_manager.routines import blast_from_past_artists
-from spotify_manager.routines import daily_mind_radio
-from spotify_manager.routines import new_kids
-from spotify_manager.routines import review_album_limits
-from spotify_manager.settings import Settings
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.formatting import scrobble_date
+from spotify_manager.interfaces.cli.output import StatusOutput
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import blast_from_past as blast_from_past
+from spotify_manager.interfaces.operations import (
+    blast_from_past_artists as blast_from_past_artists,
+)
+from spotify_manager.interfaces.operations import daily_mind_radio as daily_mind_radio
+from spotify_manager.interfaces.operations import new_kids as new_kids
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
 
 
 @dataclass(kw_only=True)
 class HistoricalCLI:
-    """Execute and present historical through explicit facade dependencies.
+    """Run historical playlist commands and render their selections.
 
     Args:
-        create_text: Rich text constructor for historical result cells.
-        create_console: Factory for console instances.
-        configuration: Original settings factory supplied by the facade.
-        create_table: Factory for table instances.
-        client: Client supplied by the caller.
-        print_scrobble_selection_table: Original print scrobble selection table boundary
-            supplied by the facade.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
-    create_text: type[Text]
-    create_console: type[Console]
-    configuration: type[Settings]
-    create_table: type[Table]
-    client: Callable[..., Spotify]
-    print_scrobble_selection_table: Callable[..., None]
-    review_client: Callable[..., Spotify]
-    sleep: Callable[[float], None]
+    runtime: CliResources
+
+    display: ConsoleDisplay
+    sleep: Wait
 
     def _scrobble_date(self, timestamp_ms: int) -> str:
         """Format one Last.fm timestamp in the listening timezone.
@@ -55,9 +51,7 @@ class HistoricalCLI:
         Returns:
             The original value selected or formatted by this adapter.
         """
-        return datetime.fromtimestamp(
-            timestamp_ms / 1000, blast_from_past.SCROBBLE_TIMEZONE
-        ).strftime("%Y-%m-%d")
+        return scrobble_date(timestamp_ms)
 
     def _run_blast_from_the_past(
         self, count: int | None, max_playlist_length: int | None, dry_run: bool
@@ -69,12 +63,12 @@ class HistoricalCLI:
             max_playlist_length: Max playlist length supplied by the caller.
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        console = self.create_console()
+        console = self.display.create_console()
         if count is not None and max_playlist_length is not None:
             raise typer.BadParameter(
                 "use either --count or --max-playlist-length, not both"
             )
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
                 configuration.blast_from_the_past_playlist
@@ -88,11 +82,11 @@ class HistoricalCLI:
         try:
             with console.status(status_text) as status:
                 summary = blast_from_past.add_blast_from_past_to_spotify(
-                    self.client(),
+                    self.runtime.client(),
                     playlist_id,
                     count=effective_count,
                     max_playlist_length=max_playlist_length,
-                    progress_callback=status.update,
+                    progress_callback=StatusOutput(status),
                     dry_run=dry_run,
                 )
         except blast_from_past.BlastFromPastError as exc:
@@ -102,49 +96,36 @@ class HistoricalCLI:
         if summary.batch is None:
             console.print(
                 (
-                    "Playlist already contains "
-                    f"{summary.playlist_length_before}"
-                    " items; nothing was added."
+                    f"Playlist already contains {summary.playlist_length_before}"
+                    f" items; nothing was added."
                 ),
                 style="bold green",
             )
             return
         console.print(
             (
-                "Random.org timestamp: "
+                f"Random.org timestamp: "
                 f"{summary.batch.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}"
             ),
             style="bold cyan",
         )
         console.print(
             (
-                "Eligible dates: "
-                f"{summary.batch.available_dates}"
-                " ("
-                f"{blast_from_past.FIRST_ELIGIBLE_DATE.isoformat()}"
-                " through "
-                f"{summary.batch.cutoff_date.isoformat()}"
-                ")"
+                f"Eligible dates: {summary.batch.available_dates} ("
+                f"{blast_from_past.FIRST_ELIGIBLE_DATE.isoformat()} through "
+                f"{summary.batch.cutoff_date.isoformat()})"
             ),
             style="dim",
         )
-        self.print_scrobble_selection_table(
+        self._render_scrobble_selection_table(
             console, "A blast from the past", summary.results
         )
         verb = "would add" if dry_run else "added"
         console.print(
             (
-                "Playlist: "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                " items; "
-                f"{verb}"
-                " "
-                f"{summary.added}"
-                " of "
-                f"{summary.requested_count}"
-                " selections."
+                f"Playlist: {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after} items; {verb} {summary.added} of "
+                f"{summary.requested_count} selections."
             ),
             style="bold cyan" if dry_run else "bold",
         )
@@ -156,10 +137,10 @@ class HistoricalCLI:
             count: Count supplied by the caller.
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        self._blast_from_the_past_artists_console = self.create_console()
+        self._blast_from_the_past_artists_console = self.display.create_console()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
-                self.configuration().blast_from_the_past_playlist
+                self.runtime.configuration().blast_from_the_past_playlist
             )
         except blast_from_past.BlastFromPastConfigError as exc:
             self._report_blast_from_the_past_artists_configuration_failure(exc)
@@ -169,12 +150,12 @@ class HistoricalCLI:
             ) as self._blast_from_the_past_artists_status:
                 summary = (
                     blast_from_past_artists.add_dormant_artists_to_blast_from_past(
-                        self.review_client(),
+                        self.runtime.review_client(),
                         playlist_id,
                         count=count,
-                        echo=self._blast_from_the_past_artists_echo,
-                        progress_callback=self._blast_from_the_past_artists_log,
-                        retry_call=self._blast_from_the_past_artists_retry_call,
+                        echo=BlastFromThePastArtistsInteraction(self),
+                        progress_callback=BlastFromThePastArtistsDiagnostics(self),
+                        retry_call=BlastFromThePastArtistsInteraction(self),
                         dry_run=dry_run,
                     )
                 )
@@ -186,7 +167,9 @@ class HistoricalCLI:
             self._report_blast_from_the_past_artists_blast_from_past_failure(exc)
         except SpotifyException as exc:
             self._report_blast_from_the_past_artists_spotify_spotify_failure(exc)
-        table = self.create_table(title="A blast from the past · dormant artists")
+        table = self.display.create_table(
+            title="A blast from the past · dormant artists"
+        )
         table.add_column("Last.fm artist", style="bold")
         table.add_column("Scrobbles", justify="right")
         table.add_column("Spotify artist")
@@ -197,8 +180,8 @@ class HistoricalCLI:
             table.add_row(
                 result.artist,
                 str(result.scrobbles),
-                result.spotify_artist or ("-"),
-                result.track or ("-"),
+                result.spotify_artist or "-",
+                result.track or "-",
                 str(result.popularity) if result.popularity is not None else "-",
                 "would add" if dry_run and result.action == "added" else result.action,
             )
@@ -206,25 +189,12 @@ class HistoricalCLI:
         verb = "would add" if dry_run else "added"
         self._blast_from_the_past_artists_console.print(
             (
-                "History years: "
-                f"{summary.history_years[0]}"
-                "-"
-                f"{summary.history_years[-1]}"
-                "; excluded "
-                f"{summary.current_year}"
-                ". Candidates: "
-                f"{summary.candidate_count}"
-                "; playlist "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                "; "
-                f"{verb}"
-                " "
-                f"{summary.added}"
-                " of "
-                f"{summary.requested_count}"
-                "."
+                f"History years: {summary.history_years[0]}-"
+                f"{summary.history_years[-1]}; excluded {summary.current_year}"
+                f". Candidates: {summary.candidate_count}; playlist "
+                f"{summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after}; {verb} {summary.added} of "
+                f"{summary.requested_count}."
             ),
             style="bold cyan" if dry_run else "bold",
         )
@@ -232,18 +202,6 @@ class HistoricalCLI:
     def _blast_from_the_past_artists_echo(self, message: str) -> None:
         self._blast_from_the_past_artists_console.print(
             message, style="yellow", markup=False
-        )
-
-    def _blast_from_the_past_artists_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._blast_from_the_past_artists_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
         )
 
     def _blast_from_the_past_artists_log(
@@ -257,8 +215,8 @@ class HistoricalCLI:
         Args:
             dry_run: Whether to preview changes using the original routine behavior.
         """
-        console = self.create_console()
-        configuration = self.configuration()
+        console = self.display.create_console()
+        configuration = self.runtime.configuration()
         try:
             playlist_id = blast_from_past.parse_playlist_id(
                 configuration.daily_mind_radio_playlist,
@@ -269,9 +227,9 @@ class HistoricalCLI:
         try:
             with console.status("Preparing anniversary scrobbles") as status:
                 summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
-                    self.client(),
+                    self.runtime.client(),
                     playlist_id,
-                    progress_callback=status.update,
+                    progress_callback=StatusOutput(status),
                     dry_run=dry_run,
                 )
         except blast_from_past.BlastFromPastError as exc:
@@ -296,7 +254,7 @@ class HistoricalCLI:
         self, exc: SpotifyException, console: Console
     ) -> Never:
         console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -315,9 +273,9 @@ class HistoricalCLI:
     ) -> Never:
         self._blast_from_the_past_artists_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -344,7 +302,7 @@ class HistoricalCLI:
         self, exc: SpotifyException
     ) -> Never:
         self._blast_from_the_past_artists_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -366,7 +324,7 @@ class HistoricalCLI:
         self, exc: SpotifyException, console: Console
     ) -> Never:
         console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -400,26 +358,18 @@ class HistoricalCLI:
         if generated_at is None:
             raise RuntimeError("A populated Daily Mind Radio batch has no timestamp.")
         console.print(
-            (f"Random.org timestamp: {generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}"),
+            f"Random.org timestamp: {generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}",
             style="bold cyan",
         )
-        self.print_scrobble_selection_table(
+        self._render_scrobble_selection_table(
             console, "Daily mind radio", summary.results
         )
         verb = "would add" if dry_run else "added"
         console.print(
             (
-                "Playlist: "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                " items; "
-                f"{verb}"
-                " "
-                f"{summary.added}"
-                " of "
-                f"{len(summary.batch.selections)}"
-                " populated anniversary dates."
+                f"Playlist: {summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after} items; {verb} {summary.added} of "
+                f"{len(summary.batch.selections)} populated anniversary dates."
             ),
             style="bold cyan" if dry_run else "bold",
         )
@@ -443,7 +393,7 @@ class HistoricalCLI:
             title: Title supplied by the caller.
             results: Results supplied by the caller.
         """
-        table = self.create_table(title=title)
+        table = self.display.create_table(title=title)
         table.add_column("#", justify="right")
         table.add_column("Date")
         table.add_column("Rule")
@@ -463,46 +413,85 @@ class HistoricalCLI:
                 f"{selection.scrobble.artist} - {selection.scrobble.track} - {album}"
             )
             if result.match is None:
-                match_text = self.create_text("No qualifying result", style="red")
+                match_text = self.display.create_text(
+                    "No qualifying result", style="red"
+                )
             else:
                 match_album = result.match.album or "(no album)"
                 liked = "liked" if result.match.liked else "unliked"
                 album_score = (
                     "n/a"
                     if result.match.album_similarity is None
-                    else (f"{result.match.album_similarity:.0%}")
+                    else f"{result.match.album_similarity:.0%}"
                 )
-                match_text = self.create_text(
-                    f"{', '.join(result.match.artists)}"
-                    " - "
-                    f"{result.match.track}"
-                    " - "
-                    f"{match_album}"
-                    "\n"
-                    f"{liked}"
-                    "; track "
-                    f"{result.match.track_similarity:.0%}"
-                    ", album "
-                    f"{album_score}"
-                    "; "
-                    f"{result.qualifying_matches}"
-                    " qualified"
+                match_text = self.display.create_text(
+                    f"{', '.join(result.match.artists)} - {result.match.track} - "
+                    f"{match_album}\n{liked}; track "
+                    f"{result.match.track_similarity:.0%}, album {album_score}; "
+                    f"{result.qualifying_matches} qualified"
                 )
             table.add_row(
                 str(number),
                 selection.selected_date.isoformat(),
                 (
-                    "page "
-                    f"{selection.page}"
-                    "/"
-                    f"{selection.total_pages}"
-                    ", "
-                    f"{selection.direction}"
-                    ", #"
-                    f"{selection.position}"
+                    f"page {selection.page}/{selection.total_pages}, "
+                    f"{selection.direction}, #{selection.position}"
                 ),
-                self.create_text(scrobble_text),
+                self.display.create_text(scrobble_text),
                 match_text,
-                self.create_text(result.action, style=action_styles[result.action]),
+                self.display.create_text(
+                    result.action, style=action_styles[result.action]
+                ),
             )
         console.print(table)
+
+
+@dataclass(frozen=True)
+class BlastFromThePastArtistsInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: HistoricalCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._blast_from_the_past_artists_echo(message)
+
+
+@dataclass(frozen=True)
+class BlastFromThePastArtistsDiagnostics:
+    """Own the command's original presentation state.
+
+    Args:
+        owner: Existing command instance and its display resources.
+    """
+
+    owner: HistoricalCLI
+
+    def progress(self, _done: int, _total: int, message: str) -> None:
+        """Present the command's original diagnostic.
+
+        Args:
+            _done: Original  done.
+            _total: Original  total.
+            message: Original message.
+        """
+        self.owner._blast_from_the_past_artists_log(_done, _total, message)

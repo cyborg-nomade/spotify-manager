@@ -1,13 +1,24 @@
 """Tests for the interactive discography CLI command."""
 
+from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import Mock
 
+import pytest
 from typer.testing import CliRunner
 
 from spotify_manager import main
 
 
-def test_plan_discographies_dry_run_prints_fractional_days(monkeypatch) -> None:
+def test_plan_discographies_dry_run_prints_fractional_days(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Plan discographies dry run prints fractional days.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     releases = tuple(
         main.discography.CatalogRelease(
             spotify_id=f"release-{index}",
@@ -40,32 +51,24 @@ def test_plan_discographies_dry_run_prints_fractional_days(monkeypatch) -> None:
         open_slots=7,
     )
     received: dict[str, object] = {}
-
     monkeypatch.setattr(
         main,
         "Settings",
-        lambda: SimpleNamespace(
-            discography_newfoundland_playlist="nf",
-            discography_memory_lane_playlist="ml",
-            discography_requeue_playlist="rq",
-            the_queue_3_playlist="q3",
+        Mock(
+            return_value=SimpleNamespace(
+                discography_newfoundland_playlist="nf",
+                discography_memory_lane_playlist="ml",
+                discography_requeue_playlist="rq",
+                the_queue_3_playlist="q3",
+            )
         ),
     )
-    monkeypatch.setattr(main, "review_client", lambda: object())
-
-    def build(_spotify, playlist_ids, _selector, **kwargs):
-        received["playlist_ids"] = playlist_ids
-        received["queue_3_playlist_id"] = kwargs["queue_3_playlist_id"]
-        received["retry"] = callable(kwargs["retry_call"])
-        return plan
-
-    monkeypatch.setattr(main.discography, "build_discography_plan", build)
-
-    result = CliRunner().invoke(
-        main.app,
-        ["plan-discographies", "--dry-run"],
+    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    scenario = PlanDiscographiesDryRunPrintsFractionalDaysScenario(
+        plan=plan, received=received
     )
-
+    monkeypatch.setattr(main.discography, "build_discography_plan", scenario.build)
+    result = CliRunner().invoke(main.app, ["plan-discographies", "--dry-run"])
     assert result.exit_code == 0
     assert received["playlist_ids"] == {
         "newfoundland": "nf",
@@ -77,3 +80,37 @@ def test_plan_discographies_dry_run_prints_fractional_days(monkeypatch) -> None:
     assert "Artist" in result.output
     assert "1.5" in result.output
     assert "Dry run" in result.output
+
+
+@dataclass
+class PlanDiscographiesDryRunPrintsFractionalDaysScenario:
+    """Retain the original plan discographies dry run prints fractional days fixture.
+
+    Args:
+        plan: Original plan observation or resource.
+        received: Original received observation or resource.
+    """
+
+    plan: main.discography.DiscographyPlan
+    received: dict[str, object]
+
+    def build(
+        self, _spotify: Any, playlist_ids: Any, _selector: Any, **kwargs: Any
+    ) -> main.discography.DiscographyPlan:
+        """Execute the original build mock boundary.
+
+        Args:
+            _spotify: Original external mock argument.
+            playlist_ids: Original external mock argument.
+            _selector: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.received["playlist_ids"] = playlist_ids
+        self.received["queue_3_playlist_id"] = kwargs["queue_3_playlist_id"]
+        self.received["retry"] = callable(
+            getattr(kwargs["retry_call"], "attempts", None)
+        )
+        return self.plan

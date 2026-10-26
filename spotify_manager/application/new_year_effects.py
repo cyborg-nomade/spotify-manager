@@ -1,7 +1,5 @@
 """Original annual clock, destination, state, discovery and cancellation boundaries."""
 
-from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
@@ -32,26 +30,43 @@ class AnnualStateAccess(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class AnnualEffects:
-    """Bind original preflight, persistence, discovery and presentation resources.
+class AnnualEffects(Protocol):
+    """Observe annual preflight authority and deliver real user interactions."""
 
-    Args:
-        clock: Original effective Berlin clock read before all other boundaries.
-        destinations: Original ordered configured destination parsing.
-        state: Original caller/runtime annual state resolution.
-        owned: Original owned-playlist observations excluding Queue 3.
-        validate_discoveries: Original previous-year discovery source validation.
-        discoveries: Original annual discovery import, retaining preview semantics.
-        cancel: Original explicit cancellation boundary.
-        echo: Original visible presenter.
-    """
+    def clock(self) -> datetime:
+        """Observe the effective calendar time.
 
-    clock: Callable[[], datetime]
-    destinations: Callable[[], dict[str, str]]
-    state: Callable[[], AnnualStateAccess]
-    owned: Callable[[], tuple[OwnedPlaylist, ...]]
-    validate_discoveries: Callable[[tuple[OwnedPlaylist, ...], int], object]
-    discoveries: Callable[[int, bool], None]
-    cancel: Callable[[], None]
-    echo: Callable[[str], None]
+        Returns:
+            Original effective Berlin timestamp.
+        """
+
+    def destinations(self) -> dict[str, str]:
+        """Read and validate the configured destinations.
+
+        Returns:
+            Ordered destination identities.
+        """
+
+    def state(self) -> AnnualStateAccess:
+        """Resolve durable annual authority after destination validation.
+
+        Returns:
+            Original complete namespace access.
+        """
+
+    def owned(self) -> tuple[OwnedPlaylist, ...]:
+        """Read current owned playlists.
+
+        Returns:
+            Original complete current source facts.
+        """
+
+    def cancel(self) -> None:
+        """Raise the original cancellation error when requested."""
+
+    def echo(self, message: str) -> None:
+        """Present the original stage text.
+
+        Args:
+            message: Original visible message.
+        """

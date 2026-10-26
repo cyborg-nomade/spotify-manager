@@ -1,10 +1,11 @@
 """Observe Sauvignon track-to-album evidence in original candidate order."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal
+from typing import Protocol
 
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.album_recommendations import AlbumEvidence
 from spotify_manager.domain.album_recommendations import AlbumKey
 from spotify_manager.domain.album_recommendations import AlbumRecommendation
@@ -13,17 +14,52 @@ from spotify_manager.domain.album_recommendations import genuinely_ambiguous
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 
 
+class AlbumChoices(Protocol):
+    """Read an operator's choice between distinct album editions."""
+
+    def choose_album(
+        self,
+        recommendation: AlbumRecommendation,
+        options: tuple[SpotifyAlbumOption, ...],
+        /,
+    ) -> str:
+        """Choose an edition or return the original skip/quit marker.
+
+        Args:
+            recommendation: Ranked recommendation being resolved.
+            options: Ordered candidate editions.
+
+        Returns:
+            Original selected identity or control response.
+        """
+        ...
+
+
+class AlbumSearch(Protocol):
+    """Observe eligible album editions for one ranked track candidate."""
+
+    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+        """Read candidate editions through the original catalog boundary.
+
+        Args:
+            candidate: Ranked track evidence.
+
+        Returns:
+            Eligible editions in original search order.
+        """
+
+
 @dataclass(frozen=True)
 class AlbumGathering:
     """Observe each original search before combining its album support.
 
     Args:
-        search: Existing ordered eligible album observation boundary.
+        catalog: Existing ordered eligible album observation boundary.
         progress: Original candidate presenter.
     """
 
-    search: Callable[[FoundArtCandidate], tuple[SpotifyAlbumOption, ...]]
-    progress: Callable[[str], None]
+    catalog: AlbumSearch
+    progress: Messages
 
     def run(
         self,
@@ -51,18 +87,17 @@ class AlbumGathering:
         evidence = AlbumEvidence(excluded, existing)
         considered = candidates[:maximum]
         for index, candidate in enumerate(considered, start=1):
-            self.progress(
+            self.progress.echo(
                 f"Resolving album evidence {index}/{len(considered)}: "
                 f"{candidate.artist} - {candidate.track}"
             )
-            evidence.observe(candidate, self.search(candidate))
+            evidence.observe(candidate, self.catalog.search(candidate))
         return evidence.ranked(week)
 
 
 def choose_album(
     recommendation: AlbumRecommendation,
-    choice_reader: Callable[[AlbumRecommendation, tuple[SpotifyAlbumOption, ...]], str]
-    | None,
+    choice_reader: AlbumChoices | None,
     skip_marker: str,
     quit_marker: str,
 ) -> SpotifyAlbumOption | Literal["skip", "quit"]:
@@ -87,7 +122,7 @@ def choose_album(
         return options[0]
     if choice_reader is None:
         return "skip"
-    choice = choice_reader(recommendation, options)
+    choice = choice_reader.choose_album(recommendation, options)
     if choice == skip_marker:
         return "skip"
     if choice == quit_marker:

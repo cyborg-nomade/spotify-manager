@@ -2,9 +2,11 @@
 
 from dataclasses import asdict
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
+from spotify_manager.application.new_wine_execution import WineExecution
 from spotify_manager.application.new_wine_planner import WineDecision
 from spotify_manager.application.new_wine_planner import WinePlanner
 from spotify_manager.application.new_wine_values import FlushResult
@@ -33,7 +35,7 @@ def _planner(
         deps.endpoint,
         endpoint,
         False,
-        memory.checkpoint,
+        cast(WineExecution, memory),
         deps.presentation,
     )
 

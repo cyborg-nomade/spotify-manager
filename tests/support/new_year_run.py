@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
 from datetime import tzinfo
+from functools import partialmethod
 from pathlib import Path
 from typing import Self
 from typing import cast
@@ -15,7 +16,11 @@ from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
+from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
+from spotify_manager.application.retry_attempts import RetryAttempts
+from spotify_manager.core.state.definitions import StateDefinition
 from spotify_manager.core.state.service import StateNamespace
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import PlaylistTrack
@@ -34,6 +39,8 @@ from spotify_manager.routines import scrobble_history
 from spotify_manager.routines import something_old
 from spotify_manager.settings import Settings
 from tests.support.discography_boundaries import marker
+from tests.support.history_dependencies import annual_discoveries
+from tests.support.history_dependencies import annual_history
 from tests.support.queue_neighbors import NOW
 
 
@@ -241,20 +248,18 @@ class AnnualObservations:
     def namespace(
         self,
         name: str,
-        default: Callable[[], dict[str, object]],
-        validator: Callable[[object], dict[str, object]],
+        definition: StateDefinition,
     ) -> StateNamespace:
         """Observe original namespace resolution and default authority.
 
         Args:
             name: Original annual namespace.
-            default: Original complete missing-state factory.
-            validator: Original shallow validator.
+            definition: Original complete missing-state format.
 
         Returns:
             Original in-memory annual access.
         """
-        self.record("namespace", name, default())
+        self.record("namespace", name, definition.default())
         return cast(StateNamespace, self)
 
     def load(self) -> dict[str, object]:
@@ -528,6 +533,17 @@ class AnnualObservations:
         count = sum(row[0] == "cancel" for row in self.trace)
         return self.failure == f"cancel:{count}"
 
+    def attempts(self, description: str) -> RetryAttempts:
+        """Retain the original optional single RuntimeError retry.
+
+        Args:
+            description: Original operation label.
+
+        Returns:
+            Recorded original attempt scopes.
+        """
+        return RetryAttempts(AnnualAttemptPolicy(self, description))
+
     def retry(self, operation: Callable[[], object], description: str) -> object:
         """Apply the original caller's single retry after a failed response.
 
@@ -545,6 +561,14 @@ class AnnualObservations:
             if not self.automatic_retry:
                 raise
         return operation()
+
+    def is_set(self) -> bool:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.cancel()
 
 
 def _primary(uri: str) -> str:
@@ -615,8 +639,12 @@ def original_run(
         (blast_from_past, "parse_playlist_id", edge.parse),
         (queue_3, "parse_playlist_id", edge.parse),
         (queue_3, "load_owned_playlists", edge.owned),
-        (queue_3, "import_previous_year_discoveries", edge.discoveries),
-        (legacy.scrobble_history, "refresh_scrobble_history", edge.history),
+        (
+            AnnualDiscoveries,
+            "run",
+            partialmethod(annual_discoveries, edge.discoveries),
+        ),
+        (HistoryRefresh, "run", partialmethod(annual_history, edge.history)),
         (new_wine, "load_playlist_tracks", edge.playlist),
         (blast_from_past, "search_spotify_matches", edge.search),
         (palace_of_memory, "search_spotify_album", edge.album),
@@ -633,9 +661,9 @@ def original_run(
             year=year,
             dry_run=preview,
             state_service=cast(StateService, edge),
-            echo=edge.echo,
-            cancel_check=edge.cancel,
-            retry_call=edge.retry,
+            echo=edge,
+            cancel_check=edge,
+            retry_call=edge,
         )
 
 
@@ -675,3 +703,43 @@ def outcome(
         result["resumed"] = run(edge, preview, year)
     result.update(trace=edge.trace, state=edge.state, contents=edge.contents)
     return json.loads(json.dumps(result))
+
+
+@dataclass
+class AnnualAttemptPolicy:
+    """Preserve the original fixture's single RuntimeError retry.
+
+    Args:
+        edge: Original response and acceptance authority.
+        description: Original retry label.
+        repeated: Whether the original retry has already been used.
+    """
+
+    edge: AnnualObservations
+    description: str
+    repeated: bool = False
+
+    def start(self) -> None:
+        """Record the original retry boundary before its first operation."""
+        self.edge.record("retry", self.description)
+
+    def accepted(self) -> None:
+        """Accept the original response without another observation."""
+
+    def failed(self, error: BaseException) -> bool:
+        """Permit only the original optional first RuntimeError retry.
+
+        Args:
+            error: Original request failure.
+
+        Returns:
+            Whether the original fixture permits a single repeat.
+        """
+        if (
+            not isinstance(error, RuntimeError)
+            or not self.edge.automatic_retry
+            or self.repeated
+        ):
+            return False
+        self.repeated = True
+        return True

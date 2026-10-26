@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
+from datetime import datetime
 from typing import cast
 
 import pytest
@@ -43,7 +44,7 @@ class SeedMemory:
         self.events.append("history")
         yield from self.tracks
 
-    def week(self) -> date:
+    def local_date(self, value: datetime | date | None = None) -> date:
         """Resolve the effective week after input validation.
 
         Returns:
@@ -68,7 +69,7 @@ def test_application_seed_decisions_and_errors_match_original(
         case: Captured original seed case.
     """
     memory = SeedMemory(seed_history(case))
-    workflow = RecommendationSeeds(memory.week)
+    workflow = RecommendationSeeds(memory)
     count = cast(int, case["seed_count"])
     if "error" in case:
         with pytest.raises(FoundArtStateError) as error:
@@ -89,7 +90,7 @@ def test_invalid_count_precedes_history_materialization(count: int) -> None:
     """
     memory = SeedMemory()
     with pytest.raises(FoundArtConfigError, match="at least 1"):
-        RecommendationSeeds(memory.week).run(memory.history(), count, None)
+        RecommendationSeeds(memory).run(memory.history(), count, None)
     assert memory.events == []
 
 
@@ -97,7 +98,7 @@ def test_empty_history_precedes_week_observation() -> None:
     """Materialize empty history once, then preserve the original state error."""
     memory = SeedMemory()
     with pytest.raises(FoundArtStateError, match="No tracks are available"):
-        RecommendationSeeds(memory.week).run(memory.history(), 1, None)
+        RecommendationSeeds(memory).run(memory.history(), 1, None)
     assert memory.events == ["history"]
 
 
@@ -105,7 +106,7 @@ def test_default_week_is_observed_after_consuming_history() -> None:
     """Read the calendar only after valid ordered input is materialized."""
     case = seed_cases()[0]
     memory = SeedMemory(seed_history(case))
-    result = RecommendationSeeds(memory.week).run(
+    result = RecommendationSeeds(memory).run(
         memory.history(), cast(int, case["seed_count"]), None
     )
     assert memory.events == ["history", "week"]
@@ -116,5 +117,5 @@ def test_calendar_failure_preserves_original_exception() -> None:
     """Do not wrap a caller's week observation failure in a recommendation error."""
     memory = SeedMemory(seed_history(seed_cases()[0]), failure=True)
     with pytest.raises(OSError, match="calendar"):
-        RecommendationSeeds(memory.week).run(memory.history(), 1, None)
+        RecommendationSeeds(memory).run(memory.history(), 1, None)
     assert memory.events == ["history", "week"]

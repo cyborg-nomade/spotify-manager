@@ -32,7 +32,7 @@ def test_catalog_pages_keep_first_id_order_and_last_simplified_record() -> None:
     sdk.artist_top_tracks.return_value = {"tracks": []}
     sdk.albums.return_value = {"albums": [None, {"id": ""}, raw_release("b", "Full B")]}
     requests = Requests()
-    results = new_kids.load_ranked_catalog(cast(Spotify, sdk), "artist", requests.call)
+    results = new_kids.load_ranked_catalog(cast(Spotify, sdk), "artist", requests)
     assert requests.descriptions == [
         "loading releases for artist artist at offset 0",
         "loading releases for artist artist at offset 4",
@@ -55,9 +55,7 @@ def test_empty_primary_catalog_omits_all_downstream_observations() -> None:
         "items": [None, {}, raw_release("guest", "Guest", artist_id="guest")]
     }
     requests = Requests()
-    assert (
-        new_kids.load_ranked_catalog(cast(Spotify, sdk), "artist", requests.call) == ()
-    )
+    assert new_kids.load_ranked_catalog(cast(Spotify, sdk), "artist", requests) == ()
     assert requests.descriptions == ["loading releases for artist artist at offset 0"]
     sdk.current_user_saved_albums_contains.assert_not_called()
     sdk.artist_top_tracks.assert_not_called()
@@ -74,7 +72,7 @@ def test_invalid_catalog_pages_preserve_error_boundaries(response: object) -> No
     with pytest.raises(
         new_kids.NewKidsError, match="invalid artist releases|empty release page"
     ):
-        new_kids.load_ranked_catalog(cast(Spotify, sdk), "artist", Requests().call)
+        new_kids.load_ranked_catalog(cast(Spotify, sdk), "artist", Requests())
     sdk.current_user_saved_albums_contains.assert_not_called()
 
 
@@ -103,7 +101,7 @@ def test_top_tracks_keep_raw_ranks_and_tolerant_metadata() -> None:
         ]
     }
     ranks, tracks = new_kids.load_top_track_data(
-        cast(Spotify, sdk), "artist", Requests().call
+        cast(Spotify, sdk), "artist", Requests()
     )
     assert ranks == {"album": 3}
     assert [track.spotify_id for track in tracks] == ["good", "albumless", "good"]
@@ -119,7 +117,7 @@ def test_invalid_top_track_container_preserves_original_error(response: object) 
     sdk = Mock(spec=Spotify)
     sdk.artist_top_tracks.return_value = response
     with pytest.raises(new_kids.NewKidsError, match="invalid artist top tracks"):
-        new_kids.load_top_track_data(cast(Spotify, sdk), "artist", Requests().call)
+        new_kids.load_top_track_data(cast(Spotify, sdk), "artist", Requests())
 
 
 def test_top_tracks_skip_missing_album_credit_and_track_identifiers() -> None:
@@ -137,7 +135,7 @@ def test_top_tracks_skip_missing_album_credit_and_track_identifiers() -> None:
         ]
     }
     ranks, tracks = new_kids.load_top_track_data(
-        cast(Spotify, sdk), "artist", Requests().call
+        cast(Spotify, sdk), "artist", Requests()
     )
     assert ranks == {"album": 6} and len(tracks) == 1
 
@@ -156,7 +154,7 @@ def test_track_pages_count_raw_offsets_and_accepted_position_fallbacks() -> None
     ]
     requests = Requests()
     tracks = new_kids.load_release_tracks(
-        cast(Spotify, sdk), ranked_release("album"), requests.call
+        cast(Spotify, sdk), ranked_release("album"), requests
     )
     assert [track.spotify_id for track in tracks] == ["guest", "first"]
     assert [track.track_number for track in tracks] == [2, 1]
@@ -179,7 +177,7 @@ def test_invalid_track_pages_keep_release_specific_errors(response: object) -> N
         new_kids.NewKidsError, match="invalid tracks for Album|empty page for Album"
     ):
         new_kids.load_release_tracks(
-            cast(Spotify, sdk), ranked_release("album"), Requests().call
+            cast(Spotify, sdk), ranked_release("album"), Requests()
         )
 
 
@@ -195,7 +193,7 @@ def test_invalid_detail_batches_fail_after_membership_and_top_track_reads(
     sdk.albums.return_value = response
     requests = Requests()
     with pytest.raises(new_kids.NewKidsError, match="invalid album details"):
-        new_kids.load_ranked_catalog(cast(Spotify, sdk), "artist", requests.call)
+        new_kids.load_ranked_catalog(cast(Spotify, sdk), "artist", requests)
     assert requests.descriptions[-3:] == [
         "checking 1 Saved Albums",
         "loading top tracks for artist artist",

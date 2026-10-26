@@ -3,14 +3,15 @@
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Never
+from typing import cast
 
 import pytest
+from spotipy import Spotify
 
-from spotify_manager.application.legacy_library_effects import AlbumRefresh
 from spotify_manager.application.legacy_library_effects import Page
 from spotify_manager.application.legacy_library_refresh import Scan
 from spotify_manager.application.legacy_library_refresh import advance
-from spotify_manager.infrastructure.legacy_library_errors import LegacyFailure
+from spotify_manager.infrastructure.legacy_library_resources import SpotifyAlbumRefresh
 
 
 @dataclass
@@ -25,7 +26,7 @@ class BrokenProgress:
     error: RuntimeError
     output: list[object] = field(default_factory=list)
 
-    def __call__(self, *values: object) -> None:
+    def echo(self, *values: object) -> None:
         """Raise the original progress failure and accept its subsequent report.
 
         Args:
@@ -56,17 +57,9 @@ def test_failed_progress_retains_native_error_context() -> None:
     """Retain native class, text, implicit context and original failure-report order."""
     original = RuntimeError("progress failed")
     echo = BrokenProgress(original)
-    deps = AlbumRefresh(
-        unexpected_observation,
-        unexpected_observation,
-        unexpected_observation,
-        unexpected_observation,
-        unexpected_observation,
-        unexpected_observation,
-        unexpected_observation,
-    )
+    deps = SpotifyAlbumRefresh(cast(Spotify, object()))
     page: Page = {"items": [], "next": "more", "offset": 0, "total": 10}
     with pytest.raises(UnboundLocalError, match="last_next") as raised:
-        advance(Scan(page, 1, 0), [], deps, echo, LegacyFailure)
+        advance(Scan(page, 1, 0), [], deps, echo)
     assert raised.value.__context__ is original and raised.value.__cause__ is None
     assert echo.output == [original]

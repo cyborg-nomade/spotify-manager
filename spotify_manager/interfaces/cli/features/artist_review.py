@@ -1,63 +1,38 @@
 """Explicit artist review CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn
-from rich.progress import MofNCompleteColumn
 from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
-from rich.prompt import Prompt
 from rich.table import Table
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
 from spotify_manager.domain.artist_review_values import ReleaseCandidate
-from spotify_manager.routines import review_album_limits
-from spotify_manager.routines import review_artists as artist_review
-from spotify_manager.settings import Settings
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.operations import review_artists as artist_review
 
 
 @dataclass(kw_only=True)
 class ArtistReviewCLI:
-    """Execute and present artist review through explicit facade dependencies.
+    """Run followed-artist review with terminal choices.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        complete_column: Rich complete column constructor.
-        create_progress: Factory for progress instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        configuration: Original settings factory supplied by the facade.
-        spinner_column: Rich spinner column constructor.
-        create_table: Factory for table instances.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        ask_artist_release_choice: Original ask artist release choice boundary supplied
-            by the facade.
-        ask_artist_track_choice: Original ask artist track choice boundary supplied by
-            the facade.
-        review_client: Original Spotify client factory supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
     """
 
-    bar_column: type[BarColumn]
-    create_console: type[Console]
-    complete_column: type[MofNCompleteColumn]
-    create_progress: type[Progress]
-    prompt: type[Prompt]
-    configuration: type[Settings]
-    spinner_column: type[SpinnerColumn]
-    create_table: type[Table]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
-    ask_artist_release_choice: Callable[..., str]
-    ask_artist_track_choice: Callable[..., str]
-    review_client: Callable[..., Spotify]
+    runtime: CliResources
+
+    progress_display: ProgressDisplay
+    display: ConsoleDisplay
 
     def _prompt_artist_track_choice(
         self,
@@ -80,8 +55,8 @@ class ArtistReviewCLI:
         if progress is not None:
             progress.stop()
         try:
-            table = self.create_table(
-                title=(f"Choose a track for {getattr(artist, 'name', '')}")
+            table = self.display.create_table(
+                title=f"Choose a track for {getattr(artist, 'name', '')}"
             )
             table.add_column("#", justify="right")
             table.add_column("Track")
@@ -98,7 +73,7 @@ class ArtistReviewCLI:
                 )
             console.print(table)
             choices = [str(index) for index in range(1, len(candidates) + 1)]
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Track number / [s]kip this run / [q]uit",
                 choices=[*choices, "s", "q"],
                 console=console,
@@ -149,9 +124,9 @@ class ArtistReviewCLI:
             refresh_cache: Refresh cache supplied by the caller.
             limit: Limit supplied by the caller.
         """
-        self._review_artists_console = self.create_console()
+        self._review_artists_console = self.display.create_console()
         self._review_artists_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             playlists = artist_review.QueuePlaylists.from_references(
                 configuration.the_queue_playlist,
@@ -161,12 +136,14 @@ class ArtistReviewCLI:
         except artist_review.ArtistReviewConfigError as exc:
             self._report_review_artists_configuration_failure(exc)
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._review_artists_console,
                 transient=True,
             ) as self._review_artists_progress:
@@ -175,12 +152,12 @@ class ArtistReviewCLI:
                     "Reviewing artists", total=None
                 )
                 summary = artist_review.review_artists(
-                    self.review_client(),
+                    self.runtime.review_client(),
                     playlists,
-                    track_choice_reader=self._review_artists_ask_artist_track_choice,
-                    release_choice_reader=self._review_artists_ask_artist_release_choice,
-                    echo=self._review_artists_echo,
-                    progress_callback=self._review_artists_update_progress,
+                    track_choice_reader=ReviewArtistsInteraction(self),
+                    release_choice_reader=ReviewArtistsInteraction(self),
+                    echo=ReviewArtistsInteraction(self),
+                    progress_callback=ReviewArtistsInteraction(self),
                     refresh_cache=refresh_cache,
                     limit=limit,
                 )
@@ -224,13 +201,13 @@ class ArtistReviewCLI:
             self._review_artists_task_id,
             completed=position,
             total=total,
-            description=(f"Reviewing artists: {artist_name}"),
+            description=f"Reviewing artists: {artist_name}",
         )
 
     def _review_artists_ask_artist_track_choice(
         self, artist: object, candidates: tuple[artist_review.TrackCandidate, ...]
     ) -> str:
-        return self.ask_artist_track_choice(
+        return self._prompt_artist_track_choice(
             self._review_artists_console,
             artist,
             candidates,
@@ -243,7 +220,7 @@ class ArtistReviewCLI:
         candidates: tuple[artist_review.ReleaseCandidate, ...],
         allow_decline: bool,
     ) -> str:
-        return self.ask_artist_release_choice(
+        return self._prompt_artist_release_choice(
             self._review_artists_console,
             artist,
             candidates,
@@ -256,9 +233,9 @@ class ArtistReviewCLI:
     ) -> Never:
         self._review_artists_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -297,7 +274,7 @@ class ArtistReviewCLI:
         self, exc: SpotifyException
     ) -> Never:
         self._review_artists_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
         )
         raise typer.Exit(code=1) from exc
@@ -308,7 +285,7 @@ class ArtistReviewCLI:
         Args:
             summary: Completed routine outcome to render.
         """
-        table = self.create_table(
+        table = self.display.create_table(
             title="Artist review paused" if summary.paused else "Artist review complete"
         )
         table.add_column("Reviewed", justify="right")
@@ -353,8 +330,8 @@ class ArtistReviewCLI:
         """
         artist_name = getattr(artist, "name", "")
         if allow_decline:
-            action = self.prompt.ask(
-                (f"Add {artist_name} to queue 3?"),
+            action = self.display.prompt.ask(
+                f"Add {artist_name} to queue 3?",
                 choices=["y", "n", "s", "q"],
                 default="n",
                 console=console,
@@ -369,7 +346,7 @@ class ArtistReviewCLI:
             console, artist, artist_name, candidates
         )
         choices = [str(index) for index in eligible_indexes]
-        response = self.prompt.ask(
+        response = self.display.prompt.ask(
             "Eligible release number / [s]kip this run / [q]uit",
             choices=[*choices, "s", "q"],
             console=console,
@@ -396,8 +373,8 @@ class ArtistReviewCLI:
             candidate.name,
             candidate.release_type,
             candidate.release_date,
-            candidate.first_track_name or ("No track"),
-            candidate.first_track_primary_artist_name or ("Unknown"),
+            candidate.first_track_name or "No track",
+            candidate.first_track_primary_artist_name or "Unknown",
             "yes" if eligible else "no",
             style=None if eligible else "dim",
         )
@@ -420,7 +397,7 @@ class ArtistReviewCLI:
         Returns:
             The original value selected or formatted by this adapter.
         """
-        table = self.create_table(title=f"Choose a release for {artist_name}")
+        table = self.display.create_table(title=f"Choose a release for {artist_name}")
         table.add_column("#", justify="right")
         table.add_column("Release")
         table.add_column("Type")
@@ -436,3 +413,66 @@ class ArtistReviewCLI:
             )
         console.print(table)
         return eligible_indexes
+
+
+@dataclass(frozen=True)
+class ReviewArtistsInteraction:
+    """Own command-specific terminal interaction.
+
+    Args:
+        owner: Command instance owning this display and its progress state.
+    """
+
+    owner: ArtistReviewCLI
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._review_artists_echo(message)
+
+    def progress(self, position: int, total: int, artist_name: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            position: Original position.
+            total: Original total.
+            artist_name: Original artist name.
+        """
+        self.owner._review_artists_update_progress(position, total, artist_name)
+
+    def choose_track(
+        self, artist: object, candidates: tuple[artist_review.TrackCandidate, ...]
+    ) -> str:
+        """Use this command's fixed choose track prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._review_artists_ask_artist_track_choice(artist, candidates)
+
+    def choose_release(
+        self,
+        artist: object,
+        candidates: tuple[artist_review.ReleaseCandidate, ...],
+        allow_decline: bool,
+    ) -> str:
+        """Use this command's fixed choose release prompt.
+
+        Args:
+            artist: Original operator prompt value.
+            candidates: Original operator prompt value.
+            allow_decline: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._review_artists_ask_artist_release_choice(
+            artist, candidates, allow_decline
+        )

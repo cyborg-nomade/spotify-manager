@@ -1,6 +1,7 @@
 """Reusable legacy fixtures; future use cases must satisfy the same recordings."""
 
 import json
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
@@ -13,7 +14,21 @@ from types import ModuleType
 import pytest
 
 from spotify_manager import loaders_savers
+from spotify_manager.application.new_wine import NewWineOptions
+from spotify_manager.application.ports.runtime import NoRetry
+from spotify_manager.bootstrap import library_analysis as analysis_composition
 from spotify_manager.client.lastfm import LastFmRecentTrack
+from spotify_manager.interfaces.operations import analyse_library as analysis_operations
+from spotify_manager.interfaces.requests.discovery import DiscoveryOptions
+from spotify_manager.interfaces.requests.discovery import DiscoveryResources
+from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
+from spotify_manager.interfaces.requests.new_wine import NewWineStorage
+from spotify_manager.interfaces.requests.palace import PalaceCallbacks
+from spotify_manager.interfaces.requests.palace import PalaceOptions
+from spotify_manager.interfaces.requests.palace import PalaceResources
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckCallbacks
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckOptions
+from spotify_manager.interfaces.requests.release_check import ReleaseCheckResources
 from spotify_manager.processors import library_lookups
 from spotify_manager.routines import analyse_library
 from spotify_manager.routines import new_kids
@@ -38,7 +53,12 @@ from tests.routines import test_slow_listening as slow_fakes
 from tests.routines import test_the_queue as queue_fakes
 from tests.routines.test_upload_library_files import FakeHfApi
 from tests.routines.test_upload_library_files import write_json
+from tests.support.analysis_dependencies import observed_analysis_files
+from tests.support.analysis_dependencies import observed_analysis_publication
 from tests.support.effects import Trace
+from tests.support.trace_resources import TraceChoices
+from tests.support.trace_resources import TraceRandomIndexes
+from tests.support.trace_resources import TraceReleaseOrder
 
 
 type PlaylistFake = (
@@ -191,7 +211,7 @@ def _run_requeue(
         "playlist",
         dry_run=dry_run,
         log_path=root / "log.jsonl",
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
     )
 
 
@@ -230,15 +250,24 @@ def _run_wine(
     paths = wine_fakes.paths(root)
     return new_wine.flush_new_wine(
         spotify,
-        "new",
-        "sauv",
-        trace.choices("choice"),
-        dry_run=dry_run,
-        echo=partial(trace.record, "echo", "message"),
-        state_path=paths["state_path"],
-        log_path=paths["log_path"],
-        albums_path=paths["albums_path"],
-        removed_albums_log_path=paths["removed_albums_log_path"],
+        NewWineOptions(
+            destination="new",
+            sauvignon="sauv",
+            dry_run=dry_run,
+            cellar=None,
+            no_discovery=False,
+            endpoint_mode=False,
+        ),
+        NewWineCallbacks(
+            choose=TraceChoices(trace),
+            output=trace,
+        ),
+        storage=NewWineStorage(
+            state_path=paths["state_path"],
+            log_path=paths["log_path"],
+            albums_path=paths["albums_path"],
+            removed_albums_log_path=paths["removed_albums_log_path"],
+        ),
     )
 
 
@@ -271,10 +300,10 @@ def _run_slow(
     return slow_listening.flush_slow_listening(
         spotify,
         "slow",
-        trace.wrap("order", slow_fakes.default_order),
-        completion_notifier=trace.choices("completion", None),
+        TraceReleaseOrder(trace),
+        completion_notifier=TraceChoices(trace),
         dry_run=dry_run,
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
         state_path=paths["state_path"],
         log_path=paths["log_path"],
     )
@@ -308,21 +337,24 @@ def _run_kids(
     paths = kids_fakes.isolated_paths(root)
     return new_kids.flush_new_kids(
         spotify,
-        "new",
-        "queue",
-        "great",
-        "unlucky",
-        "newfoundland",
-        trace.choices("choice"),
-        year=2026,
-        dry_run=dry_run,
-        echo=partial(trace.record, "echo", "message"),
-        state_path=paths["state_path"],
-        log_path=paths["log_path"],
-        albums_path=paths["albums_path"],
-        artists_path=paths["artists_path"],
-        removed_albums_log_path=paths["removed_albums_log_path"],
-        scrobbles_path=paths["scrobbles_path"],
+        DiscoveryOptions(
+            new_kids_playlist_id="new",
+            queue_2_playlist_id="queue",
+            great_discoveries_2026_playlist_id="great",
+            unlucky_ones_playlist_id="unlucky",
+            newfoundland_playlist_id="newfoundland",
+            year=2026,
+            dry_run=dry_run,
+        ),
+        TraceDiscovery(trace),
+        resources=DiscoveryResources(
+            state_path=paths["state_path"],
+            log_path=paths["log_path"],
+            albums_path=paths["albums_path"],
+            artists_path=paths["artists_path"],
+            removed_albums_log_path=paths["removed_albums_log_path"],
+            scrobbles_path=paths["scrobbles_path"],
+        ),
     )
 
 
@@ -369,7 +401,7 @@ def queue(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
         the_queue.flush_queue,
         spotify,
         queue_fakes.queue_playlists(),
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
         state_path=paths["state_path"],
         log_path=paths["log_path"],
         artists_path=paths["artists_path"],
@@ -490,21 +522,29 @@ def palace(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     spotify = MutablePalaceSpotify()
     effects(patch, trace, spotify, palace_of_memory, audit="_append_log")
     trace.watch(patch, palace_of_memory, "_append_refresh_log", "mirror.audit")
-    operation = partial(
-        palace_of_memory.fill_palace_of_memory,
-        spotify,
-        "palace",
-        today=date(2026, 8, 4),
-        albums_path=root / "albums.json",
-        scrobbles_path=root / "history.json",
-        state_path=root / "state.json",
-        log_path=root / "log.jsonl",
-        album_backups_dir=root / "backups",
-        album_refresh_log_path=root / "refresh.jsonl",
-        random_index_reader=trace.wrap("random", palace_fakes.fixed_random_indexes),
-        echo=partial(trace.record, "echo", "message"),
-    )
+    operation = partial(_run_palace, spotify, root, trace)
     return Scenario(operation, partial(_palace_remote, spotify))
+
+
+def _run_palace(
+    spotify: MutablePalaceSpotify, root: Path, trace: Trace, dry_run: bool
+) -> palace_of_memory.PalaceOfMemorySummary:
+    return palace_of_memory.fill_palace_of_memory(
+        spotify,
+        PalaceOptions("palace", dry_run=dry_run, today=date(2026, 8, 4)),
+        PalaceCallbacks(
+            random_index_reader=TraceRandomIndexes(trace),
+            output=trace,
+        ),
+        PalaceResources(
+            albums_path=root / "albums.json",
+            scrobbles_path=root / "history.json",
+            state_path=root / "state.json",
+            log_path=root / "log.jsonl",
+            album_backups_dir=root / "backups",
+            album_refresh_log_path=root / "refresh.jsonl",
+        ),
+    )
 
 
 def _fixed_run_id() -> str:
@@ -544,14 +584,26 @@ def analysis(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
         tracks=[analysis_fakes.track(str(index)) for index in range(11)],
         artists=[analysis_fakes.artist("artist")],
     )
+    patch.setattr(analysis_operations, "analysis_storage", observed_analysis_files)
+    patch.setattr(
+        analysis_operations, "analysis_publication", observed_analysis_publication
+    )
+    patch.setattr(analyse_library, "analysis_storage", observed_analysis_files)
+    patch.setattr(
+        analyse_library, "analysis_publication", observed_analysis_publication
+    )
+    patch.setattr(analysis_composition, "analysis_files", observed_analysis_files)
+    patch.setattr(
+        analysis_composition, "analysis_publication", observed_analysis_publication
+    )
     patch.setattr(analyse_library, "new_run_id", _fixed_run_id)
     _watch_analysis(patch, trace, spotify)
     operation = partial(
         analyse_library.analyse_library_sync_routine,
         spotify,
         paths=analysis_fakes.paths_for(root, "sync"),
-        echo=partial(trace.record, "echo", "message"),
-        sleep=trace.choices("sleep"),
+        echo=trace,
+        sleep=TraceChoices(trace),
     )
     return Scenario(
         operation, partial(_analysis_remote, spotify), supports_dry_run=False
@@ -612,9 +664,9 @@ def review(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     operation = partial(
         review_album_limits.review_album_limits,
         spotify,
-        action_reader=trace.choices("prompt", "r", "r"),
+        action_reader=TraceChoices(trace, deque(["r", "r"])),
         use_cache=False,
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
         log_path=root / "removed.jsonl",
         decisions_path=root / "decisions.json",
     )
@@ -682,21 +734,32 @@ def release(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     trace.watch(patch, scrobble_history, "refresh_scrobble_history", "history.refresh")
     spotify = _release_spotify()
     effects(patch, trace, spotify, release_check, audit="append_event")
-    operation = partial(
-        release_check.run_release_check,
-        spotify,
-        None,  # type: ignore[arg-type]  # History refresh is replaced by the fixture.
-        release_check.ReleaseCheckPlaylists("wine", "vintage"),
-        expected_username="listener",
-        state_path=root / "state.json",
-        log_path=root / "log.jsonl",
-        now=datetime(2026, 8, 6, tzinfo=UTC),
-        export_path=root / "history.json",
-        legacy_delta_path=root / "recent.jsonl",
-        backup_dir=root / "backups",
-        history_log_path=root / "history-log.jsonl",
-    )
+    operation = partial(_run_release, spotify, root)
     return Scenario(operation, partial(_release_remote, spotify, history_dry_runs))
+
+
+def _run_release(
+    spotify: release_fakes.FakeSpotify, root: Path, dry_run: bool
+) -> release_check.ReleaseCheckSummary:
+    return release_check.run_release_check(
+        spotify,
+        None,  # type: ignore[arg-type]  # History is supplied by the observation port.
+        ReleaseCheckOptions(
+            release_check.ReleaseCheckPlaylists("wine", "vintage"),
+            expected_username="listener",
+            now=datetime(2026, 8, 6, tzinfo=UTC),
+            dry_run=dry_run,
+        ),
+        ReleaseCheckCallbacks(),
+        ReleaseCheckResources(
+            state_path=root / "state.json",
+            log_path=root / "log.jsonl",
+            export_path=root / "history.json",
+            legacy_delta_path=root / "recent.jsonl",
+            backup_dir=root / "backups",
+            history_log_path=root / "history-log.jsonl",
+        ),
+    )
 
 
 FACTORIES: dict[str, Callable[[pytest.MonkeyPatch, Path, Trace], Scenario]] = {
@@ -713,3 +776,45 @@ FACTORIES: dict[str, Callable[[pytest.MonkeyPatch, Path, Trace], Scenario]] = {
     "upload": upload,
     "release": release,
 }
+
+
+@dataclass(frozen=True)
+class TraceDiscovery(NoRetry):
+    """Keep the original discovery trace without executable dependencies.
+
+    Args:
+        trace: Existing trace and fault authority.
+    """
+
+    trace: Trace
+
+    def choose(
+        self, artist: str, candidates: tuple[new_kids.ChoiceCandidate, ...]
+    ) -> str:
+        """Observe an unexpected interaction through the original trace harness.
+
+        Args:
+            artist: Original artist label.
+            candidates: Original ordered choices.
+
+        Returns:
+            The harness's scripted response.
+        """
+        return self.trace.choices("choice")(artist, candidates)
+
+    def echo(self, message: str) -> None:
+        """Record the original visible message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.trace.record("echo", "message", message)
+
+    def progress(self, completed: int, total: int, detail: str) -> None:
+        """Retain the original absence of a progress observer.
+
+        Args:
+            completed: Original completed count.
+            total: Original expected count.
+            detail: Original progress description.
+        """

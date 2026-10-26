@@ -1,8 +1,8 @@
 """Assemble lookup stages independently of production composition."""
 
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import cast
 from zoneinfo import ZoneInfo
@@ -11,17 +11,18 @@ from spotipy import Spotify
 
 from spotify_manager.application import library_lookup_run as workflow
 from spotify_manager.application import lookup_resolution as resolution
-from spotify_manager.application.lookup_effects import AlbumLookup
 from spotify_manager.application.lookup_effects import ArtistLookup
-from spotify_manager.application.lookup_effects import CachedTracks
 from spotify_manager.application.lookup_effects import LocalAlbumLookup
 from spotify_manager.application.lookup_effects import LookupTrack
-from spotify_manager.application.lookup_effects import TrackLookup
 from spotify_manager.application.scrobble_lookup_run import TrackHistoryLookup
 from spotify_manager.application.scrobble_lookup_run import status
 from spotify_manager.domain.lookup_selection import local_album
 from spotify_manager.infrastructure import lookup_records as records
 from spotify_manager.infrastructure import scrobble_lookup as history
+from spotify_manager.infrastructure.lookup_resources import SpotifyAlbumLookup
+from spotify_manager.infrastructure.lookup_resources import SpotifyArtistLookup
+from spotify_manager.infrastructure.lookup_resources import SpotifyTrackLookup
+from spotify_manager.models.your_library import YourLibraryFile
 from spotify_manager.processors import library_lookups as library
 from spotify_manager.processors import scrobble_lookups as scrobbles
 from tests.support.library_lookup_run import LookupCatalog
@@ -39,10 +40,7 @@ def run_lookup(scenario: LookupScenario, catalog: LookupCatalog) -> object:
         Original result without calling a public routine coordinator.
     """
     spotify = cast(Spotify, catalog)
-    artist = ArtistLookup(
-        partial(library._direct_artist_identity, spotify),
-        partial(artist_candidates, spotify),
-    )
+    artist = SpotifyArtistLookup(spotify)
     if scenario.workflow == "artist-id":
         return resolution.artist(artist, None, "artist")
     if scenario.workflow == "artist-name":
@@ -78,23 +76,7 @@ def artist_statistics(deps: ArtistLookup, spotify: Spotify) -> object:
         Original statistics response.
     """
     return workflow.artist_statistics(
-        workflow.ArtistStatistics(
-            partial(resolution.artist, deps, "Artist", None),
-            partial(library._live_artist_release_ids, spotify),
-            partial(
-                workflow.count_contains,
-                contains=partial(library._saved_artist_statuses, spotify),
-                resource="Saved Albums",
-                batch_size=20,
-            ),
-            partial(library._live_primary_track_ids, spotify),
-            partial(
-                workflow.count_contains,
-                contains=partial(library._liked_artist_statuses, spotify),
-                resource="Liked Songs",
-                batch_size=20,
-            ),
-        )
+        workflow.ArtistStatistics(SpotifyArtistLookup(spotify), "Artist", None, 20)
     )
 
 
@@ -108,10 +90,7 @@ def resolve_album(scenario: LookupScenario, spotify: Spotify) -> object:
     Returns:
         Original album identity.
     """
-    deps = AlbumLookup(
-        partial(library._direct_album, spotify),
-        partial(library._album_search, spotify),
-    )
+    deps = SpotifyAlbumLookup(spotify)
     if scenario.workflow == "album-id":
         return resolution.album(deps, None, "album", None)
     return resolution.album(deps, " Album ", None, None)
@@ -126,11 +105,7 @@ def cached_tracks(catalog: LookupCatalog) -> tuple[list[LookupTrack], bool]:
     Returns:
         Original track rows and cache flag.
     """
-    deps = CachedTracks(
-        catalog.memory.read_cache,
-        catalog.memory.save_cache,
-        partial(library._fetch_album_tracks, cast(Spotify, catalog)),
-    )
+    deps = MemoryTrackCache(catalog)
     return workflow.tracklist(deps, "album", True, False)
 
 
@@ -164,7 +139,7 @@ def other_lookup(scenario: LookupScenario, catalog: LookupCatalog) -> object:
         return local_album(catalog.memory.read_library().albums, "Album", None, None)
     if scenario.workflow == "local-evaluate":
         deps = LocalAlbumLookup(
-            catalog.memory.read_library, partial(local_tracks, catalog)
+            MemoryLibrary(catalog), MemoryTrackCache(catalog), True, False
         )
         return workflow.evaluate_local(deps, "Album", None, None, None, 0.5)
     if scenario.workflow == "tracklist":
@@ -207,9 +182,7 @@ def track_lookup(
     Returns:
         Original track identity or seasonal status.
     """
-    deps = TrackLookup(
-        partial(scrobbles._direct_track, spotify), partial(track_candidates, spotify)
-    )
+    deps = SpotifyTrackLookup(spotify)
     if scenario.workflow == "track-id":
         return resolution.track(deps, None, "track")
     if scenario.workflow == "track-name":
@@ -217,14 +190,106 @@ def track_lookup(
     timezone = ZoneInfo("Europe/Berlin")
     return status(
         TrackHistoryLookup(
-            partial(resolution.track, deps, "Track", None),
-            partial(
-                history.latest,
-                catalog.memory.history,
-                Path("/tmp/history.json"),
-                timezone=timezone,
-            ),
-            fixed_now,
+            deps,
+            MemoryHistory(catalog),
+            "Track",
+            None,
+            FixedClock(),
             timezone,
         )
     )
+
+
+@dataclass(frozen=True)
+class MemoryTrackCache:
+    """Observe cache storage and track reads independently of bootstrap.
+
+    Args:
+        catalog: Recorded SDK and memory authority.
+    """
+
+    catalog: LookupCatalog
+
+    def load(self) -> dict[str, list[LookupTrack]]:
+        """Read recorded cache facts.
+
+        Returns:
+            Complete cache.
+        """
+        return self.catalog.memory.read_cache()
+
+    def save(self, cache: dict[str, list[LookupTrack]]) -> None:
+        """Accept recorded cache facts.
+
+        Args:
+            cache: Complete cache.
+        """
+        self.catalog.memory.save_cache(cache)
+
+    def fetch(self, identifier: str) -> list[LookupTrack]:
+        """Read every track through the original SDK boundary.
+
+        Args:
+            identifier: Requested album.
+
+        Returns:
+            Complete minimized tracks.
+        """
+        return library._fetch_album_tracks(cast(Spotify, self.catalog), identifier)
+
+
+@dataclass(frozen=True)
+class MemoryLibrary:
+    """Read a recorded export.
+
+    Args:
+        catalog: Recorded memory authority.
+    """
+
+    catalog: LookupCatalog
+
+    def library(self) -> YourLibraryFile:
+        """Read local authority.
+
+        Returns:
+            Complete export.
+        """
+        return self.catalog.memory.read_library()
+
+
+@dataclass(frozen=True)
+class MemoryHistory:
+    """Read recorded history through the original parser.
+
+    Args:
+        catalog: Recorded memory authority.
+    """
+
+    catalog: LookupCatalog
+
+    def latest(self, track: str, artist: str) -> datetime | None:
+        """Observe the latest matching play.
+
+        Args:
+            track: Resolved title.
+            artist: Resolved primary artist.
+
+        Returns:
+            Latest play time, or none.
+        """
+        payload = self.catalog.memory.history(Path("/tmp/history.json"))
+        return history.latest_from_export(
+            payload, track, artist, ZoneInfo("Europe/Berlin")
+        )
+
+
+class FixedClock:
+    """Observe the frozen clock after history."""
+
+    def now(self) -> datetime:
+        """Observe effective time.
+
+        Returns:
+            Original frozen instant.
+        """
+        return fixed_now()

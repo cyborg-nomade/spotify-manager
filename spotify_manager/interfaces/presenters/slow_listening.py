@@ -1,8 +1,8 @@
 """Original Slow Listening progress messages at explicit effect boundaries."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.application.slow_listening_values import FlushResult
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseTrack
@@ -13,10 +13,10 @@ class SlowListeningPresenter:
     """Render established CLI/job text without owning workflow decisions.
 
     Args:
-        echo: Caller-owned message sink.
+        output: Caller-owned message sink.
     """
 
-    echo: Callable[[str], None]
+    output: Messages
 
     def skipped(self, source: PlaylistTrack, result: FlushResult) -> None:
         """Show why a source was skipped.
@@ -25,7 +25,7 @@ class SlowListeningPresenter:
             source: Original playlist marker.
             result: Skip reason and result fields.
         """
-        self.echo(
+        self.output.echo(
             f"Skipped {source.primary_artist_name} - {source.name}: {result.reason}."
         )
 
@@ -37,7 +37,7 @@ class SlowListeningPresenter:
             release_name: Selected release title or unknown marker.
             dry_run: Whether to use preview wording.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would add' if dry_run else 'Added'} next track: "
             f"{target.name} ({release_name})"
         )
@@ -49,7 +49,7 @@ class SlowListeningPresenter:
             source: Original playlist marker.
             dry_run: Whether to use preview wording.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would remove' if dry_run else 'Removed'} previous track: {source.name}"
         )
 
@@ -60,7 +60,7 @@ class SlowListeningPresenter:
             source: Original final marker.
             dry_run: Whether to use preview wording.
         """
-        self.echo(
+        self.output.echo(
             f"{'Would complete' if dry_run else 'Completed'} "
             f"{source.primary_artist_name}: {source.name} was the final track."
         )
@@ -71,4 +71,6 @@ class SlowListeningPresenter:
         Args:
             source: Original saved marker.
         """
-        self.echo(f"Source already removed; completing saved plan for {source.name}.")
+        self.output.echo(
+            f"Source already removed; completing saved plan for {source.name}."
+        )

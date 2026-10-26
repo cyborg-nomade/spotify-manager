@@ -1,12 +1,13 @@
 """Original Wine Cellar transfer wording after accepted or previewed effects."""
 
-from collections.abc import Callable
+from dataclasses import dataclass
 
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.catalog import PlaylistTrack
 
 
 def present_transfer(
-    echo: Callable[[str], None], source: PlaylistTrack, duplicate: bool, dry_run: bool
+    echo: Messages, source: PlaylistTrack, duplicate: bool, dry_run: bool
 ) -> None:
     """Render one transfer at its original boundary before checkpoint and audit.
 
@@ -19,4 +20,25 @@ def present_transfer(
     verb = "Would move" if dry_run else "Moved"
     if duplicate:
         verb = "Would remove duplicate" if dry_run else "Removed duplicate"
-    echo(f"{verb} from Wine Cellar: {source.primary_artist_name} - {source.name}")
+    echo.echo(f"{verb} from Wine Cellar: {source.primary_artist_name} - {source.name}")
+
+
+@dataclass(frozen=True)
+class CellarPresenter:
+    """Present Wine Cellar outcomes through the invoking interface.
+
+    Args:
+        output: Original message owner.
+    """
+
+    output: Messages
+
+    def moved(self, source: PlaylistTrack, duplicate: bool, dry_run: bool) -> None:
+        """Present an accepted or previewed transfer.
+
+        Args:
+            source: Original cellar marker.
+            duplicate: Whether the destination already had this marker.
+            dry_run: Whether the transfer was previewed.
+        """
+        present_transfer(self.output, source, duplicate, dry_run)

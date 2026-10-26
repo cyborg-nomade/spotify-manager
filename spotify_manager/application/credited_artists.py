@@ -1,12 +1,24 @@
 """Recover all credited artist follows with the original batch/checkpoint rules."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
 from spotify_manager.application.ports.listening import Clock
 from spotify_manager.application.recovery_values import RecoveryState
 from spotify_manager.domain.library import AlbumArtist
+
+
+class ArtistFollowPresentation(Protocol):
+    """Present an accepted or previewed credited-artist follow."""
+
+    def announce(self, artist: AlbumArtist, dry_run: bool) -> None:
+        """Present the original follow message.
+
+        Args:
+            artist: Resolved credited artist.
+            dry_run: Whether the follow was previewed.
+        """
+        ...
 
 
 class CreditedArtistAccess(Protocol):
@@ -55,11 +67,12 @@ class CreditedArtistDependencies:
         access: Current observations and original ordered effects.
         clock: Timestamp source read after mirror publication for each batch.
         announce: Original follow/preview message delivery.
+        presentation: Named presenter for accepted workflow outcomes.
     """
 
     access: CreditedArtistAccess
     clock: Clock
-    announce: Callable[[AlbumArtist, bool], None]
+    presentation: ArtistFollowPresentation
 
 
 def _distinct(artists: list[AlbumArtist], checked: set[str]) -> list[AlbumArtist]:
@@ -105,12 +118,12 @@ def _events(
     recorded: set[str],
     dry_run: bool,
 ) -> tuple[list[dict[str, object]], int]:
-    timestamp = dependencies.clock().isoformat()
+    timestamp = dependencies.clock.now().isoformat()
     events = []
     followed_count = 0
     for artist, followed in zip(artists, statuses, strict=True):
         if not followed:
-            dependencies.announce(artist, dry_run)
+            dependencies.presentation.announce(artist, dry_run)
             followed_count += 1
         events.append(_event(artist, followed, recorded, timestamp, dry_run))
     return events, followed_count

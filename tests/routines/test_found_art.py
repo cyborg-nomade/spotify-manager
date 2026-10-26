@@ -4,14 +4,27 @@ import json
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partial
+from functools import partialmethod
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_resolution import (
+    RecommendationResolution,
+)
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.client.lastfm import LastFmRecentTrack
 from spotify_manager.client.lastfm import LastFmSimilarTrack
+from spotify_manager.infrastructure.legacy.recommendations import (
+    LegacyRecommendationRun,
+)
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import found_art
+from tests.support.direct_dependencies import audit
+from tests.support.runtime_resources import MessageList
 
 
 class FakeLastFm:
@@ -599,6 +612,11 @@ def test_previous_additions_are_read_and_invalid_logs_are_rejected(
 def test_gather_candidates_validates_limit_and_emits_progress(
     tmp_path: Path,
 ) -> None:
+    """Gather candidates validates limit and emits progress.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     with pytest.raises(found_art.FoundArtConfigError, match="at least 1"):
         found_art.gather_candidates(
             FakeLastFm(),
@@ -621,7 +639,7 @@ def test_gather_candidates_validates_limit_and_emits_progress(
         log_path=tmp_path / "log.jsonl",
         week_start=date(2026, 7, 17),
         now=datetime(2026, 7, 23, tzinfo=UTC),
-        progress_callback=progress.append,
+        progress_callback=MessageList(progress),
     )
 
     assert len(candidates) == 1
@@ -629,6 +647,7 @@ def test_gather_candidates_validates_limit_and_emits_progress(
 
 
 def test_spotify_resolution_covers_no_match_duplicate_and_dry_run() -> None:
+    """Spotify resolution covers no match duplicate and dry run."""
     spotify = FakeSpotify()
     candidates = (
         candidate("No Match", "Missing", 1.0),
@@ -650,7 +669,7 @@ def test_spotify_resolution_covers_no_match_duplicate_and_dry_run() -> None:
         blast_from_past.PlaylistState(0, frozenset()),
         count=2,
         dry_run=True,
-        progress_callback=progress.append,
+        progress_callback=MessageList(progress),
     )
 
     assert [result.action for result in results] == [
@@ -742,6 +761,12 @@ def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Run found art orchestrates addition and full playlist noop.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     history = [blast_from_past.Scrobble("Seed", "Artist", "", 1)]
     chosen_seed = seed("Artist", "Seed")
     chosen_candidate = candidate("New Artist", "New Track", 1)
@@ -760,44 +785,36 @@ def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
     playlist = blast_from_past.PlaylistState(2, frozenset())
     calls: list[tuple[str, object]] = []
     monkeypatch.setattr(
-        found_art,
-        "refresh_scrobble_history",
-        lambda *_args, **_kwargs: (history, 1),
+        LegacyRecommendationRun, "refresh", Mock(return_value=(history, 1))
+    )
+    monkeypatch.setattr(RecommendationSeeds, "run", Mock(return_value=(chosen_seed,)))
+    monkeypatch.setattr(
+        CandidateGathering, "run", Mock(return_value=(chosen_candidate,))
     )
     monkeypatch.setattr(
-        found_art,
-        "select_seed_tracks",
-        lambda *_args, **_kwargs: (chosen_seed,),
-    )
-    monkeypatch.setattr(
-        found_art,
-        "gather_candidates",
-        lambda *_args, **_kwargs: (chosen_candidate,),
-    )
-    monkeypatch.setattr(
-        found_art,
-        "resolve_spotify_candidates",
-        lambda *_args, **_kwargs: (
-            (found_art.FoundArtResult(chosen_candidate, match, "added"),),
-            (match,),
+        RecommendationResolution,
+        "run",
+        Mock(
+            return_value=(
+                (found_art.FoundArtResult(chosen_candidate, match, "added"),),
+                (match,),
+            )
         ),
     )
     monkeypatch.setattr(
         found_art.blast_from_past,
         "load_playlist_state",
-        lambda *_args, **_kwargs: playlist,
+        Mock(return_value=playlist),
     )
     monkeypatch.setattr(
         found_art.blast_from_past,
         "add_spotify_matches",
-        lambda _sp, playlist_id, matches: calls.append(
-            (playlist_id, [item.spotify_id for item in matches])
-        ),
+        partial(_record_playlist_additions, calls),
     )
     monkeypatch.setattr(
-        found_art,
-        "append_found_art_log",
-        lambda summary, _path: calls.append(("log", summary)),
+        LegacyRecommendationRun,
+        "audit",
+        partialmethod(audit, partial(_record_found_art_log, calls)),
     )
     progress: list[str] = []
 
@@ -810,7 +827,7 @@ def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
         now=datetime(2026, 7, 23, tzinfo=UTC),
         export_path=tmp_path / "history.json",
         log_path=tmp_path / "log.jsonl",
-        progress_callback=progress.append,
+        progress_callback=MessageList(progress),
     )
 
     assert summary.playlist_length_after == 3
@@ -833,3 +850,18 @@ def test_run_found_art_orchestrates_addition_and_full_playlist_noop(
     assert noop.seeds == ()
     assert noop.results == ()
     assert calls[0][0] == "log"
+
+
+def _record_playlist_additions(
+    calls: list[object],
+    spotify: object,
+    playlist_id: str,
+    matches: tuple[blast_from_past.SpotifyTrackMatch, ...],
+) -> None:
+    calls.append((playlist_id, [item.spotify_id for item in matches]))
+
+
+def _record_found_art_log(
+    calls: list[object], summary: found_art.FoundArtSummary, path: Path
+) -> None:
+    calls.append(("log", summary))

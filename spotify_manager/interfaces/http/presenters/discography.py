@@ -1,7 +1,9 @@
 """Stable discography result serialization."""
 
+from collections.abc import Iterable
+
 from spotify_manager.interfaces.http.models.discography import DiscographyArtistResult
-from spotify_manager.routines import discography
+from spotify_manager.interfaces.operations import discography as discography
 
 
 def discography_artist_result(
@@ -23,3 +25,20 @@ def discography_artist_result(
         days=selection.days,
         release_names=[release.name for release in selection.releases],
     )
+
+
+def discography_artist_results(
+    values: Iterable[discography.ArtistSelection],
+) -> list[DiscographyArtistResult]:
+    """Present the complete collection in encounter order.
+
+    Args:
+        values: Complete routine values in encounter order.
+
+    Returns:
+        Complete response entries, preserving the first conversion failure.
+    """
+    entries = []
+    for value in values:
+        entries.append(discography_artist_result(value))
+    return entries

@@ -6,7 +6,7 @@ from dataclasses import replace
 
 import pytest
 
-from spotify_manager.application.album_recommendations import choose_album
+from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
 from spotify_manager.domain.album_recommendations import AlbumRecommendation
 from spotify_manager.domain.album_recommendations import SpotifyAlbumOption
 from tests.support.album_evidence import read_case
@@ -50,6 +50,22 @@ class ChoiceMemory:
             raise OSError("choice interrupted")
         return self.response
 
+    def choose_album(
+        self,
+        recommendation: AlbumRecommendation,
+        options: tuple[SpotifyAlbumOption, ...],
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            recommendation: Original fixture observation.
+            options: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.read(recommendation, options)
+
 
 def _recommendation(ambiguous: bool = True) -> AlbumRecommendation:
     option = read_case("duplicates").observations["Same"][0]
@@ -66,9 +82,9 @@ def _recommendation(ambiguous: bool = True) -> AlbumRecommendation:
 def _choose(
     item: AlbumRecommendation, memory: ChoiceMemory | None
 ) -> SpotifyAlbumOption | str:
-    return choose_album(
-        item, memory.read if memory is not None else None, "skip-marker", "quit-marker"
-    )
+    return AlbumEditionChoice(
+        memory if memory is not None else None, "skip-marker", "quit-marker"
+    ).choose(item)
 
 
 @pytest.mark.parametrize(

@@ -124,7 +124,7 @@ class Observations:
         self.record("clock")
         return NOW
 
-    def week(self, now: datetime) -> date:
+    def local_date(self, now: datetime | date | None = None) -> date:
         """Observe local-week resolution only when needed.
 
         Args:
@@ -154,9 +154,15 @@ class Observations:
         Returns:
             Workflow using only typed in-memory boundaries.
         """
-        return QueueRecommendations(
-            self, self.neighbors, self.clock, self.week, self.progress
-        )
+        return QueueRecommendations(self, self, self, self)
+
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
 
 
 TRACE = ["clock", "week", "load", "previous", "progress", "lookup", "read", "save"]

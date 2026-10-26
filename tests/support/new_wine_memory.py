@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import datetime
+from typing import cast
 
 from spotify_manager.application.new_wine import NewWineDependencies
 from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_observations import WineObservations
 from spotify_manager.application.new_wine_values import CellarRefillSummary
 from spotify_manager.application.new_wine_values import FlushResult
+from spotify_manager.application.wine_cellar import CellarOptions
+from spotify_manager.application.wine_cellar import CellarWorkflow
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.catalog import ReleaseTrack
@@ -92,6 +95,15 @@ class MemoryWine:
             return
         self.failure = None
         raise RuntimeError(f"{name} interrupted")
+
+    @property
+    def refill_limit(self) -> int:
+        """Observe the original post-flush destination limit.
+
+        Returns:
+            Original configured destination size.
+        """
+        return 10
 
     def playlist(self, playlist_id: str) -> tuple[PlaylistTrack, ...]:
         """Read live markers, reconstructing appended values for a new invocation.
@@ -371,6 +383,43 @@ class MemoryWine:
         """
         self._before("progress", (completed, total, label))
 
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
+    def choose_release(
+        self, source: PlaylistTrack, candidates: tuple[ReleaseCandidate, ...]
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            candidates: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(source, candidates)
+
+    def choose_endpoint(
+        self, source: PlaylistTrack, tracks: tuple[ReleaseTrack, ...], index: int
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            source: Original fixture observation.
+            tracks: Original fixture observation.
+            index: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.endpoint(source, tracks, index)
+
 
 def _marker(track: PlaylistTrack | ReleaseTrack) -> PlaylistTrack:
     if isinstance(track, PlaylistTrack):
@@ -378,6 +427,39 @@ def _marker(track: PlaylistTrack | ReleaseTrack) -> PlaylistTrack:
     return PlaylistTrack(
         track.spotify_id, track.uri, track.name, "artist", "Artist", ALBUM
     )
+
+
+@dataclass(frozen=True)
+class ScriptedCellar:
+    """Retain the existing isolated post-flush stage oracle.
+
+    Args:
+        memory: Original external observations and interruption behavior.
+    """
+
+    memory: MemoryWine
+
+    def run(
+        self, options: CellarOptions, state: dict[str, object], run: dict[str, object]
+    ) -> CellarRefillSummary:
+        """Observe the original independently tested refill boundary.
+
+        Args:
+            options: Effective original refill inputs.
+            state: Complete current namespace.
+            run: Original active run.
+
+        Returns:
+            Original scripted refill outcome.
+        """
+        return self.memory.refill(
+            options.source,
+            options.no_discovery,
+            options.dry_run,
+            state,
+            run,
+            options.projected_ids,
+        )
 
 
 def dependencies(memory: MemoryWine) -> NewWineDependencies:
@@ -392,11 +474,12 @@ def dependencies(memory: MemoryWine) -> NewWineDependencies:
     return NewWineDependencies(
         memory,
         WineObservations(memory, 2026),
-        memory.choose,
-        memory.endpoint,
+        cast(CellarWorkflow, ScriptedCellar(memory)),
+        memory,
+        memory,
         WineMessages(memory.events),
-        memory.clock,
-        memory.progress,
+        memory,
+        memory,
     )
 
 

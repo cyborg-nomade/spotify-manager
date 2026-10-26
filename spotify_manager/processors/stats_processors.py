@@ -1,6 +1,7 @@
 """Compatibility entry points for original legacy listening statistics."""
 
 from spotify_manager.application import legacy_library_control as workflow
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 from spotify_manager.loaders_savers import save_stats_file as save_stats_file
 from spotify_manager.models.albums import SimplifiedAlbum
 from spotify_manager.models.file_items import ControlFileItem
@@ -22,7 +23,7 @@ def calculate_stats(
     Raises:
         ZeroDivisionError: An original denominator is zero.
     """
-    return workflow.calculate(control_file, total_album_list, print)
+    return workflow.calculate(control_file, total_album_list, STANDARD_OUTPUT)
 
 
 def update_stats(
@@ -37,6 +38,9 @@ def update_stats(
     Returns:
         True after accepted publication.
     """
-    return workflow.update_statistics(
-        control_file, total_album_list, calculate_stats, save_stats_file, print
-    )
+    print("Updating stats...")
+    stats = calculate_stats(control_file, total_album_list)
+    print(f"These are your current stats: \n{stats.model_dump()}")
+    save_stats_file(stats)
+    print("Stats updated!")
+    return True

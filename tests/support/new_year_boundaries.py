@@ -73,9 +73,7 @@ def reconcile_outcome(
     result: dict[str, object] = {}
     try:
         with patch.object(new_wine, "load_playlist_tracks", edge.playlist):
-            legacy._add_missing(
-                cast(Spotify, edge), "destination", uris, edge.retry, top=top
-            )
+            legacy._add_missing(cast(Spotify, edge), "destination", uris, edge, top=top)
     except RuntimeError as exc:
         result.update(error=type(exc).__name__, message=str(exc))
     result.update(trace=edge.trace, contents=edge.contents["destination"])

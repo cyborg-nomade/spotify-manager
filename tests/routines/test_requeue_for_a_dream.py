@@ -1,12 +1,21 @@
 """Tests for the Requeue for a Dream playlist transition."""
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
+from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.routines import requeue_for_a_dream
 from spotify_manager.routines import slow_listening
+from spotify_manager.routines.new_wine import PlaylistTrack
+from spotify_manager.routines.new_wine import (
+    load_playlist_tracks as _load_playlist_tracks,
+)
+from tests.support.runtime_resources import MessageList
 
 
 def raw_release(
@@ -291,14 +300,18 @@ def test_flush_reports_playlist_discography_and_track_loading_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Verify flush reports playlist discography and track loading errors.
+
+    Args:
+        tmp_path: Isolated fixture storage.
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     spotify, _first, _second = configured_spotify()
 
     monkeypatch.setattr(
         requeue_for_a_dream.new_wine,
         "load_playlist_tracks",
-        lambda *_args: (_ for _ in ()).throw(
-            requeue_for_a_dream.new_wine.NewWineError("playlist failed")
-        ),
+        Mock(side_effect=requeue_for_a_dream.new_wine.NewWineError("playlist failed")),
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="playlist"):
         requeue_for_a_dream.flush_requeue_for_a_dream(
@@ -312,9 +325,7 @@ def test_flush_reports_playlist_discography_and_track_loading_errors(
     monkeypatch.setattr(
         requeue_for_a_dream.slow_listening,
         "load_discography",
-        lambda *_args: (_ for _ in ()).throw(
-            slow_listening.SlowListeningError("discography failed")
-        ),
+        Mock(side_effect=slow_listening.SlowListeningError("discography failed")),
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="discography"):
         requeue_for_a_dream.flush_requeue_for_a_dream(
@@ -328,9 +339,7 @@ def test_flush_reports_playlist_discography_and_track_loading_errors(
     monkeypatch.setattr(
         requeue_for_a_dream.slow_listening,
         "load_release_tracks",
-        lambda *_args: (_ for _ in ()).throw(
-            slow_listening.SlowListeningError("tracks failed")
-        ),
+        Mock(side_effect=slow_listening.SlowListeningError("tracks failed")),
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="tracks"):
         requeue_for_a_dream.flush_requeue_for_a_dream(
@@ -373,6 +382,12 @@ def test_flush_emits_progress_and_wraps_recheck_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Flush emits progress and wraps recheck failure.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     spotify, _first, _second = configured_spotify()
     progress: list[str] = []
 
@@ -380,7 +395,7 @@ def test_flush_emits_progress_and_wraps_recheck_failure(
         spotify,
         "playlist",
         log_path=tmp_path / "log.jsonl",
-        progress_callback=progress.append,
+        progress_callback=MessageList(progress),
     )
 
     assert summary.action == "advance"
@@ -392,20 +407,11 @@ def test_flush_emits_progress_and_wraps_recheck_failure(
     ]
 
     spotify, _first, _second = configured_spotify()
-    original = requeue_for_a_dream.new_wine.load_playlist_tracks
-    calls = 0
-
-    def fail_second(*args, **kwargs):
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            raise requeue_for_a_dream.new_wine.NewWineError("recheck failed")
-        return original(*args, **kwargs)
-
+    reader = FailingPlaylistRecheck()
     monkeypatch.setattr(
         requeue_for_a_dream.new_wine,
         "load_playlist_tracks",
-        fail_second,
+        reader.read,
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamError, match="recheck"):
         requeue_for_a_dream.flush_requeue_for_a_dream(
@@ -429,3 +435,35 @@ def test_log_write_failure_is_reported(tmp_path: Path) -> None:
             "playlist",
             log_path=blocked / "log.jsonl",
         )
+
+
+@dataclass
+class FailingPlaylistRecheck:
+    """Fail only the second playlist read.
+
+    Args:
+        calls: Number of playlist reads attempted.
+    """
+
+    calls: int = 0
+
+    def read(
+        self, spotify: Spotify, playlist_id: str, retry: Retry
+    ) -> tuple[PlaylistTrack, ...]:
+        """Read the playlist until the recheck fails.
+
+        Args:
+            spotify: Original playlist source.
+            playlist_id: Requested playlist.
+            retry: Original retry policy.
+
+        Returns:
+            Original playlist tracks.
+
+        Raises:
+            NewWineError: On the second read only.
+        """
+        self.calls += 1
+        if self.calls == 2:
+            raise requeue_for_a_dream.new_wine.NewWineError("recheck failed")
+        return _load_playlist_tracks(spotify, playlist_id, retry)

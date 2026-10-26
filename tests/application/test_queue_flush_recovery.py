@@ -5,10 +5,9 @@ from dataclasses import asdict
 
 import pytest
 
-from spotify_manager.application.queue_flush import QueueFlush
 from tests.support.queue_flush import restart_cases
 from tests.support.queue_flush import restart_observations
-from tests.support.queue_flush_application import MemoryQueueFlush
+from tests.support.queue_flush_application import queue_workflow
 
 
 @pytest.mark.parametrize(
@@ -23,9 +22,7 @@ def test_queue_restart_matches_original(name: str, case: dict[str, object]) -> N
     """
     assert name
     edge = restart_observations(case)
-    outcome: dict[str, object] = {
-        "result": asdict(QueueFlush(MemoryQueueFlush(edge)).run(False))
-    }
+    outcome: dict[str, object] = {"result": asdict(queue_workflow(edge).run(False))}
     outcome.update(trace=edge.trace, state=edge.state, checkpoints=edge.checkpoints)
     playlists: dict[str, list[str]] = {}
     for playlist, tracks in edge.playlists.items():

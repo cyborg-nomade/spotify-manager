@@ -1,7 +1,6 @@
 """Explicit state CLI execution, prompts and presentation."""
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -13,20 +12,21 @@ from rich.console import Console
 
 from spotify_manager.core.state.models import StateDocumentError
 from spotify_manager.core.state.models import StateError
-from spotify_manager.core.state.service import StateService
+from spotify_manager.interfaces.cli.resources import CliResources
 
 
 @dataclass(kw_only=True)
 class StateCLI:
-    """Execute and present state through explicit facade dependencies.
+    """Inspect, export and edit shared routine state.
 
     Args:
-        create_console: Factory for console instances.
-        get_state_service: Original get state service boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        create_console: Interface presentation resource.
     """
 
+    runtime: CliResources
+
     create_console: type[Console]
-    get_state_service: Callable[..., StateService]
 
     def _run_state_show(self, namespace: str | None) -> None:
         """Print the current shared state and its guarded revision.
@@ -35,7 +35,7 @@ class StateCLI:
             namespace: Namespace supplied by the caller.
         """
         try:
-            snapshot = self.get_state_service().snapshot()
+            snapshot = self.runtime.get_state_service().snapshot()
             payload = self._select_state_payload(snapshot.document, namespace)
             self.create_console().print_json(
                 json.dumps(
@@ -56,7 +56,7 @@ class StateCLI:
             destination: Destination supplied by the caller.
         """
         try:
-            snapshot = self.get_state_service().export(destination)
+            snapshot = self.runtime.get_state_service().export(destination)
         except (OSError, StateError) as exc:
             self._report_state_export_o_s_failure(exc)
         typer.echo(f"Exported revision {snapshot.revision} to {destination.resolve()}.")
@@ -84,7 +84,7 @@ class StateCLI:
             source_revision = raw.get("revision") if "document" in raw else None
             if not isinstance(document, dict):
                 raise StateDocumentError("Edited state document must be a JSON object.")
-            service = self.get_state_service()
+            service = self.runtime.get_state_service()
             current = service.snapshot()
             source_updated_at = document.get("updated_at")
             current_updated_at = current.document.get("updated_at")

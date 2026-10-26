@@ -2,7 +2,8 @@
 
 import gzip
 import json
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
@@ -16,9 +17,11 @@ import pytest
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.album_review import AlbumReviewRequest
 from spotify_manager.application.album_review import review_album
 from spotify_manager.application.music import Track
 from spotify_manager.application.ports.listening import RetryCall
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.bootstrap.listening import album_review_ports
 from spotify_manager.bootstrap.listening import listening_history
 from spotify_manager.bootstrap.listening import requeue_audit
@@ -103,7 +106,9 @@ def test_membership_keeps_original_batch_boundaries(count: int) -> None:
     for start in range(0, count, 20):
         batches.append([True] * min(20, count - start))
     client.current_user_saved_tracks_contains.side_effect = batches
-    result = review_album(*album_review_ports(client), album_id="album")
+    result = review_album(
+        *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
+    )
     expected = []
     for start in range(0, count, 20):
         expected.append([str(index) for index in range(start, min(start + 20, count))])
@@ -133,7 +138,9 @@ def test_album_pagination_preserves_filtered_items_and_page_order() -> None:
     client = _client([None, _track("a")], [True, False])
     client.album_tracks.return_value["next"] = "next"
     client.next.return_value = {"items": [_track("b")], "next": None}
-    result = review_album(*album_review_ports(client), album_id="album")
+    result = review_album(
+        *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
+    )
     assert [track.spotify_id for track in result.tracks] == ["a", "b"]
     client.album_tracks.assert_called_once_with("album", limit=50)
     client.next.assert_called_once()
@@ -152,7 +159,9 @@ def test_malformed_track_pages_keep_legacy_errors(page: object) -> None:
     client = _client([], [])
     client.album_tracks.return_value = page
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        review_album(*album_review_ports(client), album_id="album")
+        review_album(
+            *album_review_ports(client), request=AlbumReviewRequest(album_id="album")
+        )
     client.current_user_saved_tracks_contains.assert_not_called()
 
 
@@ -168,7 +177,9 @@ def test_catalog_preserves_sdk_error_translation(status: int) -> None:
     client.album.side_effect = error
     expected = library_lookups.AlbumNotFoundError if status == 404 else SpotifyException
     with pytest.raises(expected) as caught:
-        review_album(*album_review_ports(client), album_id="missing")
+        review_album(
+            *album_review_ports(client), request=AlbumReviewRequest(album_id="missing")
+        )
     assert caught.value is error or caught.value.__cause__ is error
     client.album_tracks.assert_not_called()
 
@@ -177,7 +188,10 @@ def test_catalog_search_uses_existing_exact_match_and_query() -> None:
     """Retain exact name matching and the existing search parameters."""
     client = _client([_track("x")], [True])
     client.search.return_value = {"albums": {"items": [ALBUM]}}
-    result = review_album(*album_review_ports(client), name="Album", artist="Artist")
+    result = review_album(
+        *album_review_ports(client),
+        request=AlbumReviewRequest(name="Album", artist="Artist"),
+    )
     assert result.album.spotify_id == "album"
     client.search.assert_called_once_with(
         q='album:"Album" artist:"Artist"', type="album", limit=10, offset=0
@@ -194,18 +208,17 @@ class RetryRecorder:
 
     descriptions: list[str] = field(default_factory=list)
 
-    def __call__(self, operation: Callable[[], object], description: str) -> object:
-        """Execute one callable after recording its description.
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Record the original retry label before the visible direct operation.
 
         Args:
-            operation: Existing transport operation.
-            description: Human-readable retry boundary.
+            description: Original transport operation description.
 
         Returns:
-            The unmodified operation result; exceptions propagate unchanged.
+            A single attempt propagating the original failure.
         """
         self.descriptions.append(description)
-        return operation()
+        return NoRetry().attempts(description)
 
 
 def test_playlist_writes_keep_order_payloads_and_retry_descriptions() -> None:
@@ -315,7 +328,7 @@ def test_audit_adapter_keeps_existing_jsonl_bytes(tmp_path: Path) -> None:
     requeue_for_a_dream._append_log(summary, original)
     writer = requeue_audit(adapted)
     assert not adapted.exists()
-    writer(summary)
+    writer.write(summary)
     assert adapted.read_bytes() == original.read_bytes()
 
 
@@ -331,4 +344,4 @@ def test_audit_failure_keeps_original_error(tmp_path: Path) -> None:
         datetime(2026, 9, 25, tzinfo=UTC), "p", False, "drop", 1, 0
     )
     with pytest.raises(requeue_for_a_dream.RequeueForADreamLogError):
-        requeue_audit(parent / "log.jsonl")(summary)
+        requeue_audit(parent / "log.jsonl").write(summary)

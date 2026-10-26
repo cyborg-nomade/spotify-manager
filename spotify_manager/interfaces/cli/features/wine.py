@@ -1,70 +1,49 @@
 """Explicit wine CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn
-from rich.progress import MofNCompleteColumn
 from rich.progress import Progress
-from rich.progress import SpinnerColumn
-from rich.progress import TextColumn
-from rich.progress import TimeElapsedColumn
-from rich.prompt import Prompt
 from rich.table import Table
-from rich.text import Text
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.new_wine import NewWineOptions
 from spotify_manager.application.new_wine_values import CellarRefillResult
 from spotify_manager.application.new_wine_values import FlushResult
+from spotify_manager.application.ports.runtime import Wait
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.display import ProgressDisplay
 from spotify_manager.interfaces.cli.presentation import progress_description
-from spotify_manager.routines import new_wine
-from spotify_manager.routines import review_album_limits
-from spotify_manager.settings import Settings
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import new_wine as new_wine
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.requests.new_wine import NewWineCallbacks
+from spotify_manager.interfaces.requests.new_wine import NewWineStorage
 
 
 @dataclass(kw_only=True)
 class WineCLI:
-    """Execute and present wine through explicit facade dependencies.
+    """Run New Wine progression with terminal release choices.
 
     Args:
-        bar_column: Rich bar column constructor.
-        create_console: Factory for console instances.
-        complete_column: Rich complete column constructor.
-        create_progress: Factory for progress instances.
-        prompt: Rich prompt implementation supplied by the facade.
-        configuration: Original settings factory supplied by the facade.
-        spinner_column: Rich spinner column constructor.
-        create_table: Factory for table instances.
-        create_text: Factory for text instances.
-        text_column: Rich text column constructor.
-        time_column: Rich time column constructor.
-        ask_new_wine_endpoint_choice: Original ask new wine endpoint choice boundary
-            supplied by the facade.
-        ask_new_wine_release_choice: Original ask new wine release choice boundary
-            supplied by the facade.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        progress_display: Rich console, table and live-status constructors.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
-    bar_column: type[BarColumn]
-    create_console: type[Console]
-    complete_column: type[MofNCompleteColumn]
-    create_progress: type[Progress]
-    prompt: type[Prompt]
-    configuration: type[Settings]
-    spinner_column: type[SpinnerColumn]
-    create_table: type[Table]
-    create_text: type[Text]
-    text_column: type[TextColumn]
-    time_column: type[TimeElapsedColumn]
-    ask_new_wine_endpoint_choice: Callable[..., str]
-    ask_new_wine_release_choice: Callable[..., str]
-    review_client: Callable[..., Spotify]
-    sleep: Callable[[float], None]
+    runtime: CliResources
+
+    progress_display: ProgressDisplay
+    display: ConsoleDisplay
+    sleep: Wait
 
     def _prompt_new_wine_release_choice(
         self,
@@ -118,18 +97,12 @@ class WineCLI:
             progress.stop()
         try:
             position = current_index + 1
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 (
-                    "Treat "
-                    f"{source.release.name}"
-                    " track "
-                    f"{position}"
-                    "/"
-                    f"{len(tracks)}"
-                    ' "'
+                    f'Treat {source.release.name} track {position}/{len(tracks)} "'
                     f"{source.name}"
-                    '" as its last canonical track? [y]es / [n]o / '
-                    "[s]kip this run / [q]uit"
+                    f'" as its last canonical track? [y]es / [n]o / [s]kip '
+                    f"this run / [q]uit"
                 ),
                 choices=["y", "n", "s", "q"],
                 default="n",
@@ -156,9 +129,9 @@ class WineCLI:
             choose_album_endpoints: Choose album endpoints supplied by the caller.
         """
         choose_album_endpoints = choose_album_endpoints is True
-        self._flush_new_wine_console = self.create_console()
+        self._flush_new_wine_console = self.display.create_console()
         self._flush_new_wine_progress_ref: Progress | None = None
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         try:
             new_wine_playlist_id = new_wine.parse_playlist_id(
                 configuration.new_wine_from_old_bottles_playlist,
@@ -174,12 +147,14 @@ class WineCLI:
         except new_wine.NewWineConfigError as exc:
             self._report_flush_new_wine_configuration_failure(exc)
         try:
-            with self.create_progress(
-                self.spinner_column(),
-                self.text_column("[progress.description]{task.description}"),
-                self.bar_column(),
-                self.complete_column(),
-                self.time_column(),
+            with self.progress_display.create_progress(
+                self.progress_display.spinner_column(),
+                self.progress_display.text_column(
+                    "[progress.description]{task.description}"
+                ),
+                self.progress_display.bar_column(),
+                self.progress_display.complete_column(),
+                self.progress_display.time_column(),
                 console=self._flush_new_wine_console,
                 transient=True,
             ) as self._flush_new_wine_progress:
@@ -189,18 +164,23 @@ class WineCLI:
                     description, total=None
                 )
                 summary = new_wine.flush_new_wine(
-                    self.review_client(),
-                    new_wine_playlist_id,
-                    sauvignon_playlist_id,
-                    choice_reader=self._flush_new_wine_ask_new_wine_release_choice,
-                    endpoint_choice_reader=self._flush_new_wine_ask_new_wine_endpoint_choice,
-                    choose_album_endpoints=choose_album_endpoints,
-                    wine_cellar_playlist_id=wine_cellar_playlist_id,
-                    no_discovery=no_discovery,
-                    dry_run=dry_run,
-                    echo=self._flush_new_wine_echo,
-                    progress_callback=self._flush_new_wine_update_progress,
-                    retry_call=self._flush_new_wine_retry_call,
+                    self.runtime.review_client(),
+                    NewWineOptions(
+                        destination=new_wine_playlist_id,
+                        sauvignon=sauvignon_playlist_id,
+                        cellar=wine_cellar_playlist_id,
+                        no_discovery=no_discovery,
+                        endpoint_mode=choose_album_endpoints,
+                        dry_run=dry_run,
+                    ),
+                    NewWineCallbacks(
+                        choose=FlushNewWineInteraction(self),
+                        endpoint=FlushNewWineInteraction(self),
+                        output=FlushNewWineInteraction(self),
+                        progress=FlushNewWineInteraction(self),
+                        retry=FlushNewWineInteraction(self),
+                    ),
+                    storage=NewWineStorage(),
                 )
         except review_album_limits.SpotifyRateLimitError as exc:
             self._report_flush_new_wine_rate_limit(exc)
@@ -235,18 +215,6 @@ class WineCLI:
             style = "cyan"
         self._flush_new_wine_console.print(line, style=style, markup=False)
 
-    def _flush_new_wine_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._flush_new_wine_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
     def _flush_new_wine_update_progress(
         self, completed: int, total: int, status: str
     ) -> None:
@@ -262,7 +230,7 @@ class WineCLI:
         source: new_wine.PlaylistTrack,
         candidates: tuple[new_wine.ReleaseCandidate, ...],
     ) -> str:
-        return self.ask_new_wine_release_choice(
+        return self._prompt_new_wine_release_choice(
             self._flush_new_wine_console,
             source,
             candidates,
@@ -275,7 +243,7 @@ class WineCLI:
         tracks: tuple[new_wine.ReleaseTrack, ...],
         current_index: int,
     ) -> str:
-        return self.ask_new_wine_endpoint_choice(
+        return self._prompt_new_wine_endpoint_choice(
             self._flush_new_wine_console,
             source,
             tracks,
@@ -288,9 +256,9 @@ class WineCLI:
     ) -> Never:
         self._flush_new_wine_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -315,7 +283,7 @@ class WineCLI:
         self, exc: SpotifyException
     ) -> Never:
         self._flush_new_wine_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -350,7 +318,7 @@ class WineCLI:
         Args:
             summary: Completed routine outcome to render.
         """
-        table = self.create_table(title="New Wine from Old Bottles")
+        table = self.display.create_table(title="New Wine from Old Bottles")
         table.add_column("Artist")
         table.add_column("Current track")
         table.add_column("Release")
@@ -374,26 +342,12 @@ class WineCLI:
         album_action = "to unsave" if summary.dry_run else "unsaved"
         self._flush_new_wine_console.print(
             (
-                f"{prefix}"
-                ": "
-                f"{summary.processed}"
-                "/"
-                f"{summary.total}"
-                " processed; "
-                f"{summary.advanced}"
-                " advanced, "
-                f"{summary.dropped}"
-                " dropped, "
-                f"{summary.sent_to_sauvignon}"
-                " sent to Sauvignon Terre-Neuve, "
-                f"{summary.completed_singles}"
-                " singles completed, "
-                f"{summary.albums_unsaved}"
-                " albums "
-                f"{album_action}"
-                ", "
-                f"{summary.skipped}"
-                " skipped."
+                f"{prefix}: {summary.processed}/{summary.total} processed; "
+                f"{summary.advanced} advanced, {summary.dropped} dropped, "
+                f"{summary.sent_to_sauvignon} sent to Sauvignon Terre-Neuve, "
+                f"{summary.completed_singles} singles completed, "
+                f"{summary.albums_unsaved} albums {album_action}, {summary.skipped}"
+                f" skipped."
             ),
             style="bold",
         )
@@ -403,8 +357,7 @@ class WineCLI:
             )
         if summary.paused:
             self._flush_new_wine_console.print(
-                "Flush paused; run the command again to resume.",
-                style="bold yellow",
+                "Flush paused; run the command again to resume.", style="bold yellow"
             )
 
     def _read_new_wine_release_choice(
@@ -425,7 +378,7 @@ class WineCLI:
         Returns:
             The original value selected or formatted by this adapter.
         """
-        table = self.create_table(
+        table = self.display.create_table(
             title=(
                 f"Choose a release for {source.primary_artist_name} after {source.name}"
             )
@@ -449,13 +402,13 @@ class WineCLI:
         choices = [str(index) for index in range(1, len(candidates) + 1)]
         at_album_endpoint = source.release.release_type in {"Album", "EP"}
         if at_album_endpoint:
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Release number / [f]inish / [s]kip this run / [q]uit",
                 choices=[*choices, "f", "s", "q"],
                 console=console,
             )
         else:
-            response = self.prompt.ask(
+            response = self.display.prompt.ask(
                 "Release number / [d]rop / [s]kip this run / [q]uit",
                 choices=[*choices, "d", "s", "q"],
                 console=console,
@@ -498,10 +451,10 @@ class WineCLI:
         table.add_row(
             result.artist,
             result.source_track,
-            (f"{result.release} ({result.release_type})"),
+            f"{result.release} ({result.release_type})",
             "liked" if result.current_liked else "unliked",
             str(result.consecutive_unliked),
-            self.create_text(action, style=action_styles[result.action]),
+            self.display.create_text(action, style=action_styles[result.action]),
             next_track,
         )
 
@@ -526,7 +479,7 @@ class WineCLI:
         Args:
             refill: Refill supplied by the caller.
         """
-        refill_table = self.create_table(title="Wine Cellar refill")
+        refill_table = self.display.create_table(title="Wine Cellar refill")
         refill_table.add_column("Artist")
         refill_table.add_column("Track")
         refill_table.add_column("Action")
@@ -543,19 +496,87 @@ class WineCLI:
         mode = "no-discovery" if refill.no_discovery else "standard"
         self._flush_new_wine_console.print(
             (
-                "Wine Cellar ("
-                f"{mode}"
-                "): New Wine "
-                f"{refill.before}"
-                " -> "
-                f"{refill.after}"
-                "; "
-                f"{refill.added}"
-                " added, "
-                f"{refill.removed_from_cellar}"
-                " removed from Wine Cellar, "
-                f"{refill.ineligible}"
-                " ineligible."
+                f"Wine Cellar ({mode}): New Wine {refill.before} -> {refill.after}"
+                f"; {refill.added} added, {refill.removed_from_cellar}"
+                f" removed from Wine Cellar, {refill.ineligible} ineligible."
             ),
             style="bold cyan",
+        )
+
+
+@dataclass(frozen=True)
+class FlushNewWineInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: WineCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._flush_new_wine_echo(message)
+
+    def progress(self, completed: int, total: int, status: str) -> None:
+        """Present the command's original progress.
+
+        Args:
+            completed: Original completed.
+            total: Original total.
+            status: Original status.
+        """
+        self.owner._flush_new_wine_update_progress(completed, total, status)
+
+    def choose_release(
+        self,
+        source: new_wine.PlaylistTrack,
+        candidates: tuple[new_wine.ReleaseCandidate, ...],
+    ) -> str:
+        """Use this command's fixed choose release prompt.
+
+        Args:
+            source: Original operator prompt value.
+            candidates: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._flush_new_wine_ask_new_wine_release_choice(
+            source, candidates
+        )
+
+    def choose_endpoint(
+        self,
+        source: new_wine.PlaylistTrack,
+        tracks: tuple[new_wine.ReleaseTrack, ...],
+        current_index: int,
+    ) -> str:
+        """Use this command's fixed choose endpoint prompt.
+
+        Args:
+            source: Original operator prompt value.
+            tracks: Original operator prompt value.
+            current_index: Original operator prompt value.
+
+        Returns:
+            Original operator response.
+        """
+        return self.owner._flush_new_wine_ask_new_wine_endpoint_choice(
+            source, tracks, current_index
         )

@@ -6,23 +6,38 @@ from copy import deepcopy
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import date
 from datetime import datetime
+from functools import partialmethod
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.queue_artist_mapping import QueueArtistMapping
+from spotify_manager.application.queue_recommendations import QueueRecommendations
+from spotify_manager.application.queue_seeds import QueueSeeds
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.history import Scrobble
+from spotify_manager.domain.queue_values import ArtistRecommendation
+from spotify_manager.domain.queue_values import ArtistSeed
 from spotify_manager.domain.release_check_values import RankedArtist
-from spotify_manager.routines import found_art
+from spotify_manager.infrastructure.legacy.queue_fill import LegacyQueueFill
+from spotify_manager.infrastructure.legacy.queue_recommendations import (
+    LegacyQueueNeighborhoods,
+)
+from spotify_manager.interfaces.requests.queue_fill import QueueFillCallbacks
+from spotify_manager.interfaces.requests.queue_fill import QueueFillOptions
+from spotify_manager.interfaces.requests.queue_fill import QueueFillResources
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import release_check
+from spotify_manager.routines import review_artists
 from spotify_manager.routines import the_queue as legacy
+from tests.support.history_dependencies import queue_history
 from tests.support.queue_neighbors import NOW
 from tests.support.queue_neighbors import SEEDS
 
@@ -97,7 +112,7 @@ class FillObservations:
         """
         self.record("history", dry_run, now.isoformat())
         if progress_callback is not None:
-            progress_callback("history status")
+            progress_callback.echo("history status")
         return (PLAY,), 2
 
     def playlist(
@@ -328,16 +343,16 @@ class FillObservations:
 
 def _patches(edge: FillObservations) -> tuple[tuple[object, str, object], ...]:
     return (
-        (found_art, "refresh_scrobble_history", edge.refresh),
+        (LegacyQueueFill, "history", partialmethod(queue_history, edge.refresh)),
         (new_wine, "load_playlist_tracks", edge.playlist),
-        (legacy, "select_seed_artists", edge.seeds),
-        (legacy, "gather_artist_recommendations", edge.gather),
+        (QueueSeeds, "select", partialmethod(_seeds, edge)),
+        (QueueRecommendations, "run", partialmethod(_gather, edge)),
         (legacy, "_playlist_artist_ids", edge.represented),
-        (release_check, "resolve_spotify_artist", edge.resolve),
+        (QueueArtistMapping, "resolve", partialmethod(_resolve, edge)),
         (new_kids, "load_top_track_data", edge.top),
         (legacy, "_liked_statuses", edge.liked),
         (legacy, "_persist_followed_artist", edge.persist),
-        (legacy, "add_playlist_item", edge.append),
+        (review_artists, "add_playlist_item", edge.append),
         (legacy, "append_event", edge.audit),
     )
 
@@ -350,13 +365,16 @@ def _run(edge: FillObservations, preview: bool) -> object:
         result = legacy.fill_queue_from_lastfm(
             cast(Spotify, edge),
             cast(legacy.LastFmReader, edge),
-            legacy.QueuePlaylists("queue", "queue2", "new-kids", "queue3", "unlucky"),
-            None,
-            count=1,
-            dry_run=preview,
-            now=NOW,
-            echo=edge.echo,
-            progress_callback=edge.progress,
+            QueueFillOptions(
+                playlists=legacy.QueuePlaylists(
+                    "queue", "queue2", "new-kids", "queue3", "unlucky"
+                ),
+                count=1,
+                dry_run=preview,
+                now=NOW,
+            ),
+            QueueFillCallbacks(choice_reader=None, output=edge, progress_callback=edge),
+            QueueFillResources(),
         )
     return asdict(result)
 
@@ -390,3 +408,49 @@ def cases() -> list[tuple[str, dict[str, object]]]:
     """
     raw = cast(dict[str, dict[str, object]], json.loads(FIXTURE.read_text()))
     return list(raw.items())
+
+
+def _gather(
+    resources: QueueRecommendations,
+    edge: FillObservations,
+    seeds: tuple[ArtistSeed, ...],
+    heard: set[str],
+    week: date,
+    limit: int,
+    now: datetime,
+) -> tuple[ArtistRecommendation, ...]:
+    catalog = cast(LegacyQueueNeighborhoods, resources.cache)
+    return edge.gather(
+        catalog.reader,
+        seeds,
+        heard,
+        cache_path=catalog.cache_path,
+        log_path=catalog.log_path,
+        week_start=week,
+        candidate_pool_size=limit,
+        now=now,
+        progress_callback=catalog.callback,
+    )
+
+
+def _resolve(
+    resources: QueueArtistMapping,
+    edge: FillObservations,
+    recommendation: ArtistRecommendation,
+) -> SpotifyArtistCandidate | str | None:
+    catalog = cast(LegacyQueueFill, resources.catalog)
+    artist = release_check.RankedArtist(
+        recommendation.key, recommendation.artist, 0, recommendation.base_rank
+    )
+    reader = legacy._mapping_choice_reader(resources.reader, recommendation)
+    return edge.resolve(catalog.spotify, artist, reader, catalog.retry)
+
+
+def _seeds(
+    resources: QueueSeeds,
+    edge: FillObservations,
+    history: tuple[legacy.ArtistHistory, ...],
+    count: int,
+    week: date,
+) -> tuple[ArtistSeed, ...]:
+    return edge.seeds(history, seed_count=count, week_start=week)

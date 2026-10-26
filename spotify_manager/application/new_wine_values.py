@@ -1,8 +1,8 @@
 """Public New Wine outcomes and errors, re-exported by the legacy entry point."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
+from typing import Protocol
 
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
@@ -10,10 +10,47 @@ from spotify_manager.domain.catalog import ReleaseTrack
 
 
 type FlushAction = Literal["advance", "drop", "sauvignon", "complete single", "skip"]
-type ReleaseChoiceReader = Callable[[PlaylistTrack, tuple[ReleaseCandidate, ...]], str]
-type EndpointChoiceReader = Callable[
-    [PlaylistTrack, tuple[ReleaseTrack, ...], int], str
-]
+
+
+class ReleaseChoiceReader(Protocol):
+    """Own the operator interaction for choose release."""
+
+    def choose_release(
+        self, source: PlaylistTrack, candidates: tuple[ReleaseCandidate, ...], /
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            source: Original interaction value.
+            candidates: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
+
+
+class EndpointChoiceReader(Protocol):
+    """Own the operator interaction for choose endpoint."""
+
+    def choose_endpoint(
+        self,
+        source: PlaylistTrack,
+        tracks: tuple[ReleaseTrack, ...],
+        current_index: int,
+        /,
+    ) -> str:
+        """Read or report the original operator interaction.
+
+        Args:
+            source: Original interaction value.
+            tracks: Original interaction value.
+            current_index: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
 
 
 class NewWineError(RuntimeError):

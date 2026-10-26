@@ -1,6 +1,9 @@
 """Tests for the New Wine CLI command."""
 
+from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from rich.console import Console
@@ -8,6 +11,7 @@ from spotipy.exceptions import SpotifyException
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from tests.support.wine_invocation import WineInvocation
 
 
 def test_new_wine_release_prompt_accepts_drop(monkeypatch) -> None:
@@ -173,7 +177,7 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(main.new_wine, "flush_new_wine", flush)
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(flush))
 
     result = CliRunner().invoke(
         main.app,
@@ -200,8 +204,64 @@ def test_flush_new_wine_dry_run_uses_configured_playlists(monkeypatch) -> None:
 
 
 def test_flush_new_wine_renders_detailed_results_and_refill(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Flush new wine renders detailed results and refill.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        capsys: Original capsys.
+    """
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        Mock(
+            return_value=SimpleNamespace(
+                new_wine_from_old_bottles_playlist="new",
+                sauvignon_terre_neuve_playlist="sauvignon",
+                wine_cellar_playlist="cellar",
+            )
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    scenario = FlushNewWineRendersDetailedResultsAndRefillScenario()
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(scenario))
+    main.flush_new_wine_command(dry_run=False, no_discovery=True)
+    output = capsys.readouterr().out
+    assert "chosen" in output
+    assert "Wine Cellar (no-discovery)" in output
+    assert "Resumed the previously saved flush" in output
+    assert "Flush paused" in output
+
+
+@pytest.mark.parametrize(
+    ("error", "exit_code", "message"),
+    [
+        (
+            main.review_album_limits.SpotifyRateLimitError(120),
+            0,
+            "rate limit reached",
+        ),
+        (
+            main.review_album_limits.SpotifyTransientServerError(
+                502,
+                "loading playlist",
+                3,
+            ),
+            0,
+            "temporarily unavailable",
+        ),
+        (main.new_wine.NewWineError("state failed"), 1, "state failed"),
+        (SpotifyException(500, -1, "server failed"), 1, "HTTP 500"),
+        (KeyboardInterrupt(), 0, "flush paused"),
+    ],
+)
+def test_flush_new_wine_reports_operational_failures(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    error: BaseException,
+    exit_code: int,
+    message: str,
 ) -> None:
     monkeypatch.setattr(
         main,
@@ -214,7 +274,53 @@ def test_flush_new_wine_renders_detailed_results_and_refill(
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
 
-    def flush(*_args, **kwargs):
+    def fail(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(main.new_wine, "flush_new_wine", WineInvocation(fail))
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.flush_new_wine_command(dry_run=False, no_discovery=False)
+
+    assert exc.value.exit_code == exit_code
+    assert message.casefold() in capsys.readouterr().out.casefold()
+
+
+def test_flush_new_wine_reports_missing_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        lambda: SimpleNamespace(
+            new_wine_from_old_bottles_playlist=None,
+            sauvignon_terre_neuve_playlist=None,
+            wine_cellar_playlist=None,
+        ),
+    )
+
+    with pytest.raises(main.typer.Exit) as exc:
+        main.flush_new_wine_command(dry_run=False, no_discovery=False)
+
+    assert exc.value.exit_code == 1
+    assert "not configured" in capsys.readouterr().out
+
+
+@dataclass
+class FlushNewWineRendersDetailedResultsAndRefillScenario:
+    """Supply detailed flush results and refill observations."""
+
+    def __call__(self, *_args: Any, **kwargs: Any) -> main.new_wine.FlushSummary:
+        """Execute the original flush mock boundary.
+
+        Args:
+            _args: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
         for message in (
             "Added track",
             "Moved track",
@@ -224,8 +330,8 @@ def test_flush_new_wine_renders_detailed_results_and_refill(
             "Source already removed",
             "Skipping duplicate",
         ):
-            kwargs["echo"](message)
-        kwargs["progress_callback"](1, 1, "Complete")
+            kwargs["echo"].echo(message)
+        kwargs["progress_callback"].progress(1, 1, "Complete")
         return main.new_wine.FlushSummary(
             run_id="run",
             total=1,
@@ -279,86 +385,3 @@ def test_flush_new_wine_renders_detailed_results_and_refill(
                 ),
             ),
         )
-
-    monkeypatch.setattr(main.new_wine, "flush_new_wine", flush)
-
-    main.flush_new_wine_command(dry_run=False, no_discovery=True)
-
-    output = capsys.readouterr().out
-    assert "chosen" in output
-    assert "Wine Cellar (no-discovery)" in output
-    assert "Resumed the previously saved flush" in output
-    assert "Flush paused" in output
-
-
-@pytest.mark.parametrize(
-    ("error", "exit_code", "message"),
-    [
-        (
-            main.review_album_limits.SpotifyRateLimitError(120),
-            0,
-            "rate limit reached",
-        ),
-        (
-            main.review_album_limits.SpotifyTransientServerError(
-                502,
-                "loading playlist",
-                3,
-            ),
-            0,
-            "temporarily unavailable",
-        ),
-        (main.new_wine.NewWineError("state failed"), 1, "state failed"),
-        (SpotifyException(500, -1, "server failed"), 1, "HTTP 500"),
-        (KeyboardInterrupt(), 0, "flush paused"),
-    ],
-)
-def test_flush_new_wine_reports_operational_failures(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    error: BaseException,
-    exit_code: int,
-    message: str,
-) -> None:
-    monkeypatch.setattr(
-        main,
-        "Settings",
-        lambda: SimpleNamespace(
-            new_wine_from_old_bottles_playlist="new",
-            sauvignon_terre_neuve_playlist="sauvignon",
-            wine_cellar_playlist="cellar",
-        ),
-    )
-    monkeypatch.setattr(main, "review_client", lambda: object())
-
-    def fail(*_args, **_kwargs):
-        raise error
-
-    monkeypatch.setattr(main.new_wine, "flush_new_wine", fail)
-
-    with pytest.raises(main.typer.Exit) as exc:
-        main.flush_new_wine_command(dry_run=False, no_discovery=False)
-
-    assert exc.value.exit_code == exit_code
-    assert message.casefold() in capsys.readouterr().out.casefold()
-
-
-def test_flush_new_wine_reports_missing_configuration(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr(
-        main,
-        "Settings",
-        lambda: SimpleNamespace(
-            new_wine_from_old_bottles_playlist=None,
-            sauvignon_terre_neuve_playlist=None,
-            wine_cellar_playlist=None,
-        ),
-    )
-
-    with pytest.raises(main.typer.Exit) as exc:
-        main.flush_new_wine_command(dry_run=False, no_discovery=False)
-
-    assert exc.value.exit_code == 1
-    assert "not configured" in capsys.readouterr().out

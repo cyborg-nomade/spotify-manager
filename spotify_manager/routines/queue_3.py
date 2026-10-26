@@ -3,14 +3,23 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
+from spotify_manager.application.checkpoints import Checkpoint
+from spotify_manager.application.checkpoints import NoCheckpoint
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import ReviewProgress
+from spotify_manager.application.queue_3_composers import (
+    ComposerReader as ComposerPlaylistReader,
+)
+from spotify_manager.application.queue_3_planner import (
+    TransitionReader as ReleaseTransitionReader,
+)
 from spotify_manager.application.queue_3_values import (
     AnnualImportResult as AnnualImportResult,
 )
@@ -35,15 +44,29 @@ from spotify_manager.application.release_evaluation import evaluate_release
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.catalog import release_candidate
-from spotify_manager.infrastructure.library_records import REMOVED_ALBUMS_LOG_PATH
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
+from spotify_manager.infrastructure.routine_state_codecs import Queue3StateCodec
+from spotify_manager.interfaces.requests.queue_3 import Queue3Callbacks
+from spotify_manager.interfaces.requests.queue_3 import Queue3Options
+from spotify_manager.interfaces.requests.queue_3 import Queue3Resources
 from spotify_manager.models.lookups import AlbumEvaluation
 from spotify_manager.routines import composer_playlists
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening
+
+
+type ProgressCallback = ReviewProgress
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -56,21 +79,46 @@ PLAYLIST_MUTATION_BATCH_SIZE = 100
 CHOICE_ADVANCE = "advance"
 CHOICE_QUIT = "quit"
 
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[int, int, str], None]
-RetryCall = Callable[[Callable[[], object], str], object]
-ReleaseTransitionReader = Callable[
-    [
-        new_wine.PlaylistTrack,
-        slow_listening.DiscographyRelease,
-        slow_listening.DiscographyRelease,
-    ],
-    str,
-]
-ComposerPlaylistReader = Callable[[str, tuple["OwnedPlaylist", ...]], str]
-
 
 OwnedPlaylist = composer_playlists.OwnedPlaylist
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+class NowClock:
+    """Observe the original now source directly."""
+
+    def timestamp(self) -> str:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _now()
+
+
+_NOW_RESOURCE = NowClock()
+
+
+def _datetime() -> datetime:
+    return datetime.now(UTC)
+
+
+class DatetimeClock:
+    """Observe the original datetime source directly."""
+
+    def now(self) -> datetime:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _datetime()
+
+
+_DATETIME_RESOURCE = DatetimeClock()
 
 
 def parse_playlist_id(reference: str | None) -> str:
@@ -185,15 +233,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="queue_3",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "queue_3",
+        Queue3StateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -303,14 +346,7 @@ def _add_playlist_tracks(
     """Append playlist tracks in Spotify-sized batches."""
     for start in range(0, len(tracks), PLAYLIST_MUTATION_BATCH_SIZE):
         batch = tracks[start : start + PLAYLIST_MUTATION_BATCH_SIZE]
-        retry_call(
-            partial(
-                sp._post,
-                f"playlists/{playlist_id}/items",
-                payload={"uris": [track.uri for track in batch]},
-            ),
-            f"{description} ({start + 1}-{start + len(batch)})",
-        )
+        _append_track_batch(retry_call, description, start, sp, batch, playlist_id)
 
 
 def _remove_playlist_uris(
@@ -324,14 +360,7 @@ def _remove_playlist_uris(
     unique_uris = list(dict.fromkeys(uris))
     for start in range(0, len(unique_uris), PLAYLIST_MUTATION_BATCH_SIZE):
         batch = unique_uris[start : start + PLAYLIST_MUTATION_BATCH_SIZE]
-        retry_call(
-            partial(
-                sp._delete,
-                f"playlists/{playlist_id}/items",
-                payload={"items": [{"uri": uri} for uri in batch]},
-            ),
-            f"{description} ({start + 1}-{start + len(batch)})",
-        )
+        _remove_uri_batch(retry_call, description, start, sp, batch, playlist_id)
 
 
 def _annual_import(
@@ -365,7 +394,7 @@ def import_previous_year_discoveries(
     *,
     active_year: int | None = None,
     dry_run: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
@@ -392,9 +421,11 @@ def import_previous_year_discoveries(
     Raises:
         Queue3Error: Configuration, playlist observation or state handling fails.
     """
-    from spotify_manager.bootstrap.queue_3 import run_import
+    from spotify_manager.interfaces.operations.queue_3 import (
+        import_previous_year_discoveries as operation,
+    )
 
-    return run_import(
+    return operation(
         sp,
         playlist_id,
         active_year=active_year,
@@ -414,9 +445,8 @@ def _new_run(
     state: dict[str, object],
 ) -> dict[str, object]:
     from spotify_manager.application.queue_3_state import new_run
-    from spotify_manager.bootstrap.queue_3 import _datetime
 
-    return new_run(playlist_id, tracks, state, _datetime, DAILY_ARTIST_LIMIT)
+    return new_run(playlist_id, tracks, state, _DATETIME_RESOURCE, DAILY_ARTIST_LIMIT)
 
 
 def _source_from_record(raw: object) -> new_wine.PlaylistTrack:
@@ -494,11 +524,16 @@ def _transition_plan(
     evaluation: AlbumEvaluation | None = None,
     reason: str | None = None,
 ) -> dict[str, object] | None:
-    from spotify_manager.bootstrap.queue_3 import _no_checkpoint
     from spotify_manager.bootstrap.queue_3 import review_planner
 
     planner = review_planner(
-        sp, retry_call, track_cache, {}, {}, _no_checkpoint, transition_reader
+        sp,
+        retry_call,
+        track_cache,
+        {},
+        {},
+        NoCheckpoint(),
+        transition_reader,
     )
     return planner.transition(
         source, current_release, next_release, evaluation=evaluation, reason=reason
@@ -513,7 +548,7 @@ def _build_plan(
     track_cache: dict[str, tuple[new_wine.ReleaseTrack, ...]],
     liked_cache: dict[str, bool],
     release_orders: dict[str, object],
-    order_saved: Callable[[], None],
+    checkpoint: Checkpoint,
     transition_reader: ReleaseTransitionReader,
 ) -> dict[str, object] | None:
     from spotify_manager.bootstrap.queue_3 import review_planner
@@ -524,7 +559,7 @@ def _build_plan(
         track_cache,
         liked_cache,
         release_orders,
-        order_saved,
+        checkpoint,
         transition_reader,
     )
     return planner.plan(source, discography)
@@ -540,7 +575,6 @@ def _resolve_composer_playlist(
     composer_playlist_reader: ComposerPlaylistReader | None,
 ) -> tuple[OwnedPlaylist | None, bool]:
     from spotify_manager.application.queue_3_composers import resolve_composer_route
-    from spotify_manager.bootstrap.queue_3 import _now
 
     return resolve_composer_route(
         artist_id,
@@ -550,7 +584,7 @@ def _resolve_composer_playlist(
         owned_playlists,
         state,
         composer_playlist_reader,
-        _now,
+        _NOW_RESOURCE,
     )
 
 
@@ -578,60 +612,60 @@ def _result_from_plan(
 
 def flush_queue_3(
     sp: Spotify,
-    playlist_id: str,
-    transition_reader: ReleaseTransitionReader,
-    *,
-    composer_playlist_reader: ComposerPlaylistReader | None = None,
-    active_year: int | None = None,
-    dry_run: bool = False,
-    echo: Echo = print,
-    progress_callback: ProgressCallback | None = None,
-    retry_call: RetryCall | None = None,
-    state_path: Path = DEFAULT_STATE_PATH,
-    state_service: StateService | None = None,
-    log_path: Path = DEFAULT_LOG_PATH,
-    albums_path: Path = DEFAULT_ALBUMS_PATH,
-    removed_albums_log_path: Path = REMOVED_ALBUMS_LOG_PATH,
+    options: Queue3Options,
+    callbacks: Queue3Callbacks,
+    resources: Queue3Resources | None = None,
 ) -> FlushSummary:
     """Import the previous year once, then advance the first ten Queue 3 artists.
 
     Args:
-        sp: Caller-owned Spotify client.
-        playlist_id: Configured Queue 3 destination.
-        transition_reader: Original release-boundary decision callback.
-        composer_playlist_reader: Optional owned works-playlist selection callback.
-        active_year: Explicit checkpoint year, or the current UTC year.
-        dry_run: Whether state is cloned and durable writes suppressed.
-        echo: Existing output sink.
-        progress_callback: Optional entry progress sink.
-        retry_call: Optional retry and cancellation callback.
-        state_path: Original legacy namespace path.
-        state_service: Optional shared state service.
-        log_path: Original Queue 3 audit destination.
-        albums_path: Original local album mirror.
-        removed_albums_log_path: Original removed-album recovery log.
+    sp: Caller-owned client.
+    options: Destinations and execution mode.
+    callbacks: Operator decisions, notifications and retry ownership.
+    resources: Persistent files and checkpoint authority.
 
     Returns:
-        Original public Queue 3 summary with per-artist decisions and resume status.
+    The original typed summary and accepted effects.
 
     Raises:
-        Queue3Error: Configuration, state, planning or execution fails.
+    RuntimeError: Observations, selections or persistence cannot complete.
     """
-    from spotify_manager.bootstrap.queue_3 import run_flush
+    from spotify_manager.interfaces.operations.queue_3 import flush_queue_3 as operation
 
-    return run_flush(
-        sp,
-        playlist_id,
-        transition_reader,
-        composer_playlist_reader=composer_playlist_reader,
-        active_year=active_year,
-        dry_run=dry_run,
-        echo=echo,
-        progress_callback=progress_callback,
-        retry_call=retry_call,
-        state_path=state_path,
-        state_service=state_service,
-        log_path=log_path,
-        albums_path=albums_path,
-        removed_albums_log_path=removed_albums_log_path,
-    )
+    return operation(sp, options, callbacks, resources)
+
+
+def _append_track_batch(
+    retry_call: RetryCall,
+    description: str,
+    start: int,
+    sp: Spotify,
+    batch: list[new_wine.PlaylistTrack],
+    playlist_id: str,
+) -> None:
+    for attempt in retry_call.attempts(
+        f"{description} ({start + 1}-{start + len(batch)})"
+    ):
+        with attempt:
+            sp._post(
+                f"playlists/{playlist_id}/items",
+                payload={"uris": [track.uri for track in batch]},
+            )
+
+
+def _remove_uri_batch(
+    retry_call: RetryCall,
+    description: str,
+    start: int,
+    sp: Spotify,
+    batch: list[str],
+    playlist_id: str,
+) -> None:
+    for attempt in retry_call.attempts(
+        f"{description} ({start + 1}-{start + len(batch)})"
+    ):
+        with attempt:
+            sp._delete(
+                f"playlists/{playlist_id}/items",
+                payload={"items": [{"uri": uri} for uri in batch]},
+            )

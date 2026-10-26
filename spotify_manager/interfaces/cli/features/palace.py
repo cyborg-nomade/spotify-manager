@@ -1,41 +1,43 @@
 """Explicit palace CLI execution, prompts and presentation."""
 
-from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Never
 
 import typer
-from rich.console import Console
 from rich.table import Table
-from rich.text import Text
-from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.domain.palace_values import PalaceAlbumResult
-from spotify_manager.routines import palace_of_memory
-from spotify_manager.routines import review_album_limits
-from spotify_manager.settings import Settings
+from spotify_manager.infrastructure.spotify.retry import SpotifyRetries
+from spotify_manager.interfaces.cli.display import ConsoleDisplay
+from spotify_manager.interfaces.cli.output import StatusOutput
+from spotify_manager.interfaces.cli.resources import CliResources
+from spotify_manager.interfaces.operations import palace_of_memory as palace_of_memory
+from spotify_manager.interfaces.operations import (
+    review_album_limits as review_album_limits,
+)
+from spotify_manager.interfaces.requests.palace import PalaceCallbacks
+from spotify_manager.interfaces.requests.palace import PalaceOptions
+from spotify_manager.interfaces.requests.palace import PalaceResources
 
 
 @dataclass(kw_only=True)
 class PalaceCLI:
-    """Execute and present palace through explicit facade dependencies.
+    """Run Palace selection and cursor commands with terminal progress.
 
     Args:
-        create_console: Factory for console instances.
-        configuration: Original settings factory supplied by the facade.
-        create_table: Factory for table instances.
-        create_text: Factory for text instances.
-        review_client: Original Spotify client factory supplied by the facade.
-        sleep: Original retry delay boundary supplied by the facade.
+        runtime: Lazy client, configuration and shared-service resources.
+        display: Rich console, table and live-status constructors.
+        sleep: Bounded retry wait supplied by the interface.
     """
 
-    create_console: type[Console]
-    configuration: type[Settings]
-    create_table: type[Table]
-    create_text: type[Text]
-    review_client: Callable[..., Spotify]
-    sleep: Callable[[float], None]
+    runtime: CliResources
+
+    display: ConsoleDisplay
+    sleep: Wait
 
     def _run_fill_palace_of_memory(
         self,
@@ -50,11 +52,11 @@ class PalaceCLI:
             alphabetical_start: Alphabetical start supplied by the caller.
             set_alphabetical_cursor: Set alphabetical cursor supplied by the caller.
         """
-        self._fill_palace_of_memory_console = self.create_console()
+        self._fill_palace_of_memory_console = self.display.create_console()
         if set_alphabetical_cursor is not None and dry_run:
             raise typer.BadParameter(
-                "--set-alphabetical-cursor persists immediately "
-                "and cannot use --dry-run"
+                "--set-alphabetical-cursor persists immediately a"
+                "nd cannot use --dry-run"
             )
         if set_alphabetical_cursor is not None and alphabetical_start is not None:
             raise typer.BadParameter(
@@ -81,26 +83,14 @@ class PalaceCLI:
         style = "bold green" if line.startswith("Added") else "cyan"
         self._fill_palace_of_memory_console.print(line, style=style, markup=False)
 
-    def _fill_palace_of_memory_retry_call(
-        self, operation: Callable[[], object], description: str
-    ) -> object:
-        return review_album_limits.retry_spotify_server_errors(
-            operation,
-            description,
-            echo=self._fill_palace_of_memory_echo,
-            sleep=self.sleep,
-            retry_delay_seconds=10,
-            max_attempts=3,
-        )
-
     def _report_fill_palace_of_memory_rate_limit(
         self, exc: review_album_limits.SpotifyRateLimitError
     ) -> Never:
         self._fill_palace_of_memory_console.print(
             (
-                "Spotify rate limit reached. "
+                f"Spotify rate limit reached. "
                 f"{review_album_limits.format_retry_after(exc.retry_after_seconds)}"
-                "."
+                f"."
             ),
             style="bold yellow",
         )
@@ -127,7 +117,7 @@ class PalaceCLI:
         self, exc: SpotifyException
     ) -> Never:
         self._fill_palace_of_memory_console.print(
-            (f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}"),
+            f"Spotify request failed (HTTP {exc.http_status}): {exc.msg}",
             style="bold red",
             markup=False,
         )
@@ -156,19 +146,16 @@ class PalaceCLI:
         if cursor_update is not None:
             self._fill_palace_of_memory_console.print(
                 (
-                    "Alphabetical cursor set to "
-                    f"{cursor_update.next_index + 1}"
-                    ": "
-                    f"{cursor_update.next_album.artist}"
-                    " - "
+                    f"Alphabetical cursor set to {cursor_update.next_index + 1}: "
+                    f"{cursor_update.next_album.artist} - "
                     f"{cursor_update.next_album.album}"
-                    ". The playlist was not changed."
+                    f". The playlist was not changed."
                 ),
                 style="bold green",
             )
             return
         assert summary is not None
-        table = self.create_table(title="Palace of Memory")
+        table = self.display.create_table(title="Palace of Memory")
         table.add_column("Source")
         table.add_column("Date / position")
         table.add_column("Artist")
@@ -188,13 +175,10 @@ class PalaceCLI:
         self._fill_palace_of_memory_console.print(table)
         self._fill_palace_of_memory_console.print(
             (
-                "Random.org timestamp: "
+                f"Random.org timestamp: "
                 f"{summary.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}"
-                " · cutoff "
-                f"{summary.cutoff_date.isoformat()}"
-                " · "
-                f"{summary.available_dates}"
-                " eligible dates."
+                f" · cutoff {summary.cutoff_date.isoformat()} · "
+                f"{summary.available_dates} eligible dates."
             ),
             style="cyan",
         )
@@ -202,15 +186,10 @@ class PalaceCLI:
             "Alphabetical cursor"
             + (" (manual)" if summary.alphabetical_cursor_overridden else "")
             + (
-                ": "
-                f"{summary.alphabetical_start_index + 1}"
-                " -> "
-                f"{summary.alphabetical_next_index + 1}"
-                ". Playlist: "
-                f"{summary.playlist_length_before}"
-                " -> "
-                f"{summary.playlist_length_after}"
-                " tracks"
+                f": {summary.alphabetical_start_index + 1} -> "
+                f"{summary.alphabetical_next_index + 1}. Playlist: "
+                f"{summary.playlist_length_before} -> "
+                f"{summary.playlist_length_after} tracks"
             )
             + (" (preview only)." if dry_run else "."),
             style="bold cyan" if dry_run else "bold green",
@@ -227,10 +206,7 @@ class PalaceCLI:
             location = "saved albums"
         else:
             location = (
-                f"{result.selected_date.isoformat()}"
-                " · "
-                f"{result.history_position}"
-                "/"
+                f"{result.selected_date.isoformat()} · {result.history_position}/"
                 f"{result.albums_on_date}"
             )
         resolved_album = (
@@ -245,32 +221,22 @@ class PalaceCLI:
             result.artist,
             resolved_album,
             result.first_track.name if result.first_track is not None else "-",
-            self.create_text(action, style=action_styles[result.action]),
+            self.display.create_text(action, style=action_styles[result.action]),
         )
 
     def _show_album_refresh(self, refresh: palace_of_memory.SavedAlbumRefresh) -> None:
         refresh_action = "updated" if refresh.persisted else "already current"
         self._fill_palace_of_memory_console.print(
             (
-                "Saved albums "
-                f"{refresh_action}"
-                ": "
-                f"{refresh.previous}"
-                " -> "
-                f"{refresh.current}"
-                " ("
-                f"{refresh.added}"
-                " added, "
-                f"{refresh.removed}"
-                " removed, "
-                f"{refresh.skipped}"
-                " skipped)."
+                f"Saved albums {refresh_action}: {refresh.previous} -> "
+                f"{refresh.current} ({refresh.added} added, {refresh.removed}"
+                f" removed, {refresh.skipped} skipped)."
             ),
             style="bold cyan",
         )
         if refresh.backup_path:
             self._fill_palace_of_memory_console.print(
-                (f"Album mirror backup: {refresh.backup_path}"), style="dim"
+                f"Album mirror backup: {refresh.backup_path}", style="dim"
             )
 
     def _execute_cursor_update(
@@ -280,16 +246,16 @@ class PalaceCLI:
             "Setting the Palace alphabetical cursor"
         ) as status:
             return palace_of_memory.set_alphabetical_cursor(
-                self.review_client(),
+                self.runtime.review_client(),
                 position,
-                progress_callback=status.update,
-                retry_call=self._fill_palace_of_memory_retry_call,
+                progress_callback=StatusOutput(status),
+                retry_call=FillPalaceOfMemoryInteraction(self),
             )
 
     def _execute_palace_fill(
         self, dry_run: bool, alphabetical_start: str | None
     ) -> palace_of_memory.PalaceOfMemorySummary:
-        configuration = self.configuration()
+        configuration = self.runtime.configuration()
         playlist_id = palace_of_memory.parse_playlist_id(
             configuration.palace_of_memory_playlist
         )
@@ -297,11 +263,46 @@ class PalaceCLI:
             "Planning Palace of Memory" + (" (dry run)" if dry_run else "")
         ) as status:
             return palace_of_memory.fill_palace_of_memory(
-                self.review_client(),
-                playlist_id,
-                dry_run=dry_run,
-                alphabetical_start=alphabetical_start,
-                echo=self._fill_palace_of_memory_echo,
-                progress_callback=status.update,
-                retry_call=self._fill_palace_of_memory_retry_call,
+                self.runtime.review_client(),
+                PalaceOptions(
+                    playlist_id=playlist_id,
+                    dry_run=dry_run,
+                    alphabetical_start=alphabetical_start,
+                ),
+                PalaceCallbacks(
+                    retry_call=FillPalaceOfMemoryInteraction(self),
+                    progress_callback=StatusOutput(status),
+                    output=FillPalaceOfMemoryInteraction(self),
+                ),
+                PalaceResources(),
             )
+
+
+@dataclass(frozen=True)
+class FillPalaceOfMemoryInteraction:
+    """Own the original terminal interaction resources.
+
+    Args:
+        owner: Command instance owning its console, progress and wait state.
+    """
+
+    owner: PalaceCLI
+
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Open the original retry boundary for a directly executed operation.
+
+        Args:
+            description: Original request description.
+
+        Returns:
+            Attempt scopes retaining the original delay, limit and cancellation rules.
+        """
+        return SpotifyRetries(self, self.owner.sleep, 10, 3).attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Present the command's original message.
+
+        Args:
+            message: Complete original text.
+        """
+        self.owner._fill_palace_of_memory_echo(message)

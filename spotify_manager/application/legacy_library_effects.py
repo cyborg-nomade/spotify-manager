@@ -1,6 +1,7 @@
 """Explicit legacy file, interaction and catalog dependencies."""
 
-from collections.abc import Callable
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from types import TracebackType
@@ -19,7 +20,7 @@ from spotify_manager.models.your_library import YourLibraryTrack
 class Echo(Protocol):
     """Present original positional print arguments."""
 
-    def __call__(self, *values: object) -> None:
+    def echo(self, *values: object) -> None:
         """Deliver original visible values.
 
         Args:
@@ -50,124 +51,353 @@ class Page(TypedDict):
     total: int
 
 
-@dataclass(frozen=True)
-class LegacyFiles:
-    """Supply original mutable authorities and accepted publications.
+class LegacyFiles(Protocol):
+    """Supply original mutable authorities and accepted publications."""
 
-    Args:
-        albums: Legacy total-album read.
-        control: Original control read.
-        export: Original export read.
-        comparison: Original unchecked comparison read.
-        save_albums: Original album publication.
-        save_control: Original control publication.
-        save_stats: Original statistics publication.
-        save_comparison: Original comparison publication.
-    """
+    def albums(self) -> list[SimplifiedAlbum]:
+        """Legacy total-album read.
 
-    albums: Callable[[], list[SimplifiedAlbum]]
-    control: Callable[[], list[ControlFileItem]]
-    export: Callable[[], YourLibraryFile]
-    comparison: Callable[[], Comparison]
-    save_albums: Callable[[list[SimplifiedAlbum]], None]
-    save_control: Callable[[list[ControlFileItem]], None]
-    save_stats: Callable[[StatsFileItem], None]
-    save_comparison: Callable[[Comparison], None]
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def control(self) -> list[ControlFileItem]:
+        """Original control read.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def export(self) -> YourLibraryFile:
+        """Original export read.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def comparison(self) -> Comparison:
+        """Original unchecked comparison read.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def save_albums(self, albums: list[SimplifiedAlbum]) -> None:
+        """Original album publication.
+
+        Args:
+            albums: Original albums.
+        """
+        ...
+
+    def save_control(self, control: list[ControlFileItem]) -> None:
+        """Original control publication.
+
+        Args:
+            control: Original control.
+        """
+        ...
+
+    def save_stats(self, stats: StatsFileItem) -> None:
+        """Original statistics publication.
+
+        Args:
+            stats: Original stats.
+        """
+        ...
+
+    def save_comparison(self, comparison: Comparison) -> None:
+        """Original comparison publication.
+
+        Args:
+            comparison: Original comparison.
+        """
+        ...
 
 
-@dataclass(frozen=True)
-class ConversionCatalog:
-    """Bind legacy singleton membership and restoration effects.
+class ConversionCatalog(Protocol):
+    """Bind legacy singleton membership and restoration effects."""
 
-    Args:
-        contains: Original saved-album singleton query.
-        enrich: Original album-model conversion.
-        artist_saved: Original artist membership.
-        track_saved: Original track membership.
-        follow: Original artist save.
-        like: Original track save.
-        add_contains: Original addition membership seam.
-    """
+    def contains(self, identifier: str) -> object:
+        """Original saved-album singleton query.
 
-    contains: Callable[[str], object]
-    enrich: Callable[[str], SimplifiedAlbum]
-    artist_saved: Callable[[YourLibraryArtist], bool]
-    track_saved: Callable[[YourLibraryTrack], bool]
-    follow: Callable[[YourLibraryArtist], None]
-    like: Callable[[YourLibraryTrack], None]
-    add_contains: Callable[[str], object]
+        Args:
+            identifier: Original identifier.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def enrich(self, identifier: str) -> SimplifiedAlbum:
+        """Original album-model conversion.
+
+        Args:
+            identifier: Original identifier.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def artist_saved(self, artist: YourLibraryArtist) -> bool:
+        """Original artist membership.
+
+        Args:
+            artist: Original artist.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def track_saved(self, track: YourLibraryTrack) -> bool:
+        """Original track membership.
+
+        Args:
+            track: Original track.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def follow(self, artist: YourLibraryArtist) -> None:
+        """Original artist save.
+
+        Args:
+            artist: Original artist.
+        """
+        ...
+
+    def like(self, track: YourLibraryTrack) -> None:
+        """Original track save.
+
+        Args:
+            track: Original track.
+        """
+        ...
+
+    def add_contains(self, identifier: str) -> object:
+        """Original addition membership seam.
+
+        Args:
+            identifier: Original identifier.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
 
 
-@dataclass(frozen=True)
-class MonthlyActions:
-    """Bind original public monthly stages without sharing hidden runtime state.
+class ControlMembership(Protocol):
+    """Read singleton saved-album membership for control decisions."""
 
-    Args:
-        evaluate: Original control reconciliation.
-        statistics: Original statistics stage.
-        starting_index: Original cursor selection.
-        append: Original monthly playlist execution.
-    """
+    def contains(self, identifier: str) -> object:
+        """Read membership.
 
-    evaluate: Callable[[list[ControlFileItem], list[SimplifiedAlbum]], bool]
-    statistics: Callable[[list[ControlFileItem], list[SimplifiedAlbum]], bool]
-    starting_index: Callable[[list[ControlFileItem], list[SimplifiedAlbum]], int]
-    append: Callable[[list[ControlFileItem], list[SimplifiedAlbum], int], bool]
+        Args:
+            identifier: Album identity.
+
+        Returns:
+            Original permissive status.
+        """
+        ...
+
+
+class ComparisonMembership(ControlMembership, Protocol):
+    """Read original removal and addition membership observations."""
+
+    def add_contains(self, identifier: str) -> object:
+        """Read addition membership.
+
+        Args:
+            identifier: Album identity.
+
+        Returns:
+            Original status.
+        """
+        ...
+
+
+class MonthlyLimits(Protocol):
+    """Observe live monthly selection settings at the selection boundary."""
+
+    def count(self) -> int:
+        """Observe the monthly album count.
+
+        Returns:
+            Configured slice size.
+        """
+        ...
+
+
+class PlaylistWrites(Protocol):
+    """Accept ordered playlist additions through the original request seams."""
+
+    def single(self, identifier: str, uris: list[str]) -> None:
+        """Accept a small addition, including an empty list.
+
+        Args:
+            identifier: Destination playlist.
+            uris: Ordered tracks.
+        """
+        ...
+
+    def batch(self, identifier: str, uris: list[str]) -> None:
+        """Accept one hundred-track batch.
+
+        Args:
+            identifier: Destination playlist.
+            uris: Ordered tracks.
+        """
+        ...
 
 
 @dataclass(frozen=True)
 class MonthlyPlaylist:
-    """Supply legacy playlist stages and original selection boundary.
+    """Provide cohesive external resources for direct playlist stages.
 
     Args:
-        select: Original permissive monthly slice.
-        create: Original clock-sensitive playlist creation.
-        tracks: Original ordered tracks.
-        append: Original ordered additions.
-        save: Original control publication.
+        clock: Playlist creation and clock observations.
+        tracks: Track pages and record decoding.
+        writes: Playlist additions.
+        files: Control-file publication.
+        limits: Deferred selection settings.
     """
 
-    select: Callable[[list[SimplifiedAlbum], int], list[SimplifiedAlbum]]
-    create: Callable[[], str]
-    tracks: Callable[[SimplifiedAlbum], list[SimplifiedTrack]]
-    append: Callable[[list[SimplifiedTrack], str], None]
-    save: Callable[[list[ControlFileItem]], None]
+    clock: PlaylistClock
+    tracks: TrackRead
+    writes: PlaylistWrites
+    files: LegacyFiles
+    limits: MonthlyLimits
 
 
 @dataclass(frozen=True)
-class AlbumRefresh:
-    """Bind original raw paging, conversion and publication.
+class MonthlyActions:
+    """Supply external resources for the fixed monthly application sequence.
 
     Args:
-        saved: Original initial saved-album page.
-        recover: Original failed-next fallback read.
-        next: Original next page.
-        parse: Original saved-album conversion.
-        load: Original incremental authority.
-        save: Original accepted album publication.
-        limit: Original live page-size observation.
+        catalog: Control membership reader.
+        playlist: Monthly playlist resources.
     """
 
-    saved: Callable[[int], Page]
-    recover: Callable[[int], Page]
-    next: Callable[[Page], Page]
-    parse: Callable[[list[object]], list[SimplifiedAlbum]]
-    load: Callable[[], list[SimplifiedAlbum]]
-    save: Callable[[list[SimplifiedAlbum]], None]
-    limit: Callable[[], int]
+    catalog: ControlMembership
+    playlist: MonthlyPlaylist
 
 
-@dataclass(frozen=True)
-class PlaylistClock:
-    """Bind original independent clock observations and creation request.
+class ComparisonMetadata(Protocol):
+    """Read comparison display metadata for one identity."""
 
-    Args:
-        now: Original naive local clock.
-        create: Original named playlist request.
-    """
+    def enrich(self, identifier: str) -> ComparisonAlbum:
+        """Read and present metadata.
 
-    now: Callable[[], datetime]
-    create: Callable[[str], object]
+        Args:
+            identifier: Album identity.
+
+        Returns:
+            Original comparison metadata.
+        """
+        ...
+
+
+class AlbumRefresh(Protocol):
+    """Bind original raw paging, conversion and publication."""
+
+    def saved(self, offset: int) -> Page:
+        """Original initial saved-album page.
+
+        Args:
+            offset: Original offset.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def recover(self, offset: int) -> Page:
+        """Original failed-next fallback read.
+
+        Args:
+            offset: Original offset.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def next(self, page: Page) -> Page:
+        """Original next page.
+
+        Args:
+            page: Original page.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def parse(self, rows: list[object]) -> list[SimplifiedAlbum]:
+        """Original saved-album conversion.
+
+        Args:
+            rows: Original rows.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def load(self) -> list[SimplifiedAlbum]:
+        """Original incremental authority.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def save(self, albums: list[SimplifiedAlbum]) -> None:
+        """Original accepted album publication.
+
+        Args:
+            albums: Original albums.
+        """
+        ...
+
+    def limit(self) -> int:
+        """Original live page-size observation.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+
+class PlaylistClock(Protocol):
+    """Bind original independent clock observations and creation request."""
+
+    def now(self) -> datetime:
+        """Original naive local clock.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def create(self, name: str) -> object:
+        """Original named playlist request.
+
+        Args:
+            name: Original name.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
 
 
 class FailureScope(Protocol):
@@ -203,23 +433,60 @@ class FailureScope(Protocol):
         ...
 
 
-type FailureFactory = Callable[[Echo], FailureScope]
+class TrackRead(Protocol):
+    """Bind original raw track paging, coercion, sorting and validation."""
 
+    def read(self, identifier: str) -> Page:
+        """Original first album-track page.
 
-@dataclass(frozen=True)
-class TrackRead:
-    """Bind original raw track paging, coercion, sorting and validation.
+        Args:
+            identifier: Original identifier.
 
-    Args:
-        read: Original first album-track page.
-        next: Original next track page.
-        parse: Original truthy row coercion.
-        sort: Original stable disc/track sort.
-        validate: Original final model validation.
-    """
+        Returns:
+            Original boundary result.
+        """
+        ...
 
-    read: Callable[[str], Page]
-    next: Callable[[Page], Page]
-    parse: Callable[[list[object]], list[dict[str, object]]]
-    sort: Callable[[list[dict[str, object]]], list[dict[str, object]]]
-    validate: Callable[[list[dict[str, object]]], list[SimplifiedTrack]]
+    def next(self, page: Page) -> Page:
+        """Original next track page.
+
+        Args:
+            page: Original page.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def parse(self, rows: list[object]) -> list[dict[str, object]]:
+        """Original truthy row coercion.
+
+        Args:
+            rows: Original rows.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def sort(self, rows: list[dict[str, object]]) -> list[dict[str, object]]:
+        """Original stable disc/track sort.
+
+        Args:
+            rows: Original rows.
+
+        Returns:
+            Original boundary result.
+        """
+        ...
+
+    def validate(self, rows: list[dict[str, object]]) -> list[SimplifiedTrack]:
+        """Original final model validation.
+
+        Args:
+            rows: Original rows.
+
+        Returns:
+            Original boundary result.
+        """
+        ...

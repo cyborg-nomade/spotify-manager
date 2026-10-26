@@ -1,14 +1,15 @@
 """Original playlist container parsing, identity projection and paging guards."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from typing import Protocol
 from typing import cast
 
 from spotify_manager.application.historical_values import SpotifyTrackResolutionError
 from spotify_manager.domain.history import normalize_name
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.titles import without_sliding_qualifiers
+from spotify_manager.infrastructure.history_matching_records import artist_names
 
 
 @dataclass
@@ -30,16 +31,29 @@ class PlaylistObservations:
     seen: set[str] = field(default_factory=set)
 
 
+class HistoryPlaylistPages(Protocol):
+    """Read complete raw playlist pages at explicit offsets."""
+
+    def read(self, offset: int) -> object:
+        """Read one transport page.
+
+        Args:
+            offset: Raw row offset.
+
+        Returns:
+            Unvalidated response.
+        """
+        ...
+
+
 def state(
-    read: Callable[[int], object],
-    artists: Callable[[dict[str, object]], tuple[str, ...]],
+    pages: HistoryPlaylistPages,
     playlist: str,
 ) -> PlaylistState:
     """Retain original raw offsets and explicit continuation precedence.
 
     Args:
-        read: Original request with cancellation before and after its retry scope.
-        artists: Original ordered artist-name codec seam.
+        pages: Named page reader owning cancellation and retry boundaries.
         playlist: Original playlist used in visible errors.
 
     Returns:
@@ -50,9 +64,9 @@ def state(
     """
     facts = PlaylistObservations()
     while True:
-        page = _page(read(facts.offset), playlist)
+        page = _page(pages.read(facts.offset), playlist)
         rows = cast(list[object], page["items"])
-        _collect(rows, facts, artists)
+        _collect(rows, facts)
         facts.offset += len(rows)
         if not _has_more(page, facts.offset):
             return _result(page, facts)
@@ -70,20 +84,18 @@ def _page(raw: object, playlist: str) -> dict[str, object]:
 def _collect(
     rows: list[object],
     facts: PlaylistObservations,
-    artists: Callable[[dict[str, object]], tuple[str, ...]],
 ) -> None:
     for row in rows:
         if not isinstance(row, dict):
             continue
         track = row.get("item") or row.get("track")
         if isinstance(track, dict):
-            _collect_track(track, facts, artists)
+            _collect_track(track, facts)
 
 
 def _collect_track(
     raw: dict[str, object],
     facts: PlaylistObservations,
-    artists: Callable[[dict[str, object]], tuple[str, ...]],
 ) -> None:
     identifier = str(raw.get("id") or "").strip()
     if identifier:
@@ -91,14 +103,14 @@ def _collect_track(
     title = str(raw.get("name") or "").strip()
     if not title:
         return
-    artist_names = artists(raw)
+    names = artist_names(raw)
     title_key = normalize_name(without_sliding_qualifiers(title))
-    for credit in artist_names:
+    for credit in names:
         normalized = normalize_name(credit)
         if normalized and title_key:
             facts.keys.add((normalized, title_key))
-    if artist_names and normalize_name(artist_names[0]):
-        facts.primary.add(normalize_name(artist_names[0]))
+    if names and normalize_name(names[0]):
+        facts.primary.add(normalize_name(names[0]))
 
 
 def _has_more(page: dict[str, object], offset: int) -> bool:

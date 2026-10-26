@@ -1,11 +1,10 @@
 """Monotonic saved-resource scans and bounded recent-addition reconciliation."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from functools import partial
 from typing import Literal
 from typing import cast
 
+from spotify_manager.application.library_analysis_effects import AnalysisCatalog
 from spotify_manager.application.library_analysis_effects import AnalysisSession
 from spotify_manager.application.library_analysis_effects import OffsetRead
 from spotify_manager.application.library_analysis_values import LibraryModel
@@ -20,6 +19,7 @@ from spotify_manager.domain.library_analysis_values import TRACK_PAGE_LIMIT
 from spotify_manager.domain.library_analysis_values import IncompleteLiveResourceError
 from spotify_manager.domain.library_analysis_values import ResourceName
 from spotify_manager.models.your_library import YourLibraryAlbum
+from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryTrack
 
 
@@ -32,15 +32,13 @@ class OffsetScan:
 
     Args:
         resource: Original saved album or track resource.
-        read: Original selected live method.
-        convert: Original tolerant saved-item conversion.
+        pages: Original selected live page reader.
         limit: Original page size.
         stable_pages: Original consecutive unchanged-page bound.
     """
 
     resource: OffsetResource
-    read: OffsetRead
-    convert: Callable[[object], LibraryModel | None]
+    pages: OffsetRead
     limit: int
     stable_pages: int
 
@@ -59,28 +57,28 @@ def offset_scan(
         Original resource-specific live reader and limits.
     """
     method = session.catalog.offset(resource, initial)
-    converter = session.catalog.album if resource == "albums" else session.catalog.track
     limit = ALBUM_PAGE_LIMIT if resource == "albums" else TRACK_PAGE_LIMIT
     return OffsetScan(
-        resource, method, converter, limit, OFFSET_RECONCILIATION_STABLE_PAGES[resource]
+        resource, method, limit, OFFSET_RECONCILIATION_STABLE_PAGES[resource]
     )
 
 
 def converted_items(
-    rows: list[object], converter: Callable[[object], LibraryModel | None]
+    rows: list[object], catalog: AnalysisCatalog, resource: ResourceName
 ) -> list[LibraryModel]:
     """Retain valid original rows, including duplicate new identities within a page.
 
     Args:
         rows: Original complete raw page in encounter order.
-        converter: Original tolerant row parser.
+        catalog: Transport record decoder.
+        resource: Active saved resource.
 
     Returns:
         Original accepted models in row order.
     """
     converted: list[LibraryModel] = []
     for raw in rows:
-        item = converter(raw)
+        item = catalog.convert(raw, resource)
         if item is not None:
             converted.append(item)
     return converted
@@ -149,12 +147,14 @@ def _save_initial_page(
 ) -> tuple[dict[str, object], list[object]]:
     session.check_cancel()
     offset = int(state["offset"])
-    page = session.request(
-        partial(scan.read, limit=scan.limit, offset=offset),
-        f"reading saved {scan.resource} at offset {offset}",
-    )
+    for attempt in session.request.attempts(
+        f"reading saved {scan.resource} at offset {offset}"
+    ):
+        with attempt:
+            response = scan.pages.read(limit=scan.limit, offset=offset)
+    page = response
     rows = session.catalog.items(page, scan.resource)
-    converted = converted_items(rows, scan.convert)
+    converted = converted_items(rows, session.catalog, scan.resource)
     session.files.append(session.paths.stage(scan.resource), converted)
     state["skipped"] += len(rows) - len(converted)
     state["offset"] = offset + len(rows)
@@ -194,7 +194,7 @@ def reconcile(session: AnalysisSession, resource: OffsetResource) -> None:
     while int(state["stable_passes"]) < RECONCILIATION_STABLE_PASSES:
         added = _reconcile_pass(session, scan, state)
         finish_pass(session, resource, state, added)
-    complete_resource(session, resource, partial(staged_offset, session, resource))
+    complete_resource(session, resource)
 
 
 def _reconcile_pass(
@@ -221,12 +221,13 @@ def _reconcile_page(
     offset: int,
 ) -> tuple[list[object], dict[str, object], int]:
     session.check_cancel()
-    page = session.request(
-        partial(scan.read, limit=scan.limit, offset=offset),
-        f"reconciling saved {scan.resource} at offset {offset}",
-    )
+    for attempt in session.request.attempts(
+        f"reconciling saved {scan.resource} at offset {offset}"
+    ):
+        with attempt:
+            page = scan.pages.read(limit=scan.limit, offset=offset)
     rows = session.catalog.items(page, scan.resource)
-    unseen = unseen_items(converted_items(rows, scan.convert), known)
+    unseen = unseen_items(converted_items(rows, session.catalog, scan.resource), known)
     session.files.append(session.paths.stage(scan.resource), unseen)
     known.update(item.spotify_id for item in unseen)
     session.save()
@@ -271,19 +272,17 @@ def finish_pass(
 def complete_resource(
     session: AnalysisSession,
     resource: ResourceName,
-    read: Callable[[], list[LibraryModel]],
 ) -> None:
     """Publish original resource completion after its final checkpoint.
 
     Args:
         session: Original analysis invocation.
         resource: Original completed resource.
-        read: Original staged read after the completion checkpoint is accepted.
     """
     state = session.checkpoint["resources"][resource]
     state["status"] = "complete"
     session.save()
-    count = len(deduplicate_models(read()))
+    count = len(deduplicate_models(staged_resource(session, resource)))
     session.event(
         "resource_completed", resource=resource, count=count, skipped=state["skipped"]
     )
@@ -316,8 +315,27 @@ def seed_incremental(session: AnalysisSession, resource: OffsetResource) -> None
     state["stable_passes"] = 0
     session.save()
     session.event(f"incremental_{resource}_seeded", count=len(existing))
-    session.echo(
+    session.output.echo(
         f"{resource.title()}: checking recent additions against "
         f"{len(existing)} stored entries. {retained_label} remain until a full rebuild."
     )
     session.notify(resource, len(existing), len(existing), "Checking recent additions")
+
+
+def staged_resource(
+    session: AnalysisSession, resource: ResourceName
+) -> list[LibraryModel]:
+    """Read accepted staging after the completion checkpoint.
+
+    Args:
+        session: Analysis invocation.
+        resource: Completed resource.
+
+    Returns:
+        Complete staged models.
+    """
+    if resource == "artists":
+        return list(
+            session.files.staged(session.paths.stage(resource), YourLibraryArtist)
+        )
+    return staged_offset(session, resource)

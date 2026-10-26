@@ -1,6 +1,5 @@
 """Bind supplied clients, paths, and callbacks to listening integration ports."""
 
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -16,7 +15,7 @@ from spotify_manager.infrastructure.legacy.history import ExportListeningHistory
 from spotify_manager.infrastructure.legacy.spotify import RequeuePlaylistAccess
 from spotify_manager.infrastructure.legacy.spotify import SpotifyAlbumCatalog
 from spotify_manager.infrastructure.legacy.spotify import SpotifyTrackMembership
-from spotify_manager.routines import requeue_for_a_dream
+from spotify_manager.infrastructure.requeue_audit import RequeueAudit
 
 
 def album_review_ports(client: Spotify) -> tuple[AlbumCatalog, TrackMembership]:
@@ -55,11 +54,7 @@ def requeue_audit(
     Returns:
         A writer for the unchanged Requeue summary and error semantics.
     """
-    return partial(_write_requeue_audit, path)
-
-
-def _write_requeue_audit(path: Path, summary: RequeueForADreamSummary) -> None:
-    requeue_for_a_dream._append_log(summary, path)
+    return RequeueAudit(path)
 
 
 def listening_history(path: Path) -> ListeningHistory:

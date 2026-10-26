@@ -1,6 +1,12 @@
 """Test Spotipy client."""
 
+from dataclasses import dataclass
+from functools import partial
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import Mock
+from unittest.mock import create_autospec
 
 import pytest
 import spotipy
@@ -14,6 +20,7 @@ from spotify_manager.client import SpotifyClientConfigurationError
 from spotify_manager.client import SpotifyRedirectURIError
 from spotify_manager.client import should_open_browser_for_redirect
 from spotify_manager.client import validate_spotify_redirect_uri
+from tests.support.runtime_resources import MessageList
 
 
 def test_get_spotipy_client(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -74,31 +81,27 @@ def test_get_spotipy_client_accepts_retry_settings(
 def test_get_request_retries_connection_reset_including_token_refresh(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        client_module,
-        "settings",
-        rotating_settings(),
-    )
+    """Get request retries connection reset including token refresh.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
+    monkeypatch.setattr(client_module, "settings", rotating_settings())
     calls = 0
     sleeps: list[float] = []
     events: list[str] = []
-
-    def api_call(_spotify, *_args, **_kwargs):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            raise RequestsConnectionError(
-                "Connection aborted.",
-                ConnectionResetError(104, "Connection reset by peer"),
-            )
-        return {"ok": True}
-
-    monkeypatch.setattr(spotipy.Spotify, "_internal_call", api_call)
+    scenario = GetRequestRetriesConnectionResetIncludingTokenRefreshScenario(
+        calls=calls
+    )
+    monkeypatch.setattr(
+        spotipy.Spotify,
+        "_internal_call",
+        create_autospec(spotipy.Spotify._internal_call, side_effect=scenario.api_call),
+    )
     monkeypatch.setattr(client_module, "sleep", sleeps.append)
-    spotify = client_module.get_spotipy_client(event_callback=events.append)
-
+    spotify = client_module.get_spotipy_client(event_callback=MessageList(events))
     assert spotify._internal_call("GET", "endpoint", None, {}) == {"ok": True}
-    assert calls == 2
+    assert scenario.calls == 2
     assert sleeps == [10]
     assert events == [
         "Spotify connection interrupted; retrying in 10 seconds (attempt 2 of 4)."
@@ -184,44 +187,35 @@ def rotating_settings(**overrides):
 
 
 def test_rate_limit_rotates_app_refreshes_token_and_retries(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Rate limit rotates app refreshes token and retries.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     monkeypatch.setattr(
         client_module,
         "settings",
-        rotating_settings(
-            app5_client_id="app5-id",
-            app5_client_secret="app5-secret",
-        ),
+        rotating_settings(app5_client_id="app5-id", app5_client_secret="app5-secret"),
     )
-    monkeypatch.setenv(
-        "SPOTIPY_CACHE_PATH",
-        str(tmp_path / "spotipy_token_cache.json"),
-    )
+    monkeypatch.setenv("SPOTIPY_CACHE_PATH", str(tmp_path / "spotipy_token_cache.json"))
     oauth_managers: list[FakeOAuth] = []
-
-    def oauth_factory(**kwargs):
-        manager = FakeOAuth(**kwargs)
-        oauth_managers.append(manager)
-        return manager
-
-    monkeypatch.setattr(client_module, "SpotifyOAuth", oauth_factory)
-    monkeypatch.setattr(client_module, "CacheFileHandler", FakeCacheHandler)
     calls: list[str] = []
-
-    def api_call(spotify, *_args, **_kwargs):
-        calls.append(spotify.active_app_label)
-        if spotify.active_app_label == "primary":
-            raise SpotifyException(429, -1, "rate limited")
-        return {"ok": True}
-
-    monkeypatch.setattr(spotipy.Spotify, "_internal_call", api_call)
+    scenario = RateLimitRotatesAppRefreshesTokenAndRetriesScenario(
+        calls=calls, oauth_managers=oauth_managers
+    )
+    monkeypatch.setattr(client_module, "SpotifyOAuth", scenario.oauth_factory)
+    monkeypatch.setattr(client_module, "CacheFileHandler", FakeCacheHandler)
+    monkeypatch.setattr(
+        spotipy.Spotify,
+        "_internal_call",
+        create_autospec(spotipy.Spotify._internal_call, side_effect=scenario.api_call),
+    )
     events: list[str] = []
-    spotify = client_module.get_spotipy_client(event_callback=events.append)
-
+    spotify = client_module.get_spotipy_client(event_callback=MessageList(events))
     result = spotify._internal_call("GET", "endpoint", None, {})
-
     assert result == {"ok": True}
     assert calls == ["primary", "app5"]
     assert spotify.active_app_label == "app5"
@@ -232,9 +226,14 @@ def test_rate_limit_rotates_app_refreshes_token_and_retries(
 
 
 def test_rotation_skips_oauth_refresh_that_times_out(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Rotation skips oauth refresh that times out.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        tmp_path: Isolated original fixture storage.
+    """
     monkeypatch.setattr(
         client_module,
         "settings",
@@ -245,34 +244,21 @@ def test_rotation_skips_oauth_refresh_that_times_out(
             app6_client_secret="app6-secret",
         ),
     )
-    monkeypatch.setenv(
-        "SPOTIPY_CACHE_PATH",
-        str(tmp_path / "spotipy_token_cache.json"),
-    )
+    monkeypatch.setenv("SPOTIPY_CACHE_PATH", str(tmp_path / "spotipy_token_cache.json"))
     oauth_managers: list[FakeOAuth] = []
-
-    def oauth_factory(**kwargs):
-        manager = FakeOAuth(**kwargs)
-        oauth_managers.append(manager)
-        return manager
-
-    monkeypatch.setattr(client_module, "SpotifyOAuth", oauth_factory)
+    scenario = RotationSkipsOauthRefreshThatTimesOutScenario(
+        oauth_managers=oauth_managers
+    )
+    monkeypatch.setattr(client_module, "SpotifyOAuth", scenario.oauth_factory)
     monkeypatch.setattr(client_module, "CacheFileHandler", FakeCacheHandler)
-
-    def api_call(spotify, *_args, **_kwargs):
-        if spotify.active_app_label == "primary":
-            raise SpotifyException(429, -1, "rate limited")
-        return {"ok": True}
-
-    monkeypatch.setattr(spotipy.Spotify, "_internal_call", api_call)
+    monkeypatch.setattr(
+        spotipy.Spotify,
+        "_internal_call",
+        create_autospec(spotipy.Spotify._internal_call, side_effect=scenario.api_call),
+    )
     events: list[str] = []
-    spotify = client_module.get_spotipy_client(event_callback=events.append)
-
-    def timeout_refresh(_refresh_token: str) -> dict[str, str]:
-        raise RequestsTimeout("Spotify token endpoint timed out")
-
-    oauth_managers[1].refresh_access_token = timeout_refresh  # type: ignore[method-assign]
-
+    spotify = client_module.get_spotipy_client(event_callback=MessageList(events))
+    oauth_managers[1].refresh_access_token = scenario.timeout_refresh
     assert spotify._internal_call("GET", "endpoint", None, {}) == {"ok": True}
     assert spotify.active_app_label == "app6"
     assert oauth_managers[2].refreshed
@@ -359,6 +345,11 @@ def test_repeated_rate_limits_rotate_through_every_configured_app(
 def test_rate_limit_skips_app_without_headless_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Rate limit skips app without headless cache.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     monkeypatch.setattr(
         client_module,
         "settings",
@@ -371,18 +362,16 @@ def test_rate_limit_skips_app_without_headless_cache(
     monkeypatch.setattr(
         client_module,
         "CacheFileHandler",
-        lambda cache_path: FakeCacheHandler(cache_path, has_token=False),
+        partial(FakeCacheHandler, has_token=False),
     )
     monkeypatch.setattr(
         spotipy.Spotify,
         "_internal_call",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            SpotifyException(429, -1, "rate limited")
-        ),
+        Mock(side_effect=SpotifyException(429, -1, "rate limited")),
     )
     events: list[str] = []
     spotify = client_module.get_spotipy_client(
-        event_callback=events.append,
+        event_callback=MessageList(events),
         allow_interactive_auth=False,
     )
 
@@ -458,21 +447,33 @@ def test_rotating_client_requires_matching_labels_and_managers() -> None:
 
 
 def test_event_callback_can_be_replaced(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Event callback can be replaced.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     monkeypatch.setattr(client_module, "settings", rotating_settings())
     previous_events: list[str] = []
     new_events: list[str] = []
-    spotify = client_module.get_spotipy_client(event_callback=previous_events.append)
+    spotify = client_module.get_spotipy_client(
+        event_callback=MessageList(previous_events)
+    )
 
-    previous = spotify.set_event_callback(new_events.append)
+    previous = spotify.set_event_callback(MessageList(new_events))
     spotify._emit("event")
 
-    assert previous == previous_events.append
+    assert previous == MessageList(previous_events)
     assert new_events == ["event"]
 
 
 def test_rotation_can_authenticate_interactively_without_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Verify rotation can authenticate interactively without cache.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     monkeypatch.setattr(
         client_module,
         "settings",
@@ -483,16 +484,12 @@ def test_rotation_can_authenticate_interactively_without_cache(
     )
     managers: list[FakeOAuth] = []
 
-    def oauth_factory(**kwargs):
-        manager = FakeOAuth(**kwargs)
-        managers.append(manager)
-        return manager
-
-    monkeypatch.setattr(client_module, "SpotifyOAuth", oauth_factory)
+    factory = OAuthFactory(managers)
+    monkeypatch.setattr(client_module, "SpotifyOAuth", factory.create)
     monkeypatch.setattr(
         client_module,
         "CacheFileHandler",
-        lambda cache_path: FakeCacheHandler(cache_path, has_token=False),
+        partial(FakeCacheHandler, has_token=False),
     )
     spotify = client_module.get_spotipy_client(allow_interactive_auth=True)
 
@@ -503,16 +500,11 @@ def test_rotation_can_authenticate_interactively_without_cache(
 def test_rotation_skips_missing_refresh_token_and_refresh_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class CacheWithoutRefresh(FakeCacheHandler):
-        def get_cached_token(self) -> dict[str, str]:
-            return {"access_token": "stale"}
+    """Rotation skips missing refresh token and refresh failure.
 
-    class SometimesFailingOAuth(FakeOAuth):
-        def refresh_access_token(self, refresh_token: str) -> dict[str, str]:
-            if self.client_id == "app6-id":
-                raise RuntimeError("refresh failed")
-            return super().refresh_access_token(refresh_token)
-
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     monkeypatch.setattr(
         client_module,
         "settings",
@@ -526,16 +518,10 @@ def test_rotation_skips_missing_refresh_token_and_refresh_failure(
         ),
     )
     monkeypatch.setattr(client_module, "SpotifyOAuth", SometimesFailingOAuth)
-
-    def cache_factory(cache_path: str):
-        if "app5" in cache_path:
-            return CacheWithoutRefresh(cache_path)
-        return FakeCacheHandler(cache_path)
-
-    monkeypatch.setattr(client_module, "CacheFileHandler", cache_factory)
+    scenario = RotationSkipsMissingRefreshTokenAndRefreshFailureScenario()
+    monkeypatch.setattr(client_module, "CacheFileHandler", scenario.cache_factory)
     events: list[str] = []
-    spotify = client_module.get_spotipy_client(event_callback=events.append)
-
+    spotify = client_module.get_spotipy_client(event_callback=MessageList(events))
     assert spotify.rotate_credentials() == "app7"
     assert any("no refresh token" in event for event in events)
     assert any("could not refresh" in event for event in events)
@@ -588,3 +574,202 @@ def test_non_rate_limit_spotify_error_is_not_rotated(
     with pytest.raises(SpotifyException) as exc:
         spotify._internal_call("GET", "endpoint", None, {})
     assert exc.value.http_status == 500
+
+
+class CacheWithoutRefresh(FakeCacheHandler):
+    """Retain the original cachewithoutrefresh boundary fixture."""
+
+    def get_cached_token(self) -> dict[str, str]:
+        """Read an access token without refresh credentials.
+
+        Returns:
+            Token data with the refresh token deliberately absent.
+        """
+        return {"access_token": "stale"}
+
+
+class SometimesFailingOAuth(FakeOAuth):
+    """Retain the original sometimesfailingoauth boundary fixture."""
+
+    def refresh_access_token(self, refresh_token: str) -> dict[str, str]:
+        """Simulate a refresh failure for one configured credential set.
+
+        Args:
+            refresh_token: Original cached refresh token.
+
+        Returns:
+            Refreshed token data for every other credential set.
+
+        Raises:
+            RuntimeError: For the configured failing credential set.
+        """
+        if self.client_id == "app6-id":
+            raise RuntimeError("refresh failed")
+        return super().refresh_access_token(refresh_token)
+
+
+@dataclass
+class GetRequestRetriesConnectionResetIncludingTokenRefreshScenario:
+    """Retain the original get request retries connection reset including token refresh
+    fixture.
+
+    Args:
+        calls: Original calls observation or resource.
+    """
+
+    calls: int
+
+    def api_call(self, _spotify: Any, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        """Execute the original api call mock boundary.
+
+        Args:
+            _spotify: Original external mock argument.
+            _args: Original external mock argument.
+            _kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.calls += 1
+        if self.calls == 1:
+            raise RequestsConnectionError(
+                "Connection aborted.",
+                ConnectionResetError(104, "Connection reset by peer"),
+            )
+        return {"ok": True}
+
+
+@dataclass
+class RateLimitRotatesAppRefreshesTokenAndRetriesScenario:
+    """Retain the original rate limit rotates app refreshes token and retries fixture.
+
+    Args:
+        calls: Original calls observation or resource.
+        oauth_managers: Original oauth managers observation or resource.
+    """
+
+    calls: list[str]
+    oauth_managers: list[FakeOAuth]
+
+    def oauth_factory(self, **kwargs: Any) -> Any:
+        """Execute the original oauth factory mock boundary.
+
+        Args:
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        manager = FakeOAuth(**kwargs)
+        self.oauth_managers.append(manager)
+        return manager
+
+    def api_call(self, spotify: Any, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        """Execute the original api call mock boundary.
+
+        Args:
+            spotify: Original external mock argument.
+            _args: Original external mock argument.
+            _kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.calls.append(spotify.active_app_label)
+        if spotify.active_app_label == "primary":
+            raise SpotifyException(429, -1, "rate limited")
+        return {"ok": True}
+
+
+@dataclass
+class RotationSkipsOauthRefreshThatTimesOutScenario:
+    """Retain the original rotation skips oauth refresh that times out fixture.
+
+    Args:
+        oauth_managers: Original oauth managers observation or resource.
+    """
+
+    oauth_managers: list[FakeOAuth]
+
+    def oauth_factory(self, **kwargs: Any) -> Any:
+        """Execute the original oauth factory mock boundary.
+
+        Args:
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        manager = FakeOAuth(**kwargs)
+        self.oauth_managers.append(manager)
+        return manager
+
+    def api_call(self, spotify: Any, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        """Execute the original api call mock boundary.
+
+        Args:
+            spotify: Original external mock argument.
+            _args: Original external mock argument.
+            _kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        if spotify.active_app_label == "primary":
+            raise SpotifyException(429, -1, "rate limited")
+        return {"ok": True}
+
+    def timeout_refresh(self, _refresh_token: str) -> dict[str, str]:
+        """Execute the original timeout refresh mock boundary.
+
+        Args:
+            _refresh_token: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        raise RequestsTimeout("Spotify token endpoint timed out")
+
+
+@dataclass
+class RotationSkipsMissingRefreshTokenAndRefreshFailureScenario:
+    """Retain the original rotation skips missing refresh token and refresh failure
+    fixture.
+    """
+
+    def cache_factory(self, cache_path: str) -> Any:
+        """Execute the original cache factory mock boundary.
+
+        Args:
+            cache_path: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        if "app5" in cache_path:
+            return CacheWithoutRefresh(cache_path)
+        return FakeCacheHandler(cache_path)
+
+
+@dataclass
+class OAuthFactory:
+    """Record OAuth managers created at the external SDK boundary.
+
+    Args:
+        managers: Managers created in request order.
+    """
+
+    managers: list[FakeOAuth]
+
+    def create(self, **kwargs: object) -> FakeOAuth:
+        """Create and record an SDK authentication manager.
+
+        Args:
+            **kwargs: External OAuth constructor options.
+
+        Returns:
+            New authentication manager.
+        """
+        manager = FakeOAuth(**kwargs)
+        self.managers.append(manager)
+        return manager

@@ -56,9 +56,9 @@ def _run_entry(
         "queue3",
         active_year=2026,
         dry_run=preview,
-        echo=memory.echo,
-        progress_callback=memory.progress,
-        retry_call=memory.retry,
+        echo=memory,
+        progress_callback=memory,
+        retry_call=memory,
         state_service=cast(queue_3.StateService, memory),
         log_path=Path("audit.jsonl"),
     )

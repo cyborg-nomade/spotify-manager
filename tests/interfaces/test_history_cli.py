@@ -1,6 +1,5 @@
 """Protect CLI client-event ownership and the original constructor error boundary."""
 
-from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 from unittest.mock import Mock
@@ -8,8 +7,10 @@ from unittest.mock import Mock
 import pytest
 
 from spotify_manager import main
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.bootstrap import clients
 from spotify_manager.client.lastfm import LastFmClient
-from spotify_manager.routines import scrobble_history
+from spotify_manager.interfaces.operations import scrobble_history
 from spotify_manager.routines.scrobble_history import ScrobbleHistorySummary
 
 
@@ -23,7 +24,7 @@ class EmittingClient(LastFmClient):
     """
 
     def __init__(
-        self, api_key: str, username: str, *, event_callback: Callable[[str], None]
+        self, api_key: str, username: str, *, event_callback: Messages
     ) -> None:
         """Initialize the original reader and observe its bound message sink.
 
@@ -33,7 +34,7 @@ class EmittingClient(LastFmClient):
             event_callback: Explicit command-owned terminal sink.
         """
         super().__init__(api_key, username, event_callback=event_callback)
-        event_callback("Fixture client event")
+        event_callback.echo("Fixture client event")
 
 
 class FailingClient(LastFmClient):
@@ -46,7 +47,7 @@ class FailingClient(LastFmClient):
     """
 
     def __init__(
-        self, api_key: str, username: str, *, event_callback: Callable[[str], None]
+        self, api_key: str, username: str, *, event_callback: Messages
     ) -> None:
         """Reject construction without running a refresh.
 
@@ -91,7 +92,7 @@ def test_client_events_reach_original_command_console_and_summary(
     """
     _configuration(monkeypatch)
     refresh = Mock(return_value=_summary())
-    monkeypatch.setattr(main, "LastFmClient", EmittingClient)
+    monkeypatch.setattr(clients, "LastFmClient", EmittingClient)
     monkeypatch.setattr(scrobble_history, "refresh_scrobble_history", refresh)
     main.update_scrobble_history_command(full_rebuild=True, dry_run=True)
     output = capsys.readouterr().out
@@ -115,7 +116,7 @@ def test_constructor_failure_keeps_original_uncaught_boundary(
     """
     _configuration(monkeypatch)
     refresh = Mock()
-    monkeypatch.setattr(main, "LastFmClient", FailingClient)
+    monkeypatch.setattr(clients, "LastFmClient", FailingClient)
     monkeypatch.setattr(scrobble_history, "refresh_scrobble_history", refresh)
     with pytest.raises(ValueError, match="Fixture constructor failure"):
         main.update_scrobble_history_command(full_rebuild=False, dry_run=True)

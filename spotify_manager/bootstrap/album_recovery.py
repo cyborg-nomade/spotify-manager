@@ -1,8 +1,5 @@
 """Compose removed-album recovery from caller-owned synchronous dependencies."""
 
-from collections.abc import Callable
-from datetime import date
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -12,6 +9,10 @@ from spotify_manager.application.album_recovery import recover_albums
 from spotify_manager.application.credited_artists import CreditedArtistDependencies
 from spotify_manager.application.credited_artists import follow_credited_artists
 from spotify_manager.application.ports.listening import Clock
+from spotify_manager.application.ports.runtime import DateClock
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.application.recovery_values import RecoveryState
 from spotify_manager.application.recovery_values import RecoverySummary
 from spotify_manager.core.state.service import StateService
@@ -19,7 +20,6 @@ from spotify_manager.domain.library import AlbumArtist
 from spotify_manager.infrastructure.legacy.album_recovery import CreditedArtistAdapter
 from spotify_manager.infrastructure.legacy.album_recovery import LegacyAlbumRecovery
 from spotify_manager.interfaces.presenters.album_recovery import RecoveryPresenter
-from spotify_manager.interfaces.presenters.album_recovery import announce_artist
 from spotify_manager.models.your_library import YourLibraryArtist
 
 
@@ -29,8 +29,8 @@ def run_artist_recovery(
     state: RecoveryState,
     total_artists: list[YourLibraryArtist],
     known_ids: set[str],
-    retry: Callable[[Callable[[], object], str], object],
-    echo: Callable[[str], None],
+    retry: Retry,
+    echo: Messages,
     audit_path: Path,
     dry_run: bool,
     clock: Clock,
@@ -53,23 +53,21 @@ def run_artist_recovery(
         Original completed-check and new-follow counts.
     """
     access = CreditedArtistAdapter(spotify, total_artists, known_ids, retry, audit_path)
-    dependencies = CreditedArtistDependencies(
-        access, clock, partial(announce_artist, echo)
-    )
+    dependencies = CreditedArtistDependencies(access, clock, RecoveryPresenter(echo))
     return follow_credited_artists(dependencies, artists, state, dry_run)
 
 
 def run_album_recovery(
     spotify: Spotify,
-    echo: Callable[[str], None],
+    echo: Messages,
     progress: Progress | None,
     removal_log: Path,
     recovery_log: Path,
     dry_run: bool,
     limit: int | None,
-    today: Callable[[], date],
+    today: DateClock,
     clock: Clock,
-    sleep: Callable[[float], None],
+    sleep: Wait,
     retry_delay: int,
     max_attempts: int,
     state_service: StateService | None,

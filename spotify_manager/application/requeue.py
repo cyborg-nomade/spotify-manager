@@ -22,7 +22,7 @@ class RequeueDependencies:
     Args:
         playlists: Fresh reads and ordered individual playlist effects.
         catalog: Studio discography and track access.
-        echo: Existing mutation messages, delivered after each accepted effect.
+        output: Existing mutation messages, delivered after each accepted effect.
         progress: Optional progress callback, retaining cancellation boundaries.
         audit: Existing completion writer, called after the result timestamp.
         clock: Timestamp source, read only when constructing the final result.
@@ -30,15 +30,10 @@ class RequeueDependencies:
 
     playlists: RequeuePlaylists
     catalog: RequeueCatalog
-    echo: MessageSink
+    output: MessageSink
     progress: MessageSink | None
     audit: AuditWriter[RequeueForADreamSummary]
     clock: Clock
-
-
-def _progress(dependencies: RequeueDependencies, message: str) -> None:
-    if dependencies.progress is not None:
-        dependencies.progress(message)
 
 
 def _plan(
@@ -78,11 +73,15 @@ def _replace_marker(
         release_name = (
             plan.target_release.name if plan.target_release else "unknown release"
         )
-        dependencies.echo(f"Added {target.name} ({release_name}).")
+        dependencies.output.echo(f"Added {target.name} ({release_name}).")
     elif target is not None:
-        dependencies.echo(f"{target.name} is already present; it was not duplicated.")
+        dependencies.output.echo(
+            f"{target.name} is already present; it was not duplicated."
+        )
     dependencies.playlists.remove(playlist_id, plan.source)
-    dependencies.echo(f"Removed {plan.source.name} ({plan.source.release.name}).")
+    dependencies.output.echo(
+        f"Removed {plan.source.name} ({plan.source.release.name})."
+    )
 
 
 def _summary(
@@ -93,7 +92,7 @@ def _summary(
 ) -> RequeueForADreamSummary:
     source, target, release = plan.source, plan.target, plan.target_release
     return RequeueForADreamSummary(
-        recorded_at=dependencies.clock(),
+        recorded_at=dependencies.clock.now(),
         playlist_id=playlist_id,
         dry_run=dry_run,
         action=plan.action,
@@ -138,5 +137,10 @@ def flush_requeue(
         _replace_marker(dependencies, playlist_id, plan)
     summary = _summary(dependencies, playlist_id, dry_run, plan)
     if not dry_run and plan.action != "empty":
-        dependencies.audit(summary)
+        dependencies.audit.write(summary)
     return summary
+
+
+def _progress(dependencies: RequeueDependencies, message: str) -> None:
+    if dependencies.progress is not None:
+        dependencies.progress.echo(message)

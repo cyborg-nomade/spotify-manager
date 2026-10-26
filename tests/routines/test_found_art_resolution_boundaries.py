@@ -11,6 +11,7 @@ from spotipy import Spotify
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import found_art
 from tests.routines.test_found_art import candidate
+from tests.support.runtime_resources import MessageList
 
 
 EMPTY_PLAYLIST = blast.PlaylistState(0, frozenset())
@@ -109,7 +110,7 @@ def _resolve(
         playlist,
         count=count,
         dry_run=dry_run,
-        progress_callback=steps.messages.append,
+        progress_callback=MessageList(steps.messages),
     )
 
 

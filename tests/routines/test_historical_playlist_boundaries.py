@@ -5,14 +5,26 @@ from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partial
+from functools import partialmethod
 from pathlib import Path
 from typing import cast
 
 import pytest
 from spotipy import Spotify
 
+from spotify_manager.application.historical_resolution import HistoricalResolution
+from spotify_manager.bootstrap import historical_playlists as composition
+from spotify_manager.infrastructure.legacy.historical_playlists import (
+    LegacyHistoricalMatches,
+)
+from spotify_manager.interfaces.operations import blast_from_past as blast_execution
+from spotify_manager.interfaces.operations import daily_mind_radio as radio_execution
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
+from tests.support.direct_dependencies import ObservedBlastSelection
+from tests.support.direct_dependencies import ObservedRadioSelection
+from tests.support.runtime_resources import MessageList
 
 
 def _selection() -> blast.ScrobbleSelection:
@@ -194,9 +206,13 @@ class HistoricalSteps:
 def _install(steps: HistoricalSteps, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(blast, "check_cancel", steps.cancel)
     monkeypatch.setattr(blast, "load_playlist_state", steps.playlist)
-    monkeypatch.setattr(blast, "select_blast_from_past", steps.select_blast)
-    monkeypatch.setattr(radio, "select_daily_mind_radio", steps.select_radio)
-    monkeypatch.setattr(blast, "resolve_spotify_selections", steps.resolve)
+    monkeypatch.setattr(composition, "blast_selection", partial(_blast, steps))
+    monkeypatch.setattr(composition, "anniversary_selection", partial(_radio, steps))
+    monkeypatch.setattr(blast_execution, "blast_selection", partial(_blast, steps))
+    monkeypatch.setattr(
+        radio_execution, "anniversary_selection", partial(_radio, steps)
+    )
+    monkeypatch.setattr(HistoricalResolution, "run", partialmethod(_resolve, steps))
     monkeypatch.setattr(blast, "add_spotify_matches", steps.append)
 
 
@@ -206,10 +222,16 @@ def _invoke(
     spotify = cast(Spotify, object())
     if kind == "radio":
         return radio.add_daily_mind_radio_to_spotify(
-            spotify, "target", progress_callback=steps.messages.append, dry_run=preview
+            spotify,
+            "target",
+            progress_callback=MessageList(steps.messages),
+            dry_run=preview,
         )
     return blast.add_blast_from_past_to_spotify(
-        spotify, "target", progress_callback=steps.messages.append, dry_run=preview
+        spotify,
+        "target",
+        progress_callback=MessageList(steps.messages),
+        dry_run=preview,
     )
 
 
@@ -296,3 +318,40 @@ def test_full_blast_destination_skips_history_selection(
     )
     assert steps.events == ["cancel", "playlist"]
     assert result.batch is None and result.requested_count == 0
+
+
+def _blast(
+    steps: HistoricalSteps,
+    path: Path,
+    today: date | None,
+    random: blast.RandomIndexReader,
+    progress: blast.ProgressCallback | None,
+) -> ObservedBlastSelection:
+    return ObservedBlastSelection(steps.select_blast, path, today, random, progress)
+
+
+def _radio(
+    steps: HistoricalSteps,
+    path: Path,
+    today: date | None,
+    random: radio.RandomTimestampReader,
+    progress: blast.ProgressCallback | None,
+) -> ObservedRadioSelection:
+    return ObservedRadioSelection(steps.select_radio, path, today, random, progress)
+
+
+def _resolve(
+    resources: HistoricalResolution,
+    steps: HistoricalSteps,
+    selections: tuple[blast.ScrobbleSelection, ...],
+    playlist: blast.PlaylistState,
+) -> blast.SpotifySelectionResolution:
+    catalog = cast(LegacyHistoricalMatches, resources.catalog)
+    return steps.resolve(
+        catalog.client,
+        selections,
+        playlist,
+        resources.progress,
+        catalog.retry,
+        catalog.cancel,
+    )

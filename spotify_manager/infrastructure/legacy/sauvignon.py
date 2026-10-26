@@ -1,25 +1,22 @@
 """Bind Sauvignon effects to the existing catalog, history and storage seams."""
 
 from dataclasses import dataclass
-from datetime import date
 from datetime import datetime
-from functools import partial
 from pathlib import Path
-from typing import Literal
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.application.sauvignon_values import SauvignonSummary
 from spotify_manager.domain.album_recommendations import AlbumKey
-from spotify_manager.domain.album_recommendations import AlbumRecommendation
 from spotify_manager.domain.album_recommendations import FirstTrack
 from spotify_manager.domain.album_recommendations import SpotifyAlbumOption
 from spotify_manager.domain.album_selection import PendingAlbum
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
-from spotify_manager.domain.recommendation_history import TrackHistory
-from spotify_manager.domain.recommendation_seeds import FoundArtSeed
+from spotify_manager.infrastructure import sauvignon_data
+from spotify_manager.infrastructure.recommendation_history import refresh_history
 from spotify_manager.routines import sauvignon as legacy
 
 
@@ -38,6 +35,7 @@ class LegacySauvignon:
         cache_path: Neighborhood cache location.
         log_path: Original audit destination.
         progress: Original progress callback.
+        requested_retry: Optional caller retry, resolved after request validation.
     """
 
     spotify: Spotify
@@ -50,7 +48,12 @@ class LegacySauvignon:
     cache_path: Path
     log_path: Path
     progress: legacy.ProgressCallback | None
-    history: tuple[TrackHistory, ...] = ()
+
+    requested_retry: legacy.RetryCall | None = None
+
+    def prepare(self) -> None:
+        """Resolve retry truthiness at the original post-validation boundary."""
+        self.retry = self.requested_retry or NoRetry()
 
     def refresh(
         self, generated_at: datetime, dry_run: bool
@@ -64,7 +67,7 @@ class LegacySauvignon:
         Returns:
             Ordered plays and live-added count.
         """
-        return legacy.found_art.refresh_scrobble_history(
+        return refresh_history(
             self.lastfm,
             export_path=self.export_path,
             recent_path=self.recent_path,
@@ -82,62 +85,12 @@ class LegacySauvignon:
         Raises:
             SauvignonSpotifyError: Original playlist loading fails.
         """
+        from spotify_manager.routines.new_wine import load_playlist_tracks
+
         try:
-            return legacy.new_wine.load_playlist_tracks(
-                self.spotify, self.playlist_id, self.retry
-            )
+            return load_playlist_tracks(self.spotify, self.playlist_id, self.retry)
         except legacy.new_wine.NewWineError as exc:
             raise legacy.SauvignonSpotifyError(str(exc)) from exc
-
-    def seeds(
-        self, history: list[Scrobble], count: int, week: date
-    ) -> tuple[FoundArtSeed, ...]:
-        """Aggregate once and select the original weighted seeds.
-
-        Args:
-            history: Ordered canonical plays.
-            count: Requested seed count.
-            week: Effective listening week.
-
-        Returns:
-            Original ordered seeds.
-        """
-        self.history = legacy.found_art.aggregate_track_history(history)
-        return legacy.found_art.select_seed_tracks(
-            self.history, seed_count=count, week_start=week
-        )
-
-    def tracks(
-        self,
-        seeds: tuple[FoundArtSeed, ...],
-        history: list[Scrobble],
-        week: date,
-        pool: int,
-        generated_at: datetime,
-    ) -> tuple[FoundArtCandidate, ...]:
-        """Gather neighborhoods with the original heard-track exclusions.
-
-        Args:
-            seeds: Selected seeds.
-            history: Canonical history, already aggregated during seed selection.
-            week: Effective listening week.
-            pool: Original candidate bound.
-            generated_at: Effective UTC time.
-
-        Returns:
-            Original ranked track candidates.
-        """
-        return legacy.found_art.gather_candidates(
-            self.lastfm,
-            seeds,
-            {track.key for track in self.history},
-            cache_path=self.cache_path,
-            log_path=None,
-            week_start=week,
-            candidate_pool_size=pool,
-            now=generated_at,
-            progress_callback=self.progress,
-        )
 
     def previous(self) -> set[AlbumKey]:
         """Read original accepted-addition exclusions.
@@ -145,51 +98,20 @@ class LegacySauvignon:
         Returns:
             Original album identities.
         """
-        return legacy.previously_added_album_keys(self.log_path)
+        return sauvignon_data.previously_added_album_keys(self.log_path)
 
-    def albums(
-        self,
-        candidates: tuple[FoundArtCandidate, ...],
-        excluded: set[AlbumKey],
-        existing: set[str],
-        maximum: int,
-        week: date,
-    ) -> tuple[AlbumRecommendation, ...]:
-        """Observe original ranked catalog evidence.
+    def search(self, candidate: FoundArtCandidate) -> tuple[SpotifyAlbumOption, ...]:
+        """Read eligible editions through the original retry boundary.
 
         Args:
-            candidates: Original track candidates.
-            excluded: Original album exclusions.
-            existing: Represented album identities.
-            maximum: Original search bound.
-            week: Effective listening week.
+            candidate: Ranked track evidence.
 
         Returns:
-            Ordered album recommendations.
+            Original eligible catalog observations.
         """
-        return legacy.gather_album_recommendations(
-            self.spotify,
-            candidates,
-            excluded,
-            existing,
-            maximum_candidates=maximum,
-            week_start=week,
-            retry_call=self.retry,
-            progress_callback=self.progress,
-        )
+        from spotify_manager.routines.sauvignon import search_candidate_albums
 
-    def choose(
-        self, item: AlbumRecommendation
-    ) -> SpotifyAlbumOption | Literal["skip", "quit"]:
-        """Retain the original edition choice seam.
-
-        Args:
-            item: Ranked evidence.
-
-        Returns:
-            Selected edition or control response.
-        """
-        return legacy.choose_album_option(item, self.choice_reader)
+        return search_candidate_albums(self.spotify, candidate, self.retry)
 
     def first(self, album: SpotifyAlbumOption) -> FirstTrack:
         """Retain the original first-track observation.
@@ -200,7 +122,9 @@ class LegacySauvignon:
         Returns:
             Original playable marker.
         """
-        return legacy.load_first_track(self.spotify, album, self.retry)
+        from spotify_manager.routines.sauvignon import load_first_track
+
+        return load_first_track(self.spotify, album, self.retry)
 
     def append(self, additions: list[PendingAlbum]) -> None:
         """Accept original ordered additions through the original retry seam.
@@ -208,15 +132,13 @@ class LegacySauvignon:
         Args:
             additions: Freshly filtered proposals.
         """
-        self.retry(
-            partial(
-                legacy._append_recommendation_albums,
-                self.spotify,
-                self.playlist_id,
-                additions,
-            ),
-            f"adding {len(additions)} albums to Sauvignon Terre-Neuve",
-        )
+        from spotify_manager.routines.sauvignon import _append_recommendation_albums
+
+        for attempt in self.retry.attempts(
+            f"adding {len(additions)} albums to Sauvignon Terre-Neuve"
+        ):
+            with attempt:
+                _append_recommendation_albums(self.spotify, self.playlist_id, additions)
 
     def audit(self, summary: SauvignonSummary) -> None:
         """Append the original outcome to the configured log.
@@ -224,4 +146,4 @@ class LegacySauvignon:
         Args:
             summary: Original completed result.
         """
-        legacy.append_log(summary, self.log_path)
+        sauvignon_data.append_log(summary, self.log_path)

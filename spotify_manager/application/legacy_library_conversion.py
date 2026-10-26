@@ -1,9 +1,10 @@
 """Original export comparison, live conversion and restoration workflows."""
 
-from collections.abc import Callable
-
 from spotify_manager.application.legacy_library_effects import Comparison
 from spotify_manager.application.legacy_library_effects import ComparisonAlbum
+from spotify_manager.application.legacy_library_effects import ComparisonMembership
+from spotify_manager.application.legacy_library_effects import ComparisonMetadata
+from spotify_manager.application.legacy_library_effects import ControlMembership
 from spotify_manager.application.legacy_library_effects import ConversionCatalog
 from spotify_manager.application.legacy_library_effects import Echo
 from spotify_manager.application.legacy_library_effects import LegacyFiles
@@ -18,7 +19,7 @@ from spotify_manager.utils.sorting import sort_key
 def compare_ids(
     wanted: list[str],
     existing: list[str],
-    enrich: Callable[[str], ComparisonAlbum],
+    metadata: ComparisonMetadata,
     echo: Echo,
 ) -> Comparison:
     """Enrich all additions before removals, preserving duplicate requests.
@@ -26,79 +27,76 @@ def compare_ids(
     Args:
         wanted: Export identities.
         existing: Legacy file identities.
-        enrich: Original per-identity metadata read and presentation.
+        metadata: Per-identity metadata reader and presenter.
         echo: Original presenter.
 
     Returns:
         Original add/remove mapping in its original insertion order.
     """
-    echo("compare")
+    echo.echo("compare")
     additions = unmatched_ids(wanted, existing)
     removals = unmatched_ids(existing, wanted)
     return {
-        "add": enrich_ids(additions, enrich),
-        "remove": enrich_ids(removals, enrich),
+        "add": enrich_ids(additions, metadata),
+        "remove": enrich_ids(removals, metadata),
     }
 
 
 def enrich_ids(
-    identifiers: list[str], enrich: Callable[[str], ComparisonAlbum]
+    identifiers: list[str], metadata: ComparisonMetadata
 ) -> list[ComparisonAlbum]:
     """Enrich every requested identity in its original encounter order.
 
     Args:
         identifiers: Original identities, including duplicates.
-        enrich: Original per-identity metadata read.
+        metadata: Per-identity metadata reader.
 
     Returns:
         Original result with unchanged native boundary errors.
     """
     result = []
     for identifier in identifiers:
-        result.append(enrich(identifier))
+        result.append(metadata.enrich(identifier))
     return result
 
 
-def compare(
-    files: LegacyFiles, comparison: Callable[[list[str], list[str]], Comparison]
-) -> None:
+def compare(files: LegacyFiles, metadata: ComparisonMetadata, echo: Echo) -> None:
     """Compare the export before reading and publishing legacy album facts.
 
     Args:
         files: Original file boundaries.
-        comparison: Original metadata-enrichment stage.
+        metadata: Per-identity metadata reader.
+        echo: Original presenter.
     """
     export = files.export()
     albums = files.albums()
     wanted = [album.spotify_id for album in export.albums]
     existing = [album.spotify_id for album in albums]
-    files.save_comparison(comparison(wanted, existing))
+    files.save_comparison(compare_ids(wanted, existing, metadata, echo))
 
 
 def analyse(
     files: LegacyFiles,
-    contains: Callable[[str], object],
-    added_contains: Callable[[str], object],
+    catalog: ComparisonMembership,
     echo: Echo,
 ) -> None:
     """Observe original removal membership before additions.
 
     Args:
         files: Original comparison authority.
-        contains: Original removal singleton membership query.
-        added_contains: Original addition singleton membership query.
+        catalog: Removal and addition membership reader.
         echo: Original presenter.
     """
     comparison = files.comparison()
-    echo(f"Albums to remove: {len(comparison['remove'])}")
-    analyse_rows(comparison["remove"], contains, True, "     is saved", echo)
-    echo(f"Albums to add: {len(comparison['add'])}")
-    analyse_rows(comparison["add"], added_contains, False, "     not saved", echo)
+    echo.echo(f"Albums to remove: {len(comparison['remove'])}")
+    analyse_rows(comparison["remove"], catalog, True, "     is saved", echo)
+    echo.echo(f"Albums to add: {len(comparison['add'])}")
+    analyse_rows(comparison["add"], catalog, False, "     not saved", echo)
 
 
 def analyse_rows(
     rows: list[ComparisonAlbum],
-    contains: Callable[[str], object],
+    catalog: ComparisonMembership,
     saved: bool,
     message: str,
     echo: Echo,
@@ -107,16 +105,18 @@ def analyse_rows(
 
     Args:
         rows: Original unchecked boundary rows in encounter order.
-        contains: Original singleton membership query.
+        catalog: Singleton membership reader.
         saved: Whether to display saved or unsaved membership facts.
         message: Original membership message.
         echo: Original visible presenter.
     """
     for row in rows:
-        echo(row)
-        observed = contains(row["id"])
+        echo.echo(row)
+        observed = (
+            catalog.contains(row["id"]) if saved else catalog.add_contains(row["id"])
+        )
         if bool(observed) == saved:
-            echo(message)
+            echo.echo(message)
 
 
 def convert(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
@@ -129,21 +129,21 @@ def convert(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
     """
     albums = files.albums()
     comparison = files.comparison()
-    echo("------------------------------------")
-    echo("albums to remove: ", len(comparison["remove"]))
-    removed = remove_rows(albums, comparison["remove"], catalog.contains, echo)
-    echo("removed albums: ", removed)
-    echo("------------------------------------")
-    echo("albums to add: ", len(comparison["add"]))
+    echo.echo("------------------------------------")
+    echo.echo("albums to remove: ", len(comparison["remove"]))
+    removed = remove_rows(albums, comparison["remove"], catalog, echo)
+    echo.echo("removed albums: ", removed)
+    echo.echo("------------------------------------")
+    echo.echo("albums to add: ", len(comparison["add"]))
     added = add_rows(albums, comparison["add"], catalog, echo)
-    echo("added_albums", added)
+    echo.echo("added_albums", added)
     files.save_albums(sorted(albums, key=sort_key))
 
 
 def remove_rows(
     albums: list[SimplifiedAlbum],
     rows: list[ComparisonAlbum],
-    contains: Callable[[str], object],
+    catalog: ControlMembership,
     echo: Echo,
 ) -> int:
     """Apply original removals with the legacy first-entry fallback.
@@ -151,7 +151,7 @@ def remove_rows(
     Args:
         albums: Original mutable legacy album authority.
         rows: Original unchecked boundary rows in encounter order.
-        contains: Original singleton membership query.
+        catalog: Singleton membership reader.
         echo: Original visible presenter.
 
     Returns:
@@ -159,11 +159,11 @@ def remove_rows(
     """
     count = 0
     for row in rows:
-        echo(row)
-        if contains(row["id"]):
+        echo.echo(row)
+        if catalog.contains(row["id"]):
             continue
         index = first_index([album.spotify_id for album in albums], row["id"])
-        echo(f"{albums[index].name} - {albums[index].artist}")
+        echo.echo(f"{albums[index].name} - {albums[index].artist}")
         count += 1
         albums.pop(index)
     return count
@@ -188,11 +188,11 @@ def add_rows(
     """
     count = 0
     for row in rows:
-        echo(row)
+        echo.echo(row)
         if not catalog.add_contains(row["id"]):
             continue
         album = catalog.enrich(row["id"])
-        echo(f"{album.name} - {album.artist}")
+        echo.echo(f"{album.name} - {album.artist}")
         albums.append(album)
         count += 1
     return count
@@ -209,8 +209,8 @@ def restore(files: LegacyFiles, catalog: ConversionCatalog, echo: Echo) -> None:
     export = files.export()
     artists = restore_artists(export.artists, catalog, echo)
     tracks = restore_tracks(export.tracks, catalog, echo)
-    echo(f"\n\nArtists saved: {artists}")
-    echo(f"\nTracks saved: {tracks}")
+    echo.echo(f"\n\nArtists saved: {artists}")
+    echo.echo(f"\nTracks saved: {tracks}")
 
 
 def restore_artists(
@@ -228,13 +228,13 @@ def restore_artists(
     """
     count = 0
     for artist in artists:
-        echo(artist.name)
+        echo.echo(artist.name)
         if catalog.artist_saved(artist):
             continue
         catalog.follow(artist)
         count += 1
-        echo("         saved!")
-        echo(f"\nArtists saved so far: {count}\n\n")
+        echo.echo("         saved!")
+        echo.echo(f"\nArtists saved so far: {count}\n\n")
     return count
 
 
@@ -253,13 +253,13 @@ def restore_tracks(
     """
     count = 0
     for track in tracks:
-        echo(track.album)
-        echo(track.artist)
-        echo(track.uri)
+        echo.echo(track.album)
+        echo.echo(track.artist)
+        echo.echo(track.uri)
         if catalog.track_saved(track):
             continue
         catalog.like(track)
         count += 1
-        echo("         saved!")
-        echo(f"\nTracks saved so far: {count}\n\n")
+        echo.echo("         saved!")
+        echo.echo(f"\nTracks saved so far: {count}\n\n")
     return count

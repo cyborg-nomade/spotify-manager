@@ -1,13 +1,13 @@
 """Open, resume and checkpoint Queue flush plans at original effect boundaries."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
-from datetime import datetime
 from typing import cast
 
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.queue_flush_effects import QueueFlushEffects
 from spotify_manager.application.queue_flush_execution import QueueFlushExecution
+from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.application.queue_flush_values import FlushResult
 from spotify_manager.application.queue_flush_values import FlushSummary
 from spotify_manager.application.queue_flush_values import QueueFlushFacts
@@ -22,7 +22,7 @@ def new_flush_run(
     playlist: str,
     tracks: tuple[PlaylistTrack, ...],
     limit: int,
-    clock: Callable[[], datetime],
+    clock: Clock,
 ) -> dict[str, object]:
     """Snapshot original daily sources and retain the two distinct clock reads.
 
@@ -36,8 +36,8 @@ def new_flush_run(
         Original mutable run document with pending entries.
     """
     selected = daily_sources(tracks, limit)
-    run_id = clock().strftime("%Y%m%dT%H%M%S%fZ")
-    started_at = clock().isoformat()
+    run_id = clock.now().strftime("%Y%m%dT%H%M%S%fZ")
+    started_at = clock.now().isoformat()
     entries: list[dict[str, object]] = []
     for track in selected:
         entries.append({"source": asdict(track), "status": "pending", "plan": None})
@@ -55,9 +55,11 @@ class QueueFlush:
 
     Args:
         effects: Original caller-owned storage, catalog and effect boundaries.
+        planning: Named catalog observation and Queue decision stage.
     """
 
     effects: QueueFlushEffects
+    planning: QueuePlanning
 
     def run(self, preview: bool) -> FlushSummary:
         """Open or resume the original daily snapshot and process unfinished entries.
@@ -170,7 +172,7 @@ class QueueFlush:
         raw_plan = entry.get("plan")
         if isinstance(raw_plan, dict):
             return raw_plan
-        plan = self.effects.plan(source, source_uris(facts.tracks, source))
+        plan = self.planning.record(source, source_uris(facts.tracks, source))
         entry["plan"] = plan
         if not preview:
             access.save(state)

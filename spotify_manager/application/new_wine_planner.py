@@ -1,9 +1,9 @@
 """Plan New Wine transitions at the original observation and interaction boundaries."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 
+from spotify_manager.application.new_wine_execution import WineExecution
 from spotify_manager.application.new_wine_observations import WineObservations
 from spotify_manager.application.new_wine_plans import drop_plan
 from spotify_manager.application.new_wine_plans import progression_plan
@@ -61,7 +61,7 @@ class WinePlanner:
         endpoint_reader: Optional endpoint callback, required when mode is active.
         endpoint_mode: Whether to ask for album/EP endpoints.
         dry_run: Whether skip results describe a preview.
-        checkpoint: Callback saving accepted endpoint choices at the original boundary.
+        execution: Named effect stage owning accepted endpoint checkpoints.
         presentation: Existing planning messages rendered at their original boundaries.
     """
 
@@ -71,7 +71,7 @@ class WinePlanner:
     endpoint_reader: EndpointChoiceReader | None
     endpoint_mode: bool
     dry_run: bool
-    checkpoint: Callable[[], None]
+    execution: WineExecution
     presentation: NewWinePresentation
 
     def plan(self, source: PlaylistTrack, entry: dict[str, object]) -> WineDecision:
@@ -146,14 +146,16 @@ class WinePlanner:
 
     def _choose_endpoint(self, facts: SourceObservations) -> str:
         assert self.endpoint_reader is not None and facts.index is not None
-        choice = self.endpoint_reader(facts.source, facts.tracks, facts.index)
+        choice = self.endpoint_reader.choose_endpoint(
+            facts.source, facts.tracks, facts.index
+        )
         if choice == "quit" or choice == "skip":
             return choice
         if choice not in {"cutoff", "continue"}:
             raise NewWineError("The album endpoint choice is not available.")
         facts.endpoint = choice
         facts.entry["endpoint_choice"] = choice
-        self.checkpoint()
+        self.execution.checkpoint()
         return choice
 
     def _primary(self, facts: SourceObservations) -> WineDecision:
@@ -229,7 +231,7 @@ class WinePlanner:
         ):
             self.presentation.only_single(facts.source, self.observations.year)
             return "drop", "only_current_year_single"
-        return self.choose(facts.source, candidates), "manual_selection"
+        return self.choose.choose_release(facts.source, candidates), "manual_selection"
 
     def _selected_plan(
         self,
@@ -258,7 +260,7 @@ class WinePlanner:
         candidates = _other_releases(releases, facts.source.release.spotify_id)
         if not candidates:
             return plan
-        choice = self.choose(facts.source, candidates)
+        choice = self.choose.choose_release(facts.source, candidates)
         if choice == "quit":
             return None
         if choice == "skip":

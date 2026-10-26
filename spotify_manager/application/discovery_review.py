@@ -1,9 +1,7 @@
 """Coordinate saved review entries through composer and ordinary release planning."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Literal
 from typing import Protocol
 from typing import cast
@@ -20,6 +18,8 @@ from spotify_manager.application.new_kids_state import source_from_record
 from spotify_manager.application.new_kids_values import FlushResult
 from spotify_manager.application.new_kids_values import NewKidsStateError
 from spotify_manager.application.ports.discovery import DiscoveryAudit
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.composers import OwnedPlaylist
@@ -30,7 +30,9 @@ from spotify_manager.domain.discovery_progression import composer_release
 from spotify_manager.domain.progression import primary_artist_tracks
 
 
-type ProgressCallback = Callable[[int, int, str], None]
+type ProgressCallback = ReviewProgress
+
+
 type ReviewControl = Literal["skip", "pause"]
 
 
@@ -103,9 +105,9 @@ class DiscoveryReview:
     presentation: DiscoveryReviewPresentation
     owned: tuple[OwnedPlaylist, ...]
     excluded: frozenset[str]
-    clock: Callable[[], datetime]
+    clock: Clock
     composer_limit: int = 40
-    progress_callback: ProgressCallback | None = None
+    progress_callback: ReviewProgress | None = None
 
     def review(
         self, entries: list[object], run_id: object
@@ -288,4 +290,4 @@ class DiscoveryReview:
 
     def _progress(self, done: int, total: int, message: str) -> None:
         if self.progress_callback:
-            self.progress_callback(done, total, message)
+            self.progress_callback.progress(done, total, message)

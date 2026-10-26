@@ -1,12 +1,17 @@
 """Refresh Sauvignon evidence, select editions, recheck membership and audit."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
-from typing import Literal
 from typing import Protocol
 
+from spotify_manager.application.album_recommendations import AlbumGathering
+from spotify_manager.application.ports.calendar import ListeningCalendar
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
+from spotify_manager.application.sauvignon_selection import AlbumEditionChoice
 from spotify_manager.application.sauvignon_selection import AlbumSelection
 from spotify_manager.application.sauvignon_values import SauvignonConfigError
 from spotify_manager.application.sauvignon_values import SauvignonSummary
@@ -22,11 +27,34 @@ from spotify_manager.domain.album_selection import fresh_additions
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
+from spotify_manager.domain.recommendation_history import aggregate_track_history
+from spotify_manager.domain.recommendation_history import listening_week_start
 from spotify_manager.domain.recommendation_seeds import FoundArtSeed
+
+
+@dataclass(frozen=True)
+class SauvignonStages:
+    """Name the application stages of one album discovery run.
+
+    Args:
+        seeds: Weighted history seed selection.
+        candidates: Last.fm neighborhood gathering and ranking.
+        albums: Album evidence gathering and ranking.
+        choice: Edition policy and optional operator interaction.
+    """
+
+    seeds: RecommendationSeeds
+    candidates: CandidateGathering
+    albums: AlbumGathering
+    choice: AlbumEditionChoice
 
 
 class SauvignonEffects(Protocol):
     """Caller-owned history, catalog, interaction and durable effect boundaries."""
+
+    def prepare(self) -> None:
+        """Resolve the invocation's retry policy after validating its options."""
+        ...
 
     def refresh(
         self, generated_at: datetime, dry_run: bool
@@ -48,79 +76,11 @@ class SauvignonEffects(Protocol):
             Playable markers.
         """
 
-    def seeds(
-        self, history: list[Scrobble], count: int, week: date
-    ) -> tuple[FoundArtSeed, ...]:
-        """Aggregate history and select original weighted seeds.
-
-        Args:
-            history: Canonical plays.
-            count: Requested seeds.
-            week: Effective listening week.
-
-        Returns:
-            Ordered seeds.
-        """
-
-    def tracks(
-        self,
-        seeds: tuple[FoundArtSeed, ...],
-        history: list[Scrobble],
-        week: date,
-        pool: int,
-        generated_at: datetime,
-    ) -> tuple[FoundArtCandidate, ...]:
-        """Read and checkpoint original neighborhoods.
-
-        Args:
-            seeds: Original seeds.
-            history: Canonical plays for heard-track exclusions.
-            week: Effective listening week.
-            pool: Original candidate pool bound.
-            generated_at: Effective UTC time.
-
-        Returns:
-            Ranked track evidence.
-        """
-
     def previous(self) -> set[AlbumKey]:
         """Read prior accepted additions.
 
         Returns:
             Normalized album exclusions.
-        """
-
-    def albums(
-        self,
-        candidates: tuple[FoundArtCandidate, ...],
-        excluded: set[AlbumKey],
-        existing: set[str],
-        maximum: int,
-        week: date,
-    ) -> tuple[AlbumRecommendation, ...]:
-        """Read eligible catalog editions for original track evidence.
-
-        Args:
-            candidates: Ranked track evidence.
-            excluded: Heard, represented and prior-added album keys.
-            existing: Represented album identities.
-            maximum: Original search bound.
-            week: Effective listening week.
-
-        Returns:
-            Ranked album evidence.
-        """
-
-    def choose(
-        self, item: AlbumRecommendation
-    ) -> SpotifyAlbumOption | Literal["skip", "quit"]:
-        """Run the original edition interaction.
-
-        Args:
-            item: Ranked album evidence.
-
-        Returns:
-            Chosen edition or original skip/quit.
         """
 
     def first(self, album: SpotifyAlbumOption) -> FirstTrack:
@@ -184,10 +144,11 @@ class SauvignonRun:
 
     Args:
         effects: Original observations and effects.
+        stages: Concrete named application stages for the invocation.
         clock: Original UTC clock, evaluated after validation.
-        listening_week: Original calendar boundary.
+        calendar: Original calendar boundary.
         progress: Original stage presentation.
-        echo: Original accepted-append presentation.
+        output: Original accepted-append presentation.
         default_maximum: Original capacity fallback.
         minimum_pool: Original track pool minimum.
         pool_multiplier: Original track pool scaling.
@@ -196,10 +157,11 @@ class SauvignonRun:
     """
 
     effects: SauvignonEffects
-    clock: Callable[[], datetime]
-    listening_week: Callable[[datetime], date]
-    progress: Callable[[str], None]
-    echo: Callable[[str], None]
+    stages: SauvignonStages
+    clock: Clock
+    calendar: ListeningCalendar
+    progress: Messages
+    output: Messages
     default_maximum: int = 20
     minimum_pool: int = 100
     pool_multiplier: int = 10
@@ -232,10 +194,11 @@ class SauvignonRun:
             SauvignonSpotifyError: Original catalog or destination is unusable.
         """
         _validate(count, maximum, seed_count)
-        stamp = self.clock()
-        week = self.listening_week(stamp)
+        self.effects.prepare()
+        stamp = self.clock.now()
+        week = listening_week_start(self.calendar.local_date(stamp))
         history, live_added = self.effects.refresh(stamp, dry_run)
-        self.progress("Loading Sauvignon Terre-Neuve")
+        self.progress.echo("Loading Sauvignon Terre-Neuve")
         playlist = self.effects.read()
         before = len(playlist)
         requested = (
@@ -279,12 +242,15 @@ class SauvignonRun:
         stamp: datetime,
         dry_run: bool,
     ) -> AlbumBatch:
-        selection = AlbumSelection(self.effects.choose, self.effects.first, dry_run)
+        selection = AlbumSelection(self.stages.choice, self.effects, dry_run)
         if not requested:
             return AlbumBatch((), (), (), selection)
-        seeds = self.effects.seeds(history, seed_count, week)
+        aggregated = aggregate_track_history(history)
+        seeds = self.stages.seeds.run(aggregated, seed_count, week)
         pool = max(self.minimum_pool, requested * self.pool_multiplier)
-        tracks = self.effects.tracks(seeds, history, week, pool, stamp)
+        tracks = self.stages.candidates.run(
+            seeds, {track.key for track in aggregated}, week, pool, stamp
+        )
         existing_ids = {track.release.spotify_id for track in playlist}
         existing_keys = set()
         for track in playlist:
@@ -295,17 +261,17 @@ class SauvignonRun:
         maximum = min(
             len(tracks), max(self.minimum_searches, requested * self.search_multiplier)
         )
-        albums = self.effects.albums(tracks, excluded, existing_ids, maximum, week)
+        albums = self.stages.albums.run(tracks, excluded, existing_ids, maximum, week)
         selection.run(albums, requested)
         return AlbumBatch(seeds, tracks, albums, selection)
 
     def _append(self, selection: AlbumSelection, dry_run: bool) -> int:
         if not selection.pending or dry_run:
             return 0
-        self.progress("Rechecking Sauvignon before adding albums")
+        self.progress.echo("Rechecking Sauvignon before adding albums")
         additions = fresh_additions(tuple(selection.pending), self.effects.read())
         if additions:
             self.effects.append(additions)
-            self.echo(f"Added {len(additions)} albums to Sauvignon Terre-Neuve.")
+            self.output.echo(f"Added {len(additions)} albums to Sauvignon Terre-Neuve.")
         selection.results = list(accepted_results(tuple(selection.results), additions))
         return len(additions)

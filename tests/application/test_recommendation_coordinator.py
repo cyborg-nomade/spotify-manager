@@ -5,12 +5,19 @@ from dataclasses import field
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from typing import cast
 
 import pytest
 
 from spotify_manager.application.found_art_values import FoundArtConfigError
 from spotify_manager.application.found_art_values import FoundArtSummary
+from spotify_manager.application.recommendation_candidates import CandidateGathering
+from spotify_manager.application.recommendation_resolution import (
+    RecommendationResolution,
+)
 from spotify_manager.application.recommendation_run import RecommendationRun
+from spotify_manager.application.recommendation_run import RecommendationStages
+from spotify_manager.application.recommendation_seeds import RecommendationSeeds
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
@@ -69,7 +76,7 @@ class RunMemory:
         self._step("clock")
         return STAMP
 
-    def week(self, stamp: datetime) -> date:
+    def local_date(self, stamp: datetime | date | None = None) -> date:
         """Resolve the effective calendar once per run.
 
         Args:
@@ -212,7 +219,91 @@ class RunMemory:
         Returns:
             Injected recommendation coordinator.
         """
-        return RecommendationRun(self, self.clock, self.week, self.progress)
+        return RecommendationRun(self, _stages(self), self, self, self)
+
+    def now(self) -> datetime:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.clock()
+
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
+
+@dataclass(frozen=True)
+class _ScriptedSeeds:
+    """Supply a scripted child-stage outcome at its original boundary.
+
+    Args:
+        source: Existing observations, scripted results and failures.
+    """
+
+    source: RunMemory
+
+    def run(
+        self, history: tuple[TrackHistory, ...], count: int, week: date
+    ) -> tuple[FoundArtSeed, ...]:
+        """Return the existing scripted result and retain its observations."""
+        return self.source.seeds(history, count, week)
+
+
+@dataclass(frozen=True)
+class _ScriptedCandidates:
+    """Supply a scripted child-stage outcome at its original boundary.
+
+    Args:
+        source: Existing observations, scripted results and failures.
+    """
+
+    source: RunMemory
+
+    def run(
+        self,
+        seeds: tuple[FoundArtSeed, ...],
+        heard: set[TrackKey],
+        week: date,
+        pool: int,
+        now: datetime,
+    ) -> tuple[FoundArtCandidate, ...]:
+        """Return the existing scripted result and retain its observations."""
+        return self.source.gather(seeds, heard, week, pool, now)
+
+
+@dataclass(frozen=True)
+class _ScriptedResolution:
+    """Supply a scripted child-stage outcome at its original boundary.
+
+    Args:
+        source: Existing observations, scripted results and failures.
+    """
+
+    source: RunMemory
+
+    def run(
+        self,
+        candidates: tuple[FoundArtCandidate, ...],
+        playlist: PlaylistState,
+        count: int,
+        dry_run: bool,
+    ) -> tuple[tuple[FoundArtResult, ...], tuple[SpotifyTrackMatch, ...]]:
+        """Return the existing scripted result and retain its observations."""
+        return self.source.resolve(candidates, playlist, count, dry_run)
+
+
+def _stages(memory: RunMemory) -> RecommendationStages:
+    return RecommendationStages(
+        cast(RecommendationSeeds, _ScriptedSeeds(memory)),
+        cast(CandidateGathering, _ScriptedCandidates(memory)),
+        cast(RecommendationResolution, _ScriptedResolution(memory)),
+    )
 
 
 def _run(memory: RunMemory, dry_run: bool = False) -> FoundArtSummary:
@@ -406,7 +497,7 @@ def test_existing_configuration_values_are_injected_without_new_defaults() -> No
     """Bind mutable outer limits rather than silently hard-code application defaults."""
     memory = RunMemory()
     workflow = RecommendationRun(
-        memory, memory.clock, memory.week, memory.progress, 7, 2, 3
+        memory, _stages(memory), memory, memory, memory, 7, 2, 3
     )
     summary = workflow.run("destination", None, None, 1, False)
     assert summary.requested_count == 7 and memory.pools == [21]

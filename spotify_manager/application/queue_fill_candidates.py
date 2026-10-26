@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Literal
 
+from spotify_manager.application.queue_artist_mapping import QueueArtistMapping
 from spotify_manager.application.queue_fill_effects import QueueFillEffects
 from spotify_manager.application.queue_fill_values import FillResult
 from spotify_manager.application.queue_state import QueueStateAccess
@@ -20,6 +21,7 @@ class QueueFillCandidates:
 
     Args:
         effects: Original read, interaction and accepted-effect boundaries.
+        mapping: Named artist-mapping application stage.
         access: Original checkpoint writer.
         state: Caller-owned complete original state.
         mappings: Caller-owned original artist mappings.
@@ -33,6 +35,7 @@ class QueueFillCandidates:
     """
 
     effects: QueueFillEffects
+    mapping: QueueArtistMapping
     access: QueueStateAccess
     state: dict[str, object]
     mappings: dict[str, object]
@@ -69,7 +72,7 @@ class QueueFillCandidates:
         artist = self.effects.decode_mapping(self.mappings.get(candidate.key))
         if artist is not None:
             return artist
-        resolved = self.effects.resolve(candidate)
+        resolved = self.mapping.resolve(candidate)
         if resolved == "quit":
             return "quit"
         if resolved == "skip":

@@ -1,9 +1,9 @@
 """Refresh canonical listening history through explicit observation and effect ports."""
 
 from collections import Counter
-from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -11,6 +11,9 @@ from typing import cast
 
 from spotify_manager.application.history_values import ScrobbleHistoryError
 from spotify_manager.application.history_values import ScrobbleHistorySummary
+from spotify_manager.application.ports.runtime import Cancellation
+from spotify_manager.application.ports.runtime import Clock
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import normalize_name
 
@@ -144,26 +147,45 @@ def _username(payload: dict[str, object], expected: str | None) -> str:
     return username or (expected or "")
 
 
+class HistoryReader(Protocol):
+    """Read the inclusive live range through a named external source."""
+
+    def fetch(self, start: int, end: int) -> Iterable[HistoryRecord]:
+        """Observe original raw live records lazily.
+
+        Args:
+            start: Inclusive first UTC second.
+            end: Inclusive final UTC second.
+
+        Returns:
+            Original records in response order.
+        """
+
+
 @dataclass(frozen=True)
 class HistoryRefresh:
     """Merge overlap by occurrence count, then preserve the ordered refresh effects.
 
     Args:
         storage: Existing file, backup, mirror and audit boundaries.
-        fetch: Read live records in an inclusive UTC seconds range.
+        reader: Named source of original live history records.
         clock: Read the effective UTC refresh time after hydration and cancellation.
         check_cancel: Raise the original cancellation error at each boundary.
         progress: Present existing progress messages.
     """
 
     storage: HistoryStorage
-    fetch: Callable[[int, int], Iterable[HistoryRecord]]
-    clock: Callable[[], datetime]
-    check_cancel: Callable[[], None]
-    progress: Callable[[str], None]
+    reader: HistoryReader
+    clock: Clock
+    check_cancel: Cancellation
+    progress: Messages
 
     def run(
-        self, expected_username: str | None, dry_run: bool, full_rebuild: bool
+        self,
+        expected_username: str | None,
+        dry_run: bool,
+        full_rebuild: bool,
+        now: datetime | None = None,
     ) -> ScrobbleHistorySummary:
         """Refresh history without changing overlap, preview or recovery behavior.
 
@@ -171,6 +193,8 @@ class HistoryRefresh:
             expected_username: Optional account ownership check.
             dry_run: Suppress backup, writes, publication and audit.
             full_rebuild: Replace history from the complete live range.
+            now: Optional effective UTC timestamp already observed by the parent
+                workflow.
 
         Returns:
             Merged history and the accepted persistence effects.
@@ -181,13 +205,15 @@ class HistoryRefresh:
             OSError: An injected effect fails; earlier effects remain accepted.
         """
         self.storage.hydrate()
-        self.check_cancel()
-        checked_at = self.clock()
-        self.progress("Loading the canonical Last.fm history")
+        self.check_cancel.check()
+        checked_at = self.clock.now() if now is None else now.astimezone(UTC)
+        self.progress.echo("Loading the canonical Last.fm history")
         export = self.storage.load()
-        self.check_cancel()
+        self.check_cancel.check()
         if export.recovered:
-            self.progress("Recovered Last.fm history from compressed fallback parts")
+            self.progress.echo(
+                "Recovered Last.fm history from compressed fallback parts"
+            )
         username = _username(export.payload, expected_username)
         records, legacy_added = self._initial_records(export, full_rebuild)
         live_added = self._fetch(records, checked_at, full_rebuild)
@@ -197,7 +223,7 @@ class HistoryRefresh:
                 "Refusing to replace nonempty history with an empty API response."
             )
         changed = full_rebuild or legacy_added > 0 or live_added > 0
-        self.check_cancel()
+        self.check_cancel.check()
         backup = self._persist(
             export, records, checked_at, full_rebuild, changed and not dry_run
         )
@@ -234,13 +260,13 @@ class HistoryRefresh:
         start, end = latest // 1000, int(checked_at.timestamp())
         if start > end:
             return 0
-        self.progress(
+        self.progress.echo(
             "Rebuilding all scrobbles from Last.fm"
             if full_rebuild
             else "Fetching newer scrobbles from Last.fm"
         )
-        live = self.fetch(start, end)
-        self.check_cancel()
+        live = self.reader.fetch(start, end)
+        self.check_cancel.check()
         return _merge(records, live)
 
     def _persist(
@@ -253,7 +279,7 @@ class HistoryRefresh:
     ) -> Path | None:
         if not persist:
             return None
-        self.progress("Backing up and atomically saving Last.fm history")
+        self.progress.echo("Backing up and atomically saving Last.fm history")
         backup = self.storage.backup(export, checked_at)
         payload = export.payload
         if full_rebuild:
@@ -267,5 +293,7 @@ class HistoryRefresh:
         self.storage.mark(summary.checked_at)
         self.storage.publish(full_rebuild)
         if not changed:
-            self.progress("History already current; recorded successful check time")
+            self.progress.echo(
+                "History already current; recorded successful check time"
+            )
         self.storage.audit(summary)

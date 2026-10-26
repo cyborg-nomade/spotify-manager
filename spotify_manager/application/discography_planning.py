@@ -1,11 +1,16 @@
 """Coordinate lazy Discography reads, cached choices and round-week packing."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from typing import Protocol
 from typing import cast
 
+from spotify_manager.application.discography_catalog import DiscographyCatalog
+from spotify_manager.application.discography_history import DiscographyArtistMapping
+from spotify_manager.application.discography_history import DiscographyHistory
+from spotify_manager.application.discography_queues import DiscographyQueues
 from spotify_manager.application.discography_values import DiscographyError
+from spotify_manager.application.ports.runtime import Messages
 from spotify_manager.domain.discography_batches import next_queue
 from spotify_manager.domain.discography_batches import next_start_queue
 from spotify_manager.domain.discography_batches import queue_cycle
@@ -15,9 +20,37 @@ from spotify_manager.domain.discography_values import ArtistMarkers
 from spotify_manager.domain.discography_values import ArtistSelection
 from spotify_manager.domain.discography_values import CatalogRelease
 from spotify_manager.domain.discography_values import DiscographyPlan
-from spotify_manager.domain.discography_values import HistoricalArtistSelection
 from spotify_manager.domain.discography_values import QueueArtist
 from spotify_manager.domain.discography_values import QueueName
+
+
+class ReleaseSelector(Protocol):
+    """Own the operator interaction for select releases."""
+
+    def select_releases(
+        self, artist: QueueArtist, releases: tuple[CatalogRelease, ...], /
+    ) -> tuple[str, ...]:
+        """Read or report the original operator interaction.
+
+        Args:
+            artist: Original interaction value.
+            releases: Original interaction value.
+
+        Returns:
+            Original interaction result.
+        """
+        ...
+
+
+class PriorityState(Protocol):
+    """Read the current original discography priority namespace."""
+
+    def load(self) -> dict[str, object]:
+        """Return the complete original priority state before queue observations.
+
+        Returns:
+            Original complete priority namespace retaining unknown fields.
+        """
 
 
 @dataclass(frozen=True)
@@ -28,25 +61,19 @@ class DiscographyReads:
         state: Original preflight priority read.
         queues: Original ordered queue and marker gathering.
         history: Original lazily requested historical artist facts.
-        resolve: Original exact Spotify mapping interaction.
+        mapping: Named historical artist-mapping stage.
         catalog: Original complete catalog reader.
         choose: Original release-selection interaction.
         progress: Original optional stage presenter.
     """
 
-    state: Callable[[], dict[str, object]]
-    queues: Callable[
-        [],
-        tuple[
-            dict[QueueName, tuple[QueueArtist, ...]],
-            dict[str, tuple[ArtistMarkers, ...]],
-        ],
-    ]
-    history: Callable[[], HistoricalArtistSelection]
-    resolve: Callable[[HistoricalArtistSelection], QueueArtist]
-    catalog: Callable[[QueueArtist], tuple[CatalogRelease, ...]]
-    choose: Callable[[QueueArtist, tuple[CatalogRelease, ...]], tuple[str, ...]]
-    progress: Callable[[str], None]
+    state: PriorityState
+    queues: DiscographyQueues
+    history: DiscographyHistory
+    mapping: DiscographyArtistMapping
+    catalog: DiscographyCatalog
+    choose: ReleaseSelector
+    progress: Messages
 
 
 @dataclass
@@ -84,9 +111,9 @@ class DiscographyPlanning:
         Raises:
             DiscographyError: An original fact or interactive choice is invalid.
         """
-        start = cast(QueueName, self.reads.state()["next_queue"])
-        self.reads.progress("Loading discography artist queues")
-        self.queues, self.markers = self.reads.queues()
+        start = cast(QueueName, self.reads.state.load()["next_queue"])
+        self.reads.progress.echo("Loading discography artist queues")
+        self.queues, self.markers = self.reads.queues.run()
         self.memory_loaded = bool(self.queues["memory_lane"])
         first = self._find(start, None)
         if first is None:
@@ -144,14 +171,14 @@ class DiscographyPlanning:
     def _candidates(self, queue: QueueName) -> tuple[QueueArtist, ...]:
         if queue != "memory_lane" or self.memory_loaded:
             return self.queues[queue]
-        selection = self.reads.history()
-        self.reads.progress(
+        selection = self.reads.history.run()
+        self.reads.progress.echo(
             f"Random.org selected {selection.selected_date.isoformat()}; "
             f"second {selection.generated_at.second} chose "
             f"{selection.artist.name} ({selection.position} of "
             f"{selection.artists_on_date} artists)"
         )
-        candidate = self.reads.resolve(selection)
+        candidate = self.reads.mapping.resolve(selection)
         self.queues["memory_lane"] = (candidate,)
         self.memory_loaded = True
         return self.queues["memory_lane"]
@@ -160,8 +187,8 @@ class DiscographyPlanning:
         cached = self.catalogs.get(candidate.spotify_id)
         if cached is not None:
             return cached
-        self.reads.progress(f"Loading {candidate.name}'s release catalog")
-        catalog = self.reads.catalog(candidate)
+        self.reads.progress.echo(f"Loading {candidate.name}'s release catalog")
+        catalog = self.reads.catalog.run(candidate.spotify_id)
         self.catalogs[candidate.spotify_id] = catalog
         return catalog
 
@@ -170,7 +197,7 @@ class DiscographyPlanning:
         if cached is not None:
             return cached
         catalog = self._catalog(candidate)
-        identities = self.reads.choose(candidate, catalog)
+        identities = self.reads.choose.select_releases(candidate, catalog)
         releases = selected_releases(catalog, identities)
         if releases is None:
             raise DiscographyError(

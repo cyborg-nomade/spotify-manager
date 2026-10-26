@@ -13,7 +13,9 @@ from spotify_manager.application.automation_values import JOBS
 from spotify_manager.application.automation_values import ApiError
 from spotify_manager.application.automation_values import AutomationError
 from spotify_manager.application.automation_values import JobSpec
+from tests.application.automation_memory import FixedNowResource
 from tests.application.automation_memory import fixed_now
+from tests.support.runtime_resources import MessageList
 
 
 @dataclass
@@ -66,6 +68,16 @@ class ScriptedSpace:
         """
         self.events.append(seconds)
 
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Observe complete artifact facts through the original codec.
+
+        Returns:
+            Original decoded timestamps.
+        """
+        from spotify_manager.infrastructure.automation_records import artifact_updates
+
+        return artifact_updates(self.request("GET", "/library-mirrors/status"))
+
     def remaining_seconds(self) -> float:
         """Supply positive original maintenance time.
 
@@ -91,7 +103,7 @@ def test_conflict_without_identity_waits_before_restart(payload: object) -> None
         payload: Original unchecked conflict response.
     """
     client = ScriptedSpace([ApiError(409, payload), {"job_id": "new"}])
-    assert workflow.start_job(client, JOBS[0], discard) == "new"
+    assert workflow.start_job(client, JOBS[0], DiscardResource()) == "new"
     assert 60 in client.events
 
 
@@ -99,7 +111,7 @@ def test_start_propagates_non_conflict_status() -> None:
     """Retain original non-conflict HTTP failure identity."""
     error = ApiError(403, {})
     with pytest.raises(ApiError) as raised:
-        workflow.start_job(ScriptedSpace([error]), JOBS[0], discard)
+        workflow.start_job(ScriptedSpace([error]), JOBS[0], DiscardResource())
     assert raised.value is error
 
 
@@ -113,9 +125,11 @@ def test_cancel_tolerates_only_original_statuses(status: int) -> None:
     client = ScriptedSpace([ApiError(status, {})])
     if status == 500:
         with pytest.raises(ApiError):
-            workflow.cancel_job(client, JOBS[0], "job", fixed_now, discard)
+            workflow.cancel_job(
+                client, JOBS[0], "job", FixedNowResource(), DiscardResource()
+            )
         return
-    workflow.cancel_job(client, JOBS[0], "job", fixed_now, discard)
+    workflow.cancel_job(client, JOBS[0], "job", FixedNowResource(), DiscardResource())
 
 
 def unexpected_cancel(spec: JobSpec, identity: str) -> None:
@@ -136,7 +150,11 @@ def test_poll_propagates_non_missing_http_status() -> None:
     error = ApiError(403, {})
     with pytest.raises(ApiError) as raised:
         workflow.poll_job(
-            ScriptedSpace([error]), JOBS[0], "job", unexpected_cancel, discard
+            ScriptedSpace([error]),
+            JOBS[0],
+            "job",
+            FixedNowResource(),
+            DiscardResource(),
         )
     assert raised.value is error
 
@@ -148,7 +166,9 @@ def test_poll_reports_only_changed_status() -> None:
     )
     output: list[str] = []
     assert (
-        workflow.poll_job(client, JOBS[0], "job", unexpected_cancel, output.append)
+        workflow.poll_job(
+            client, JOBS[0], "job", FixedNowResource(), MessageList(output)
+        )
         == "completed"
     )
     assert len(output) == 2 and client.events.count(20) == 2
@@ -180,16 +200,15 @@ def unexpected_job(spec: JobSpec) -> str:
 
 def test_fresh_duplicate_skips_after_health_read() -> None:
     """Retain health before duplicate detection and suppress all routine starts."""
-    client = ScriptedSpace([{}])
+    client = FreshSpace([{}])
     assert (
         workflow.nightly_refresh(
             client,
             JOBS,
             fixed_now(),
             ZoneInfo("Europe/Berlin"),
-            fresh_artifacts,
-            unexpected_job,
-            discard,
+            FixedNowResource(),
+            DiscardResource(),
         )
         == 0
     )
@@ -260,4 +279,32 @@ def test_connection_prerequisite_failures(
         message: Original visible failure fragment.
     """
     with pytest.raises(AutomationError, match=message):
-        workflow.connection_check(ScriptedSpace(responses), discard)
+        workflow.connection_check(ScriptedSpace(responses), DiscardResource())
+
+
+class FreshSpace(ScriptedSpace):
+    """Supply already refreshed artifact authority without starting a job."""
+
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Observe fresh durable artifacts.
+
+        Returns:
+            Original complete fresh artifact timestamps.
+        """
+        from spotify_manager.application.automation_values import (
+            DURABLE_ARTIFACT_FILENAMES,
+        )
+
+        return dict.fromkeys(DURABLE_ARTIFACT_FILENAMES, fixed_now())
+
+
+class DiscardResource:
+    """Own the original fixed fixture observation."""
+
+    def echo(self, message: str) -> None:
+        """Observe the original fixture boundary.
+
+        Args:
+            message: Original fixture value.
+        """
+        discard(message)

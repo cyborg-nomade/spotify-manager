@@ -12,6 +12,7 @@ from spotify_manager.domain.history import Scrobble
 from spotify_manager.domain.history import ScrobbleSelection
 from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
+from tests.support.runtime_resources import MessageList
 
 
 def _match(identifier: str = "same", score: float = 1.0) -> SpotifyTrackMatch:
@@ -64,6 +65,7 @@ class ResolutionMemory:
     failure: str = ""
     cancel_at: int = 0
     checks: int = 0
+    album_threshold: float = 0.9
 
     def _step(self, name: str) -> None:
         self.events.append(name)
@@ -106,11 +108,14 @@ class ResolutionMemory:
         if self.checks == self.cancel_at:
             raise BlastFromPastCancelledError("cancelled")
 
+    def check(self) -> None:
+        """Observe the same fixture boundary through its named resource method."""
+        self.cancel()
+
 
 def _workflow(memory: ResolutionMemory, threshold: float = 0.9) -> HistoricalResolution:
-    return HistoricalResolution(
-        memory.search, memory.liked, memory.cancel, memory.messages.append, threshold
-    )
+    memory.album_threshold = threshold
+    return HistoricalResolution(memory, memory, MessageList(memory.messages))
 
 
 @pytest.mark.parametrize("present", [False, True])

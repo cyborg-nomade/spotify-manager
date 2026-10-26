@@ -20,6 +20,7 @@ from spotify_manager.core.library_data.store import (
     LibraryDataStore as LegacyLibraryStore,
 )
 from spotify_manager.core.state import RoutineState as LegacyRoutineState
+from spotify_manager.core.state.definitions import ObjectDefinition
 from spotify_manager.core.state.models import StateConflictError
 from spotify_manager.core.state.models import StateSnapshot
 from spotify_manager.core.state.models import new_document
@@ -95,9 +96,9 @@ def test_ports_keep_legacy_type_identity() -> None:
 def test_explicit_store_reuses_namespace_conflicts_and_unrelated_merges() -> None:
     """Reuse namespace conflict checks while merging unrelated peer writes."""
     store = MemoryStateStore()
-    first = state.create_state_service(store).namespace("queue", _empty_state)
-    peer = state.create_state_service(store).namespace("queue", _empty_state)
-    other = state.create_state_service(store).namespace("other", _empty_state)
+    first = state.create_state_service(store).namespace("queue", ObjectDefinition())
+    peer = state.create_state_service(store).namespace("queue", ObjectDefinition())
+    other = state.create_state_service(store).namespace("other", ObjectDefinition())
     assert first.load() == peer.load() == other.load() == {}
     other.save({"n": 1})
     first.save({"n": 2})

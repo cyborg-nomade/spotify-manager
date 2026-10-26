@@ -1,6 +1,5 @@
 """Observe existing library affinity with the original early-stop thresholds."""
 
-from collections.abc import Callable
 from typing import Protocol
 
 
@@ -51,26 +50,36 @@ def library_affinity(
         Liked count (omitted when albums suffice), observed saved-album count,
         and qualification. Full accepted batches count even past a threshold.
     """
-    albums, qualifies = _count_until(
-        album_ids, membership.albums, batch_size, minimum_albums
-    )
+    albums, qualifies = _count_albums(album_ids, membership, batch_size, minimum_albums)
     if qualifies:
         return None, albums, True
-    tracks, qualifies = _count_until(
-        track_ids, membership.tracks, batch_size, minimum_tracks
-    )
+    tracks, qualifies = _count_tracks(track_ids, membership, batch_size, minimum_tracks)
     return tracks, albums, qualifies
 
 
-def _count_until(
+def _count_albums(
     ids: tuple[str, ...],
-    read: Callable[[list[str]], tuple[bool, ...]],
+    membership: ArtistMembership,
     batch_size: int,
     threshold: int,
 ) -> tuple[int, bool]:
     count = 0
     for start in range(0, len(ids), batch_size):
-        count += sum(read(list(ids[start : start + batch_size])))
+        count += sum(membership.albums(list(ids[start : start + batch_size])))
+        if count >= threshold:
+            return count, True
+    return count, False
+
+
+def _count_tracks(
+    ids: tuple[str, ...],
+    membership: ArtistMembership,
+    batch_size: int,
+    threshold: int,
+) -> tuple[int, bool]:
+    count = 0
+    for start in range(0, len(ids), batch_size):
+        count += sum(membership.tracks(list(ids[start : start + batch_size])))
         if count >= threshold:
             return count, True
     return count, False

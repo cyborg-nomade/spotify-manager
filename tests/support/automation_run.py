@@ -220,6 +220,16 @@ class AutomationMemory:
         """
         self.events.append(["sleep", seconds])
 
+    def artifact_times(self) -> dict[str, datetime] | None:
+        """Observe the original artifact status read and timestamp codec.
+
+        Returns:
+            Original decoded artifact timestamps.
+        """
+        from spotify_manager.infrastructure.automation_records import artifact_updates
+
+        return artifact_updates(self.request("GET", "/library-mirrors/status"))
+
     def remaining_seconds(self) -> float:
         """Observe the selected original deadline.
 

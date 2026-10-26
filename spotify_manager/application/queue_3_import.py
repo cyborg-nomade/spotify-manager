@@ -1,10 +1,11 @@
 """Import annual discovery artists with the original write and checkpoint order."""
 
-from collections.abc import Callable
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Protocol
 from typing import cast
 
+from spotify_manager.application.ports.queue_playlists import ImportAccess
+from spotify_manager.application.ports.runtime import TimestampClock
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.application.queue_3_values import AnnualImportResult
 from spotify_manager.application.queue_3_values import Queue3ConfigError
@@ -14,6 +15,23 @@ from spotify_manager.domain.composers import OwnedPlaylist
 from spotify_manager.domain.queue_3_import import ImportSelection
 from spotify_manager.domain.queue_3_import import select_import
 from spotify_manager.domain.queue_3_import import yearly_playlist_ids
+
+
+class ImportPresentation(Protocol):
+    """Present the completed annual import after its accepted effects."""
+
+    def imported(
+        self, source_year: int, additions: int, total: int, dry_run: bool, /
+    ) -> None:
+        """Present the original annual import counts.
+
+        Args:
+            source_year: Discovery year imported.
+            additions: Accepted or previewed new markers.
+            total: Considered markers.
+            dry_run: Whether the import was previewed.
+        """
+        ...
 
 
 def resolve_yearly_playlist(playlists: tuple[OwnedPlaylist, ...], year: int) -> str:
@@ -65,20 +83,17 @@ class AnnualDiscoveryImport:
     """Coordinate annual import effects without owning SDK or storage details.
 
     Args:
-        read: Read parsed playlist markers using the existing retry boundary.
-        append: Append all selected markers using the original batch behavior.
-        audit: Record one original event and its fields.
+        access: Named original playlist observations and accepted effects.
         state_access: Persist the complete working namespace.
         present: Explain completion after writes, audits and checkpoint succeed.
         now: Read the completion timestamp only when recording a real import.
+        presentation: Named presenter for accepted workflow outcomes.
     """
 
-    read: Callable[[str], Sequence[PlaylistTrack]]
-    append: Callable[[str, list[PlaylistTrack], str], None]
-    audit: Callable[[str, dict[str, object]], None]
+    access: ImportAccess
     state_access: RoutineState
-    present: Callable[[int, int, int, bool], None]
-    now: Callable[[], str]
+    presentation: ImportPresentation
+    now: TimestampClock
 
     def run(
         self,
@@ -114,10 +129,10 @@ class AnnualDiscoveryImport:
             return current, ()
         source_year = active_year - 1
         source_id = resolve_yearly_playlist(owned, source_year)
-        selection = select_import(current, self.read(source_id))
+        selection = select_import(current, self.access.read(source_id))
         results = _results(selection, source_year, dry_run)
         if selection.additions and not dry_run:
-            self.append(
+            self.access.append(
                 playlist_id,
                 list(selection.additions),
                 f"importing {source_year} Great Discoveries into Queue 3",
@@ -126,7 +141,9 @@ class AnnualDiscoveryImport:
         current.extend(selection.additions)
         if not dry_run:
             self._complete(state, imports, selection, active_year, source_id)
-        self.present(source_year, len(selection.additions), len(results), dry_run)
+        self.presentation.imported(
+            source_year, len(selection.additions), len(results), dry_run
+        )
         return current, results
 
     def _audit(
@@ -138,7 +155,7 @@ class AnnualDiscoveryImport:
         dry_run: bool,
     ) -> None:
         for track, result in zip(selection.considered, results, strict=True):
-            self.audit(
+            self.access.audit(
                 "annual_import_artist",
                 {
                     "active_year": active_year,
@@ -165,7 +182,7 @@ class AnnualDiscoveryImport:
             "completed": True,
             "source_year": active_year - 1,
             "source_playlist_id": source_id,
-            "completed_at": self.now(),
+            "completed_at": self.now.timestamp(),
             "artists_seen": len(selection.considered),
             "artists_added": len(selection.additions),
         }

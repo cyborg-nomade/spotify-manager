@@ -1,10 +1,15 @@
 """Tests for local and live artist-stats and album-evaluation lookups."""
 
+from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import cast
+from unittest.mock import Mock
 
 import pytest
+from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 
+from spotify_manager.application import library_lookup_run as lookup_workflow
 from spotify_manager.models.your_library import YourLibraryAlbum
 from spotify_manager.models.your_library import YourLibraryArtist
 from spotify_manager.models.your_library import YourLibraryFile
@@ -127,36 +132,38 @@ def test_paginated_items_validate_pages_and_progress() -> None:
 
 
 def test_live_artist_resolution_validates_direct_and_search_responses() -> None:
+    """Verify live artist resolution validates direct and search responses."""
     with pytest.raises(ValueError):
         library_lookups.resolve_live_artist(object())  # type: ignore[arg-type]
 
     missing = SimpleNamespace(
-        artist=lambda _artist_id: (_ for _ in ()).throw(
-            SpotifyException(404, -1, "missing")
-        )
+        artist=Mock(side_effect=SpotifyException(404, -1, "missing"))
     )
     with pytest.raises(library_lookups.ArtistNotFoundError):
         library_lookups.resolve_live_artist(missing, artist_id="missing")  # type: ignore[arg-type]
 
-    malformed = SimpleNamespace(artist=lambda _artist_id: {"id": "artist"})
+    malformed = SimpleNamespace(artist=Mock(return_value={"id": "artist"}))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
         library_lookups.resolve_live_artist(malformed, artist_id="artist")  # type: ignore[arg-type]
 
-    invalid_search = SimpleNamespace(search=lambda **_kwargs: {})
+    invalid_search = SimpleNamespace(search=Mock(return_value={}))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
         library_lookups.resolve_live_artist(invalid_search, name="Artist")  # type: ignore[arg-type]
 
     no_exact_match = SimpleNamespace(
-        search=lambda **_kwargs: {
-            "artists": {"items": [None, {"id": "other", "name": "Other"}]}
-        }
+        search=Mock(
+            return_value={
+                "artists": {"items": [None, {"id": "other", "name": "Other"}]}
+            }
+        )
     )
     with pytest.raises(library_lookups.ArtistNotFoundError):
         library_lookups.resolve_live_artist(no_exact_match, name="Artist")  # type: ignore[arg-type]
 
 
 def test_live_catalog_helpers_reject_malformed_pagination_and_statuses() -> None:
-    malformed_releases = SimpleNamespace(artist_albums=lambda *_args, **_kwargs: {})
+    """Verify live catalog helpers reject malformed pagination and statuses."""
+    malformed_releases = SimpleNamespace(artist_albums=Mock(return_value={}))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
         library_lookups._live_artist_release_ids(
             malformed_releases,  # type: ignore[arg-type]
@@ -164,7 +171,7 @@ def test_live_catalog_helpers_reject_malformed_pagination_and_statuses() -> None
         )
 
     stalled_releases = SimpleNamespace(
-        artist_albums=lambda *_args, **_kwargs: {"items": [], "next": "next"}
+        artist_albums=Mock(return_value={"items": [], "next": "next"})
     )
     with pytest.raises(library_lookups.SpotifyLookupResponseError, match="empty"):
         library_lookups._live_artist_release_ids(
@@ -172,7 +179,7 @@ def test_live_catalog_helpers_reject_malformed_pagination_and_statuses() -> None
             "artist",
         )
 
-    malformed_albums = SimpleNamespace(albums=lambda _ids: {})
+    malformed_albums = SimpleNamespace(albums=Mock(return_value={}))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
         library_lookups._live_primary_track_ids(
             malformed_albums,  # type: ignore[arg-type]
@@ -181,7 +188,7 @@ def test_live_catalog_helpers_reject_malformed_pagination_and_statuses() -> None
         )
 
     malformed_tracks = SimpleNamespace(
-        albums=lambda _ids: {"albums": [{"tracks": None}]}
+        albums=Mock(return_value={"albums": [{"tracks": None}]})
     )
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
         library_lookups._live_primary_track_ids(
@@ -191,11 +198,7 @@ def test_live_catalog_helpers_reject_malformed_pagination_and_statuses() -> None
         )
 
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
-        library_lookups._count_live_contains(
-            ["one"],
-            lambda _ids: [],
-            "Liked Songs",
-        )
+        lookup_workflow.count_contains(["one"], EmptyMembership(), "Liked Songs", 20)
 
 
 class LiveFakeSpotify:
@@ -412,18 +415,17 @@ def test_live_album_evaluation_uses_fresh_liked_statuses() -> None:
 
 
 def test_live_album_resolution_validates_direct_lookup_failures() -> None:
+    """Verify live album resolution validates direct lookup failures."""
     with pytest.raises(ValueError):
         library_lookups.resolve_live_album(object())  # type: ignore[arg-type]
 
     missing = SimpleNamespace(
-        album=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            SpotifyException(404, -1, "missing")
-        )
+        album=Mock(side_effect=SpotifyException(404, -1, "missing"))
     )
     with pytest.raises(AlbumNotFoundError):
         library_lookups.resolve_live_album(missing, album_id="missing")  # type: ignore[arg-type]
 
-    malformed = SimpleNamespace(album=lambda *_args, **_kwargs: None)
+    malformed = SimpleNamespace(album=Mock(return_value=None))
     with pytest.raises(library_lookups.SpotifyLookupResponseError):
         library_lookups.resolve_live_album(malformed, album_id="album")  # type: ignore[arg-type]
 
@@ -602,14 +604,54 @@ def test_no_cache_does_not_persist(album_cache_store: dict) -> None:
 
 
 def test_client_factory_called_only_on_miss(album_cache_store: dict) -> None:
+    """Client factory called only on miss.
+
+    Args:
+        album_cache_store: Original album-cache observations.
+    """
     sp = FakeSpotify(_ALB1)
     calls: list[int] = []
 
-    def factory():
-        calls.append(1)
-        return sp
+    factory = RecordedClient(cast(Spotify, sp), calls)
 
     evaluate_album(client_factory=factory, name="ok computer", library=_library())
     assert calls == [1]  # built the client on the miss
     evaluate_album(client_factory=factory, name="ok computer", library=_library())
     assert calls == [1]  # cache hit -> factory never called again
+
+
+class EmptyMembership:
+    """Supply a malformed response with too few statuses."""
+
+    def contains(self, identifiers: list[str]) -> object:
+        """Observe contains at the recorded boundary.
+
+        Args:
+            identifiers: Ordered requested identities.
+
+        Returns:
+            Recorded boundary result.
+        """
+        return []
+
+
+@dataclass(frozen=True)
+class RecordedClient:
+    """Observe lazy client acquisition without a function dependency.
+
+    Args:
+        spotify: Original fixture client.
+        calls: Original acquisition observation list.
+    """
+
+    spotify: Spotify
+    calls: list[int]
+
+    def client(self) -> Spotify:
+        """Record the original acquisition and return the caller's client.
+
+        Returns:
+            Original fixture client.
+        """
+        self.calls.append(1)
+        return self.spotify

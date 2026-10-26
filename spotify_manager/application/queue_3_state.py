@@ -1,13 +1,12 @@
 """Queue 3 durable records retain original constructor and coercion rules."""
 
-from collections.abc import Callable
 from dataclasses import asdict
-from datetime import datetime
 from typing import cast
 
 from spotify_manager.application.catalog_records import DiscographyRecord
 from spotify_manager.application.catalog_records import ReleaseRecord
 from spotify_manager.application.catalog_records import TrackRecord
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.queue_3_values import FlushAction
 from spotify_manager.application.queue_3_values import FlushResult
 from spotify_manager.application.queue_3_values import Queue3StateError
@@ -145,7 +144,7 @@ def new_run(
     playlist_id: str,
     tracks: list[PlaylistTrack],
     state: dict[str, object],
-    now: Callable[[], datetime],
+    now: Clock,
     limit: int,
 ) -> dict[str, object]:
     """Snapshot the first distinct logical artists before reading separate timestamps.
@@ -166,10 +165,10 @@ def new_run(
     routes = cast(dict[str, object], state["composer_routes"])
     selected = _selected(tracks, _route_index(routes), limit)
     return {
-        "run_id": now().strftime("%Y%m%dT%H%M%S%fZ"),
+        "run_id": now.now().strftime("%Y%m%dT%H%M%S%fZ"),
         "playlist_id": playlist_id,
         "status": "active",
-        "created_at": now().isoformat(),
+        "created_at": now.now().isoformat(),
         "entries": _entries(selected),
     }
 

@@ -1,7 +1,5 @@
 """Bind upload codecs and caller-owned Hugging Face clients explicitly."""
 
-from functools import partial
-from pathlib import Path
 from typing import cast
 
 from huggingface_hub import CommitOperationAdd
@@ -11,8 +9,8 @@ from huggingface_hub import HfApi
 from spotify_manager.application.upload_run import Preparation
 from spotify_manager.application.upload_run import UploadActions
 from spotify_manager.application.upload_values import LibraryFilesUploadPlan
-from spotify_manager.infrastructure.upload_hub import UploadFailure
-from spotify_manager.infrastructure.upload_hub import manifest
+from spotify_manager.infrastructure.upload_resources import ExportPreparation
+from spotify_manager.infrastructure.upload_resources import HubUpload
 
 
 def preparation() -> Preparation:
@@ -21,15 +19,7 @@ def preparation() -> Preparation:
     Returns:
         Explicit source preparation dependencies.
     """
-    from spotify_manager.routines import upload_library_files as legacy
-
-    return Preparation(_read_export, legacy._build_lastfm_parts)
-
-
-def _read_export(path: Path, key: str) -> tuple[bytes, int]:
-    from spotify_manager.routines import upload_library_files as legacy
-
-    return legacy._load_and_validate_export(path, expected_list_key=key)
+    return ExportPreparation()
 
 
 def actions(api: HfApi | None) -> UploadActions:
@@ -43,14 +33,7 @@ def actions(api: HfApi | None) -> UploadActions:
     """
     from spotify_manager.routines import upload_library_files as legacy
 
-    client = api or legacy.HfApi()
-    return UploadActions(
-        partial(_remote, client),
-        legacy.materialize_lastfm_parts,
-        manifest,
-        partial(_commit, client),
-        UploadFailure,
-    )
+    return HubUpload(api or legacy.HfApi())
 
 
 def _remote(client: HfApi, plan: LibraryFilesUploadPlan) -> list[str]:

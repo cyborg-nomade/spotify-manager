@@ -1,6 +1,5 @@
 """Open or resume the original release-check window before destination observations."""
 
-from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -9,6 +8,7 @@ from datetime import datetime
 from typing import Protocol
 from typing import cast
 
+from spotify_manager.application.history_refresh import HistoryRefresh
 from spotify_manager.application.history_values import ScrobbleHistorySummary
 from spotify_manager.application.release_check_values import ReleaseCheckError
 from spotify_manager.application.release_check_values import ReleaseCheckStateError
@@ -27,16 +27,6 @@ class ReleaseOpeningEffects(Protocol):
 
         Returns:
             Original normalized payload, including unknown fields.
-        """
-
-    def refresh(self, stamp: datetime) -> ScrobbleHistorySummary:
-        """Perform original actual history refresh even during a release preview.
-
-        Args:
-            stamp: Original effective UTC timestamp.
-
-        Returns:
-            Original accepted history outcome.
         """
 
     def rank(self, history: tuple[Scrobble, ...]) -> tuple[RankedArtist, ...]:
@@ -151,22 +141,56 @@ def _active_record(
     }
 
 
+class ReleaseCalendar(Protocol):
+    """Observe effective time and its original local-date and run-id representations."""
+
+    def clock(self) -> datetime:
+        """Observe effective UTC time.
+
+        Returns:
+            Original supplied or current timestamp.
+        """
+        ...
+
+    def local_date(self, stamp: datetime) -> date:
+        """Convert the observed timestamp to its local date.
+
+        Args:
+            stamp: Observed UTC instant.
+
+        Returns:
+            Original local calendar date.
+        """
+        ...
+
+    def run_id(self, stamp: datetime) -> str:
+        """Encode the observed instant as a sortable run identity.
+
+        Args:
+            stamp: Observed UTC instant.
+
+        Returns:
+            Original run identity.
+        """
+        ...
+
+
 @dataclass(frozen=True)
 class ReleaseRunOpening:
     """Preserve original resume authority and preview refresh/checkpoint semantics.
 
     Args:
         effects: Original history, durable state and accepted-start boundaries.
-        clock: Original effective UTC clock.
-        local_date: Original local calendar conversion.
-        run_id: Original sortable run identifier.
+        history: Named complete canonical history or historical-selection stage.
+        username: Original expected canonical history account.
+        calendar: Effective time and its original local-date/run-id representations.
         minimum_scrobbles: Original threshold included in the empty-ranking error.
     """
 
     effects: ReleaseOpeningEffects
-    clock: Callable[[], datetime]
-    local_date: Callable[[datetime], date]
-    run_id: Callable[[datetime], str]
+    history: HistoryRefresh
+    username: str | None
+    calendar: ReleaseCalendar
     minimum_scrobbles: int = 100
 
     def run(self, dry_run: bool) -> OpenedReleaseRun:
@@ -182,8 +206,8 @@ class ReleaseRunOpening:
             ReleaseCheckError: Original history has no sufficiently listened artists.
             ReleaseCheckStateError: Original window or frozen ranking is unusable.
         """
-        stamp = self.clock()
-        today = self.local_date(stamp)
+        stamp = self.calendar.clock()
+        today = self.calendar.local_date(stamp)
         persisted = self.effects.load()
         state = deepcopy(persisted)
         active = state.get("active_run")
@@ -225,14 +249,14 @@ class ReleaseRunOpening:
         state: ReleaseState,
         dry_run: bool,
     ) -> OpenedReleaseRun:
-        refreshed = self.effects.refresh(stamp)
+        refreshed = self.history.run(self.username, False, False, stamp)
         artists = self.effects.rank(refreshed.history)
         if not artists:
             raise ReleaseCheckError(
                 f"No Last.fm artists have at least {self.minimum_scrobbles} scrobbles."
             )
         start = _window_start(state.get("last_checked_through"), today)
-        run_id = self.run_id(stamp)
+        run_id = self.calendar.run_id(stamp)
         active = _active_record(run_id, stamp, start, today, artists)
         state["active_run"] = active
         if not dry_run:

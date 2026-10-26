@@ -37,10 +37,13 @@ class MarkerReads:
     liked_ids: set[str]
     trace: list[str] = field(default_factory=list)
 
-    def matches(self, title: LastFmTrackStat) -> tuple[SpotifyTrackMatch, ...]:
+    def matches(
+        self, artist: GoldenOldieArtist, title: LastFmTrackStat
+    ) -> tuple[SpotifyTrackMatch, ...]:
         """Read matches for the next original ranked title.
 
         Args:
+            artist: Selected history artist.
             title: Original title facts.
 
         Returns:
@@ -50,10 +53,13 @@ class MarkerReads:
         self.trace.append(title.track)
         return self.groups[index]
 
-    def liked(self, groups: list[tuple[SpotifyTrackMatch, ...]]) -> set[str]:
+    def liked(
+        self, artist: GoldenOldieArtist, groups: list[tuple[SpotifyTrackMatch, ...]]
+    ) -> set[str]:
         """Observe membership only after every original title read.
 
         Args:
+            artist: Selected history artist.
             groups: Complete gathered observations.
 
         Returns:
@@ -70,11 +76,11 @@ class ReleaseReads:
 
     Args:
         choice: Configured original release choice.
-        tracks: Configured original release tracklist.
+        values: Configured original release tracklist.
     """
 
     choice: str
-    tracks: tuple[ReleaseTrack, ...]
+    values: tuple[ReleaseTrack, ...]
 
     def choose(
         self, artist: GoldenOldieArtist, releases: tuple[DiscographyRelease, ...]
@@ -91,7 +97,7 @@ class ReleaseReads:
         assert artist.artist and releases
         return self.choice
 
-    def read(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
+    def tracks(self, release: DiscographyRelease) -> tuple[ReleaseTrack, ...]:
         """Read only the accepted release.
 
         Args:
@@ -101,13 +107,27 @@ class ReleaseReads:
             Complete original ordered tracklist.
         """
         assert release == RELEASE
-        return self.tracks
+        return self.values
+
+    def choose_album(
+        self, artist: GoldenOldieArtist, releases: tuple[DiscographyRelease, ...]
+    ) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            artist: Original fixture observation.
+            releases: Original fixture observation.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.choose(artist, releases)
 
 
 def _selection(case: dict[str, object]) -> object:
     edge = CatalogResponse(case["payload"], cast(str, case["choice"]))
     if case["kind"] == "artist":
-        choose = None if edge.choice == "absent" else edge.choose
+        choose = None if edge.choice == "absent" else edge
         result = selection.resolve_artist(
             "Artist", golden_records.artist_search(edge.response, "Artist"), choose
         )
@@ -173,7 +193,7 @@ def test_lastfm_recipe_reads_all_titles_before_liked_and_deduplicates() -> None:
         ),
         {"liked"},
     )
-    result = selection.select_lastfm(_artist(titles), edge.matches, edge.liked)
+    result = selection.select_lastfm(_artist(titles), edge)
     assert edge.trace == ["first", "duplicate", "unsafe", "empty", "liked"]
     assert len(result) == 1
     assert result[0].spotify_id == "liked"
@@ -192,7 +212,7 @@ def test_lastfm_recipe_reads_liked_before_empty_selection_error(
     """
     edge = MarkerReads(tuple(() for _title in titles), set())
     with pytest.raises(SomethingOldSpotifyError, match="matched Spotify safely"):
-        selection.select_lastfm(_artist(titles), edge.matches, edge.liked)
+        selection.select_lastfm(_artist(titles), edge)
     assert edge.trace[-1] == "liked"
 
 
@@ -225,11 +245,9 @@ def test_album_recipe_preserves_choice_and_complete_tracklist(
     releases = (RELEASE,) if available else ()
     if error is not None:
         with pytest.raises(SomethingOldSpotifyError, match=error):
-            selection.select_album(_artist(), ARTIST, releases, edge.choose, edge.read)
+            selection.select_album(_artist(), ARTIST, releases, edge, edge)
         return
-    release, selected = selection.select_album(
-        _artist(), ARTIST, releases, edge.choose, edge.read
-    )
+    release, selected = selection.select_album(_artist(), ARTIST, releases, edge, edge)
     if choice == "quit":
         assert release is None and selected == ()
         return

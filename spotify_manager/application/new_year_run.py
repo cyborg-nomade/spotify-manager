@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
 from spotify_manager.application.new_year_effects import AnnualEffects
 from spotify_manager.application.new_year_effects import AnnualStateAccess
 from spotify_manager.application.new_year_execution import AnnualExecution
@@ -11,6 +12,7 @@ from spotify_manager.application.new_year_values import NewYearError
 from spotify_manager.application.new_year_values import RetrospectivePlan
 from spotify_manager.application.new_year_values import RetrospectiveRun
 from spotify_manager.application.new_year_values import RetrospectiveState
+from spotify_manager.application.queue_3_import import resolve_yearly_playlist
 
 
 @dataclass(frozen=True)
@@ -21,11 +23,13 @@ class NewYear:
         effects: Original annual preflight, state and presentation boundaries.
         planning: Original complete history/marker planning sequence.
         execution: Original five checkpointed mutation stages.
+        discoveries: Named annual discovery import stage.
     """
 
     effects: AnnualEffects
     planning: AnnualPlanning
     execution: AnnualExecution
+    discoveries: AnnualDiscoveries
 
     def run(self, requested: int | None, preview: bool) -> dict[str, object]:
         """Validate source year, reuse durable plans and execute original annual stages.
@@ -68,7 +72,7 @@ class NewYear:
     ) -> RetrospectivePlan:
         playlists = self.effects.owned()
         obsessions = obsessions_playlist(playlists, year)
-        self.effects.validate_discoveries(playlists, year)
+        resolve_yearly_playlist(playlists, year)
         if "plan" not in run:
             run["plan"] = self.planning.run(year, preview, destinations, obsessions)
             if not preview:
@@ -84,7 +88,7 @@ class NewYear:
     def _preview(
         self, year: int, plan: RetrospectivePlan, run: RetrospectiveRun
     ) -> dict[str, object]:
-        self.effects.discoveries(year + 1, True)
+        self.discoveries.run(year + 1, True)
         self.effects.echo(
             f"Dry run: {len(plan['tracks'])} tracks, {len(plan['albums'])} albums, "
             f"{len(plan['artists'])} artists and "

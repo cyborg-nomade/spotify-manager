@@ -1,17 +1,16 @@
 """Advance the first Requeue for a Dream artist to their next studio release."""
 
 import json
-from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
 
 from spotify_manager.application.music import NamedTrack
-from spotify_manager.application.requeue import flush_requeue
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.application.requeue_result import (
     RequeueForADreamChangedError as RequeueForADreamChangedError,
 )
@@ -28,17 +27,24 @@ from spotify_manager.application.requeue_result import (
     RequeueForADreamSummary as RequeueForADreamSummary,
 )
 from spotify_manager.domain.requeue import RequeueAction as RequeueAction
+from spotify_manager.infrastructure.output import STANDARD_OUTPUT
 
 # UFI
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import slow_listening as slow_listening
 
 
+type ProgressCallback = Messages
+
+
+type Echo = Messages
+
+
+type RetryCall = Retry
+
+
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
 DEFAULT_LOG_PATH = FILES_DIR / "requeue_for_a_dream_log.jsonl"
-RetryCall = Callable[[Callable[[], object], str], object]
-Echo = Callable[[str], None]
-ProgressCallback = Callable[[str], None]
 
 
 def parse_playlist_id(reference: str | None) -> str:
@@ -69,10 +75,9 @@ def _add_track(
     retry_call: RetryCall,
 ) -> None:
     """Append the replacement before the source is removed."""
-    retry_call(
-        partial(_post_track, spotify, playlist_id, track),
-        f"adding {track.name} to Requeue for a Dream",
-    )
+    for attempt in retry_call.attempts(f"adding {track.name} to Requeue for a Dream"):
+        with attempt:
+            _post_track(spotify, playlist_id, track)
 
 
 def _remove_track(
@@ -82,10 +87,11 @@ def _remove_track(
     retry_call: RetryCall,
 ) -> None:
     """Remove the old playlist marker after its replacement is secure."""
-    retry_call(
-        partial(_delete_track, spotify, playlist_id, track),
-        f"removing {track.name} from Requeue for a Dream",
-    )
+    for attempt in retry_call.attempts(
+        f"removing {track.name} from Requeue for a Dream"
+    ):
+        with attempt:
+            _delete_track(spotify, playlist_id, track)
 
 
 def _post_track(spotify: Spotify, playlist_id: str, track: NamedTrack) -> object:
@@ -120,8 +126,19 @@ def _clock() -> datetime:
     return datetime.now(UTC)
 
 
-def _direct_retry(operation: Callable[[], object], _description: str) -> object:
-    return operation()
+class ClockClock:
+    """Observe the original clock source directly."""
+
+    def now(self) -> datetime:
+        """Read the original clock at the same execution boundary.
+
+        Returns:
+            Original observed value.
+        """
+        return _clock()
+
+
+_CLOCK_RESOURCE = ClockClock()
 
 
 def flush_requeue_for_a_dream(
@@ -129,7 +146,7 @@ def flush_requeue_for_a_dream(
     playlist_id: str,
     *,
     dry_run: bool = False,
-    echo: Echo = print,
+    echo: Echo = STANDARD_OUTPUT,
     progress_callback: ProgressCallback | None = None,
     retry_call: RetryCall | None = None,
     log_path: Path = DEFAULT_LOG_PATH,
@@ -152,9 +169,16 @@ def flush_requeue_for_a_dream(
         RequeueForADreamError: A read, head check, or audit fails.
         RuntimeError: The caller interrupts execution through its retry callback.
     """
-    from spotify_manager.bootstrap.requeue import requeue_dependencies
-
-    dependencies = requeue_dependencies(
-        spotify, retry_call or _direct_retry, echo, progress_callback, log_path, _clock
+    from spotify_manager.interfaces.operations.requeue_for_a_dream import (
+        flush_requeue_for_a_dream as operation,
     )
-    return flush_requeue(dependencies, playlist_id, dry_run=dry_run)
+
+    return operation(
+        spotify,
+        playlist_id,
+        dry_run=dry_run,
+        echo=echo,
+        progress_callback=progress_callback,
+        retry_call=retry_call,
+        log_path=log_path,
+    )

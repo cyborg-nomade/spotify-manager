@@ -1,16 +1,27 @@
 """Tests for alphabetic dormant-artist recovery."""
 
 import json
+from dataclasses import dataclass
 from datetime import date
 from datetime import datetime
+from functools import partial
+from functools import partialmethod
 from pathlib import Path
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
+from spotify_manager.application.dormant_tracks import DormantLikedTrack
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import blast_from_past_artists
 from spotify_manager.routines import new_kids
 from spotify_manager.routines import release_check
+from tests.support.direct_dependencies import dormant_track
+from tests.support.runtime_resources import DiscardMessages
+from tests.support.runtime_resources import ProgressDetails
+from tests.support.runtime_resources import UnexpectedCall
 
 
 def _timestamp(year: int) -> int:
@@ -105,32 +116,32 @@ def test_dormant_artists_rolls_the_four_year_intersection_forward(
 def test_most_popular_liked_track_prefers_liked_spotify_top_track(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Most popular liked track prefers liked spotify top track.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     tracks = (
         _track("popular-unliked", "artist-id", "Artist", 90),
         _track("popular-liked", "artist-id", "Artist", 80),
         _track("less-popular-liked", "artist-id", "Artist", 70),
     )
 
-    class FakeSpotify:
-        @staticmethod
-        def current_user_saved_tracks_contains(ids: list[str]) -> list[bool]:
-            return [spotify_id != "popular-unliked" for spotify_id in ids]
-
     monkeypatch.setattr(
         new_kids,
         "load_top_track_data",
-        lambda *_args: ({}, tracks),
+        Mock(return_value=({}, tracks)),
     )
     monkeypatch.setattr(
         blast_from_past_artists,
         "_catalog_tracks",
-        lambda *_args: pytest.fail("catalog fallback should not be needed"),
+        UnexpectedCall("catalog fallback should not be needed"),
     )
 
     selected = blast_from_past_artists.most_popular_liked_track(
-        FakeSpotify(),  # type: ignore[arg-type]
+        LikedTopTracksSpotify(),  # type: ignore[arg-type]
         "artist-id",
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     assert selected == tracks[1]
@@ -139,49 +150,36 @@ def test_most_popular_liked_track_prefers_liked_spotify_top_track(
 def test_most_popular_liked_track_falls_back_to_full_primary_catalog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Most popular liked track falls back to full primary catalog.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     top_track = _track("top-unliked", "artist-id", "Artist", 90)
     lower = _track("catalog-lower", "artist-id", "Artist", 1)
     higher = _track("catalog-higher", "artist-id", "Artist", 1)
     secondary = _track("secondary", "other-id", "Other", 99)
 
-    class FakeSpotify:
-        liked = {"catalog-lower", "catalog-higher"}
-
-        def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
-            return [spotify_id in self.liked for spotify_id in ids]
-
-        @staticmethod
-        def tracks(ids: list[str]) -> dict[str, object]:
-            assert ids == ["catalog-lower", "catalog-higher"]
-            return {
-                "tracks": [
-                    None,
-                    {"id": "unknown", "popularity": 100},
-                    {"id": "catalog-lower", "popularity": 42},
-                    {"id": "catalog-higher", "popularity": 73},
-                ]
-            }
-
     monkeypatch.setattr(
         new_kids,
         "load_top_track_data",
-        lambda *_args: ({}, (top_track,)),
+        Mock(return_value=({}, (top_track,))),
     )
     monkeypatch.setattr(
         new_kids,
         "load_ranked_catalog",
-        lambda *_args: (object(), object()),
+        Mock(return_value=(object(), object())),
     )
     monkeypatch.setattr(
         new_kids,
         "load_release_tracks",
-        lambda *_args: (lower, higher, secondary, higher),
+        Mock(return_value=(lower, higher, secondary, higher)),
     )
 
     selected = blast_from_past_artists.most_popular_liked_track(
-        FakeSpotify(),  # type: ignore[arg-type]
+        LikedCatalogSpotify(),  # type: ignore[arg-type]
         "artist-id",
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
 
     assert selected is not None
@@ -190,16 +188,8 @@ def test_most_popular_liked_track_falls_back_to_full_primary_catalog(
 
 
 def test_spotify_response_validation_is_strict() -> None:
+    """Spotify response validation is strict."""
     track = _track("track", "artist", "Artist", 1)
-
-    class InvalidSpotify:
-        @staticmethod
-        def current_user_saved_tracks_contains(_ids: list[str]) -> dict[str, object]:
-            return {}
-
-        @staticmethod
-        def tracks(_ids: list[str]) -> dict[str, object]:
-            return {"tracks": "invalid"}
 
     with pytest.raises(
         blast_from_past_artists.BlastFromPastArtistsError,
@@ -208,7 +198,7 @@ def test_spotify_response_validation_is_strict() -> None:
         blast_from_past_artists._liked_statuses(  # noqa: SLF001
             InvalidSpotify(),  # type: ignore[arg-type]
             (track,),
-            lambda operation, _description: operation(),
+            NoRetry(),
         )
     with pytest.raises(
         blast_from_past_artists.BlastFromPastArtistsError,
@@ -217,13 +207,18 @@ def test_spotify_response_validation_is_strict() -> None:
         blast_from_past_artists._track_popularities(  # noqa: SLF001
             InvalidSpotify(),  # type: ignore[arg-type]
             (track,),
-            lambda operation, _description: operation(),
+            NoRetry(),
         )
 
 
 def test_spotify_artist_requires_one_exact_mapping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Spotify artist requires one exact mapping.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     artist = blast_from_past_artists.DormantArtist("artist", "Artist", 4)
     exact = release_check.SpotifyArtistCandidate(
         spotify_id="exact",
@@ -246,28 +241,28 @@ def test_spotify_artist_requires_one_exact_mapping(
     monkeypatch.setattr(
         release_check,
         "search_spotify_artists",
-        lambda *_args: (exact, inexact),
+        Mock(return_value=(exact, inexact)),
     )
 
     selected = blast_from_past_artists._spotify_artist(  # noqa: SLF001
         object(),  # type: ignore[arg-type]
         artist,
         1,
-        lambda operation, _description: operation(),
+        NoRetry(),
     )
     assert selected == exact
 
     monkeypatch.setattr(
         release_check,
         "search_spotify_artists",
-        lambda *_args: (exact, exact),
+        Mock(return_value=(exact, exact)),
     )
     assert (
         blast_from_past_artists._spotify_artist(  # noqa: SLF001
             object(),  # type: ignore[arg-type]
             artist,
             1,
-            lambda operation, _description: operation(),
+            NoRetry(),
         )
         is None
     )
@@ -276,6 +271,11 @@ def test_spotify_artist_requires_one_exact_mapping(
 def test_fill_reports_unmapped_unliked_and_duplicate_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fill reports unmapped unliked and duplicate candidates.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     candidates = tuple(
         blast_from_past_artists.DormantArtist(name.casefold(), name, 1)
         for name in ("Alpha", "Beta", "Charlie", "Delta")
@@ -283,73 +283,38 @@ def test_fill_reports_unmapped_unliked_and_duplicate_candidates(
     candidate_by_key = {candidate.key: candidate for candidate in candidates}
     progress: list[str] = []
     added: list[str] = []
-
     monkeypatch.setattr(
-        blast_from_past_artists,
-        "dormant_artists",
-        lambda *_args, **_kwargs: candidates,
+        blast_from_past_artists, "dormant_artists", Mock(return_value=candidates)
     )
     monkeypatch.setattr(
         blast_from_past,
         "load_playlist_state",
-        lambda *_args: blast_from_past.PlaylistState(
-            total_items=1,
-            track_ids=frozenset({"duplicate"}),
+        Mock(
+            return_value=blast_from_past.PlaylistState(
+                total_items=1, track_ids=frozenset({"duplicate"})
+            )
         ),
     )
-
-    def mapping(
-        _sp: object,
-        artist: blast_from_past_artists.DormantArtist,
-        _rank: int,
-        _retry: object,
-    ) -> release_check.SpotifyArtistCandidate | None:
-        if artist.key == "alpha":
-            return None
-        return release_check.SpotifyArtistCandidate(
-            spotify_id=artist.key,
-            name=artist.name,
-            uri=f"spotify:artist:{artist.key}",
-            popularity=1,
-            followers=1,
-            search_rank=1,
-            exact_name=True,
-        )
-
-    def liked_track(
-        _sp: object,
-        artist_id: str,
-        _retry: object,
-    ) -> new_kids.CatalogTrack | None:
-        if artist_id == "beta":
-            return None
-        spotify_id = "duplicate" if artist_id == "charlie" else "selected"
-        artist = candidate_by_key[artist_id]
-        return _track(spotify_id, artist_id, artist.name, 55)
-
-    monkeypatch.setattr(blast_from_past_artists, "_spotify_artist", mapping)
+    scenario = FillReportsUnmappedUnlikedAndDuplicateCandidatesScenario(
+        candidate_by_key=candidate_by_key
+    )
+    monkeypatch.setattr(blast_from_past_artists, "_spotify_artist", scenario.mapping)
     monkeypatch.setattr(
-        blast_from_past_artists,
-        "most_popular_liked_track",
-        liked_track,
+        DormantLikedTrack, "run", partialmethod(dormant_track, scenario.liked_track)
     )
     monkeypatch.setattr(
         blast_from_past,
         "add_spotify_matches",
-        lambda _sp, _playlist, matches, *_args: added.extend(
-            match.spotify_id for match in matches
-        ),
+        partial(_record_added_tracks, added),
     )
-
     summary = blast_from_past_artists.add_dormant_artists_to_blast_from_past(
-        object(),  # type: ignore[arg-type]
+        object(),
         "blast",
         count=1,
         today=date(2026, 8, 27),
-        echo=lambda _message: None,
-        progress_callback=lambda _done, _total, status: progress.append(status),
+        echo=DiscardMessages(),
+        progress_callback=ProgressDetails(progress),
     )
-
     assert [result.action for result in summary.results] == [
         "no mapping",
         "no liked track",
@@ -423,13 +388,16 @@ def test_dormant_artist_fill_skips_represented_and_appends_five(
 
     monkeypatch.setattr(blast_from_past_artists, "_spotify_artist", mapped)
     monkeypatch.setattr(
-        blast_from_past_artists,
-        "most_popular_liked_track",
-        lambda _sp, artist_id, _retry: _track(
-            f"track-{artist_id}",
-            artist_id,
-            artist_id.removeprefix("id-").title(),
-            75,
+        DormantLikedTrack,
+        "run",
+        partialmethod(
+            dormant_track,
+            lambda _sp, artist_id, _retry: _track(
+                f"track-{artist_id}",
+                artist_id,
+                artist_id.removeprefix("id-").title(),
+                75,
+            ),
         ),
     )
 
@@ -473,3 +441,155 @@ def test_dormant_artist_fill_skips_represented_and_appends_five(
     assert preview.added == 5
     assert preview.playlist_length_after == preview.playlist_length_before
     assert posted == []
+
+
+class LikedTopTracksSpotify:
+    """Retain the original likedtoptracks spotify boundary fixture."""
+
+    @staticmethod
+    def current_user_saved_tracks_contains(ids: list[str]) -> list[bool]:
+        """Retain the original current user saved tracks contains fixture observation.
+
+        Args:
+            ids: Original ids value.
+
+        Returns:
+            Original fixture result.
+        """
+        return [spotify_id != "popular-unliked" for spotify_id in ids]
+
+
+class LikedCatalogSpotify:
+    """Retain the original likedcatalog spotify boundary fixture."""
+
+    liked = {"catalog-lower", "catalog-higher"}
+
+    def current_user_saved_tracks_contains(self, ids: list[str]) -> list[bool]:
+        """Retain the original current user saved tracks contains fixture observation.
+
+        Args:
+            ids: Original ids value.
+
+        Returns:
+            Original fixture result.
+        """
+        return [spotify_id in self.liked for spotify_id in ids]
+
+    @staticmethod
+    def tracks(ids: list[str]) -> dict[str, object]:
+        """Retain the original tracks fixture observation.
+
+        Args:
+            ids: Original ids value.
+
+        Returns:
+            Original fixture result.
+        """
+        assert ids == ["catalog-lower", "catalog-higher"]
+        return {
+            "tracks": [
+                None,
+                {"id": "unknown", "popularity": 100},
+                {"id": "catalog-lower", "popularity": 42},
+                {"id": "catalog-higher", "popularity": 73},
+            ]
+        }
+
+
+class InvalidSpotify:
+    """Retain the original invalid spotify boundary fixture."""
+
+    @staticmethod
+    def current_user_saved_tracks_contains(_ids: list[str]) -> dict[str, object]:
+        """Return a malformed membership response.
+
+        Args:
+            _ids: Requested track identities.
+
+        Returns:
+            Invalid membership payload.
+        """
+        return {}
+
+    @staticmethod
+    def tracks(_ids: list[str]) -> dict[str, object]:
+        """Return a malformed track response.
+
+        Args:
+            _ids: Requested track identities.
+
+        Returns:
+            Invalid track payload.
+        """
+        return {"tracks": "invalid"}
+
+
+@dataclass
+class FillReportsUnmappedUnlikedAndDuplicateCandidatesScenario:
+    """Retain the original fill reports unmapped unliked and duplicate candidates
+    fixture.
+
+    Args:
+        candidate_by_key: Original candidate by key observation or resource.
+    """
+
+    candidate_by_key: Any
+
+    def mapping(
+        self,
+        _sp: object,
+        artist: blast_from_past_artists.DormantArtist,
+        _rank: int,
+        _retry: object,
+    ) -> release_check.SpotifyArtistCandidate | None:
+        """Execute the original mapping mock boundary.
+
+        Args:
+            _sp: Original external mock argument.
+            artist: Original external mock argument.
+            _rank: Original external mock argument.
+            _retry: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        if artist.key == "alpha":
+            return None
+        return release_check.SpotifyArtistCandidate(
+            spotify_id=artist.key,
+            name=artist.name,
+            uri=f"spotify:artist:{artist.key}",
+            popularity=1,
+            followers=1,
+            search_rank=1,
+            exact_name=True,
+        )
+
+    def liked_track(
+        self, _sp: object, artist_id: str, _retry: object
+    ) -> new_kids.CatalogTrack | None:
+        """Execute the original liked track mock boundary.
+
+        Args:
+            _sp: Original external mock argument.
+            artist_id: Original external mock argument.
+            _retry: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        if artist_id == "beta":
+            return None
+        spotify_id = "duplicate" if artist_id == "charlie" else "selected"
+        artist = self.candidate_by_key[artist_id]
+        return _track(spotify_id, artist_id, artist.name, 55)
+
+
+def _record_added_tracks(
+    added: list[str],
+    spotify: object,
+    playlist: str,
+    matches: tuple[blast_from_past.SpotifyTrackMatch, ...],
+    *args: object,
+) -> None:
+    added.extend(match.spotify_id for match in matches)

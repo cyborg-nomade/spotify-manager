@@ -94,7 +94,7 @@ def _started(session: ReviewSession) -> None:
 
 def _recover(session: ReviewSession) -> None:
     flush_unfollows(session)
-    flush_moves(session, session.membership)
+    flush_moves(session)
 
 
 def _pending(session: ReviewSession, limit: int | None) -> list[YourLibraryArtist]:
@@ -110,8 +110,8 @@ def _present(
 ) -> None:
     count = liked_count(session, artist)
     if session.interaction.progress is not None:
-        session.interaction.progress(position - 1, total, artist.name)
-    session.interaction.echo(
+        session.interaction.progress.progress(position - 1, total, artist.name)
+    session.interaction.output.echo(
         f"[{position}/{total}] {artist.name}: "
         f"{count} liked track{'s' if count != 1 else ''}"
     )
@@ -123,6 +123,6 @@ def _finish(session: ReviewSession, total: int, paused: bool) -> ArtistReviewSum
         session.audit("review_paused")
         return session.summary(True)
     if session.interaction.progress is not None:
-        session.interaction.progress(total, total, "Complete")
+        session.interaction.progress.progress(total, total, "Complete")
     session.audit("review_completed", summary=asdict(session.summary(False)))
     return session.summary(False)

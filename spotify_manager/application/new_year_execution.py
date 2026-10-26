@@ -1,11 +1,10 @@
 """Execute the original five annual steps with per-step accepted checkpoints."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from functools import partial
 
 from spotify_manager.application.new_year_charts import AnnualCharts
 from spotify_manager.application.new_year_charts import ChartKind
+from spotify_manager.application.new_year_discoveries import AnnualDiscoveries
 from spotify_manager.application.new_year_effects import AnnualEffects
 from spotify_manager.application.new_year_effects import AnnualStateAccess
 from spotify_manager.application.new_year_membership import AnnualMembership
@@ -22,11 +21,13 @@ class AnnualExecution:
         effects: Original cancellation, discovery and presentation resources.
         charts: Original category chart synchronization.
         membership: Original retry-aware destination reconciliation.
+        discoveries: Named annual discovery import stage.
     """
 
     effects: AnnualEffects
     charts: AnnualCharts
     membership: AnnualMembership
+    discoveries: AnnualDiscoveries
 
     def run(
         self,
@@ -36,32 +37,30 @@ class AnnualExecution:
         state: RetrospectiveState,
         access: AnnualStateAccess,
     ) -> None:
-        """Apply the five annual categories in original order.
+        """Apply the five original categories with accepted per-stage checkpoints.
 
         Args:
-            year: Original source year.
+            year: Completed source year.
             plan: Original complete durable plan.
-            run: Original mutable annual completion authority.
-            state: Original complete namespace.
-            access: Original accepted durable write boundary.
+            run: Mutable annual completion authority.
+            state: Complete namespace retaining unknown fields.
+            access: Original durable write boundary.
         """
-        steps = self._steps(year, plan)
-        for step, operation in steps:
-            self._checkpoint(step, operation, run, state, access)
+        checkpoint = AnnualCheckpoint(self.effects, run, state, access)
+        self._chart(plan, year, "tracks", 50, "blast", checkpoint)
+        self._chart(plan, year, "albums", 20, "palace", checkpoint)
+        if checkpoint.begin("top artists"):
+            self._artists(plan)
+            checkpoint.complete("top artists")
+        if checkpoint.begin("Great Discoveries"):
+            self.discoveries.run(year + 1, False)
+            checkpoint.complete("Great Discoveries")
+        if checkpoint.begin("Obsessions"):
+            self.membership.run(plan["destinations"]["blast"], plan["obsessions"])
+            checkpoint.complete("Obsessions")
         run["done"] = True
         access.save(state)
         self.effects.echo(f"The {year} retrospective is complete.")
-
-    def _steps(
-        self, year: int, plan: RetrospectivePlan
-    ) -> tuple[tuple[str, Callable[[], None]], ...]:
-        return (
-            ("top tracks", partial(self._chart, plan, year, "tracks", 50, "blast")),
-            ("top albums", partial(self._chart, plan, year, "albums", 20, "palace")),
-            ("top artists", partial(self._artists, plan)),
-            ("Great Discoveries", partial(self.effects.discoveries, year + 1, False)),
-            ("Obsessions", partial(self._obsessions, plan)),
-        )
 
     def _chart(
         self,
@@ -70,29 +69,56 @@ class AnnualExecution:
         kind: ChartKind,
         limit: int,
         destination: str,
+        checkpoint: AnnualCheckpoint,
     ) -> None:
+        step = f"top {kind}"
+        if not checkpoint.begin(step):
+            return
         self.charts.run(plan, year, kind, limit, plan["destinations"][destination])
+        checkpoint.complete(step)
 
     def _artists(self, plan: RetrospectivePlan) -> None:
         uris = [item["uri"] for item in plan["artists"]]
         self.membership.run(plan["destinations"]["memory"], uris, True)
 
-    def _obsessions(self, plan: RetrospectivePlan) -> None:
-        self.membership.run(plan["destinations"]["blast"], plan["obsessions"])
 
-    def _checkpoint(
-        self,
-        step: str,
-        operation: Callable[[], None],
-        run: RetrospectiveRun,
-        state: RetrospectiveState,
-        access: AnnualStateAccess,
-    ) -> None:
-        if step in run["completed"]:
+@dataclass(frozen=True)
+class AnnualCheckpoint:
+    """Own accepted annual stage progress without storing executable callbacks.
+
+    Args:
+        effects: Original cancellation and presentation interactions.
+        run: Mutable completion authority.
+        state: Complete current namespace.
+        access: Original durable checkpoint boundary.
+    """
+
+    effects: AnnualEffects
+    run: RetrospectiveRun
+    state: RetrospectiveState
+    access: AnnualStateAccess
+
+    def begin(self, step: str) -> bool:
+        """Present or skip the original checkpointed stage.
+
+        Args:
+            step: Original persisted stage name.
+
+        Returns:
+            Whether the stage must execute.
+        """
+        if step in self.run["completed"]:
             self.effects.echo(f"Already completed: {step}")
-            return
+            return False
         self.effects.cancel()
         self.effects.echo(f"Running: {step}")
-        operation()
-        run["completed"].append(step)
-        access.save(state)
+        return True
+
+    def complete(self, step: str) -> None:
+        """Persist a stage only after all of its effects succeed.
+
+        Args:
+            step: Original accepted stage name.
+        """
+        self.run["completed"].append(step)
+        self.access.save(self.state)

@@ -86,17 +86,6 @@ class QueueFlushEffects(Protocol):
             Original target marker or no target.
         """
 
-    def plan(self, source: PlaylistTrack, uris: list[str]) -> dict[str, object]:
-        """Read facts and choose the original live plan before checkpointing.
-
-        Args:
-            source: Original authoritative source marker.
-            uris: Original live or fallback source markers.
-
-        Returns:
-            Original compatible mutable plan record.
-        """
-
     def append(
         self, destination: str, source: PlaylistTrack, target: CatalogTrack
     ) -> None:

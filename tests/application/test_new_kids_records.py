@@ -112,9 +112,7 @@ def test_new_artist_progress_is_stored_before_obsolete_keys_are_removed() -> Non
     """Creation uses original source credit facts and exactly one timestamp read."""
     artists: dict[str, object] = {"composer": "invalid old progress"}
     clock = Clock()
-    result = artist_progress(
-        {"artists": artists}, SOURCE, "composer", "Bach", clock.now
-    )
+    result = artist_progress({"artists": artists}, SOURCE, "composer", "Bach", clock)
     assert result == {
         "artist_name": "Bach",
         "current_release_id": "album",
@@ -135,7 +133,7 @@ def test_existing_progress_preserves_unknown_fields_without_reading_clock() -> N
     }
     clock = Clock()
     result = artist_progress(
-        {"artists": {"composer": row}}, SOURCE, "composer", "Bach", clock.now
+        {"artists": {"composer": row}}, SOURCE, "composer", "Bach", clock
     )
     assert result is row and row == {"artist_name": "Original", "future": 1}
     assert clock.calls == 0
@@ -145,9 +143,9 @@ def test_missing_or_invalid_artist_container_keeps_original_error_types() -> Non
     """Outer namespace validation remains distinct from progress initialization."""
     clock = Clock()
     with pytest.raises(KeyError, match="artists"):
-        artist_progress({}, SOURCE, "artist", "Artist", clock.now)
+        artist_progress({}, SOURCE, "artist", "Artist", clock)
     with pytest.raises(AssertionError):
-        artist_progress({"artists": []}, SOURCE, "artist", "Artist", clock.now)
+        artist_progress({"artists": []}, SOURCE, "artist", "Artist", clock)
     assert clock.calls == 0
 
 
@@ -198,7 +196,7 @@ def test_run_snapshot_deduplicates_logical_artists_before_reading_timestamps() -
         }
     }
     clock = Clock()
-    result = new_run("new", [SOURCE, SOURCE, second, third], state, clock.now)
+    result = new_run("new", [SOURCE, SOURCE, second, third], state, clock)
     entries = cast(list[dict[str, object]], result["entries"])
     assert [entry["artist_id"] for entry in entries] == ["composer", "artist", "other"]
     assert entries[0] == {

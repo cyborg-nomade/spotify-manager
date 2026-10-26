@@ -2,6 +2,8 @@
 
 import json
 from collections.abc import Callable
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from contextlib import ExitStack
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -12,6 +14,7 @@ from unittest.mock import patch
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.core.state.compat import RoutineState
 from spotify_manager.core.state.service import StateService
 from spotify_manager.routines import discography as legacy
@@ -193,6 +196,26 @@ class ApplyEffects:
         self.priority = cast(str, state["next_queue"])
         self.fail("accepted-state-save")
 
+    def attempts(self, description: str) -> Iterator[AbstractContextManager[None]]:
+        """Observe the original retry boundary before a direct operation.
+
+        Args:
+            description: Original retry label.
+
+        Returns:
+            One direct request scope.
+        """
+        self.record("retry", description)
+        return NoRetry().attempts(description)
+
+    def echo(self, message: str) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            message: Original fixture observation.
+        """
+        self.progress(message)
+
 
 def original_apply(edge: ApplyEffects, empty: bool) -> legacy.DiscographyRunSummary:
     """Run the original public apply coordinator.
@@ -210,8 +233,8 @@ def original_apply(edge: ApplyEffects, empty: bool) -> legacy.DiscographyRunSumm
         return legacy.apply_discography_plan(
             cast(Spotify, edge),
             plan(empty),
-            retry_call=edge.retry,
-            progress_callback=edge.progress,
+            retry_call=edge,
+            progress_callback=edge,
             state_path=Path("state"),
             log_path=Path("audit"),
         )

@@ -2,7 +2,6 @@
 
 import logging
 import os
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
@@ -20,8 +19,13 @@ from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
 from urllib3.util.retry import Retry
 
+from spotify_manager.application.ports.runtime import Messages
+
 # UFI
 from spotify_manager.settings import Settings
+
+
+type SpotifyEventCallback = Messages
 
 
 settings = Settings()
@@ -33,7 +37,7 @@ OPTIONAL_APP_LABELS = ("app5", "app6", "app7", "app8")
 TRANSIENT_CONNECTION_RETRY_BASE_SECONDS = 10
 TRANSIENT_CONNECTION_MAX_RETRIES = 3
 SPOTIFY_OAUTH_TIMEOUT_SECONDS = 10
-SpotifyEventCallback = Callable[[str], None]
+
 LOCALHOST_REDIRECT_MESSAGE = (
     "Spotify no longer accepts localhost redirect URIs. Set "
     "SPOTIPY_REDIRECT_URI to an explicit loopback IP URI such as "
@@ -221,7 +225,7 @@ class RotatingSpotify(spotipy.Spotify):
         logger.warning(message)
         if self._event_callback is not None:
             try:
-                self._event_callback(message)
+                self._event_callback.echo(message)
             except Exception:  # pragma: no cover - display callbacks are best-effort
                 logger.exception("Spotify event callback failed")
 

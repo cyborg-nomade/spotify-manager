@@ -1,14 +1,10 @@
 """Typed input, progress, and results for removed-album recovery."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 
+from spotify_manager.application.checkpoints import ModelCheckpoint
 from spotify_manager.domain.library import AlbumArtist
-
-
-def _no_persistence() -> None:
-    pass
 
 
 @dataclass(frozen=True)
@@ -33,12 +29,17 @@ class RecoveryState:
     Args:
         processed_album_ids: Completed album identifiers.
         checked_artist_ids: Completed artist-follow checks.
-        persist: Existing persistence callback, a no-op for detached state.
+        checkpoint: Optional typed progress store; detached state is not persisted.
     """
 
     processed_album_ids: set[str]
     checked_artist_ids: set[str]
-    persist: Callable[[], None] = field(default=_no_persistence, repr=False)
+    checkpoint: ModelCheckpoint[RecoveryState] | None = field(default=None, repr=False)
+
+    def persist(self) -> None:
+        """Persist current progress when a store is attached."""
+        if self.checkpoint is not None:
+            self.checkpoint.save(self)
 
 
 @dataclass(frozen=True)

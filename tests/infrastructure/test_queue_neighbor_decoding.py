@@ -48,7 +48,7 @@ def test_original_cache_misses(raw: object) -> None:
     Args:
         raw: Original unchecked malformed or expired record.
     """
-    assert cached_artists(raw, WEEK, _week) is None
+    assert cached_artists(raw, WEEK) is None
 
 
 @pytest.mark.parametrize("timestamp", ["2026-08-08T00:00:00", "2026-08-08T00:00:00Z"])
@@ -62,15 +62,13 @@ def test_cache_coercions_and_nondict_rows(timestamp: str) -> None:
         "fetched_at": timestamp,
         "artists": [None, [], {"artist": 12, "match": "0.5"}],
     }
-    assert cached_artists(raw, WEEK, _week) == (LastFmSimilarArtist("12", 0.5),)
+    assert cached_artists(raw, WEEK) == (LastFmSimilarArtist("12", 0.5),)
 
 
 def test_cache_valid_empty_observation_is_hit() -> None:
     """Keep a current-week empty neighborhood reusable without a network read."""
     assert (
-        cached_artists(
-            {"fetched_at": "2026-08-08T00:00:00Z", "artists": []}, WEEK, _week
-        )
+        cached_artists({"fetched_at": "2026-08-08T00:00:00Z", "artists": []}, WEEK)
         == ()
     )
 

@@ -1,11 +1,11 @@
 """Interactive studio progression, with run-scoped observations and saved choices."""
 
-from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Protocol
 
+from spotify_manager.application.checkpoints import Checkpoint
 from spotify_manager.application.slow_listening_values import ReleaseOrderReader
 from spotify_manager.application.slow_listening_values import SlowListeningError
 from spotify_manager.application.slow_listening_values import TrackActionReader
@@ -90,12 +90,12 @@ class ReleaseOrdering:
     Args:
         choose: Existing operator ordering callback.
         saved: Mutable persisted preferences, including unrecognized legacy fields.
-        persist: Checkpoint callback invoked after each new accepted preference.
+        checkpoint: Invocation owning persistence of accepted preferences.
     """
 
-    choose: ReleaseOrderReader
+    choose: ReleaseOrderReader | None
     saved: dict[str, object]
-    persist: Callable[[], None]
+    checkpoint: Checkpoint
 
     def ordered(
         self, artist_id: str, releases: tuple[DiscographyRelease, ...]
@@ -122,14 +122,18 @@ class ReleaseOrdering:
         if len(ids) != len(releases) or set(ids) != expected:
             ids = self._choose_order(date, releases, expected)
             self.saved[key] = list(ids)
-            self.persist()
+            self.checkpoint.save()
         by_id = {release.spotify_id: release for release in releases}
         return tuple(by_id[spotify_id] for spotify_id in ids)
 
     def _choose_order(
         self, date: str, releases: tuple[DiscographyRelease, ...], expected: set[str]
     ) -> tuple[str, ...]:
-        ids = self.choose(date, releases)
+        ids = (
+            tuple(release.spotify_id for release in releases)
+            if self.choose is None
+            else self.choose.order_releases(date, releases)
+        )
         if len(ids) != len(releases) or set(ids) != expected:
             raise SlowListeningError("Release ordering must include every option.")
         return ids
@@ -171,6 +175,28 @@ class ReleaseOrdering:
         return self.ordered(current.primary_artist_id, groups[index + 1])[0]
 
 
+@dataclass(frozen=True)
+class SkippedTracks:
+    """Own newly declined IDs and their accepted checkpoint boundary.
+
+    Args:
+        records: Original mutable entry history.
+        checkpoint: Invocation owning namespace persistence.
+    """
+
+    records: list[str]
+    checkpoint: Checkpoint
+
+    def remember(self, spotify_id: str) -> None:
+        """Record a decline before accepting its checkpoint.
+
+        Args:
+            spotify_id: Newly declined track identity.
+        """
+        self.records.append(spotify_id)
+        self.checkpoint.save()
+
+
 @dataclass
 class TrackSelection:
     """Scan successive studio tracks while preserving skip and choice boundaries.
@@ -182,7 +208,7 @@ class TrackSelection:
         ordering: Tie choices and checkpoint ownership.
         choose: Operator's advance, skip or quit callback.
         skipped_ids: Previously declined track IDs, updated on new declines.
-        persist_skip: Append and checkpoint one newly declined ID.
+        skipped: Named history and checkpoint ownership for newly declined IDs.
         skipped_labels: Visible labels accumulated during this scan.
     """
 
@@ -192,7 +218,7 @@ class TrackSelection:
     ordering: ReleaseOrdering
     choose: TrackActionReader
     skipped_ids: set[str]
-    persist_skip: Callable[[str], None]
+    skipped: SkippedTracks
     skipped_labels: list[str] = field(default_factory=list)
 
     def plan(self) -> dict[str, object] | None:
@@ -252,7 +278,7 @@ class TrackSelection:
         if target.spotify_id in self.skipped_ids:
             self.skipped_labels.append(label)
             return "skip"
-        choice = self.choose(self.source, target, release)
+        choice = self.choose.choose_track(self.source, target, release)
         if choice == "quit" or choice == "advance":
             return choice
         if choice != "skip":
@@ -260,7 +286,7 @@ class TrackSelection:
                 "Track action must be add, skip candidate, or quit."
             )
         self.skipped_ids.add(target.spotify_id)
-        self.persist_skip(target.spotify_id)
+        self.skipped.remember(target.spotify_id)
         self.skipped_labels.append(label)
         return choice
 

@@ -1,16 +1,18 @@
 """Small read-only client for the documented Last.fm API."""
 
 import json
-from collections.abc import Callable
+import time
 from dataclasses import dataclass
-from time import sleep
 from typing import Any
+from typing import Never
 from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request
 from urllib.request import urlopen
 
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import Wait
 from spotify_manager.domain.queue_candidates import (
     LastFmSimilarArtist as LastFmSimilarArtist,
 )
@@ -19,13 +21,17 @@ from spotify_manager.domain.recommendation_candidates import (
 )
 
 
+type Sleeper = Wait
+
+
+type EventCallback = Messages
+
+
 LASTFM_API_URL = "https://ws.audioscrobbler.com/2.0/"
 LASTFM_USER_AGENT = "spotify-manager/0.1.0 (u.fiori@iib-institut.de)"
 LASTFM_TIMEOUT_SECONDS = 30
 TRANSIENT_HTTP_STATUSES = frozenset({429, 500, 502, 503, 504})
 TRANSIENT_LASTFM_ERRORS = frozenset({11, 16, 29})
-EventCallback = Callable[[str], None]
-Sleeper = Callable[[float], None]
 
 
 class LastFmError(RuntimeError):
@@ -57,9 +63,21 @@ class LastFmClient:
         max_retries: int = 3,
         backoff_seconds: float = 2.0,
         event_callback: EventCallback | None = None,
-        sleeper: Sleeper = sleep,
+        sleeper: Sleeper = time,
     ) -> None:
-        """Store non-session credentials and retry configuration."""
+        """Store non-session credentials and retry configuration.
+
+        Args:
+            api_key: Nonempty Last.fm API credential.
+            username: Nonempty account whose listening history is read.
+            max_retries: Number of retries after the initial request.
+            backoff_seconds: Base delay for exponential retry waits.
+            event_callback: Optional owner for retry messages.
+            sleeper: Owner of synchronous retry waits.
+
+        Raises:
+            ValueError: Credentials are empty or retry settings are negative.
+        """
         if not api_key.strip():
             raise ValueError("Last.fm API key must not be empty.")
         if not username.strip():
@@ -79,86 +97,83 @@ class LastFmClient:
     def _emit(self, message: str) -> None:
         """Forward a safe progress message when a callback is configured."""
         if self.event_callback is not None:
-            self.event_callback(message)
+            self.event_callback.echo(message)
 
     def _retry_delay(self, attempt: int) -> float:
         """Return the exponential delay before the next attempt."""
         return self.backoff_seconds * (2**attempt)
 
     def _request(self, method: str, **params: object) -> dict[str, Any]:
-        """Return one decoded API response without exposing the API key."""
-        query = urlencode(
-            {
-                "method": method,
-                "api_key": self.api_key,
-                "format": "json",
-                **params,
-            }
-        )
-        request = Request(
-            f"{LASTFM_API_URL}?{query}",
-            headers={"User-Agent": LASTFM_USER_AGENT},
-        )
-
+        request = _lastfm_request(method, self.api_key, params)
         for attempt in range(self.max_retries + 1):
             try:
-                with urlopen(request, timeout=LASTFM_TIMEOUT_SECONDS) as response:
-                    payload = json.loads(response.read())
-            except HTTPError as exc:
-                if exc.code in TRANSIENT_HTTP_STATUSES and attempt < self.max_retries:
-                    delay = self._retry_delay(attempt)
-                    self._emit(
-                        f"Last.fm returned HTTP {exc.code}; retrying in "
-                        f"{delay:g} seconds."
-                    )
-                    self.sleeper(delay)
-                    continue
-                raise LastFmResponseError(
-                    f"Last.fm request {method} failed with HTTP {exc.code}."
-                ) from exc
-            except (TimeoutError, URLError) as exc:
-                if attempt < self.max_retries:
-                    delay = self._retry_delay(attempt)
-                    self._emit(
-                        f"Last.fm request {method} could not connect; retrying "
-                        f"in {delay:g} seconds."
-                    )
-                    self.sleeper(delay)
-                    continue
-                raise LastFmResponseError(
-                    f"Last.fm request {method} could not connect."
-                ) from exc
-            except (json.JSONDecodeError, UnicodeError) as exc:
-                raise LastFmResponseError(
-                    f"Last.fm request {method} returned invalid JSON."
-                ) from exc
-
-            if not isinstance(payload, dict):
-                raise LastFmResponseError(
-                    f"Last.fm request {method} returned an invalid object."
-                )
-
-            error_code = payload.get("error")
-            if error_code is None:
-                return payload
-
-            try:
-                numeric_error = int(error_code)
-            except TypeError, ValueError:
-                numeric_error = -1
-            message = str(payload.get("message") or "unknown Last.fm error")
-            if numeric_error in TRANSIENT_LASTFM_ERRORS and attempt < self.max_retries:
-                delay = self._retry_delay(attempt)
-                self._emit(
-                    f"Last.fm error {numeric_error}; retrying in {delay:g} seconds."
-                )
-                self.sleeper(delay)
+                return self._request_attempt(request, method, attempt)
+            except _RetryLastFmRequestError:
                 continue
+        raise AssertionError("Last.fm retry loop ended unexpectedly")
+
+    def _request_attempt(
+        self, request: Request, method: str, attempt: int
+    ) -> dict[str, Any]:
+        try:
+            payload = _read_lastfm_json(request)
+        except HTTPError as error:
+            self._http_failure(method, attempt, error)
+        except (TimeoutError, URLError) as error:
+            self._transport_failure(method, attempt, error)
+        except (json.JSONDecodeError, UnicodeError) as error:
+            raise LastFmResponseError(
+                f"Last.fm request {method} returned invalid JSON."
+            ) from error
+        return self._validate_payload(payload, method, attempt)
+
+    def _http_failure(self, method: str, attempt: int, error: HTTPError) -> Never:
+        if error.code not in TRANSIENT_HTTP_STATUSES or attempt >= self.max_retries:
+            raise LastFmResponseError(
+                f"Last.fm request {method} failed with HTTP {error.code}."
+            ) from error
+        delay = self._retry_delay(attempt)
+        self._emit(
+            f"Last.fm returned HTTP {error.code}; retrying in {delay:g} seconds."
+        )
+        self.sleeper.sleep(delay)
+        raise _RetryLastFmRequestError
+
+    def _transport_failure(
+        self, method: str, attempt: int, error: TimeoutError | URLError
+    ) -> Never:
+        if attempt >= self.max_retries:
+            raise LastFmResponseError(
+                f"Last.fm request {method} could not connect."
+            ) from error
+        delay = self._retry_delay(attempt)
+        self._emit(
+            f"Last.fm request {method} could not connect; "
+            f"retrying in {delay:g} seconds."
+        )
+        self.sleeper.sleep(delay)
+        raise _RetryLastFmRequestError
+
+    def _validate_payload(
+        self, payload: object, method: str, attempt: int
+    ) -> dict[str, Any]:
+        if not isinstance(payload, dict):
+            raise LastFmResponseError(
+                f"Last.fm request {method} returned an invalid object."
+            )
+        error_code = payload.get("error")
+        if error_code is None:
+            return payload
+        numeric_error = _lastfm_error_code(error_code)
+        message = str(payload.get("message") or "unknown Last.fm error")
+        if numeric_error not in TRANSIENT_LASTFM_ERRORS or attempt >= self.max_retries:
             raise LastFmResponseError(
                 f"Last.fm request {method} failed ({numeric_error}): {message}"
             )
-
-        raise AssertionError("Last.fm retry loop ended unexpectedly")
+        delay = self._retry_delay(attempt)
+        self._emit(f"Last.fm error {numeric_error}; retrying in {delay:g} seconds.")
+        self.sleeper.sleep(delay)
+        raise _RetryLastFmRequestError
 
     def similar_tracks(
         self,
@@ -337,3 +352,28 @@ def _parse_recent_track(raw_track: object) -> LastFmRecentTrack | None:
         album=album,
         timestamp_seconds=timestamp_seconds,
     )
+
+
+class _RetryLastFmRequestError(RuntimeError):
+    """Continue the original read loop after an accepted transient wait."""
+
+
+def _lastfm_request(method: str, api_key: str, params: dict[str, object]) -> Request:
+    query = urlencode(
+        {"method": method, "api_key": api_key, "format": "json", **params}
+    )
+    return Request(
+        f"{LASTFM_API_URL}?{query}", headers={"User-Agent": LASTFM_USER_AGENT}
+    )
+
+
+def _read_lastfm_json(request: Request) -> object:
+    with urlopen(request, timeout=LASTFM_TIMEOUT_SECONDS) as response:
+        return json.loads(response.read())
+
+
+def _lastfm_error_code(error_code: Any) -> int:
+    try:
+        return int(error_code)
+    except TypeError, ValueError:
+        return -1

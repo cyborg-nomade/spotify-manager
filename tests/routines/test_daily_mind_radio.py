@@ -1,15 +1,23 @@
 """Tests for the Daily Mind Radio anniversary routine."""
 
 import json
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import date
 from datetime import datetime
+from functools import partial
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from spotify_manager.bootstrap import historical_playlists as historical_composition
+from spotify_manager.interfaces.operations import daily_mind_radio as radio_execution
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import daily_mind_radio
+from tests.support.direct_dependencies import ObservedRadioSelection
+from tests.support.runtime_resources import MessageList
+from tests.support.runtime_resources import UnexpectedCall
 
 
 def spotify_track(
@@ -130,6 +138,11 @@ def test_anniversary_dates_skip_invalid_february_29() -> None:
 def test_selection_skips_missing_dates_and_uses_one_timestamp(
     tmp_path: Path,
 ) -> None:
+    """Selection skips missing dates and uses one timestamp.
+
+    Args:
+        tmp_path: Isolated original fixture storage.
+    """
     export_path = tmp_path / "lastfm.json"
     write_export(
         export_path,
@@ -140,22 +153,17 @@ def test_selection_skips_missing_dates_and_uses_one_timestamp(
         ],
     )
     generated_at = datetime(2026, 7, 22, 13, 0, 52, tzinfo=UTC)
-    calls = 0
+    clock = ObservedTimestamp(generated_at)
     progress: list[str] = []
-
-    def timestamp() -> datetime:
-        nonlocal calls
-        calls += 1
-        return generated_at
 
     batch = daily_mind_radio.select_daily_mind_radio(
         path=export_path,
         today=date(2026, 7, 22),
-        random_timestamp_reader=timestamp,
-        progress_callback=progress.append,
+        random_timestamp_reader=clock,
+        progress_callback=MessageList(progress),
     )
 
-    assert calls == 1
+    assert clock.calls == 1
     assert batch.generated_at is generated_at
     assert batch.missing_dates == (date(2020, 7, 22), date(2010, 7, 22))
     assert [selection.selected_date for selection in batch.selections] == [
@@ -184,6 +192,11 @@ def test_selection_rejects_an_empty_export(
 
 
 def test_no_populated_dates_skips_random_org(tmp_path: Path) -> None:
+    """Verify no populated dates skips random org.
+
+    Args:
+        tmp_path: Isolated fixture storage.
+    """
     export_path = tmp_path / "lastfm.json"
     write_export(
         export_path,
@@ -193,7 +206,7 @@ def test_no_populated_dates_skips_random_org(tmp_path: Path) -> None:
     batch = daily_mind_radio.select_daily_mind_radio(
         path=export_path,
         today=date(2026, 7, 22),
-        random_timestamp_reader=lambda: pytest.fail("Random.org should not be called"),
+        random_timestamp_reader=UnexpectedCall("Random.org should not be called"),
     )
 
     assert batch.generated_at is None
@@ -204,6 +217,11 @@ def test_no_populated_dates_skips_random_org(tmp_path: Path) -> None:
 def test_spotify_routine_reuses_liked_match_preference(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Spotify routine reuses liked match preference.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
     scrobble = blast_from_past.Scrobble(
         track="Selected track",
         artist="Artist",
@@ -247,15 +265,20 @@ def test_spotify_routine_reuses_liked_match_preference(
     sp.liked_ids = {"liked"}
     progress: list[str] = []
     monkeypatch.setattr(
-        daily_mind_radio,
-        "select_daily_mind_radio",
-        lambda **_kwargs: batch,
+        historical_composition,
+        "anniversary_selection",
+        partial(ObservedRadioSelection, Mock(return_value=batch)),
+    )
+    monkeypatch.setattr(
+        radio_execution,
+        "anniversary_selection",
+        historical_composition.anniversary_selection,
     )
 
     summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
         sp,  # type: ignore[arg-type]
         "daily",
-        progress_callback=progress.append,
+        progress_callback=MessageList(progress),
     )
 
     assert summary.added == 1
@@ -286,9 +309,14 @@ def test_spotify_routine_dry_run_does_not_update_playlist(
         spotify_track("match", "Track", "Artist", "Album")
     ]
     monkeypatch.setattr(
-        daily_mind_radio,
-        "select_daily_mind_radio",
-        lambda **_kwargs: batch,
+        historical_composition,
+        "anniversary_selection",
+        partial(ObservedRadioSelection, lambda **_kwargs: batch),
+    )
+    monkeypatch.setattr(
+        radio_execution,
+        "anniversary_selection",
+        historical_composition.anniversary_selection,
     )
 
     summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
@@ -312,9 +340,14 @@ def test_spotify_routine_avoids_api_calls_when_all_dates_are_empty(
         selections=(),
     )
     monkeypatch.setattr(
-        daily_mind_radio,
-        "select_daily_mind_radio",
-        lambda **_kwargs: batch,
+        historical_composition,
+        "anniversary_selection",
+        partial(ObservedRadioSelection, lambda **_kwargs: batch),
+    )
+    monkeypatch.setattr(
+        radio_execution,
+        "anniversary_selection",
+        historical_composition.anniversary_selection,
     )
 
     summary = daily_mind_radio.add_daily_mind_radio_to_spotify(
@@ -325,3 +358,25 @@ def test_spotify_routine_avoids_api_calls_when_all_dates_are_empty(
     assert summary.playlist_length_before is None
     assert summary.playlist_length_after is None
     assert summary.results == ()
+
+
+@dataclass
+class ObservedTimestamp:
+    """Count the original random timestamp observations.
+
+    Args:
+        instant: Original generated instant.
+        calls: Original observation count.
+    """
+
+    instant: datetime
+    calls: int = 0
+
+    def now(self) -> datetime:
+        """Observe the original generation boundary.
+
+        Returns:
+            Original fixed generation timestamp.
+        """
+        self.calls += 1
+        return self.instant

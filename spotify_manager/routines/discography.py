@@ -1,15 +1,16 @@
 """Public Discography compatibility facade and original synchronous SDK seams."""
 
-from collections.abc import Callable
 from datetime import UTC
 from datetime import date
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.discography_planning import (
+    ReleaseSelector as ReleaseSelector,
+)
 from spotify_manager.application.discography_values import (
     DiscographyCancelledError as DiscographyCancelledError,
 )
@@ -25,9 +26,13 @@ from spotify_manager.application.discography_values import (
 from spotify_manager.application.discography_values import (
     DiscographyStateError as DiscographyStateError,
 )
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import RandomIndexes
+from spotify_manager.application.ports.runtime import Retry
 from spotify_manager.bootstrap import discography as composition
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain import discography_batches
 from spotify_manager.domain import discography_catalog
@@ -51,9 +56,17 @@ from spotify_manager.domain.discography_values import QueueArtist as QueueArtist
 from spotify_manager.domain.discography_values import QueueName as QueueName
 from spotify_manager.infrastructure import discography_files
 from spotify_manager.infrastructure import discography_records
+from spotify_manager.infrastructure.randomness import RANDOM_INDEXES
+from spotify_manager.infrastructure.routine_state_codecs import DiscographyStateCodec
 from spotify_manager.routines import blast_from_past
 from spotify_manager.routines import new_wine
 from spotify_manager.routines import something_old
+
+
+type ProgressCallback = Messages
+
+
+type RetryCall = Retry
 
 
 FILES_DIR = Path(__file__).resolve().parent.parent / "files"
@@ -72,10 +85,9 @@ QUEUE_LABELS: dict[MarkerQueueName, str] = {
     "requeue": "The Requeue",
     "queue_3": "The Queue 3",
 }
-RetryCall = Callable[[Callable[[], object], str], object]
-ReleaseSelector = Callable[[QueueArtist, tuple[CatalogRelease, ...]], tuple[str, ...]]
-ProgressCallback = Callable[[str], None]
-RandomIndexReader = Callable[[int, int], blast_from_past.RandomIndexSet]
+
+
+RandomIndexReader = RandomIndexes
 HistoricalArtistChoiceReader = something_old.ArtistSearchChoiceReader
 LIVE_PATTERN = discography_records.LIVE_PATTERN
 COMPILATION_PATTERN = discography_records.COMPILATION_PATTERN
@@ -182,15 +194,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="discography",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=state_path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=load_state,
-        legacy_saver=save_state,
-        service=state_service,
+    return routine_state_from(
+        "discography",
+        DiscographyStateCodec(),
+        StateLocation(state_path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -240,7 +247,7 @@ def select_historical_artist(
     *,
     path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = blast_from_past.fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     progress_callback: ProgressCallback | None = None,
 ) -> HistoricalArtistSelection:
     """Apply Palace of Memory's date/seconds rule to Last.fm artists.
@@ -254,7 +261,9 @@ def select_historical_artist(
     Returns:
         Original complete compatible result.
     """
-    return composition.historical(path, today, random_index_reader, progress_callback)
+    return composition.history_stage(
+        path, today, random_index_reader, progress_callback
+    ).run()
 
 
 def resolve_historical_artist(
@@ -277,7 +286,9 @@ def resolve_historical_artist(
     Raises:
         DiscographyError: Original mapping fails or is cancelled.
     """
-    return composition.resolve_artist(spotify, selection, choice_reader, retry_call)
+    return composition.historical_mapping(spotify, choice_reader, retry_call).resolve(
+        selection
+    )
 
 
 def _load_artist_queues(
@@ -290,7 +301,9 @@ def _load_artist_queues(
     dict[str, tuple[ArtistMarkers, ...]],
 ]:
     """Load ordered, primary-artist queues and every matching marker URI."""
-    return composition.queues(spotify, playlist_ids, retry_call, queue_3_playlist_id)
+    return composition.queue_stage(
+        spotify, playlist_ids, retry_call, queue_3_playlist_id
+    ).run()
 
 
 def _positive_int(value: object) -> int:
@@ -323,7 +336,7 @@ def load_release_catalog(
     Returns:
         Original complete compatible result.
     """
-    return composition.catalog(spotify, artist_id, retry_call)
+    return composition.catalog_stage(spotify, retry_call).run(artist_id)
 
 
 def parse_release_indexes(value: str, total: int) -> tuple[int, ...]:
@@ -360,7 +373,7 @@ def build_discography_plan(
     historical_artist_choice_reader: HistoricalArtistChoiceReader | None = None,
     scrobbles_path: Path = DEFAULT_SCROBBLES_PATH,
     today: date | None = None,
-    random_index_reader: RandomIndexReader = blast_from_past.fetch_random_indexes,
+    random_index_reader: RandomIndexReader = RANDOM_INDEXES,
     retry_call: RetryCall | None = None,
     progress_callback: ProgressCallback | None = None,
     state_path: Path = DEFAULT_STATE_PATH,
@@ -385,20 +398,24 @@ def build_discography_plan(
     Returns:
         Original complete compatible result.
     """
-    return composition.planning(
+    from spotify_manager.interfaces.operations.discography import (
+        build_discography_plan as operation,
+    )
+
+    return operation(
         spotify,
         playlist_ids,
         release_selector,
-        queue_3_playlist_id,
-        historical_artist_choice_reader,
-        scrobbles_path,
-        today,
-        random_index_reader,
-        retry_call,
-        progress_callback,
-        state_path,
-        state_service,
-    ).run()
+        queue_3_playlist_id=queue_3_playlist_id,
+        historical_artist_choice_reader=historical_artist_choice_reader,
+        scrobbles_path=scrobbles_path,
+        today=today,
+        random_index_reader=random_index_reader,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
+        state_path=state_path,
+        state_service=state_service,
+    )
 
 
 def _append_log(
@@ -434,38 +451,46 @@ def apply_discography_plan(
     Returns:
         Original complete compatible result.
     """
-    return composition.execution(
+    from spotify_manager.interfaces.operations.discography import (
+        apply_discography_plan as operation,
+    )
+
+    return operation(
         spotify,
-        retry_call,
-        progress_callback,
-        state_path,
-        state_service,
-        log_path,
-    ).run(plan)
+        plan,
+        retry_call=retry_call,
+        progress_callback=progress_callback,
+        state_path=state_path,
+        state_service=state_service,
+        log_path=log_path,
+    )
 
 
 def _release_page(
     spotify: Spotify, artist_id: str, offset: int, retry_call: RetryCall
 ) -> object:
-    return retry_call(
-        partial(
-            spotify.artist_albums,
-            artist_id,
-            include_groups="album,single,compilation",
-            limit=RELEASE_PAGE_LIMIT,
-            offset=offset,
-        ),
-        f"loading discography releases for {artist_id} at offset {offset}",
-    )
+    for attempt in retry_call.attempts(
+        f"loading discography releases for {artist_id} at offset {offset}"
+    ):
+        with attempt:
+            response = spotify.artist_albums(
+                artist_id,
+                include_groups="album,single,compilation",
+                limit=RELEASE_PAGE_LIMIT,
+                offset=offset,
+            )
+    return response
 
 
 def _saved_batch(
     spotify: Spotify, album_ids: list[str], retry_call: RetryCall
 ) -> object:
-    return retry_call(
-        partial(spotify.current_user_saved_albums_contains, album_ids),
-        f"checking {len(album_ids)} saved discography releases",
-    )
+    for attempt in retry_call.attempts(
+        f"checking {len(album_ids)} saved discography releases"
+    ):
+        with attempt:
+            response = spotify.current_user_saved_albums_contains(album_ids)
+    return response
 
 
 def _remove_batch(
@@ -475,11 +500,11 @@ def _remove_batch(
     marker_group: ArtistMarkers,
     batch: list[str],
 ) -> None:
-    retry(
-        partial(
-            spotify._delete,
-            f"playlists/{marker_group.playlist_id}/items",
-            payload={"items": [{"uri": uri} for uri in batch]},
-        ),
-        f"removing {selection.name} from {QUEUE_LABELS[marker_group.queue]}",
-    )
+    for attempt in retry.attempts(
+        f"removing {selection.name} from {QUEUE_LABELS[marker_group.queue]}"
+    ):
+        with attempt:
+            spotify._delete(
+                f"playlists/{marker_group.playlist_id}/items",
+                payload={"items": [{"uri": uri} for uri in batch]},
+            )

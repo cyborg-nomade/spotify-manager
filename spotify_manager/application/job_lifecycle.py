@@ -1,6 +1,5 @@
 """Share original job identity, conflict selection and accepted log boundaries."""
 
-from collections.abc import Callable
 from collections.abc import Iterable
 from typing import Protocol
 
@@ -54,12 +53,24 @@ class WaitSignal(Protocol):
         ...
 
 
-def await_submission[T](signal: WaitSignal, consume: Callable[[], T | None]) -> T:
+class Submission[T](Protocol):
+    """Consume a job-owned submission at its original locked safe boundary."""
+
+    def consume(self) -> T | None:
+        """Read one accepted value or continue waiting.
+
+        Returns:
+            Submitted value, including empty values, or none while waiting.
+        """
+        ...
+
+
+def await_submission[T](signal: WaitSignal, submission_owner: Submission[T]) -> T:
     """Poll and consume an interaction at the original locked safe boundary.
 
     Args:
         signal: Existing job-owned event, including its original clearing semantics.
-        consume: Adapter callback acquiring its lock and checking cancellation.
+        submission_owner: Named consumer acquiring its lock and checking cancellation.
 
     Returns:
         First accepted submission, including an empty string or empty tuple.
@@ -69,7 +80,7 @@ def await_submission[T](signal: WaitSignal, consume: Callable[[], T | None]) -> 
     """
     while True:
         signal.wait(0.5)
-        submission = consume()
+        submission = submission_owner.consume()
         if submission is not None:
             return submission
 
@@ -107,11 +118,27 @@ def is_active_job(job: JobIdentity, command: str | None = None) -> bool:
     return job.status in ACTIVE_STATUSES
 
 
+class LogFormatter[T](Protocol):
+    """Observe time and construct an accepted log entry."""
+
+    def create(self, sequence: int, message: str) -> T:
+        """Create one complete log entry.
+
+        Args:
+            sequence: Next accepted sequence.
+            message: Unmodified visible text.
+
+        Returns:
+            Complete entry.
+        """
+        ...
+
+
 def append_log[T](
     entries: list[T],
     sequence: int,
     message: str,
-    create: Callable[[int, str], T],
+    formatter: LogFormatter[T],
 ) -> int:
     """Accept one original log entry before advancing its sequence.
 
@@ -119,7 +146,7 @@ def append_log[T](
         entries: Caller-owned log authority; no second log buffer is introduced.
         sequence: Next original monotonically increasing sequence.
         message: Original unmodified text; an empty message observes no factory.
-        create: Clock and presentation boundary constructing the accepted entry.
+        formatter: Named clock and log presentation owner.
 
     Returns:
         Next sequence after accepted append, or the unchanged value for no message.
@@ -127,7 +154,7 @@ def append_log[T](
     """
     if not message:
         return sequence
-    entries.append(create(sequence, message))
+    entries.append(formatter.create(sequence, message))
     return sequence + 1
 
 

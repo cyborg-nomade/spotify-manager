@@ -22,12 +22,13 @@ class LegacyQueueNeighborhoods:
         log_path: Original previous-addition log location.
         now: Optional original explicit timestamp.
         callback: Optional original progress presenter.
+        timestamp_override: Original optional timestamp override.
     """
 
     reader: legacy.LastFmReader
     cache_path: Path
     log_path: Path
-    now: datetime | None
+    timestamp_override: datetime | None
     callback: legacy.ProgressCallback | None
 
     def load(self) -> dict[str, object]:
@@ -36,7 +37,9 @@ class LegacyQueueNeighborhoods:
         Returns:
             Original mutable cache document.
         """
-        return legacy._load_cache(self.cache_path)
+        from spotify_manager.routines.the_queue import _load_cache
+
+        return _load_cache(self.cache_path)
 
     def previous(self) -> set[str]:
         """Read original actually added artist exclusions.
@@ -44,7 +47,9 @@ class LegacyQueueNeighborhoods:
         Returns:
             Original normalized artist identities.
         """
-        return legacy.previously_added_artist_keys(self.log_path)
+        from spotify_manager.routines.the_queue import previously_added_artist_keys
+
+        return previously_added_artist_keys(self.log_path)
 
     def lookup(self, raw: object, week: date) -> tuple[LastFmSimilarArtist, ...] | None:
         """Decode the original current-week cache record.
@@ -56,7 +61,9 @@ class LegacyQueueNeighborhoods:
         Returns:
             Original cached observations or a miss.
         """
-        return legacy._cached_similar_artists(raw, week)
+        from spotify_manager.routines.the_queue import _cached_similar_artists
+
+        return _cached_similar_artists(raw, week)
 
     def remember(
         self,
@@ -75,12 +82,14 @@ class LegacyQueueNeighborhoods:
             similar: Original Last.fm observations.
             generated_at: Original effective UTC time.
         """
+        from spotify_manager.routines.the_queue import _save_cache
+
         entries[seed.key] = {
             "artist": seed.artist,
             "fetched_at": generated_at.isoformat(),
             "artists": [asdict(candidate) for candidate in similar],
         }
-        legacy._save_cache(cache, self.cache_path)
+        _save_cache(cache, self.cache_path)
 
     def neighbors(self, seed: ArtistSeed) -> tuple[LastFmSimilarArtist, ...]:
         """Read one original artist neighborhood.
@@ -95,13 +104,13 @@ class LegacyQueueNeighborhoods:
             seed.artist, limit=legacy.SIMILAR_ARTIST_LIMIT
         )
 
-    def clock(self) -> datetime:
+    def now(self) -> datetime:
         """Resolve the original timestamp before loading the cache.
 
         Returns:
             Original supplied or current timestamp converted to UTC.
         """
-        return (self.now or legacy.datetime.now(UTC)).astimezone(UTC)
+        return (self.timestamp_override or legacy.datetime.now(UTC)).astimezone(UTC)
 
     def progress(self, current: int, total: int, status: str) -> None:
         """Present the original progress only when configured.
@@ -112,4 +121,4 @@ class LegacyQueueNeighborhoods:
             status: Original status text.
         """
         if self.callback is not None:
-            self.callback(current, total, status)
+            self.callback.progress(current, total, status)

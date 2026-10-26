@@ -15,8 +15,8 @@ from fastapi.testclient import TestClient
 from spotipy import Spotify
 from typer.testing import CliRunner
 
-from spotify_manager import api
 from spotify_manager import main
+from spotify_manager.interfaces.http import jobs as http_jobs
 from spotify_manager.routines import queue_3
 from tests.interfaces.test_discovery_slice import _choose
 from tests.interfaces.test_discovery_slice import _start
@@ -78,11 +78,11 @@ def queue_3_http(
     spotify = _spotify()
     threads: list[Thread] = []
     monkeypatch.setattr(queue_3, "datetime", Queue3Clock)
-    monkeypatch.setattr(api, "Settings", _settings)
+    monkeypatch.setattr(http_jobs, "Settings", _settings)
     monkeypatch.setattr(main, "Settings", _settings)
     monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
-    monkeypatch.setattr(api, "_blast_jobs", {})
-    monkeypatch.setattr(api, "Thread", partial(_thread, threads))
+    monkeypatch.setattr(http_jobs, "_blast_jobs", {})
+    monkeypatch.setattr(http_jobs, "Thread", partial(_thread, threads))
     try:
         yield _http_client(monkeypatch, cast(Spotify, spotify)), spotify
     finally:

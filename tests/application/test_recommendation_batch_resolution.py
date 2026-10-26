@@ -13,6 +13,7 @@ from spotify_manager.domain.history_matching import PlaylistState
 from spotify_manager.domain.history_matching import SpotifyTrackMatch
 from spotify_manager.domain.recommendation_candidates import FoundArtCandidate
 from spotify_manager.domain.recommendation_matching import RecommendationSelection
+from tests.support.runtime_resources import MessageList
 
 
 EMPTY = PlaylistState(0, frozenset())
@@ -96,7 +97,7 @@ class BatchMemory:
             An independent injected workflow.
         """
         return RecommendationResolution(
-            self.search, self.liked, self.messages.append, batch_size, multiplier
+            self, MessageList(self.messages), batch_size, multiplier
         )
 
 

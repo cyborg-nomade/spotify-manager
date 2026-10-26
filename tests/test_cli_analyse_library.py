@@ -1,7 +1,9 @@
 """Tests for the split library-analysis CLI commands."""
 
+from dataclasses import dataclass
 from io import StringIO
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from rich.console import Console
@@ -38,27 +40,20 @@ def summary(
 
 
 def test_async_command_prints_summary_without_constructing_client(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def no_client() -> None:
-        raise AssertionError("export analysis must not construct a Spotify client")
+    """Async command prints summary without constructing client.
 
-    monkeypatch.setattr(main, "review_client", no_client)
-
-    def complete_export(**kwargs: Any) -> main.library_sync.LibrarySyncSummary:
-        for resource in ("albums", "tracks", "artists"):
-            kwargs["progress_callback"](resource, 2, 2, "Complete")
-        return summary("async")
-
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        capsys: Original capsys.
+    """
+    scenario = AsyncCommandPrintsSummaryWithoutConstructingClientScenario()
+    monkeypatch.setattr(main, "review_client", scenario.no_client)
     monkeypatch.setattr(
-        main.library_sync,
-        "analyse_library_async_routine",
-        complete_export,
+        main.library_sync, "analyse_library_async_routine", scenario.complete_export
     )
-
     main.analyse_library_async()
-
     output = capsys.readouterr().out
     assert "Export library mirror updated" in output
     assert "Run: run-1" in output
@@ -66,29 +61,22 @@ def test_async_command_prints_summary_without_constructing_client(
 
 
 def test_sync_command_uses_no_retry_client_and_prints_summary(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Sync command uses no retry client and prints summary.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+        capsys: Original capsys.
+    """
     spotify = object()
-    monkeypatch.setattr(main, "review_client", lambda: spotify)
+    monkeypatch.setattr(main, "review_client", Mock(return_value=spotify))
     calls: list[object] = []
-
-    def complete_sync(
-        client: object,
-        **kwargs: Any,
-    ) -> main.library_sync.LibrarySyncSummary:
-        calls.append(client)
-        kwargs["progress_callback"]("albums", 1, 1, "Complete")
-        return summary("sync")
-
+    scenario = SyncCommandUsesNoRetryClientAndPrintsSummaryScenario(calls=calls)
     monkeypatch.setattr(
-        main.library_sync,
-        "analyse_library_sync_routine",
-        complete_sync,
+        main.library_sync, "analyse_library_sync_routine", scenario.complete_sync
     )
-
     main.analyse_library_sync()
-
     assert calls == [spotify]
     assert "Live library mirror updated" in capsys.readouterr().out
 
@@ -217,14 +205,15 @@ def test_retry_wait_can_rotate_credentials_and_retry_immediately(
 def test_retry_wait_sleeps_without_interactive_terminal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class FakeInput:
-        @staticmethod
-        def isatty() -> bool:
-            return False
+    """Retry wait sleeps without interactive terminal.
+
+    Args:
+        monkeypatch: Scoped external-boundary substitutions.
+    """
 
     delays: list[float] = []
-    monkeypatch.setattr(main.sys, "stdin", FakeInput())
-    monkeypatch.setattr(main, "sleep", delays.append)
+    monkeypatch.setattr(main.sys, "stdin", NonInteractiveInput())
+    monkeypatch.setattr(main.time, "sleep", delays.append)
 
     should_retry = main.wait_for_library_retry(
         Console(file=StringIO(), force_terminal=False),
@@ -299,3 +288,67 @@ def test_restore_library_sync_command(
 
     assert calls == ["run-1"]
     assert "albums_total_new_sync.json" in capsys.readouterr().out
+
+
+@dataclass
+class AsyncCommandPrintsSummaryWithoutConstructingClientScenario:
+    """Retain the original async command prints summary without constructing client
+    fixture.
+    """
+
+    def no_client(self) -> None:
+        """Execute the original no client mock boundary."""
+        raise AssertionError("export analysis must not construct a Spotify client")
+
+    def complete_export(self, **kwargs: Any) -> main.library_sync.LibrarySyncSummary:
+        """Execute the original complete export mock boundary.
+
+        Args:
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        for resource in ("albums", "tracks", "artists"):
+            kwargs["progress_callback"].progress(resource, 2, 2, "Complete")
+        return summary("async")
+
+
+@dataclass
+class SyncCommandUsesNoRetryClientAndPrintsSummaryScenario:
+    """Retain the original sync command uses no retry client and prints summary fixture.
+
+    Args:
+        calls: Original calls observation or resource.
+    """
+
+    calls: list[object]
+
+    def complete_sync(
+        self, client: object, **kwargs: Any
+    ) -> main.library_sync.LibrarySyncSummary:
+        """Execute the original complete sync mock boundary.
+
+        Args:
+            client: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.calls.append(client)
+        kwargs["progress_callback"].progress("albums", 1, 1, "Complete")
+        return summary("sync")
+
+
+class NonInteractiveInput:
+    """Provide a noninteractive standard-input boundary."""
+
+    @staticmethod
+    def isatty() -> bool:
+        """Report whether retry input can be read interactively.
+
+        Returns:
+            False for the noninteractive retry fixture.
+        """
+        return False

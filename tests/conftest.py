@@ -160,12 +160,16 @@ def album_cache_store(monkeypatch: pytest.MonkeyPatch) -> AlbumCache:
     from spotify_manager.processors import library_lookups
 
     store: AlbumCache = {}
+    from spotify_manager.bootstrap import library_lookups as composition
+    from tests.support.lookup_dependencies import observed_cached_tracks
+
     monkeypatch.setattr(
         library_lookups, "load_album_tracks_cache", partial(_load_album_cache, store)
     )
     monkeypatch.setattr(
         library_lookups, "save_album_tracks_cache", partial(_save_album_cache, store)
     )
+    monkeypatch.setattr(composition, "cached_tracks", observed_cached_tracks)
     return store
 
 

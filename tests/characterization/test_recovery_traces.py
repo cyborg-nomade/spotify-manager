@@ -94,7 +94,7 @@ def _scenario(patch: pytest.MonkeyPatch, root: Path, trace: Trace) -> Scenario:
     operation = partial(
         recovery.recover_removed_albums,
         cast(Spotify, spotify),
-        echo=partial(trace.record, "echo", "message"),
+        echo=trace,
         removal_log_path=root / "removed.jsonl",
         recovery_log_path=root / "recovery.jsonl",
         today=date(2026, 7, 14),

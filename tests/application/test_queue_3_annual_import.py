@@ -118,11 +118,30 @@ class ImportMemory:
         self._record("clock", None)
         return "completed-at"
 
+    def imported(
+        self, year: int, additions: int, considered: int, dry_run: bool
+    ) -> None:
+        """Observe the same fixture boundary through its named resource method.
+
+        Args:
+            year: Original fixture observation.
+            additions: Original fixture observation.
+            considered: Original fixture observation.
+            dry_run: Original fixture observation.
+        """
+        self.present(year, additions, considered, dry_run)
+
+    def timestamp(self) -> str:
+        """Observe the same fixture boundary through its named resource method.
+
+        Returns:
+            Original fixture response.
+        """
+        return self.now()
+
 
 def _service(memory: ImportMemory) -> AnnualDiscoveryImport:
-    return AnnualDiscoveryImport(
-        memory.read, memory.append, memory.audit, memory, memory.present, memory.now
-    )
+    return AnnualDiscoveryImport(memory, memory, memory, memory)
 
 
 @pytest.mark.parametrize("preview", [False, True])

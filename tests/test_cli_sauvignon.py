@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from tests.support.feature_invocation import FeatureInvocation
 
 
 def test_sauvignon_dry_run_defaults_to_playlist_cap_and_prints_result(
@@ -81,7 +82,11 @@ def test_sauvignon_dry_run_defaults_to_playlist_cap_and_prints_result(
         ),
     )
     monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(main.sauvignon, "fill_sauvignon_from_lastfm", run)
+    monkeypatch.setattr(
+        main.sauvignon,
+        "fill_sauvignon_from_lastfm",
+        FeatureInvocation(run, ("playlist_id",)),
+    )
 
     result = CliRunner().invoke(
         main.app,

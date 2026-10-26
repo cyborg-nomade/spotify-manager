@@ -1,8 +1,6 @@
 """Execute one durable discovery plan, preserving effect and checkpoint order."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
 
 from spotify_manager.application.discovery_completion import DiscoveryCompletion
 from spotify_manager.application.discovery_completion import ReviewArtist
@@ -16,6 +14,7 @@ from spotify_manager.application.ports.discovery_execution import DiscoveryEffec
 from spotify_manager.application.ports.discovery_execution import (
     DiscoveryExecutionPresentation,
 )
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.application.ports.state import RoutineState
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.discovery import CatalogTrack
@@ -82,7 +81,7 @@ class NewKidsExecution:
     playlist_id: str
     label: str
     dry_run: bool
-    clock: Callable[[], datetime]
+    clock: Clock
 
     def execute(
         self,
@@ -179,7 +178,7 @@ class NewKidsExecution:
         progress["prior_unliked_streak"] = positive_int(
             transition.plan.get("next_prior_unliked_streak")
         )
-        progress["updated_at"] = self.clock().isoformat()
+        progress["updated_at"] = self.clock.now().isoformat()
         routes = self.state.get("composer_routes")
         if not isinstance(routes, dict) or not transition.plan.get(
             "composer_playlist_id"
@@ -188,4 +187,4 @@ class NewKidsExecution:
         route = routes.get(artist_id)
         if isinstance(route, dict) and transition.target is not None:
             route["current_track_id"] = transition.target.spotify_id
-            route["updated_at"] = self.clock().isoformat()
+            route["updated_at"] = self.clock.now().isoformat()

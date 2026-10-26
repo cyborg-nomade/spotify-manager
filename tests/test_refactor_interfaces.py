@@ -112,3 +112,28 @@ def test_interface_checker_rejects_route_identity_changes(
     (candidate / "routes.json").write_text(original.replace(before, after))
     with pytest.raises(AssertionError, match="routes.json"):
         compare_interfaces(candidate, baseline)
+
+
+@pytest.mark.parametrize("payload", ["tracks", "[]"])
+def test_interface_checker_normalizes_only_partial_wrapper(
+    tmp_path: Path, payload: str
+) -> None:
+    """Preserve payload checks when replacing partials with direct SDK calls.
+
+    Args:
+        tmp_path: Directory for synthetic captures.
+        payload: Unchanged or deliberately modified request payload.
+    """
+    original = ENDPOINT_PAYLOAD.replace(
+        "payload=tracks", "partial(sp._post, 'playlist/items', payload=tracks)"
+    )
+    direct = ENDPOINT_PAYLOAD.replace(
+        "payload=tracks", f"sp._post('playlist/items', payload={payload})"
+    )
+    candidate, baseline = _captures(tmp_path, direct)
+    (baseline / "spotify-endpoints.json").write_text(original)
+    if payload == "tracks":
+        assert compare_interfaces(candidate, baseline) == 2
+        return
+    with pytest.raises(AssertionError, match="spotify-endpoints.json"):
+        compare_interfaces(candidate, baseline)

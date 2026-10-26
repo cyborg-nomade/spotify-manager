@@ -1,8 +1,6 @@
 """Original durable discovery records and tolerant New Kids/Queue 2 translations."""
 
-from collections.abc import Callable
 from dataclasses import asdict
-from datetime import datetime
 from typing import Literal
 from typing import cast
 
@@ -12,6 +10,7 @@ from spotify_manager.application.catalog_records import ReleaseRecord
 from spotify_manager.application.new_kids_values import ArtistAssessment
 from spotify_manager.application.new_kids_values import FlushResult
 from spotify_manager.application.new_kids_values import NewKidsStateError
+from spotify_manager.application.ports.runtime import Clock
 from spotify_manager.domain.catalog import PlaylistTrack
 from spotify_manager.domain.catalog import ReleaseCandidate
 from spotify_manager.domain.discovery import CatalogTrack
@@ -131,7 +130,7 @@ def artist_progress(
     source: PlaylistTrack,
     artist_id: str,
     artist_name: str,
-    clock: Callable[[], datetime],
+    clock: Clock,
 ) -> dict[str, object]:
     """Create original artist progress when absent and discard obsolete selection keys.
 
@@ -158,7 +157,7 @@ def artist_progress(
             "artist_name": artist_name,
             "current_release_id": release.spotify_id,
             "prior_unliked_streak": None,
-            "updated_at": clock().isoformat(),
+            "updated_at": clock.now().isoformat(),
         }
         artists[artist_id] = raw
     for key in (
@@ -202,7 +201,7 @@ def new_run(
     playlist_id: str,
     tracks: list[PlaylistTrack],
     state: dict[str, object],
-    clock: Callable[[], datetime],
+    clock: Clock,
 ) -> dict[str, object]:
     """Snapshot one marker per logical artist with the original timestamp boundaries.
 
@@ -217,11 +216,11 @@ def new_run(
     """
     entries = _snapshot(tracks, state)
     return {
-        "run_id": clock().strftime("%Y%m%dT%H%M%S%fZ"),
+        "run_id": clock.now().strftime("%Y%m%dT%H%M%S%fZ"),
         "playlist_id": playlist_id,
         "status": "active",
         "entries": entries,
-        "started_at": clock().isoformat(),
+        "started_at": clock.now().isoformat(),
     }
 
 

@@ -1,13 +1,11 @@
 """Compare complete injected Discography plans with immutable original effects."""
 
-from functools import partial
 from pathlib import Path
 from typing import cast
 
 import pytest
 
 from spotify_manager.application.discography_planning import DiscographyPlanning
-from spotify_manager.application.discography_planning import DiscographyReads
 from spotify_manager.domain.discography_values import DiscographyPlan
 from spotify_manager.domain.discography_values import HistoricalArtistSelection
 from spotify_manager.domain.discography_values import QueueArtist
@@ -16,6 +14,7 @@ from tests.support.discography_run import PlanReads
 from tests.support.discography_run import cases
 from tests.support.discography_run import original_plan
 from tests.support.discography_run import plan_outcome
+from tests.support.discography_run import scripted_reads
 
 
 def _priority(edge: PlanReads) -> dict[str, object]:
@@ -36,15 +35,7 @@ def planner(edge: PlanReads) -> DiscographyPlanning:
     Returns:
         Independently injectable original planning use case.
     """
-    reads = DiscographyReads(
-        partial(_priority, edge),
-        edge.queues,
-        edge.history,
-        partial(_resolve, edge),
-        edge.catalog,
-        edge.choose,
-        edge.progress,
-    )
+    reads = scripted_reads(edge)
     return DiscographyPlanning(reads)
 
 

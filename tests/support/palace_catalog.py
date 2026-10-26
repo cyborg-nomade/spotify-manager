@@ -8,6 +8,7 @@ from typing import cast
 
 from spotipy import Spotify
 
+from spotify_manager.application.ports.runtime import NoRetry
 from spotify_manager.routines import palace_of_memory as legacy
 
 
@@ -157,9 +158,9 @@ def _selection(
 ) -> legacy.SpotifyAlbum | legacy.SpotifyFirstTrack | None:
     if kind == "album":
         return legacy.search_spotify_album(
-            cast(Spotify, edge), "Artist", "Release", legacy._direct_retry
+            cast(Spotify, edge), "Artist", "Release", NoRetry()
         )
-    return legacy.load_first_track(cast(Spotify, edge), MAPPED, legacy._direct_retry)
+    return legacy.load_first_track(cast(Spotify, edge), MAPPED, NoRetry())
 
 
 def cases() -> list[dict[str, object]]:

@@ -4,8 +4,7 @@ Kept free of any FastAPI import so it depends only on Starlette (and the
 standard library), which keeps it importable and unit-testable on its own.
 """
 
-import hmac
-from functools import partial
+from dataclasses import dataclass
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.base import RequestResponseEndpoint
@@ -18,6 +17,26 @@ from spotify_manager.domain.web_access import OPEN_PATHS as OPEN_PATHS
 from spotify_manager.domain.web_access import credential_matches
 from spotify_manager.domain.web_access import is_open
 from spotify_manager.infrastructure.web_peer import is_loopback
+
+
+@dataclass(frozen=True)
+class SocketPeer:
+    """Observe the request's direct peer without trusting forwarded headers.
+
+    Args:
+        request: Incoming request whose socket peer is observed lazily.
+    """
+
+    request: Request
+
+    def is_loopback(self) -> bool:
+        """Inspect the direct socket peer.
+
+        Returns:
+            Whether the original direct peer qualifies for local bypass.
+        """
+        host = self.request.client.host if self.request.client else None
+        return is_loopback(host)
 
 
 class PasswordMiddleware(BaseHTTPMiddleware):
@@ -82,8 +101,7 @@ class PasswordMiddleware(BaseHTTPMiddleware):
             automation,
             self._automation_token,
             self._allow_any_loopback_password,
-            partial(self._is_loopback, request),
-            hmac.compare_digest,
+            SocketPeer(request),
         )
         if allowed:
             return await call_next(request)

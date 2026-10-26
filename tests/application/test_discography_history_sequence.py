@@ -2,14 +2,14 @@
 
 import json
 from dataclasses import asdict
+from dataclasses import dataclass
 from datetime import date
-from functools import partial
 from typing import cast
 
 import pytest
 
+from spotify_manager.application.discography_history import DiscographyArtistMapping
 from spotify_manager.application.discography_history import DiscographyHistory
-from spotify_manager.application.discography_history import resolve_historical
 from spotify_manager.application.discography_values import DiscographyCancelledError
 from spotify_manager.application.discography_values import DiscographyError
 from spotify_manager.application.something_old_values import SomethingOldError
@@ -18,6 +18,7 @@ from tests.support.discography_boundaries import history_outcome
 from tests.support.discography_run import FIXTURE
 from tests.support.discography_run import cases
 from tests.support.discography_run import historical
+from tests.support.palace_history import HistoryInputs
 from tests.support.palace_history import HistoryReads
 
 
@@ -28,10 +29,8 @@ def _cutoff() -> date:
 def _outcome(profile: str, second: int) -> object:
     edge = HistoryReads(profile, second)
     owner = DiscographyHistory(
-        partial(edge.read, FIXTURE.with_name("history")),
-        _cutoff,
-        edge.random,
-        edge.progress,
+        HistoryInputs(edge, FIXTURE.with_name("history"), _cutoff()),
+        edge,
         date(2007, 11, 27),
     )
     result: dict[str, object] = {}
@@ -66,6 +65,28 @@ def _mapping(profile: str, name: str) -> SpotifyArtistCandidate | None:
     return SpotifyArtistCandidate("past", "Past", "uri", 9, 4, 2)
 
 
+@dataclass(frozen=True)
+class MappingCase:
+    """Supply one original scripted external artist mapping.
+
+    Args:
+        profile: Original success, failure or cancellation case.
+    """
+
+    profile: str
+
+    def resolve(self, name: str) -> SpotifyArtistCandidate | None:
+        """Return the original external mapping outcome.
+
+        Args:
+            name: Original historical artist name.
+
+        Returns:
+            Original accepted identity or cancellation.
+        """
+        return _mapping(self.profile, name)
+
+
 @pytest.mark.parametrize("profile", ["normal", "error", "cancel"])
 def test_discography_mapping_keeps_original_translation_and_cancellation(
     profile: str,
@@ -75,9 +96,9 @@ def test_discography_mapping_keeps_original_translation_and_cancellation(
     Args:
         profile: Original successful, failed or cancelled mapping.
     """
-    callback = partial(_mapping, profile)
+    catalog = MappingCase(profile)
     if profile == "normal":
-        candidate = resolve_historical(historical(), callback)
+        candidate = DiscographyArtistMapping(catalog).resolve(historical())
         assert (candidate.spotify_id, candidate.name, candidate.queue) == (
             "past",
             "Past",
@@ -86,4 +107,4 @@ def test_discography_mapping_keeps_original_translation_and_cancellation(
         return
     error = DiscographyCancelledError if profile == "cancel" else DiscographyError
     with pytest.raises(error):
-        resolve_historical(historical(), callback)
+        DiscographyArtistMapping(catalog).resolve(historical())

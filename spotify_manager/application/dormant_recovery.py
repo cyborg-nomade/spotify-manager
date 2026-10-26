@@ -1,12 +1,16 @@
 """Coordinate alphabetical dormant recovery with original safe effect ordering."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import date
 from typing import Protocol
 
+from spotify_manager.application.dormant_tracks import DormantLikedTrack
 from spotify_manager.application.dormant_values import DormantArtistSummary
+from spotify_manager.application.ports.runtime import Cancellation
+from spotify_manager.application.ports.runtime import DateClock
+from spotify_manager.application.ports.runtime import Messages
+from spotify_manager.application.ports.runtime import ReviewProgress
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.dormant_artists import DormantArtist
@@ -47,16 +51,6 @@ class DormantEffects(Protocol):
             Unique mapping or no unambiguous match.
         """
 
-    def track(self, artist_id: str) -> CatalogTrack | None:
-        """Read the original most popular live-liked primary-credit track.
-
-        Args:
-            artist_id: Mapped artist identity.
-
-        Returns:
-            Preferred marker or no live-liked track.
-        """
-
     def append(self, tracks: list[CatalogTrack]) -> None:
         """Accept original ordered markers.
 
@@ -72,15 +66,16 @@ class _Selection:
     Args:
         effects: Original catalog and mapping observations.
         playlist: Initial represented destination membership.
-        echo: Original skipped-candidate presentation.
+        output: Original skipped-candidate presentation.
         represented: Original mutable represented artist keys.
         results: Original ordered selected and skipped outcomes.
         pending: Original ordered marker proposals.
     """
 
     effects: DormantEffects
+    tracks: DormantLikedTrack
     playlist: PlaylistState
-    echo: Callable[[str], None]
+    output: Messages
     represented: set[str]
     results: list[DormantArtistResult] = field(default_factory=list)
     pending: list[CatalogTrack] = field(default_factory=list)
@@ -94,16 +89,20 @@ class _Selection:
         """
         mapped = self.effects.mapping(candidate, rank)
         if mapped is None:
-            self.echo(f"Skipped {candidate.name}: no unambiguous Spotify mapping.")
+            self.output.echo(
+                f"Skipped {candidate.name}: no unambiguous Spotify mapping."
+            )
             self.results.append(
                 DormantArtistResult(
                     candidate.name, candidate.scrobbles, None, None, None, "no mapping"
                 )
             )
             return
-        track = self.effects.track(mapped.spotify_id)
+        track = self.tracks.run(mapped.spotify_id)
         if track is None:
-            self.echo(f"Skipped {candidate.name}: no liked primary-artist track.")
+            self.output.echo(
+                f"Skipped {candidate.name}: no liked primary-artist track."
+            )
             self.results.append(
                 DormantArtistResult(
                     candidate.name,
@@ -148,18 +147,20 @@ class DormantRecovery:
 
     Args:
         effects: Original observations and writes.
+        tracks: Named preferred liked-track selection stage.
         clock: Resolve original local date after validation.
         cancel: Original per-candidate safe boundary.
         progress: Original candidate and completion presentation.
-        echo: Original skip presentation.
+        output: Original skip presentation.
         lookback: Original prior-year intersection width.
     """
 
     effects: DormantEffects
-    clock: Callable[[], date]
-    cancel: Callable[[], None]
-    progress: Callable[[int, int, str], None]
-    echo: Callable[[str], None]
+    tracks: DormantLikedTrack
+    clock: DateClock
+    cancel: Cancellation
+    progress: ReviewProgress
+    output: Messages
     lookback: int = 4
 
     def run(self, count: int, dry_run: bool) -> DormantArtistSummary:
@@ -179,18 +180,22 @@ class DormantRecovery:
         """
         if count < 1:
             raise ValueError("count must be at least 1")
-        today = self.clock()
+        today = self.clock.today()
         candidates = self.effects.candidates(today)
         playlist = self.effects.read()
         represented = set(playlist.primary_artist_keys)
         represented_count = sum(
             candidate.key in represented for candidate in candidates
         )
-        selection = _Selection(self.effects, playlist, self.echo, represented)
+        selection = _Selection(
+            self.effects, self.tracks, playlist, self.output, represented
+        )
         self._select(candidates, count, selection)
         if selection.pending and not dry_run:
             self.effects.append(selection.pending)
-        self.progress(len(selection.pending), count, "Dormant-artist recovery complete")
+        self.progress.progress(
+            len(selection.pending), count, "Dormant-artist recovery complete"
+        )
         return DormantArtistSummary(
             today.year,
             tuple(range(today.year - self.lookback, today.year)),
@@ -208,10 +213,10 @@ class DormantRecovery:
         for rank, candidate in enumerate(candidates, start=1):
             if len(selection.pending) >= count:
                 return
-            self.cancel()
+            self.cancel.check()
             if candidate.key in selection.represented:
                 continue
-            self.progress(
+            self.progress.progress(
                 len(selection.pending),
                 count,
                 f"Checking dormant artist {candidate.name}",

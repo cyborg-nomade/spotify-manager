@@ -1,7 +1,7 @@
 """Compose historical selections and playlist effects with legacy boundaries."""
 
+from dataclasses import dataclass
 from datetime import date
-from functools import partial
 from pathlib import Path
 
 from spotipy import Spotify
@@ -9,26 +9,19 @@ from spotipy import Spotify
 from spotify_manager.application.historical_playlists import AnniversaryPlaylist
 from spotify_manager.application.historical_playlists import BlastPlaylist
 from spotify_manager.application.historical_playlists import HistoricalPlaylistEffects
+from spotify_manager.application.historical_resolution import HistoricalResolution
 from spotify_manager.application.historical_selection import AnniversarySelection
 from spotify_manager.application.historical_selection import BlastSelection
-from spotify_manager.application.historical_values import BlastFromPastBatch
-from spotify_manager.application.historical_values import BlastFromPastSpotifySummary
-from spotify_manager.application.historical_values import DailyMindRadioBatch
-from spotify_manager.application.historical_values import DailyMindRadioSpotifySummary
+from spotify_manager.application.ports.runtime import CancellationState
+from spotify_manager.application.ports.runtime import OptionalMessages
+from spotify_manager.infrastructure.legacy.historical_inputs import (
+    LegacyHistoricalInputs,
+)
 from spotify_manager.infrastructure.legacy.historical_playlists import (
     LegacyHistoricalPlaylist,
 )
 from spotify_manager.routines import blast_from_past as blast
 from spotify_manager.routines import daily_mind_radio as radio
-
-
-def _progress(callback: blast.ProgressCallback | None, message: str) -> None:
-    if callback is not None:
-        callback(message)
-
-
-def _today(today: date | None) -> date:
-    return today or radio.datetime.now(blast.SCROBBLE_TIMEZONE).date()
 
 
 def _effects(
@@ -38,56 +31,46 @@ def _effects(
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
 ) -> HistoricalPlaylistEffects:
-    adapter = LegacyHistoricalPlaylist(sp, playlist_id, progress, retry, cancel)
+
+    adapter = LegacyHistoricalPlaylist(sp, playlist_id, retry, cancel)
     return HistoricalPlaylistEffects(
-        adapter.read,
-        adapter.resolve,
-        adapter.append,
-        partial(blast.check_cancel, cancel),
-        partial(_progress, progress),
+        adapter,
+        historical_resolution(sp, progress, retry, cancel),
+        HistoricalCancellation(cancel),
+        OptionalMessages(progress),
     )
 
 
-def select_blast(
-    count: int,
+def blast_selection(
     path: Path,
     today: date | None,
     random: blast.RandomIndexReader,
     progress: blast.ProgressCallback | None,
-) -> BlastFromPastBatch:
-    """Bind Friday selection to its original public observation helpers.
+) -> BlastSelection:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
-        count: Requested date count.
         path: Local history export.
         today: Optional effective calendar date.
         random: Original random-index source.
         progress: Optional presenter.
 
     Returns:
-        Selected Friday batch.
-
-    Raises:
-        BlastFromPastError: Selection population or count is invalid.
+        The configured application dependencies or workflow.
     """
-    workflow = BlastSelection(
-        partial(blast.load_scrobbles_by_date, path),
-        partial(blast.friday_track_cutoff, today),
-        blast.eligible_dates,
-        random,
-        blast.select_scrobble,
-        partial(_progress, progress),
+    return BlastSelection(
+        LegacyHistoricalInputs(path, today, index_reader=random),
+        OptionalMessages(progress),
     )
-    return workflow.run(count)
 
 
-def select_radio(
+def anniversary_selection(
     path: Path,
     today: date | None,
     random: radio.RandomTimestampReader,
     progress: blast.ProgressCallback | None,
-) -> DailyMindRadioBatch:
-    """Bind anniversary selection to the original calendar and history boundaries.
+) -> AnniversarySelection:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         path: Local history export.
@@ -96,78 +79,47 @@ def select_radio(
         progress: Optional presenter.
 
     Returns:
-        Populated and missing anniversary dates with their selected tracks.
-
-    Raises:
-        LastFmExportError: History has no date buckets.
+        The configured application dependencies or workflow.
     """
-    workflow = AnniversarySelection(
-        partial(blast.load_scrobbles_by_date, path),
-        partial(_today, today),
-        radio.anniversary_dates,
-        random,
-        blast.select_scrobble,
-        partial(_progress, progress),
-    )
-    return workflow.run()
-
-
-def _blast_batch(
-    path: Path,
-    today: date | None,
-    random: blast.RandomIndexReader,
-    progress: blast.ProgressCallback | None,
-    count: int,
-) -> BlastFromPastBatch:
-    return blast.select_blast_from_past(
-        count=count,
-        path=path,
-        today=today,
-        random_index_reader=random,
-        progress_callback=progress,
+    return AnniversarySelection(
+        LegacyHistoricalInputs(path, today, timestamp_reader=random),
+        OptionalMessages(progress),
     )
 
 
-def add_blast(
+def blast_playlist(
     sp: Spotify,
     playlist_id: str,
-    count: int | None,
-    maximum: int | None,
     path: Path,
     today: date | None,
     random: blast.RandomIndexReader,
     progress: blast.ProgressCallback | None,
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
-    dry_run: bool,
-) -> BlastFromPastSpotifySummary:
-    """Compose the Friday playlist workflow without moving API reads across choices.
+) -> BlastPlaylist:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         sp: Caller-owned Spotify client.
         playlist_id: Destination playlist.
-        count: Optional explicit date count.
-        maximum: Optional destination capacity.
         path: Local history export.
         today: Optional effective local date.
         random: Original random-index reader.
         progress: Optional presenter.
         retry: Original retry policy.
         cancel: Optional cancellation predicate.
-        dry_run: Suppress remote mutation.
 
     Returns:
-        Original public playlist summary.
-
-    Raises:
-        BlastFromPastError: Selection, configuration or observations fail.
+        The configured application dependencies or workflow.
     """
-    select = partial(_blast_batch, path, today, random, progress)
-    workflow = BlastPlaylist(_effects(sp, playlist_id, progress, retry, cancel), select)
-    return workflow.run(playlist_id, count, maximum, dry_run)
+    selection = blast_selection(path, today, random, progress)
+    workflow = BlastPlaylist(
+        _effects(sp, playlist_id, progress, retry, cancel), selection
+    )
+    return workflow
 
 
-def add_radio(
+def anniversary_playlist(
     sp: Spotify,
     playlist_id: str,
     path: Path,
@@ -176,9 +128,8 @@ def add_radio(
     progress: blast.ProgressCallback | None,
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
-    dry_run: bool,
-) -> DailyMindRadioSpotifySummary:
-    """Compose anniversary selection before any destination playlist observation.
+) -> AnniversaryPlaylist:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         sp: Caller-owned Spotify client.
@@ -189,62 +140,63 @@ def add_radio(
         progress: Optional presenter.
         retry: Original retry policy.
         cancel: Optional cancellation predicate.
-        dry_run: Suppress remote mutation.
 
     Returns:
-        Original summary, including nullable lengths for empty selections.
-
-    Raises:
-        BlastFromPastError: Selection or observations fail.
+        The configured application dependencies or workflow.
     """
-    select = partial(
-        radio.select_daily_mind_radio,
-        path=path,
-        today=today,
-        random_timestamp_reader=random,
-        progress_callback=progress,
-    )
+    selection = anniversary_selection(path, today, random, progress)
     workflow = AnniversaryPlaylist(
-        _effects(sp, playlist_id, progress, retry, cancel), select
+        _effects(sp, playlist_id, progress, retry, cancel), selection
     )
-    return workflow.run(playlist_id, dry_run)
+    return workflow
 
 
-def resolve_matches(
+def historical_resolution(
     sp: Spotify,
-    selections: tuple[blast.ScrobbleSelection, ...],
-    playlist: blast.PlaylistState,
     progress: blast.ProgressCallback | None,
     retry: blast.RetryCall,
     cancel: blast.CancelCheck | None,
-) -> blast.SpotifySelectionResolution:
-    """Compose historical match resolution with the existing Spotify observations.
+) -> HistoricalResolution:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         sp: Caller-owned Spotify client.
-        selections: Ordered historical plays.
-        playlist: Observed destination membership.
         progress: Optional presenter.
         retry: Existing caller retry policy.
         cancel: Optional cancellation predicate.
 
     Returns:
-        Original match outcomes and pending additions.
-
-    Raises:
-        BlastFromPastError: Observation or cancellation fails.
+        The configured application dependencies or workflow.
     """
-    from spotify_manager.application.historical_resolution import HistoricalResolution
     from spotify_manager.infrastructure.legacy.historical_playlists import (
         LegacyHistoricalMatches,
     )
 
     adapter = LegacyHistoricalMatches(sp, retry, cancel)
     workflow = HistoricalResolution(
-        adapter.search,
-        adapter.liked,
-        partial(blast.check_cancel, cancel),
-        partial(_progress, progress),
-        blast.ALBUM_MATCH_THRESHOLD,
+        adapter,
+        HistoricalCancellation(cancel),
+        OptionalMessages(progress),
     )
-    return workflow.run(selections, playlist)
+    return workflow
+
+
+@dataclass(frozen=True)
+class HistoricalCancellation:
+    """Check the original feature cancellation state.
+
+    Args:
+        state: Original optional cancellation resource.
+    """
+
+    state: CancellationState | None
+
+    def check(self) -> None:
+        """Raise the original feature cancellation error when requested.
+
+        Raises:
+            RuntimeError: The feature cancellation state is set.
+        """
+        from spotify_manager.routines.blast_from_past import check_cancel
+
+        check_cancel(self.state)

@@ -14,9 +14,7 @@ from tests.support.artist_mapping import MappingObservations
 def _run(
     observed: MappingObservations, interactive: bool = True
 ) -> SpotifyArtistCandidate | str | None:
-    return ArtistMapping(observed.search, observed.choose if interactive else None).run(
-        ARTIST
-    )
+    return ArtistMapping(observed, observed if interactive else None).run(ARTIST)
 
 
 def test_mapping_unique_exact_is_automatic() -> None:

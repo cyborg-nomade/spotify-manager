@@ -10,9 +10,6 @@ from spotify_manager.application.queue_state import QueueStateAccess
 from spotify_manager.domain.artist_mapping import SpotifyArtistCandidate
 from spotify_manager.domain.discovery import CatalogTrack
 from spotify_manager.domain.history import Scrobble
-from spotify_manager.domain.queue_values import ArtistHistory
-from spotify_manager.domain.queue_values import ArtistRecommendation
-from spotify_manager.domain.queue_values import ArtistSeed
 
 
 class QueueFillEffects(Protocol):
@@ -28,7 +25,7 @@ class QueueFillEffects(Protocol):
             Original effective timestamp.
         """
 
-    def week(self, now: datetime) -> date:
+    def local_date(self, now: datetime) -> date:
         """Resolve the original local listening calendar.
 
         Args:
@@ -56,44 +53,6 @@ class QueueFillEffects(Protocol):
             Original observed Queue length.
         """
 
-    def seeds(
-        self,
-        history: tuple[ArtistHistory, ...],
-        count: int,
-        week: date,
-    ) -> tuple[ArtistSeed, ...]:
-        """Select the original weekly seed mix.
-
-        Args:
-            history: Original aggregated history.
-            count: Original requested weekly seeds.
-            week: Original effective listening week.
-
-        Returns:
-            Original ordered seeds.
-        """
-
-    def candidates(
-        self,
-        seeds: tuple[ArtistSeed, ...],
-        heard: set[str],
-        week: date,
-        limit: int,
-        now: datetime,
-    ) -> tuple[ArtistRecommendation, ...]:
-        """Gather original recommendations before represented-artist reads.
-
-        Args:
-            seeds: Original ordered seed artists.
-            heard: Original heard identities.
-            week: Original effective listening week.
-            limit: Original candidate pool size.
-            now: Original effective timestamp.
-
-        Returns:
-            Original ordered recommendations.
-        """
-
     def represented(self) -> set[str]:
         """Read original representation destinations before state loading.
 
@@ -116,18 +75,6 @@ class QueueFillEffects(Protocol):
 
         Returns:
             Original mapping or no mapping.
-        """
-
-    def resolve(
-        self, recommendation: ArtistRecommendation
-    ) -> SpotifyArtistCandidate | str | None:
-        """Interact using the original recommendation and ranked mapping facts.
-
-        Args:
-            recommendation: Original current candidate.
-
-        Returns:
-            Original mapping, skip, quit or no-match outcome.
         """
 
     def top_tracks(self, artist: SpotifyArtistCandidate) -> tuple[CatalogTrack, ...]:

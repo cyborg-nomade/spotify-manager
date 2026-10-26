@@ -2,7 +2,6 @@
 
 import json
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
@@ -33,7 +32,8 @@ from spotify_manager.application.genre_values import (
 
 # UFI
 from spotify_manager.core.state.compat import RoutineState
-from spotify_manager.core.state.compat import routine_state
+from spotify_manager.core.state.compat import StateLocation
+from spotify_manager.core.state.compat import routine_state_from
 from spotify_manager.core.state.service import StateService
 from spotify_manager.domain.genres import GenrePlaylistSource
 from spotify_manager.domain.genres import GenreRouteEntry as GenreRouteEntry
@@ -52,9 +52,12 @@ from spotify_manager.infrastructure.genre_models import (
 from spotify_manager.infrastructure.genre_models import (
     GenreRevealStateUpdate as GenreRevealStateUpdate,
 )
+from spotify_manager.infrastructure.genre_pages import PUBLIC_GENRE_PAGES
+from spotify_manager.infrastructure.genre_pages import GenrePages
 from spotify_manager.infrastructure.genre_sources import (
     EveryNoisePlaylistParser as _EveryNoisePlaylistParser,
 )
+from spotify_manager.infrastructure.routine_state_codecs import GenreRevealStateCodec
 from spotify_manager.routines import blast_from_past
 
 
@@ -81,7 +84,7 @@ GENRE_ROUTE_PATTERN = re.compile(
     r"const genres = (?P<route>\[\[.*?\]\]);\s+const STORAGE_KEY",
     re.DOTALL,
 )
-PageReader = Callable[[str], str]
+type PageReader = GenrePages
 
 
 @dataclass(frozen=True)
@@ -141,15 +144,10 @@ def _state_access(
     state_service: StateService | None,
 ) -> RoutineState:
     """Resolve shared production state or an explicit legacy test path."""
-    return routine_state(
-        name="genre_reveal",
-        default_factory=_default_state,
-        validator=validate_state,
-        legacy_path=path,
-        default_legacy_path=DEFAULT_STATE_PATH,
-        legacy_loader=_load_state_dict,
-        legacy_saver=_save_state_dict,
-        service=state_service,
+    return routine_state_from(
+        "genre_reveal",
+        GenreRevealStateCodec(),
+        StateLocation(path, DEFAULT_STATE_PATH, state_service),
     )
 
 
@@ -231,7 +229,9 @@ def _persist_update(
     update: GenreRevealStateUpdate,
 ) -> GenreRevealState:
     """Replace user-editable progress while preserving server metadata."""
-    from spotify_manager.bootstrap.genre_progress import update_genre_progress
+    from spotify_manager.interfaces.operations.genre_progress import (
+        update_genre_progress,
+    )
 
     return update_genre_progress(state_access, update)
 
@@ -382,9 +382,7 @@ def _playlist_id_from_url(url: str) -> str:
 
 
 def discover_genre_source(
-    slug: str,
-    name: str,
-    page_reader: PageReader = read_public_page,
+    slug: str, name: str, page_reader: PageReader = PUBLIC_GENRE_PAGES
 ) -> GenreRevealSourcePreview:
     """Find the primary Spotify playlist linked by an Every Noise genre page.
 
@@ -400,10 +398,32 @@ def discover_genre_source(
         ValidationError: Original request values are invalid.
         GenreRevealSourceError: Original page or primary link is unavailable.
     """
+    return _discover_genre_source(slug, name, page_reader)
+
+
+def _discover_genre_source(
+    slug: str,
+    name: str,
+    pages: GenrePages,
+) -> GenreRevealSourcePreview:
+    """Find the primary Spotify playlist linked by an Every Noise genre page.
+
+    Args:
+        slug: Original genre identity.
+        name: Original genre display name.
+        pages: Named public-page source.
+
+    Returns:
+        Original validated public source links.
+
+    Raises:
+        ValidationError: Original request values are invalid.
+        GenreRevealSourceError: Original page or primary link is unavailable.
+    """
     request = GenreRevealRunRequest(slug=slug, name=name)
     every_noise_url = EVERY_NOISE_URL_TEMPLATE.format(slug=request.slug)
     parser = _EveryNoisePlaylistParser()
-    parser.feed(page_reader(every_noise_url))
+    parser.feed(pages.read(every_noise_url))
 
     from spotify_manager.infrastructure.genre_sources import primary_playlist
 
@@ -428,9 +448,7 @@ def _first_track_uris(embed_html: str) -> tuple[str, ...]:
 
 
 def load_genre_playlist_source(
-    slug: str,
-    name: str,
-    page_reader: PageReader = read_public_page,
+    slug: str, name: str, page_reader: PageReader = PUBLIC_GENRE_PAGES
 ) -> _GenrePlaylistSource:
     """Resolve a genre's source playlist and its first ten ordered tracks.
 
@@ -446,13 +464,35 @@ def load_genre_playlist_source(
         ValidationError: Original request values are invalid.
         GenreRevealSourceError: Original source or ten markers are unavailable.
     """
-    preview = discover_genre_source(slug, name, page_reader)
+    return _load_genre_playlist_source(slug, name, page_reader)
+
+
+def _load_genre_playlist_source(
+    slug: str,
+    name: str,
+    pages: GenrePages,
+) -> _GenrePlaylistSource:
+    """Resolve a genre's source playlist and its first ten ordered tracks.
+
+    Args:
+        slug: Original genre identity.
+        name: Original genre display name.
+        pages: Named public-page source.
+
+    Returns:
+        Original public source and ordered distinct markers.
+
+    Raises:
+        ValidationError: Original request values are invalid.
+        GenreRevealSourceError: Original source or ten markers are unavailable.
+    """
+    preview = _discover_genre_source(slug, name, pages)
     embed_url = SPOTIFY_EMBED_URL_TEMPLATE.format(
         playlist_id=preview.source_playlist_id
     )
     return _GenrePlaylistSource(
         preview=preview,
-        track_uris=_first_track_uris(page_reader(embed_url)),
+        track_uris=_first_track_uris(pages.read(embed_url)),
     )
 
 
@@ -498,7 +538,7 @@ def process_next_genre(
     destination_playlist_id: str,
     *,
     log_path: Path = DEFAULT_LOG_PATH,
-    page_reader: PageReader = read_public_page,
+    page_reader: PageReader = PUBLIC_GENRE_PAGES,
 ) -> GenreRevealRunResult:
     """Save one genre playlist and copy its first ten missing tracks.
 
@@ -518,10 +558,17 @@ def process_next_genre(
         GenreRevealLogError: Original completion audit cannot be written.
         ValidationError: Original request values are invalid.
     """
-    from spotify_manager.bootstrap.genre_run import run_genre_reveal
+    from spotify_manager.interfaces.operations.genre_reveal import (
+        process_next_genre as operation,
+    )
 
-    return run_genre_reveal(
-        sp, slug, name, destination_playlist_id, log_path, page_reader
+    return operation(
+        sp,
+        slug,
+        name,
+        destination_playlist_id,
+        log_path=log_path,
+        page_reader=page_reader,
     )
 
 

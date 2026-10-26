@@ -5,16 +5,19 @@ from pathlib import Path
 from spotipy import Spotify
 
 from spotify_manager.application.queue_flush import QueueFlush
-from spotify_manager.application.queue_flush_values import FlushSummary
+from spotify_manager.application.queue_flush_planning import QueuePlanning
 from spotify_manager.core.state.service import StateService
+from spotify_manager.infrastructure.legacy.artist_assessment import (
+    LegacyAssessmentCatalog,
+)
 from spotify_manager.infrastructure.legacy.queue_flush import LegacyQueueFlush
+from spotify_manager.infrastructure.legacy.queue_planning import LegacyQueuePlanning
 from spotify_manager.routines import the_queue as legacy
 
 
-def flush_queue(
+def queue_flush(
     spotify: Spotify,
     playlists: legacy.QueuePlaylists,
-    preview: bool,
     echo: legacy.Echo,
     progress: legacy.ProgressCallback | None,
     retry: legacy.RetryCall | None,
@@ -22,13 +25,12 @@ def flush_queue(
     state_service: StateService | None,
     log_path: Path,
     artists_path: Path,
-) -> FlushSummary:
-    """Bind the original retry, state, SDK, mirror and presentation seams.
+) -> QueueFlush:
+    """Construct the invocation dependencies without executing the use case.
 
     Args:
         spotify: Original caller-owned Spotify client.
         playlists: Original configured destination identities.
-        preview: Original preview behavior.
         echo: Original text presenter.
         progress: Original optional status presenter.
         retry: Original optional retry boundary.
@@ -38,7 +40,7 @@ def flush_queue(
         artists_path: Original artist mirror location.
 
     Returns:
-        Original complete ordered flush outcome.
+        The configured application dependencies or workflow.
     """
     edge = LegacyQueueFlush(
         spotify,
@@ -51,4 +53,9 @@ def flush_queue(
         log_path,
         artists_path,
     )
-    return QueueFlush(edge).run(preview)
+    planning = QueuePlanning(
+        LegacyQueuePlanning(spotify, edge),
+        LegacyAssessmentCatalog(spotify, edge),
+        legacy.TOP_TRACK_LIMIT,
+    )
+    return QueueFlush(edge, planning)

@@ -1,11 +1,16 @@
 """Tests for the Queue 3 CLI command."""
 
+from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import Mock
 
+import pytest
 from rich.console import Console
 from typer.testing import CliRunner
 
 from spotify_manager import main
+from tests.support.feature_invocation import FeatureInvocation
 
 
 def release(spotify_id: str, name: str) -> main.slow_listening.DiscographyRelease:
@@ -94,16 +99,104 @@ def test_composer_playlist_prompt_returns_owned_selection(monkeypatch) -> None:
     assert prompts == ["Use which composer playlist?"]
 
 
-def test_flush_queue_3_dry_run_uses_configured_playlist(monkeypatch) -> None:
+def test_flush_queue_3_dry_run_uses_configured_playlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The CLI should pass dry-run mode and both boundary readers."""
     received: dict[str, object] = {}
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        Mock(
+            return_value=SimpleNamespace(
+                the_queue_3_playlist="https://open.spotify.com/playlist/queue3"
+            )
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    scenario = FlushQueue3DryRunUsesConfiguredPlaylistScenario(received=received)
+    monkeypatch.setattr(
+        main.queue_3, "flush_queue_3", FeatureInvocation(scenario, ("playlist_id",))
+    )
+    result = CliRunner().invoke(main.app, ["flush-queue-3", "--dry-run"])
+    assert result.exit_code == 0
+    assert received == {
+        "playlist_id": "queue3",
+        "dry_run": True,
+        "transition_reader": True,
+        "composer_playlist_reader": True,
+    }
+    assert "Imported Artist" in result.output
+    assert "Second - Opening" in result.output
+    assert "Preview only" in result.output
 
-    def flush(_spotify, playlist_id, **kwargs):
-        received.update(
+
+def test_previous_year_import_command_does_not_run_queue_transitions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The dedicated command should invoke only the annual import routine."""
+    received: dict[str, object] = {}
+    monkeypatch.setattr(
+        main,
+        "Settings",
+        Mock(
+            return_value=SimpleNamespace(
+                the_queue_3_playlist="https://open.spotify.com/playlist/queue3"
+            )
+        ),
+    )
+    monkeypatch.setattr(main, "review_client", Mock(return_value=object()))
+    scenario = PreviousYearImportCommandDoesNotRunQueueTransitionsScenario(
+        received=received
+    )
+    monkeypatch.setattr(
+        main.queue_3, "import_previous_year_discoveries", scenario.import_previous_year
+    )
+    result = CliRunner().invoke(main.app, ["import-queue-3-previous-year", "--dry-run"])
+    assert result.exit_code == 0
+    assert received == {
+        "playlist_id": "queue3",
+        "dry_run": True,
+        "progress_callback": True,
+    }
+    assert "Imported Artist" in result.output
+    assert "1 artist would be added; 2 already present" in result.output
+    assert "Preview" in result.output
+    assert "only." in result.output
+
+
+@dataclass
+class FlushQueue3DryRunUsesConfiguredPlaylistScenario:
+    """Retain the original flush queue 3 dry run uses configured playlist fixture.
+
+    Args:
+        received: Original received observation or resource.
+    """
+
+    received: dict[str, object]
+
+    def __call__(
+        self, _spotify: Any, playlist_id: Any, **kwargs: Any
+    ) -> main.queue_3.FlushSummary:
+        """Execute the original flush mock boundary.
+
+        Args:
+            _spotify: Original external mock argument.
+            playlist_id: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.received.update(
             playlist_id=playlist_id,
             dry_run=kwargs["dry_run"],
-            transition_reader=callable(kwargs["transition_reader"]),
-            composer_playlist_reader=callable(kwargs["composer_playlist_reader"]),
+            transition_reader=callable(
+                getattr(kwargs["transition_reader"], "choose_transition", None)
+            ),
+            composer_playlist_reader=callable(
+                getattr(kwargs["composer_playlist_reader"], "choose_composer", None)
+            ),
         )
         return main.queue_3.FlushSummary(
             run_id="run",
@@ -140,43 +233,39 @@ def test_flush_queue_3_dry_run_uses_configured_playlist(monkeypatch) -> None:
             ),
         )
 
-    monkeypatch.setattr(
-        main,
-        "Settings",
-        lambda: SimpleNamespace(
-            the_queue_3_playlist="https://open.spotify.com/playlist/queue3",
-        ),
-    )
-    monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(main.queue_3, "flush_queue_3", flush)
 
-    result = CliRunner().invoke(main.app, ["flush-queue-3", "--dry-run"])
+@dataclass
+class PreviousYearImportCommandDoesNotRunQueueTransitionsScenario:
+    """Retain the original previous year import command does not run queue transitions
+    fixture.
 
-    assert result.exit_code == 0
-    assert received == {
-        "playlist_id": "queue3",
-        "dry_run": True,
-        "transition_reader": True,
-        "composer_playlist_reader": True,
-    }
-    assert "Imported Artist" in result.output
-    assert "Second - Opening" in result.output
-    assert "Preview only" in result.output
+    Args:
+        received: Original received observation or resource.
+    """
 
+    received: dict[str, object]
 
-def test_previous_year_import_command_does_not_run_queue_transitions(
-    monkeypatch,
-) -> None:
-    """The dedicated command should invoke only the annual import routine."""
-    received: dict[str, object] = {}
+    def import_previous_year(
+        self, _spotify: Any, playlist_id: Any, **kwargs: Any
+    ) -> main.queue_3.AnnualImportSummary:
+        """Execute the original import previous year mock boundary.
 
-    def import_previous_year(_spotify, playlist_id, **kwargs):
-        received.update(
+        Args:
+            _spotify: Original external mock argument.
+            playlist_id: Original external mock argument.
+            kwargs: Original external mock argument.
+
+        Returns:
+            Original fixture result.
+        """
+        self.received.update(
             playlist_id=playlist_id,
             dry_run=kwargs["dry_run"],
-            progress_callback=callable(kwargs["progress_callback"]),
+            progress_callback=callable(
+                getattr(kwargs["progress_callback"], "progress", None)
+            ),
         )
-        kwargs["progress_callback"](1, 1, "Checked Great Discoveries 2025")
+        kwargs["progress_callback"].progress(1, 1, "Checked Great Discoveries 2025")
         return main.queue_3.AnnualImportSummary(
             active_year=2026,
             source_year=2025,
@@ -193,33 +282,3 @@ def test_previous_year_import_command_does_not_run_queue_transitions(
                 ),
             ),
         )
-
-    monkeypatch.setattr(
-        main,
-        "Settings",
-        lambda: SimpleNamespace(
-            the_queue_3_playlist="https://open.spotify.com/playlist/queue3",
-        ),
-    )
-    monkeypatch.setattr(main, "review_client", lambda: object())
-    monkeypatch.setattr(
-        main.queue_3,
-        "import_previous_year_discoveries",
-        import_previous_year,
-    )
-
-    result = CliRunner().invoke(
-        main.app,
-        ["import-queue-3-previous-year", "--dry-run"],
-    )
-
-    assert result.exit_code == 0
-    assert received == {
-        "playlist_id": "queue3",
-        "dry_run": True,
-        "progress_callback": True,
-    }
-    assert "Imported Artist" in result.output
-    assert "1 artist would be added; 2 already present" in result.output
-    assert "Preview" in result.output
-    assert "only." in result.output
