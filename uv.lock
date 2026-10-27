@@ -931,6 +931,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "huggingface-hub" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -946,7 +947,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "mypy" },
     { name = "pip-audit" },
     { name = "pytest" },
@@ -959,6 +959,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "huggingface-hub", specifier = ">=1.2" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.5" },
@@ -974,7 +975,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.27" },
     { name = "mypy", specifier = ">=1.11" },
     { name = "pip-audit", specifier = ">=2.7" },
     { name = "pytest", specifier = ">=8.2" },

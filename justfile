@@ -65,6 +65,13 @@ lint-audit:
 test: lint
     uv run pytest --random-order --show-capture=no --cov-report term-missing --cov={{ package_path }} tests
 
+# Verify native Spotify HTTP parity, credentials, cancellation and cleanup.
+test-spotify-async:
+    uv run ruff check spotify_manager/infrastructure/spotify_async spotify_manager/bootstrap/spotify_async.py spotify_manager/application/ports/spotify_async.py spotify_manager/client/events.py tests/spotify_async
+    uv run ruff format --check spotify_manager/infrastructure/spotify_async spotify_manager/bootstrap/spotify_async.py spotify_manager/application/ports/spotify_async.py spotify_manager/client/events.py tests/spotify_async
+    uv run mypy --strict spotify_manager/infrastructure/spotify_async spotify_manager/bootstrap/spotify_async.py spotify_manager/application/ports/spotify_async.py spotify_manager/client/events.py tests/spotify_async
+    uv run pytest --cov=spotify_manager.infrastructure.spotify_async --cov=spotify_manager.bootstrap.spotify_async --cov=spotify_manager.client.events --cov-branch --cov-fail-under=100 tests/spotify_async tests/bootstrap/test_callback_dependencies.py
+
 # Verify pure policies without application fixtures, configuration, or SDKs.
 test-domain:
     uv run ruff check spotify_manager/domain tests/domain
